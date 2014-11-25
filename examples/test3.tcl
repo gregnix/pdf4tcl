@@ -62,7 +62,7 @@ font create MyArial2 -family Arial -size 10
 
 pdf4tcl::loadBaseTrueTypeFont BaseArial "../examples/FreeSans.ttf"
 pdf4tcl::createFont BaseArial MyArial1 iso8859-1
-# "1" "euro" and "!" maps to 0 1 end 2
+# "1" "euro" and "!" maps to 0 1 and 2
 set subset [list 49 [expr 0x20AC] 33]
 pdf4tcl::createFontSpecEnc BaseArial MyArial2 $subset
 
