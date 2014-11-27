@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 08p
+VERSION = 081
 
 # TOOL paths
 TCLSH = tclsh
