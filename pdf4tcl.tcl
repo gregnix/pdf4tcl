@@ -961,10 +961,14 @@ namespace eval pdf4tcl {
         set p2 [PfbCheck $p1 $type1PFB 2]
         set p3 [PfbCheck $p2 $type1PFB 1]
         PfbCheck $p3 $type1PFB 3
-        set BFA($type1name,Length1) $p1
-        set BFA($type1name,Length2) [expr {$p2-$p1+7}]
-        set BFA($type1name,Length3) [expr {$p3-$p2-5}]
-        set BFA($type1name,data) $type1PFB
+        set BFA($type1name,Length1) [expr {$p1-6}]
+        set BFA($type1name,Length2) [expr {$p2-$p1-6}]
+        set BFA($type1name,Length3) [expr {$p3-$p2-6}]
+        # Extract the type 1 font from PFB
+        set d1 [string range $type1PFB 6 [expr {$p1 - 1}]]
+        set d2 [string range $type1PFB [expr {$p1 + 6}] [expr {$p2 - 1}]]
+        set d3 [string range $type1PFB [expr {$p2 + 6}] [expr {$p3 - 1}]]
+        set BFA($type1name,data) $d1$d2$d3
     }
 
     # Creates charWidths and mapping 'unicode=>glyph_name' for this font.
