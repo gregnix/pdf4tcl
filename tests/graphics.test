@@ -67,20 +67,20 @@ test graphics-3.2 {image} -body {
 } -result 1
 
 test graphics-4.1 {line} -body {
-    mytest {setLineStyle 10 5 7} {line 100 100 400 700} {
+    mytest {setLineStyle 10 5p 7} {line 100 100 400 700} {
          10 w \[5 7\] 0 d 200 300 m 500 900 l S
     }
 } -result 1
 
 test graphics-4.1.1 {line} -body {
-    mytest {setLineWidth 10} {setLineDash 5 7} {line 100 100 400 700} {
+    mytest {setLineWidth 10} {setLineDash 5 7p} {line 100 100 400 700} {
          10 w \[5 7\] 0 d 200 300 m 500 900 l S
     }
 } -result 1
 
 test graphics-4.2 {line} -body {
     mytest -orient 1 \
-            {setLineStyle 20} \
+            {setLineStyle 20p} \
             {line 0 0 300 600} {
         20 w \[\] 0 d 100 900 m 400 300 l S
     }
@@ -134,6 +134,12 @@ test graphics-4.7 {line style} -body {
 } -cleanup {
     Apa destroy
 } -returnCodes 1 -result {Bad line width 'gurka', must be numeric}
+
+test graphics-4.8 {line style} -body {
+    mytest {setLineWidth 12.3p} {setLineDash 5.3 7i 2p} {line 100 100 400 700} {
+         12.3 w \[5.3 504\] 2 d 200 300 m 500 900 l S
+    }
+} -result 1
 
 test graphics-5.1 {oval} -body {
     mytest {oval 10 10 5 5} {

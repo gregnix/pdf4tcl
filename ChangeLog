@@ -1,5 +1,9 @@
 2014-12-17 Peter Spjuth   <peter.spjuth@gmail.com>
-	* Documentation fixes, reported by Yaroslav Schekin
+	* setLineStyle, setLineWidth and setLineDash now interprets their
+	  inputs with units, like all distances. (Yaroslav Schekin)
+
+2014-12-17 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Documentation fixes (Yaroslav Schekin)
 
 2014-11-27 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Bumped revision to 0.8.1

@@ -1213,23 +1213,35 @@ snit::type pdf4tcl::pdf4tcl {
     # TODO: Fix nagelfar annotation to handle this nicely
     ##nagelfar syntax snit::type::pdf4tcl::pdf4tcl::CheckNumeric x x o*
     ##nagelfar option snit::type::pdf4tcl::pdf4tcl::CheckNumeric \
-            -nonnegative -positive -integer
+            -nonnegative -positive -integer -unit
+    ##nagelfar option snit::type::pdf4tcl::pdf4tcl::CheckNumeric\ -unit x
     proc CheckNumeric {val what args} {
+        set origVal $val
+        # If -unit is given, the value should be interpreted by getPoints
+        set i [lsearch -exact $args -unit]
+        if {$i >= 0} {
+            set unit [lindex $args [expr {$i + 1}]]
+            if {[catch {pdf4tcl::getPoints $val $unit} p]} {
+                return -code error "Bad $what '$val', must be numeric"
+            }
+            set val $p
+        }
         if {![string is double -strict $val]} {
-            return -code error "Bad $what '$val', must be numeric"
+            return -code error "Bad $what '$origVal', must be numeric"
         }
         set nonneg [lsearch -exact $args -nonnegative]
         set pos    [lsearch -exact $args -positive]
         set int    [lsearch -exact $args -integer]
         if {$nonneg >= 0 && $val < 0} {
-            return -code error "Bad $what '$val', may not be negative"
+            return -code error "Bad $what '$origVal', may not be negative"
         }
         if {$pos >= 0 && $val <= 0} {
-            return -code error "Bad $what '$val', must be positive"
+            return -code error "Bad $what '$origVal', must be positive"
         }
         if {$int >= 0 && ![string is integer -strict $val]} {
-            return -code error "Bad $what '$val', must be integer"
+            return -code error "Bad $what '$origVal', must be integer"
         }
+        return $val
     }
 
     # Configure method for -compress
@@ -2865,23 +2877,28 @@ snit::type pdf4tcl::pdf4tcl {
     ###<jpo 2004-11-08: replaced "on off" by "args"
     ###                 to enable resetting dashed lines
     method setLineStyle {width args} {
-        CheckNumeric $width "line width" -nonnegative
+        set width [CheckNumeric $width "line width" -nonnegative \
+                           -unit $pdf(unit)]
         # Validate dash pattern
         set sum 0
+        set pattern {}
         foreach p $args {
-            CheckNumeric $p "dash pattern" -nonnegative
+            set p [CheckNumeric $p "dash pattern" -nonnegative \
+                           -unit $pdf(unit)]
             set sum [expr {$sum + $p}]
+            lappend pattern [Nf $p]
         }
         if {[llength $args] > 0 && $sum == 0} {
             return -code error "Dash pattern may not be all zeroes"
         }
         $self EndTextObj
         $self Pdfoutcmd $width "w"
-        $self Pdfout "\[$args\] 0 d\n"
+        $self Pdfout "\[$pattern\] 0 d\n"
     }
 
     method setLineWidth {width} {
-        CheckNumeric $width "line width" -nonnegative
+        set width [CheckNumeric $width "line width" -nonnegative \
+                           -unit $pdf(unit)]
         $self EndTextObj
         $self Pdfoutcmd $width "w"
     }
@@ -2894,18 +2911,22 @@ snit::type pdf4tcl::pdf4tcl {
         } else {
             set offset 0
         }
-        CheckNumeric $offset "dash offset" -nonnegative
+        set offset [CheckNumeric $offset "dash offset" -nonnegative \
+                            -unit $pdf(unit)]
         # Validate dash pattern
         set sum 0
+        set pattern {}
         foreach p $args {
-            CheckNumeric $p "dash pattern" -nonnegative
+            set p [CheckNumeric $p "dash pattern" -nonnegative \
+                           -unit $pdf(unit)]
             set sum [expr {$sum + $p}]
+            lappend pattern [Nf $p]
         }
         if {[llength $args] > 0 && $sum == 0} {
             return -code error "Dash pattern may not be all zeroes"
         }
         $self EndTextObj
-        $self Pdfout "\[$args\] $offset d\n"
+        $self Pdfout "\[$pattern\] [Nf $offset] d\n"
     }
 
     method DrawLine {args} {
