@@ -270,7 +270,7 @@ as points.</p></dd>
 The <i class="arg">basefontname</i> is used to reference this font.
 To use this base font in documents, a font with some encoding must be
 created from it using createFont.
-Note that the type loading functions require Tcl 8.5.</p></dd>
+Note that the font loading functions require Tcl 8.5.</p></dd>
 <dt><a name="6"><b class="cmd">::pdf4tcl::createBaseTrueTypeFont</b> <i class="arg">basefontname</i> <i class="arg">ttf_data</i></a></dt>
 <dd><p>This call creates a base font from TTF binary data.</p></dd>
 <dt><a name="7"><b class="cmd">::pdf4tcl::loadBaseType1Font</b> <i class="arg">basefontname</i> <i class="arg">AFM_file_name</i> <i class="arg">PFB_file_name</i></a></dt>
@@ -290,7 +290,8 @@ pdf4tcl::createFont BaseType1 MyType1 cp1251
 pdf4tcl::new mypdf -paper a4 -compress 1
 mypdf startPage
 mypdf setFont 10 MyArial
-set txt &quot;\u042D\u0442\u043E \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C \u044F\u0437\u044B\u043A\u0435. This is text in Russian.&quot;
+set txt &quot;\u042D\u0442\u043E \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C\
+         \u044F\u0437\u044B\u043A\u0435. This is text in Russian.&quot;
 mypdf text $txt -bg #CACACA -x 50 -y 100
 mypdf setFont 10 MyType1
 mypdf text $txt -x 50 -y 200
@@ -305,11 +306,11 @@ The <i class="arg">subset</i> must be a list of unicode values.</p></dd>
 <dd><p>This call translates an RGB color value to a CMYK color value.
 It is used internally if <i class="arg">-cmyk</i> was set at object creation to 
 translate colors.
-You can redfine this procedure to provide your own translation.</p></dd>
+You can redefine this procedure to provide your own translation.</p></dd>
 <dt><a name="12"><b class="cmd">::pdf4tcl::cmyk2Rgb</b> <i class="arg">cmyk</i></a></dt>
 <dd><p>This call translates a CMYK color value to an RGB color value.
 It is used internally to translate colors.
-You can redfine this procedure to provide your own translation.</p></dd>
+You can redefine this procedure to provide your own translation.</p></dd>
 </dl>
 </div>
 <div id="subsection2" class="subsection"><h3><a name="subsection2">OBJECT COMMAND</a></h3>
@@ -503,7 +504,7 @@ setFont.</p>
 <dd></dd>
 <dt><b class="option">-fill</b> <i class="arg">bool</i>   (default 0) </dt>
 <dd><p>Any of <b class="option">-bg</b>, <b class="option">-background</b> or <b class="option">-fill</b> cause the text to be drawn 
-         on a background whose colour is set by setBgColor.</p></dd>
+         on a background whose color is set by setBgColor.</p></dd>
 </dl></dd>
 <dt><a name="42"><i class="arg">objectName</i> <b class="method">drawTextBox</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw the text string <i class="arg">str</i> wrapping at blanks and tabs so that it fits within the box defined
