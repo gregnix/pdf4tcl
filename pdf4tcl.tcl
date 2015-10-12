@@ -4325,13 +4325,14 @@ snit::type pdf4tcl::pdf4tcl {
         # Limited: Stipple scale and offset does not match screen display
         # Limited: window item needs Img, and needs to be mapped
 
-        switch [$path type $id] {
-            rectangle {
+        set type [$path type $id]
+        switch $type {
+            rectangle - prect {
                 foreach {x1 y1 x2 y2} $coords break
                 set w [expr {$x2 - $x1}]
                 set h [expr {$y2 - $y1}]
 
-                $self CanvasStdOpts opts
+                $self CanvasStdOpts opts [string equal $type "prect"]
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
@@ -4342,6 +4343,7 @@ snit::type pdf4tcl::pdf4tcl {
                 set opts(-outline)        $opts(-fill)
                 set opts(-outlinestipple) $opts(-stipple)
                 set opts(-outlineoffset)  $opts(-offset)
+
                 $self CanvasStdOpts opts
 
                 set arrows {}
@@ -4419,6 +4421,17 @@ snit::type pdf4tcl::pdf4tcl {
                         $self Pdfoutcmd $x $y $cmd
                         set cmd "l"
                     }
+                }
+                $self Pdfoutcmd "S"
+            }
+            pline { # TkPath item
+                $self CanvasStdOpts opts 1
+
+                # Draw lines
+                set cmd "m"
+                foreach {x y} $coords {
+                    $self Pdfoutcmd $x $y $cmd
+                    set cmd "l"
                 }
                 $self Pdfoutcmd "S"
             }
@@ -4926,7 +4939,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     # Setup the graphics state from standard options
-    method CanvasStdOpts {optsName} {
+    method CanvasStdOpts {optsName {isTkPath 0}} {
         upvar 1 $optsName opts
         variable patterns
 
@@ -4949,16 +4962,29 @@ snit::type pdf4tcl::pdf4tcl {
             set strokestippleid [$self CanvasGetBitmap $opts(-outlinestipple) \
                     $offset]
         }
-        # Outline controls stroke color
-        if {[info exists opts(-outline)] && $opts(-outline) ne ""} {
-            $self CanvasStrokeColor $opts(-outline) $strokestippleid
+        if {$isTkPath} {
+            if {[info exists opts(-stroke)]} {
+                if {$opts(-stroke) ne ""} {
+                    $self CanvasStrokeColor $opts(-stroke) $strokestippleid
+                }
+                set opts(-outline) $opts(-stroke)
+            }
+        } else {
+            # Outline controls stroke color in Tk Canvas
+            if {[info exists opts(-outline)] && $opts(-outline) ne ""} {
+                $self CanvasStrokeColor $opts(-outline) $strokestippleid
+            }
         }
         # Fill controls fill color
         if {[info exists opts(-fill)] && $opts(-fill) ne ""} {
             $self CanvasFillColor $opts(-fill) $fillstippleid
         }
         # Line width
-        if {[info exists opts(-width)]} {
+        if {$isTkPath} {
+            if {[info exists opts(-strokewidth)]} {
+                $self Pdfoutcmd $opts(-strokewidth) "w"
+            }
+        } elseif {[info exists opts(-width)]} {
             $self Pdfoutcmd $opts(-width) "w"
         }
         # Dash pattern and offset

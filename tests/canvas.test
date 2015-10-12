@@ -5,6 +5,9 @@
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
+# Try to locate any tkpath
+lappend ::auto_path ../../packages/tkpath ../packages/tkpath
+testConstraint tkpath [expr {![catch {package require tkpath}]}]
 
 package require Tk
 wm withdraw .
@@ -340,6 +343,17 @@ test canvas-9.1 {angled text} -constraints runin86 -body {
     }
     mytest {canvas .c} {
         ????
+    }
+} -cleanup {destroy .c} -result 1
+
+test canvas-10.1 {basic tkpath} -constraints tkpath -body {
+    tkp::canvas .c
+    .c create pline 10 10 80 80
+    .c create prect 20 20 50 60 -fill red -stroke blue
+    mytest {canvas .c} {
+        0 0 0 RG 1 w 10 10 m 80 80 l S
+        *
+        0 0 1 RG 1 0 0 rg 1 w 20 20 30 40 re B
     }
 } -cleanup {destroy .c} -result 1
 

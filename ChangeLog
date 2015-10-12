@@ -1,3 +1,6 @@
+2015-10-12 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Started on tkpath support in canvas method.
+
 2014-12-17 Peter Spjuth   <peter.spjuth@gmail.com>
 	* setLineStyle, setLineWidth and setLineDash now interprets their
 	  inputs with units, like all distances. (Yaroslav Schekin)
