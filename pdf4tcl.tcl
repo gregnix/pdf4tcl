@@ -1747,7 +1747,8 @@ snit::type pdf4tcl::pdf4tcl {
         # Determine the number of bookmarks to add to the document.
         set nbookmarks [llength $pdf(bookmarks)]
         if {$nbookmarks > 0} {
-            $self Pdfout "/Outlines [$self NextOid] 0 R\n"
+            set bookmark_oid [$self GetOid]
+            $self Pdfout "/Outlines $bookmark_oid 0 R\n"
         }
         $self Pdfout ">>\n"
         $self Pdfout "endobj\n\n"
@@ -1808,24 +1809,24 @@ snit::type pdf4tcl::pdf4tcl {
             $self Pdfout ">>\n"
         }
 
-        $self Pdfout ">>\nendobj\n\n"
+        $self Pdfout ">>\nendobj\n\n" ;# Resources object
 
         if {$nbookmarks > 0} {
             set count [BookmarkCount $pdf(bookmarks) -1]
 
             # Create the outline dictionary.
-            set oid [$self GetOid]
-            $self StoreXref $oid
-            $self Pdfout "$oid 0 obj\n"
+            set oid [$self NextOid]
+            $self StoreXref $bookmark_oid
+            $self Pdfout "$bookmark_oid 0 obj\n"
             $self Pdfout "<<\n/Type /Outlines\n"
-            $self Pdfout "/First [expr {$oid + 1}] 0 R\n"
-            $self Pdfout "/Last [expr {$oid + $nbookmarks}] 0 R\n"
+            $self Pdfout "/First $oid 0 R\n"
+            $self Pdfout "/Last [expr {$oid + $nbookmarks - 1}] 0 R\n"
             if {$count} {$self Pdfout "/Count $count\n"}
             $self Pdfout ">>\nendobj\n\n"
 
             # Create the outline item dictionary for each bookmark.
             set nbookmark 0
-            set parent $oid
+            set parent $bookmark_oid
             set previous {}
             foreach bookmark $pdf(bookmarks) {
                 if {[lindex $bookmark 1] == 0} {
