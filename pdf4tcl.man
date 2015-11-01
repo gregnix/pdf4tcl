@@ -271,8 +271,9 @@ This will do [method endPage] and [method finish] if needed.
 If the [option -file] option was given at object creation, an empty file
 is created.
 
-[call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] ]
+[call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
 Add an interactive form at the given position and size. Supported types are [arg text] and [arg checkbutton].
+Option [arg "-init"] gives an initial value for the form.
 
 [list_end]
 
@@ -485,7 +486,7 @@ package to load and dump images to raw format which can be fed to
 
 [list_begin definitions]
 
-[call [arg objectName] [method putImage] [arg "id"] [arg "x"] [arg "y"]  [opt [arg "option value"]...]]
+[call [arg objectName] [method putImage] [arg "id"] [arg "x"] [arg "y"] [opt [arg "option value"]...]]
 
 Put an image on the current page. The image must have been added previously by
 [method addImage] or [method addRawImage]. The [arg "id"] is the one returned

@@ -1,3 +1,7 @@
+2015-11-01 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Bumped revision to 0.8.2
+	* Added addForm method, for creating interactive forms.
+
 2015-10-12 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Started on tkpath support in canvas method.
 

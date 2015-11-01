@@ -301,7 +301,7 @@ package require \fBpdf4tcl  ?0.8.2?\fR
 .sp
 \fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR?
 .sp
-\fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
+\fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR...?
 .sp
 \fIobjectName\fR \fBgetDrawableArea\fR
 .sp
@@ -585,8 +585,9 @@ This will do \fBendPage\fR and \fBfinish\fR if needed.
 If the \fB-file\fR option was given at object creation, an empty file
 is created.
 .TP
-\fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
+\fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR...?
 Add an interactive form at the given position and size. Supported types are \fItext\fR and \fIcheckbutton\fR.
+Option \fI-init\fR gives an initial value for the form.
 .PP
 .SS "OBJECT METHODS, PAGE"
 .TP

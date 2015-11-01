@@ -4175,13 +4175,26 @@ snit::type pdf4tcl::pdf4tcl {
         if {[lsearch {text checkbutton} $ftype ] < 0} {# 8.5
             return -code error "Unknown form type $ftype"
         }
-
-        # No options yet, just prepared for it
+        set initValue ""
+        if {$ftype eq "checkbutton"} {
+            set initValue 0
+        }
+        
+        # Handle options
         foreach {option value} $args {
             switch -- $option {
+                -init {
+                    set initValue $value
+                }
                 default {
                     return -code error "Unknown option $option"
                 }
+            }
+        }
+        # Check init value
+        if {$ftype eq "checkbutton"} {
+            if {![string is boolean -strict $initValue]} {
+                return -code error "Initial value for checkbutton must be boolean"
             }
         }
 
@@ -4218,14 +4231,25 @@ snit::type pdf4tcl::pdf4tcl {
             append andict "  /T (textform[$self NextOid])\n"
             # Appearance
             append andict "  /DA ($tf 0 g)\n"
+            # Left justified flag
+            append andict "  /Q 0\n"
+            # Value
+            if {$initValue ne ""} {
+                append andict "  /V ([CleanText $initValue $pdf(current_font)])\n"
+            }
         } else {
-            # Form type checkbutton
+            # Form type checkbutton (Ff flags are zero for checkbutton)
             append andict "  /FT /Btn\n" 
             # Unique Identity
             append andict "  /T (checkbuttonform[$self NextOid])\n"
             # State
-            append andict "  /AS /Off\n" 
-            append andict "  /V /Off\n"
+            if {$initValue} {
+                append andict "  /AS /Yes\n" 
+                append andict "  /V /Yes\n"
+            } else {
+                append andict "  /AS /Off\n" 
+                append andict "  /V /Off\n"
+            }
             # Appearance
             append andict "  /AP << "
             append andict "   /N << /Yes $onid 0 R /Off $offid 0 R >>\n"
@@ -4237,8 +4261,6 @@ snit::type pdf4tcl::pdf4tcl {
         }
         # Flag for print
         append andict "  /F 4\n"
-        # Left justified flag
-        append andict "  /Q 0\n"
         append andict ">>\n"
         set anid [$self AddObject $andict]
 

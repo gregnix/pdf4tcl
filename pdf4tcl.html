@@ -164,7 +164,7 @@
 <li><a href="#23"><i class="arg">objectName</i> <b class="method">finish</b></a></li>
 <li><a href="#24"><i class="arg">objectName</i> <b class="method">get</b></a></li>
 <li><a href="#25"><i class="arg">objectName</i> <b class="method">write</b> <span class="opt">?<i class="arg">-file filename</i>?</span></a></li>
-<li><a href="#26"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></li>
+<li><a href="#26"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
 <li><a href="#27"><i class="arg">objectName</i> <b class="method">getDrawableArea</b></a></li>
 <li><a href="#28"><i class="arg">objectName</i> <b class="method">canvas</b> <i class="arg">path</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
 <li><a href="#29"><i class="arg">objectName</i> <b class="method">metadata</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -387,8 +387,9 @@ If no <i class="arg">filename</i> is given, it is written to stdout.
 This will do <b class="method">endPage</b> and <b class="method">finish</b> if needed.
 If the <b class="option">-file</b> option was given at object creation, an empty file
 is created.</p></dd>
-<dt><a name="26"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></dt>
-<dd><p>Add an interactive form at the given position and size. Supported types are <i class="arg">text</i> and <i class="arg">checkbutton</i>.</p></dd>
+<dt><a name="26"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dd><p>Add an interactive form at the given position and size. Supported types are <i class="arg">text</i> and <i class="arg">checkbutton</i>.
+Option <i class="arg">-init</i> gives an initial value for the form.</p></dd>
 </dl>
 </div>
 <div id="subsection4" class="subsection"><h3><a name="subsection4">OBJECT METHODS, PAGE</a></h3>
