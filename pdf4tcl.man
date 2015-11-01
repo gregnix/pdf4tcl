@@ -271,6 +271,9 @@ This will do [method endPage] and [method finish] if needed.
 If the [option -file] option was given at object creation, an empty file
 is created.
 
+[call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] ]
+Add an interactive form at the given position and size. Supported types are [arg text] and [arg checkbutton].
+
 [list_end]
 
 [subsection {OBJECT METHODS, PAGE}]

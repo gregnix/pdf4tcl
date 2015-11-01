@@ -1,0 +1,24 @@
+# Test form commands                                                 -*-tcl-*-
+#
+# $Id$
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+test form-1.1 {addForm method} -body {
+    mytest {addForm apa 0 0 10 10} {
+    }
+} -returnCodes 1 -result "Unknown form type apa"
+
+test form-1.2 {addForm method} -body {
+    mytest -all {addForm text 0 0 10 10} {
+        /Subtype /Widget * /FT /Tx /T * /DA
+    }
+} -result 1
+
+test form-1.3 {addForm method} -body {
+    mytest -all {addForm checkbutton 0 0 10 10} {
+        /Subtype /Widget * /FT /Btn /T * /AS
+    }
+} -result 1
+
+::tcltest::cleanupTests

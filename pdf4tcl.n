@@ -301,6 +301,8 @@ package require \fBpdf4tcl  ?0.8.1?\fR
 .sp
 \fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR?
 .sp
+\fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
+.sp
 \fIobjectName\fR \fBgetDrawableArea\fR
 .sp
 \fIobjectName\fR \fBcanvas\fR \fIpath\fR ?\fIoption value\fR...?
@@ -582,6 +584,9 @@ If no \fIfilename\fR is given, it is written to stdout.
 This will do \fBendPage\fR and \fBfinish\fR if needed.
 If the \fB-file\fR option was given at object creation, an empty file
 is created.
+.TP
+\fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
+Add an interactive form at the given position and size. Supported types are \fItext\fR and \fIcheckbutton\fR.
 .PP
 .SS "OBJECT METHODS, PAGE"
 .TP

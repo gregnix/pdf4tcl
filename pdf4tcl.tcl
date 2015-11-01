@@ -1289,6 +1289,7 @@ snit::type pdf4tcl::pdf4tcl {
         variable type1basefonts
 
         set pdf(bookmarks) {}
+        set pdf(forms) {}
         #set metadata(CreationDate) [string range [clock format [clock seconds] -format {D:%Y%m%d%H%M%S%z} -gmt 0] 0 end-2]
 
         # The unit translation factor is needed before parsing arguments
@@ -1747,8 +1748,13 @@ snit::type pdf4tcl::pdf4tcl {
         # Determine the number of bookmarks to add to the document.
         set nbookmarks [llength $pdf(bookmarks)]
         if {$nbookmarks > 0} {
-            set bookmark_oid [$self GetOid]
+            set bookmark_oid [$self GetOid 1]
             $self Pdfout "/Outlines $bookmark_oid 0 R\n"
+        }
+        # Any forms?
+        if {[llength $pdf(forms)] > 0} {
+            set form_oid [$self GetOid 1]
+            $self Pdfout "/AcroForm $form_oid 0 R\n"
         }
         $self Pdfout ">>\n"
         $self Pdfout "endobj\n\n"
@@ -1834,6 +1840,13 @@ snit::type pdf4tcl::pdf4tcl {
                 }
                 incr nbookmark
             }
+        }
+        # Any forms?
+        if {[llength $pdf(forms)] > 0} {
+            $self StoreXref $form_oid
+            $self Pdfout "$form_oid 0 obj\n"
+            $self Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
+            $self Pdfout ">>\nendobj\n\n"
         }
 
         # Create the PDF document information dictionary.
@@ -4154,6 +4167,85 @@ snit::type pdf4tcl::pdf4tcl {
 
         # 4. Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
+    }
+
+    # Add an interactive form
+    # Currently supports text and checkbutton
+    method addForm {ftype x y width height args} {
+        if {[lsearch {text checkbutton} $ftype ] < 0} {# 8.5
+            return -code error "Unknown form type $ftype"
+        }
+
+        # No options yet, just prepared for it
+        foreach {option value} $args {
+            switch -- $option {
+                default {
+                    return -code error "Unknown option $option"
+                }
+            }
+        }
+
+        # recompute coordinates to current system
+        $self Trans  $x $y x y
+        $self TransR $width $height width height
+        set x2 [expr {$x+$width}]
+        set y2 [expr {$y+$height}]
+
+        set tf "/$pdf(current_font) [Nf $pdf(font_size)] Tf" 
+        if {$ftype eq "checkbutton"} {
+            # Appearance streams for on and off state of check button.
+            # Currently I have no idea what this does.
+            set stream "q 0 0 1 rg BT $tf 0 0 Td (6ss) Tj ET Q"
+            set body [MakeStream "<< /BBox \[ 0 0 $width $height\] \n/Resources 3 0 R\n" $stream $pdf(compress)]
+            set onid [$self AddObject $body]
+            set stream "q 0 0 1 rg BT $tf 0 0 Td (5ss) Tj ET Q"
+            set body [MakeStream "<< /BBox \[ 0 0 $width $height\] \n/Resources 3 0 R\n" $stream $pdf(compress)]
+            set offid [$self AddObject $body]
+        }
+
+        # Create annotation
+        set andict "<<\n"
+        append andict "  /Subtype /Widget\n"
+        append andict "  /Resources 3 0 R\n"
+        # Page reference
+        append andict "  /P $pdf(pageobjid) 0 R\n"
+        # Placement
+        append andict "  /Rect \[$x $y $x2 $y2\]\n"
+        if {$ftype eq "text"} {
+            # Form type text
+            append andict "  /FT /Tx\n"
+            # Unique Identity
+            append andict "  /T (textform[$self NextOid])\n"
+            # Appearance
+            append andict "  /DA ($tf 0 g)\n"
+        } else {
+            # Form type checkbutton
+            append andict "  /FT /Btn\n" 
+            # Unique Identity
+            append andict "  /T (checkbuttonform[$self NextOid])\n"
+            # State
+            append andict "  /AS /Off\n" 
+            append andict "  /V /Off\n"
+            # Appearance
+            append andict "  /AP << "
+            append andict "   /N << /Yes $onid 0 R /Off $offid 0 R >>\n"
+            append andict "   /D << /Yes $onid 0 R /Off $offid 0 R >>\n"
+            append andict "  >>\n"
+            # ??
+            #append andict "  /H /P\n"
+            #append andict "  /MK << /CA (4) >>\n"
+        }
+        # Flag for print
+        append andict "  /F 4\n"
+        # Left justified flag
+        append andict "  /Q 0\n"
+        append andict ">>\n"
+        set anid [$self AddObject $andict]
+
+        # Insert annotation into current page
+        lappend pdf(annotations) "$anid 0 R"
+        # Insert form into document
+        lappend pdf(forms) "$anid 0 R"
     }
 
     #######################################################################

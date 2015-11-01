@@ -51,12 +51,15 @@ proc mytest {args} {
     set opts {-orient 0 -paper {800 1000} -margin {100 0 100 200}}
     set isopt 0
     set debug 0
+    set checkall 0
     foreach arg $args {
         if {$isopt} {
             set isopt 0
             lappend opts $arg
         } elseif {[string match "-debug" $arg]} {
             set debug 1
+        } elseif {[string match "-all" $arg]} {
+            set checkall 1
         } elseif {[string match "-*" $arg]} {
             set isopt 1
             lappend opts $arg
@@ -102,7 +105,10 @@ proc mytest {args} {
         file copy -force testdebug.pdf ..
         #file delete testdebug.pdf
     }
-    regexp {stream.*endstream} $res res
+    # Normally we just check the stream part
+    if {!$checkall} {
+        regexp {stream.*endstream} $res res
+    }
     regsub -all {\s+} $res " " res
 
     set pattern *[string trim $pattern]*

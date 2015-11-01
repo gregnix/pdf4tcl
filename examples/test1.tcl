@@ -14,6 +14,16 @@ p1 rectangle 400 40 166 166 -filled 1
 p1 setFillColor 0 0 0
 p1 setFont 12 "Helvetica"
 p1 text "linksbündig" -x 100 -y 200
+p1 rectangle 200 40 166 20
+p1 addForm text 200 40 166 20
+p1 setFont 8 "Helvetica"
+p1 rectangle 400 40 50 20
+p1 addForm text 400 40 50 20
+p1 rectangle 200 80 40 40
+p1 addForm checkbutton 200 80 40 40
+p1 rectangle 280 80 20 20
+p1 addForm checkbutton 280 80 20 20
+p1 setFont 12 "Helvetica"
 p1 text "rechtsbündig \xAC" -align right -x 100 -y 214
 p1 text "zentriert" -align center -x 100 -y 228
 p1 setFont 8 "Times-Roman"
