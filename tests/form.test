@@ -14,6 +14,16 @@ test form-1.2 {addForm method, errors} -body {
     }
 } -returnCodes 1 -result "Initial value for checkbutton must be boolean"
 
+test form-1.3 {addForm method, errors} -body {
+    mytest {addForm checkbutton 0 0 10 10 -on hej} {
+    }
+} -returnCodes 1 -result "Bad id for -on"
+
+test form-1.4 {addForm method, errors} -body {
+    mytest {addForm checkbutton 0 0 10 10 -off hej} {
+    }
+} -returnCodes 1 -result "Bad id for -off"
+
 test form-2.1 {addForm method, text} -body {
     mytest -all {addForm text 0 0 10 10} {
         /Subtype /Widget * /FT /Tx /T * /DA

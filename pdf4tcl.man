@@ -274,6 +274,7 @@ is created.
 [call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
 Add an interactive form at the given position and size. Supported types are [arg text] and [arg checkbutton].
 Option [arg "-init"] gives an initial value for the form.
+For a checkbutton, options [arg "-on"] and [arg "-off"] can be given an xobject (created with [method startXObject]) to control its appearance.
 
 [list_end]
 

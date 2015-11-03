@@ -4187,10 +4187,13 @@ snit::type pdf4tcl::pdf4tcl {
     # Add an interactive form
     # Currently supports text and checkbutton
     method addForm {ftype x y width height args} {
+        variable images
         if {[lsearch {text checkbutton} $ftype ] < 0} {# 8.5
             return -code error "Unknown form type $ftype"
         }
         set initValue ""
+        set onObj ""
+        set offObj ""
         if {$ftype eq "checkbutton"} {
             set initValue 0
         }
@@ -4201,6 +4204,12 @@ snit::type pdf4tcl::pdf4tcl {
                 -init {
                     set initValue $value
                 }
+                -on {
+                    set onObj $value
+                }
+                -off {
+                    set offObj $value
+                }
                 default {
                     return -code error "Unknown option $option"
                 }
@@ -4210,6 +4219,24 @@ snit::type pdf4tcl::pdf4tcl {
         if {$ftype eq "checkbutton"} {
             if {![string is boolean -strict $initValue]} {
                 return -code error "Initial value for checkbutton must be boolean"
+            }
+            if {$offObj ne ""} {
+                if {![info exists images($offObj)]} {
+                    return -code error "Bad id for -off"
+                }
+                # Must have been created by xobject, image is no good
+                if {![string match xobject* $offObj]} {
+                    return -code error "Bad id for -off"
+                }
+            }
+            if {$onObj ne ""} {
+                if {![info exists images($onObj)]} {
+                    return -code error "Bad id for -on"
+                }
+                # Must have been created by xobject, image is no good
+                if {![string match xobject* $onObj]} {
+                    return -code error "Bad id for -on"
+                }
             }
         }
 
@@ -4227,28 +4254,37 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         if {$ftype eq "checkbutton"} {
-            # TODO: Allow XObjects from startXObjects to be used as appearance
+            # Note, the xobject will be scaled to fit in the form's Rect and
+            # thus do not need to be the same size.
             $self SetupZaDbFont
 
             # Appearance streams for on and off state of check button.
             set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
             append obj "/Resources 3 0 R\n"
             append obj "/Subtype /Form\n/Type /XObject\n"
-            # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
-            set fs [expr {$height * 0.9}]
-            set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
-            set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
-            set cX [expr {($width-$charW)/2.0}]
-            set cY [expr {$height*0.05 + $baseL}]
-            set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
-            append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
-            append stream "\[(4)\]TJ ET EMC"
-            set body [MakeStream $obj $stream $pdf(compress)]
-            set onid [$self AddObject $body]
-            # Empty, for off
-            set stream ""
-            set body [MakeStream $obj $stream $pdf(compress)]
-            set offid [$self AddObject $body]
+            if {$onObj ne ""} {
+                set onid [lindex $images($onObj) 2]
+            } else {
+                # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
+                set fs [expr {$height * 0.9}]
+                set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
+                set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
+                set cX [expr {($width-$charW)/2.0}]
+                set cY [expr {$height*0.05 + $baseL}]
+                set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
+                append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
+                append stream "\[(4)\]TJ ET EMC"
+                set body [MakeStream $obj $stream $pdf(compress)]
+                set onid [$self AddObject $body]
+            }
+            if {$offObj ne ""} {
+                set offid [lindex $images($offObj) 2]
+            } else {
+                # Empty, for off
+                set stream ""
+                set body [MakeStream $obj $stream $pdf(compress)]
+                set offid [$self AddObject $body]
+            }
         }
 
         # Create annotation

@@ -4,6 +4,18 @@ lappend auto_path [pwd]/../..
 package require pdf4tcl
 
 pdf4tcl::new p1 -compress false -paper a4
+# Use an XObject as appeareance for a form below
+set xobj1 [p1 startXObject]
+p1 line 0 0 100 100
+p1 line 0 100 100 0
+p1 endXObject
+set xobj2 [p1 startXObject]
+p1 setFillColor \#FF0000
+p1 setStrokeColor \#0000FF
+p1 circle 50 50 40 -filled 1
+p1 circle 50 50 20
+p1 endPage
+
 p1 startPage
 p1 line 100 140 300 160
 p1 setStrokeColor 1 0 0
@@ -50,6 +62,10 @@ p1 setFillColor 0 0 0
 p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbündige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls möglich." -align right
 p1 addJpeg tcl.jpg 1
 p1 putImage 1 20 20 -height 75
+p1 rectangle 95 95 20 20
+p1 addForm checkbutton 95 95 20 20 -on $xobj1
+p1 rectangle 115 115 20 20
+p1 addForm checkbutton 115 115 20 20 -on $xobj2
 p1 write -file test1.pdf
 p1 cleanup
 
