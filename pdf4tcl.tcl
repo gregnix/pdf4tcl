@@ -4285,6 +4285,21 @@ snit::type pdf4tcl::pdf4tcl {
                 set body [MakeStream $obj $stream $pdf(compress)]
                 set offid [$self AddObject $body]
             }
+        } else {
+            if {$initValue ne ""} {
+                # Appearance stream for init value of text
+                set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
+                append obj "/Resources 3 0 R\n"
+                append obj "/Subtype /Form\n/Type /XObject\n"
+                set stream "/Tx BMC BT "
+                append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
+                # TODO: correct placement?
+                append stream "2 1.1 Td "
+                append stream "([CleanText $initValue $pdf(current_font)]) Tj "
+                append stream "ET EMC"
+                set body [MakeStream $obj $stream $pdf(compress)]
+                set onid [$self AddObject $body]
+            }
         }
 
         # Create annotation
@@ -4306,6 +4321,8 @@ snit::type pdf4tcl::pdf4tcl {
             # Value
             if {$initValue ne ""} {
                 append andict "  /V ([CleanText $initValue $pdf(current_font)])\n"
+                # Appearance
+                append andict "  /AP << /N $onid 0 R >>\n"
             }
         } else {
             # Form type checkbutton (Ff flags are zero for checkbutton)
