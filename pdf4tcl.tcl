@@ -2201,6 +2201,20 @@ snit::type pdf4tcl::pdf4tcl {
         foreach {pdf(current_font) pdf(font_size) pdf(font_set)} $old break
     }
 
+    # Make Sure ZaDb font is available, for internal use
+    method SetupZaDbFont {} {
+        variable fonts
+        set fontname ZaDb
+        if {[info exists fonts($fontname)]} return
+        set body    "<<\n/Type /Font\n"
+        append body "/Subtype /Type1\n"
+        append body "/Name /$fontname\n"
+        append body "/BaseFont /ZapfDingbats\n"
+        append body ">>"
+        set oid [$self AddObject $body]
+        set fonts($fontname) $oid
+    }
+
     # Set the current font on the page
     method SetupFont {} {
         variable fonts
@@ -4202,17 +4216,36 @@ snit::type pdf4tcl::pdf4tcl {
         $self Trans  $x $y x y
         $self TransR $width $height width height
         set x2 [expr {$x+$width}]
-        set y2 [expr {$y+$height}]
+        # Make sure we have a positive height, regardless of coordinate system.
+        if {$height < 0} {
+            set y2 $y
+            set y [expr {$y2+$height}]
+            set height [expr {-$height}]
+        } else {
+            set y2 [expr {$y+$height}]
+        }
 
         set tf "/$pdf(current_font) [Nf $pdf(font_size)] Tf" 
         if {$ftype eq "checkbutton"} {
+            $self SetupZaDbFont
+
             # Appearance streams for on and off state of check button.
-            # Currently I have no idea what this does.
-            set stream "q 0 0 1 rg BT $tf 0 0 Td (6ss) Tj ET Q"
-            set body [MakeStream "<< /BBox \[ 0 0 $width $height\] \n/Resources 3 0 R\n" $stream $pdf(compress)]
+            set obj "<< /BBox \[ 0 0 $width $height\] \n"
+            append obj "/Resources 3 0 R\n"
+            append obj "/Subtype /Form\n/Type /XObject\n"
+            # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
+            set fs [expr {$height * 0.9}]
+            set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
+            set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
+            set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb $fs Tf "
+            append stream "1 0 0 1 [expr {($width-$charW)/2.0}] "
+            append stream "[expr {$height*0.05 + $baseL}] Tm "
+            append stream "\[(4)\]TJ ET EMC"
+            set body [MakeStream $obj $stream $pdf(compress)]
             set onid [$self AddObject $body]
-            set stream "q 0 0 1 rg BT $tf 0 0 Td (5ss) Tj ET Q"
-            set body [MakeStream "<< /BBox \[ 0 0 $width $height\] \n/Resources 3 0 R\n" $stream $pdf(compress)]
+            # Empty, for off
+            set stream ""
+            set body [MakeStream $obj $stream $pdf(compress)]
             set offid [$self AddObject $body]
         }
 
@@ -4255,8 +4288,9 @@ snit::type pdf4tcl::pdf4tcl {
             append andict "   /N << /Yes $onid 0 R /Off $offid 0 R >>\n"
             append andict "   /D << /Yes $onid 0 R /Off $offid 0 R >>\n"
             append andict "  >>\n"
+            # Highlight mode = Push
+            append andict "  /H /P\n"
             # ??
-            #append andict "  /H /P\n"
             #append andict "  /MK << /CA (4) >>\n"
         }
         # Flag for print
