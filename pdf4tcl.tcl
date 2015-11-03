@@ -1846,6 +1846,7 @@ snit::type pdf4tcl::pdf4tcl {
             $self StoreXref $form_oid
             $self Pdfout "$form_oid 0 obj\n"
             $self Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
+            $self Pdfout "/DR 3 0 R\n"
             $self Pdfout ">>\nendobj\n\n"
         }
 
@@ -4225,21 +4226,22 @@ snit::type pdf4tcl::pdf4tcl {
             set y2 [expr {$y+$height}]
         }
 
-        set tf "/$pdf(current_font) [Nf $pdf(font_size)] Tf" 
         if {$ftype eq "checkbutton"} {
+            # TODO: Allow XObjects from startXObjects to be used as appearance
             $self SetupZaDbFont
 
             # Appearance streams for on and off state of check button.
-            set obj "<< /BBox \[ 0 0 $width $height\] \n"
+            set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
             append obj "/Resources 3 0 R\n"
             append obj "/Subtype /Form\n/Type /XObject\n"
             # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
             set fs [expr {$height * 0.9}]
             set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
             set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
-            set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb $fs Tf "
-            append stream "1 0 0 1 [expr {($width-$charW)/2.0}] "
-            append stream "[expr {$height*0.05 + $baseL}] Tm "
+            set cX [expr {($width-$charW)/2.0}]
+            set cY [expr {$height*0.05 + $baseL}]
+            set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
+            append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
             append stream "\[(4)\]TJ ET EMC"
             set body [MakeStream $obj $stream $pdf(compress)]
             set onid [$self AddObject $body]
@@ -4252,18 +4254,17 @@ snit::type pdf4tcl::pdf4tcl {
         # Create annotation
         set andict "<<\n"
         append andict "  /Subtype /Widget\n"
-        append andict "  /Resources 3 0 R\n"
         # Page reference
         append andict "  /P $pdf(pageobjid) 0 R\n"
         # Placement
-        append andict "  /Rect \[$x $y $x2 $y2\]\n"
+        append andict "  /Rect \[[Nf $x] [Nf $y] [Nf $x2] [Nf $y2]\]\n"
         if {$ftype eq "text"} {
             # Form type text
             append andict "  /FT /Tx\n"
             # Unique Identity
             append andict "  /T (textform[$self NextOid])\n"
             # Appearance
-            append andict "  /DA ($tf 0 g)\n"
+            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
             # Left justified flag
             append andict "  /Q 0\n"
             # Value
