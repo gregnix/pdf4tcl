@@ -3,7 +3,7 @@
 #
 # Copyright (c) 2004 by Frank Richter <frichter@truckle.in-chemnitz.de> and
 #                       Jens Ponisch <jens@ruessel.in-chemnitz.de>
-# Copyright (c) 2006-2014 by Peter Spjuth <peter.spjuth@gmail.com>
+# Copyright (c) 2006-2015 by Peter Spjuth <peter.spjuth@gmail.com>
 # Copyright (c) 2009 by Yaroslav Schekin <ladayaroslav@yandex.ru>
 #
 # See the file "licence.terms" for information on usage and redistribution
@@ -4135,7 +4135,7 @@ snit::type pdf4tcl::pdf4tcl {
             set id file$fsid
         }
         set files($id) $fsid
-        
+
         return $id
     }
 
@@ -4201,7 +4201,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$ftype eq "checkbutton"} {
             set initValue 0
         }
-        
+
         # Handle options
         foreach {option value} $args {
             switch -- $option {
@@ -5478,26 +5478,18 @@ snit::type pdf4tcl::pdf4tcl {
 # Implementation of pdf4tcl::catPdf resides below
 #######################################################################
 
+# Put all helpers in a namespace
 namespace eval pdf4tcl::cat {}
 
-# Parse a PDF dictionary in <<>> and put its elemens and values in a tcl dict
-# If isobj is true, the input includes N 0 obj .. endobj 
-proc pdf4tcl::cat::PdfDictToTclDict {dict {isobj 0}} {
-    set apa $dict
-    if {$isobj} {
-        # Remove surrounding obj
-        regexp {^\s*\d+\s+0\s+obj\s*(.*)$} $dict -> dict
-        set dict [string trim $dict]
-        # Remove endobj
-        set dict [string range $dict 0 end-6]
-    }
+# Parse a PDF dictionary in <<>> and put its elements and values in a tcl dict
+proc pdf4tcl::cat::PdfDictToTclDict {dict} {
     # Remove surrounding <<>>
     regexp {^\s*<<\s*(.*?)\s*>>\s*$} $dict -> values
     if {![info exists values]} {
-        puts DICT??
-        puts '$apa'
+        #puts DICT??
         return {}
     }
+    # Parser
     set state none
     set key ""
     set value ""
@@ -5559,6 +5551,19 @@ proc pdf4tcl::cat::PdfDictToTclDict {dict {isobj 0}} {
     return $result
 }
 
+# Parse a PDF object's dictionary and put its elements and values in a
+# tcl dict
+proc pdf4tcl::cat::PdfObjToTclDict {obj} {
+    #set apa $dict
+    # Remove surrounding obj
+    regexp {^\s*\d+\s+0\s+obj\s*(.*)$} $obj -> obj
+    set obj [string trim $obj]
+    # Remove endobj
+    set dict [string range $obj 0 end-6]
+    # TODO: remove any stream?
+    return [PdfDictToTclDict $dict]
+}
+
 # Make a tcl dict into a PDF dictionary in <<>>
 proc pdf4tcl::cat::TclDictToPdfDict {dict} {
     set res "<<"
@@ -5584,7 +5589,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set ch [open $file rb]
     set data [read $ch]
     close $ch
-    
+
     # Locate xref table
     regexp {startxref\s+(\d+)\s+%%EOF\s*$} $data -> startxref
     set endpart [string range $data $startxref end]
@@ -5616,13 +5621,13 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set rval [dict get $trailer /Root]
     set rootid [lindex $rval 0]
     dict set pdfdata "rootid" $rootid
-    dict set pdfdata root [PdfDictToTclDict [dict get $pdfdata $rootid full] 1]
+    dict set pdfdata root [PdfObjToTclDict [dict get $pdfdata $rootid full]]
     # Any info object?
     if {[dict exists $trailer /Info]} {
         set rval [dict get $trailer /Info]
         set infoid [lindex $rval 0]
         dict set pdfdata "infoid" $infoid
-        dict set pdfdata info [PdfDictToTclDict [dict get $pdfdata $infoid full] 1]
+        dict set pdfdata info [PdfObjToTclDict [dict get $pdfdata $infoid full]]
     }
 
     return $pdfdata
@@ -5632,8 +5637,10 @@ proc pdf4tcl::cat::ReadPdf {file} {
 proc pdf4tcl::cat::Dump {pdfdata} {
     array set d $pdfdata
     parray d {[a-zA-Z]*}
-    # lowest id 
+    # lowest id
     parray d [lindex [lsort -dictionary [dict keys $pdfdata]] 0]
+    parray d 6
+    parray d 285
 }
 
 # Write to an output stream, keep track of number of chars
@@ -5675,7 +5682,7 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
 
 # renumber any " N 0 R" reference found
 # TODO: detect stream in an object??
-proc pdf4tcl::cat::RenumberRef {val delta} {
+proc pdf4tcl::cat::RenumberRef {val delta {refmapping {}}} {
     set rest $val
     set result ""
     while {$rest ne ""} {
@@ -5689,19 +5696,25 @@ proc pdf4tcl::cat::RenumberRef {val delta} {
             append result $rest
             break
         }
-         
+
         append result [string range $rest 0 $is]
         incr is
         set ref [string range $rest $is $ie]
         incr ie
         set rest [string range $rest $ie end]
-        append result "[expr {[lindex $ref 0] + $delta}] 0 R"
+
+        set ref [lindex $ref 0]
+        set new [expr {$ref + $delta}]
+        if {[dict exists $refmapping $ref]} {
+            set new [dict get $refmapping $ref]
+        }
+        append result "$new 0 R"
     }
     return $result
 }
 
 # renumber Tcl dict version of a dict
-proc pdf4tcl::cat::RenumberDict {d delta} {
+proc pdf4tcl::cat::RenumberDict {d delta {refmapping {}}} {
     foreach {key val} $d {
         dict set d $key [RenumberRef $val $delta]
     }
@@ -5709,26 +5722,26 @@ proc pdf4tcl::cat::RenumberDict {d delta} {
 }
 
 # Renumber a complete object
-proc pdf4tcl::cat::RenumberObj {obj delta} {
+proc pdf4tcl::cat::RenumberObj {obj delta {refmapping {}}} {
     # Extract initial obj part
     if {![regexp {^\s*(\d+)\s+0\s+obj\s*(.*)$} $obj -> objid objbody]} {
-        puts OBJ??
-        puts '$obj'
-        set objbody $obj
+        #puts OBJ??
+        #puts '$obj'
+        return $obj
     }
     # TODO, remove any stream before passing it to RenumberRef
-    set objbody [RenumberRef $objbody $delta]
+    set objbody [RenumberRef $objbody $delta $refmapping]
     set objid [expr {$objid + $delta}]
     set result "$objid 0 obj\n$objbody"
     return $result
 }
 
-proc pdf4tcl::cat::RenumberPdf {pdfd delta} {
+proc pdf4tcl::cat::RenumberPdf {pdfd delta {refmapping {}}} {
     set newd {}
     foreach {key val} $pdfd {
         if {[string is digit $key]} {
             set val [dict get $val full] ;# TBD if stream identified?
-            dict set newd [expr {$key + $delta}] full [RenumberObj $val $delta]
+            dict set newd [expr {$key + $delta}] full [RenumberObj $val $delta $refmapping]
             continue
         }
         switch $key {
@@ -5749,23 +5762,31 @@ proc pdf4tcl::cat::RenumberPdf {pdfd delta} {
 
 # Add one pdf's contents to another
 proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
-    # First, renumber all objects in pdf2
-    set delta [expr {[dict get $pdf1 N] - 1}]
-    set pdf2 [RenumberPdf $pdf2 $delta]
-    #Dump $pdf2
-    # Get the list of pages from second pdf
-    set pages2id [lindex [dict get $pdf2 root /Pages] 0]
-    regexp {/Kids\s*\[([^\]]*)\]} [dict get $pdf2 $pages2id full] -> kids2vec
-    puts "PAGE2 $pages2id $kids2vec"
     # Get the pages from first pdf
     set pages1id [lindex [dict get $pdf1 root /Pages] 0]
     regexp {/Kids\s*\[([^\]]*)\]} [dict get $pdf1 $pages1id full] -> kids1vec
-    puts "PAGE1 $pages1id $kids1vec"
-    # Recreate the pages object and replace it first
+
+    # Get the pages id from second pdf
+    set pages2id [lindex [dict get $pdf2 root /Pages] 0]
+    # References in pdf2 to its Pages object should be redirected
+    # to pdf1's Pages object instead, 
+    set refmapping [list $pages2id $pages1id]
+
+    # Now, renumber all objects in pdf2 to put them after all objs in pdf1
+    set delta [expr {[dict get $pdf1 N] - 1}]
+    set pdf2 [RenumberPdf $pdf2 $delta $refmapping]
+    #Dump $pdf2
+
+    # Get the list of pages from second pdf, after renumbering
+    set pages2id [lindex [dict get $pdf2 root /Pages] 0]
+    regexp {/Kids\s*\[([^\]]*)\]} [dict get $pdf2 $pages2id full] -> kids2vec
+    #puts "PAGE2 $pages2id $kids2vec"
+
+    # Recreate the pages object and replace it in pdf1
     set kids "$kids1vec $kids2vec"
     set count [expr {[llength $kids] / 3}]
     set newobj "$pages1id 0 obj\n<<\n"
-    append newobj "/Type Pages\n"
+    append newobj "/Type /Pages\n"
     append newobj "/Count $count\n"
     append newobj "/Kids \[ $kids \]\n"
     append newobj ">>\nendobj"
@@ -5783,7 +5804,6 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
     dict set pdf1 trailer /Size [dict get $pdf2 N]
     dict set pdf1 N [dict get $pdf2 N]
 
-    # Dummy return for now
     return $pdf1
 }
 
@@ -5798,12 +5818,12 @@ proc pdf4tcl::catPdf {args} {
     set outfile [lindex $args end]
     set infile1 [lindex $args 0]
     set infiles [lrange $args 1 end-1]
-    
+
     set pdf1 [pdf4tcl::cat::ReadPdf $infile1]
-    #Dump $pdf1
+    #pdf4tcl::cat::Dump $pdf1
     foreach f $infiles {
         set pdf2 [pdf4tcl::cat::ReadPdf $f]
-        #Dump $pdf2
+        #pdf4tcl::cat::Dump $pdf2
         set pdf1 [pdf4tcl::cat::AppendPdf $pdf1 $pdf2]
     }
     pdf4tcl::cat::WritePdf $outfile $pdf1
