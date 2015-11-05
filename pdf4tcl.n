@@ -275,6 +275,8 @@ package require \fBpdf4tcl  ?0.8.2?\fR
 .sp
 \fB::pdf4tcl::cmyk2Rgb\fR \fIcmyk\fR
 .sp
+\fB::pdf4tcl::catPdf\fR \fIinfile\fR ?\fIinfile ...\fR? \fIoutfile\fR
+.sp
 \fBobjectName\fR \fBmethod\fR ?\fIarg arg ...\fR?
 .sp
 \fIobjectName\fR \fBconfigure\fR
@@ -498,6 +500,9 @@ You can redefine this procedure to provide your own translation.
 This call translates a CMYK color value to an RGB color value.
 It is used internally to translate colors.
 You can redefine this procedure to provide your own translation.
+.TP
+\fB::pdf4tcl::catPdf\fR \fIinfile\fR ?\fIinfile ...\fR? \fIoutfile\fR
+This call concatenates PDF files into one.
 .PP
 .SS "OBJECT COMMAND"
 All commands created by \fB::pdf4tcl::new\fR have the following

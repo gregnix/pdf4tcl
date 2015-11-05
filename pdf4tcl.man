@@ -153,6 +153,10 @@ This call translates a CMYK color value to an RGB color value.
 It is used internally to translate colors.
 You can redefine this procedure to provide your own translation.
 
+[call [cmd ::pdf4tcl::catPdf] [arg "infile"] [opt [arg "infile ..."]] [arg "outfile"]]
+
+This call concatenates PDF files into one.
+
 [list_end]
 
 [subsection {OBJECT COMMAND}]
