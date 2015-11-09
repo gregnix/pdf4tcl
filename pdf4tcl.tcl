@@ -1492,6 +1492,7 @@ snit::type pdf4tcl::pdf4tcl {
         set localopts(-margin)    0
         set localopts(-paper)     {100p 100p}
         set localopts(-rotate)    0
+        set localopts(-noimage)   0
         set localopts(-xobject)   1
 
         # Parse options
@@ -1512,6 +1513,9 @@ snit::type pdf4tcl::pdf4tcl {
                 -rotate {
                     $self CheckRotation $option $value
                 }
+                -noimage {
+                    $self CheckBoolean $option $value
+                }
                 default {
                     return -code error "Unknown option $option"
                 }
@@ -1520,7 +1524,7 @@ snit::type pdf4tcl::pdf4tcl {
         }
         set oid [eval \$self startPage [array get localopts]]
         set id xobject$oid
-        set images($id) [list $pdf(width) $pdf(height) $oid]
+        set images($id) [list $pdf(width) $pdf(height) $oid $localopts(-noimage)]
         return $id
     }
     # Finish an XObject, this is just a wrapper for endPage available
@@ -1539,6 +1543,7 @@ snit::type pdf4tcl::pdf4tcl {
         set localopts(-rotate)    $options(-rotate)
         # Unofficial option to overlay startXObject on startPage
         set localopts(-xobject)   0
+        set localopts(-noimage)   0
 
         if {[llength $args] == 1} {
             # Single arg = paper
@@ -1577,7 +1582,10 @@ snit::type pdf4tcl::pdf4tcl {
                     }
                     -xobject {
                         $self CheckBoolean $option $value
-                    }                        
+                    }
+                    -noimage {
+                        $self CheckBoolean $option $value
+                    }
                     default {
                         return -code error "Unknown option $option"
                     }
@@ -1628,6 +1636,9 @@ snit::type pdf4tcl::pdf4tcl {
         if {$pdf(inXObject)} {
             $self Pdfout "/Type /XObject\n"
             $self Pdfout "/Subtype /Form\n"
+            if {$localopts(-noimage)} {
+                $self Pdfout "/Resources 3 0 R\n"
+            }
             $self Pdfout [format "/BBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
             # This matrix makes the final Xobject to be size 1x1 in user space
             # just like an image
@@ -1796,8 +1807,10 @@ snit::type pdf4tcl::pdf4tcl {
         if {[array size images] > 0} {
             $self Pdfout "/XObject <<\n"
             foreach key [array names images] {
-                set oid [lindex $images($key) 2]
-                $self Pdfout "/$key $oid 0 R\n"
+                if {![lindex $images($key) 3]} {
+                    set oid [lindex $images($key) 2]
+                    $self Pdfout "/$key $oid 0 R\n"
+                }
             }
             $self Pdfout ">>\n"
         }
@@ -3478,7 +3491,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid]
+        set images($id) [list $width $height $oid 0]
         return $id
     }
 
@@ -3616,7 +3629,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid]
+        set images($id) [list $width $height $oid 0]
         return $id
     }
 
@@ -3806,7 +3819,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid]
+        set images($id) [list $width $height $oid 0]
         return $id
     }
 
@@ -3917,7 +3930,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid]
+        set images($id) [list $width $height $oid 0]
         return $id
     }
 
@@ -4926,7 +4939,7 @@ snit::type pdf4tcl::pdf4tcl {
 
                 set newoid [$self AddObject $xobject]
                 set newid image$newoid
-                set images($newid) [list $width $height $newoid]
+                set images($newid) [list $width $height $newoid 0]
 
                 # Put the image on the page
                 $self Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
