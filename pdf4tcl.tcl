@@ -23,7 +23,7 @@ namespace eval pdf4tcl {
     variable units
     variable dir [file dirname [file join [pwd] [info script]]]
 
-    # Known papersizes. These are always in points.
+    # Known paper sizes. These are always in points.
     array set paper_sizes {
         a0     {2380.0 3368.0}
         a1     {1684.0 2380.0}
@@ -1080,7 +1080,7 @@ namespace eval pdf4tcl {
         unset -nocomplain type1name
     }
 
-    # The incoming RBG must contain three values in the range 0.0 to 1.0
+    # The incoming RGB must contain three values in the range 0.0 to 1.0
     # The return value is CMYK as a list of values in the range 0.0 to 1.0
     proc rgb2Cmyk {RGB} {
         foreach {r g b} $RGB break
@@ -1127,7 +1127,7 @@ namespace eval pdf4tcl {
         return [list $r $g $b]
     }
 
-    # 8.4 compatiblity patch for some functionality.
+    # 8.4 compatibility patch for some functionality.
     if {[llength [info commands dict]] == 0} {
         ##nagelfar copy dict pdf4tcl::dict
         proc ::dict {subC d args} {
@@ -1266,7 +1266,7 @@ snit::type pdf4tcl::pdf4tcl {
     # Configure method for page properties
     method SetPageOption {option value} {
         set options($option) $value
-        # Fill in page properies
+        # Fill in page properties
         $self SetPageSize   $options(-paper) $options(-landscape) \
                 $options(-rotate)
         $self SetPageMargin $options(-margin)
@@ -1327,7 +1327,7 @@ snit::type pdf4tcl::pdf4tcl {
         set pdf(line_spacing) 1.0
 
         # Page data
-        # Fill in page properies
+        # Fill in page properties
         $self SetPageSize   $options(-paper) $options(-landscape) \
                 $options(-rotate)
         $self SetPageMargin $options(-margin)
@@ -1389,7 +1389,7 @@ snit::type pdf4tcl::pdf4tcl {
         $self Pdfout $out
     }
 
-    # Helper to format a line consisiting of numbers and last a command
+    # Helper to format a line consisting of numbers and last a command
     method Pdfoutcmd {args} {
         set str ""
         foreach num [lrange $args 0 end-1] {
@@ -1598,7 +1598,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$pdf(inPage)} {
             $self endPage
         }
-        # Fill in page properies
+        # Fill in page properties
         $self SetPageSize $localopts(-paper) $localopts(-landscape) \
                 $localopts(-rotate)
         $self SetPageMargin $localopts(-margin)
@@ -2121,7 +2121,7 @@ snit::type pdf4tcl::pdf4tcl {
         set first {}
         set last  {}
 
-        # Determine the number of open decendants.
+        # Determine the number of open descendants.
         set count [BookmarkCount $bookmarks $current]
 
         set child [expr {$current + 1}]
@@ -2263,7 +2263,7 @@ snit::type pdf4tcl::pdf4tcl {
                 append body "/BaseFont /$fontname\n"
                 append body ">>"
            } elseif {$fonttype eq "TTF"} {
-                # Add truetype font objectS:
+                # Add truetype font objects:
                 set BFN $::pdf4tcl::FontsAttrs($fontname,basefontname)
                 set SFI $::pdf4tcl::FontsAttrs($fontname,SubFontIdx)
                 set BaseFN "[MakeSFNamePrefix $SFI]+$BFN"
@@ -2378,7 +2378,7 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Get metrics from current font.
     # Supported metrics are:
-    # height  = height of font's Bounding Box. 
+    # height  = height of font's Bounding Box.
     # ascend  = top of typical glyph, displacement from anchor point.
     #           Typically positive.
     # descend = bottom of typical glyph, displacement from anchor point.
@@ -2433,7 +2433,7 @@ snit::type pdf4tcl::pdf4tcl {
         return [expr {$w * $pdf(font_size)}]
     }
 
-    # Get the width of a character. "ch" must be exacly one char long.
+    # Get the width of a character. "ch" must be exactly one char long.
     proc GetCharWidth {font ch} {
         if {$ch eq "\n"} {
             return 0.0
@@ -4351,15 +4351,15 @@ snit::type pdf4tcl::pdf4tcl {
             }
         } else {
             # Form type checkbutton (Ff flags are zero for checkbutton)
-            append andict "  /FT /Btn\n" 
+            append andict "  /FT /Btn\n"
             # Unique Identity
             append andict "  /T (checkbuttonform[$self NextOid])\n"
             # State
             if {$initValue} {
-                append andict "  /AS /Yes\n" 
+                append andict "  /AS /Yes\n"
                 append andict "  /V /Yes\n"
             } else {
-                append andict "  /AS /Off\n" 
+                append andict "  /AS /Off\n"
                 append andict "  /V /Off\n"
             }
             # Appearance
@@ -5087,7 +5087,7 @@ snit::type pdf4tcl::pdf4tcl {
         $self Pdfoutcmd $x3 $y3 "m"
 
         set len [llength $coords]
-        # Is there a complete set of segements in the list?
+        # Is there a complete set of segments in the list?
         set add [expr {($len - 2) % 6}]
         if {$add != 0} {
             eval lappend coords [lrange $coords 0 [expr {$add - 1}]]
@@ -5432,7 +5432,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     #######################################################################
-    # Helper fuctions
+    # Helper functions
     #######################################################################
 
     # helper function: mask parentheses and backslash
@@ -5790,7 +5790,7 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
     # Get the pages id from second pdf
     set pages2id [lindex [dict get $pdf2 root /Pages] 0]
     # References in pdf2 to its Pages object should be redirected
-    # to pdf1's Pages object instead, 
+    # to pdf1's Pages object instead,
     set refmapping [list $pages2id $pages1id]
 
     # Now, renumber all objects in pdf2 to put them after all objs in pdf1
