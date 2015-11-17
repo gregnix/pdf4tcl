@@ -4303,9 +4303,12 @@ snit::type pdf4tcl::pdf4tcl {
                 set offid [lindex $images($offObj) 2]
             } else {
                 # Empty, for off
-                set stream ""
-                set body [MakeStream $obj $stream $pdf(compress)]
-                set offid [$self AddObject $body]
+                if {![info exists pdf(checkboxoffobj)]} {
+                    set stream ""
+                    set body [MakeStream $obj $stream $pdf(compress)]
+                    set pdf(checkboxoffobj) [$self AddObject $body]
+                }
+                set offid $pdf(checkboxoffobj)
             }
         } else {
             if {$initValue ne ""} {
