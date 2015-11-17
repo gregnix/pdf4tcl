@@ -717,7 +717,8 @@ Default value is false.
 This option can only be set at object creation.</p></dd>
 <dt><b class="option">-compress</b> <i class="arg">boolean</i></dt>
 <dd><p>Pages will be zlib compressed if this option is set to true.
-This requires the presence of the zlib package.
+This requires the presence of the zlib package (or Tcl 8.6), and will
+be silently ignored if not.
 This option can only be set at object creation.</p></dd>
 <dt><b class="option">-file</b> <i class="arg">filename</i></dt>
 <dd><p>Continuously write pdf to <i class="arg">filename</i> instead of storing it

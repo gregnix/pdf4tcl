@@ -1255,7 +1255,8 @@ snit::type pdf4tcl::pdf4tcl {
             if {$g(haveZlib)} {
                 set options($option) 1
             } else {
-                puts stderr "Package zlib not available. Sorry, no compression."
+                # Package zlib not available. Sorry, no compression.
+                set options($option) 0
             }
         } else {
             set options($option) 0

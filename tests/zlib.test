@@ -47,9 +47,7 @@ test zlib-2.1 {compress flag} -body {
     apa destroy
     pdf4tcl::new apa -compress 1
     set res
-} -result {1} \
-        -errorOutput "Package zlib not available. Sorry, no compression.\n" \
-        -cleanup {apa destroy}
+} -result {1} -cleanup {apa destroy}
 
 test zlib-2.2 {zlib not used} -body {
     set ::zlibcalled 0
@@ -61,8 +59,6 @@ test zlib-2.2 {zlib not used} -body {
     apa endPage
     lappend res $::zlibcalled
     set res
-} -result {0 0 0} \
-        -errorOutput "Package zlib not available. Sorry, no compression.\n" \
-        -cleanup {apa destroy}
+} -result {0 0 0} -cleanup {apa destroy}
 
 ::tcltest::cleanupTests

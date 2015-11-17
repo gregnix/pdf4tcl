@@ -975,7 +975,8 @@ This option can only be set at object creation.
 .TP
 \fB-compress\fR \fIboolean\fR
 Pages will be zlib compressed if this option is set to true.
-This requires the presence of the zlib package.
+This requires the presence of the zlib package (or Tcl 8.6), and will
+be silently ignored if not.
 This option can only be set at object creation.
 .TP
 \fB-file\fR \fIfilename\fR
