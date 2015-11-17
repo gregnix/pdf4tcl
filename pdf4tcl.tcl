@@ -1720,8 +1720,12 @@ snit::type pdf4tcl::pdf4tcl {
     proc MakeStream {dictval body compress} {
         set res $dictval
         if {$compress} {
-            set body [zlib compress $body]
-            append res "\n/Filter \[/FlateDecode\]"
+            set body2 [zlib compress $body]
+            # Any win?
+            if {[string length $body2] + 20 < [string length $body]} {
+                append res "\n/Filter \[/FlateDecode\]"
+                set body $body2
+            }
         }
         set len [string length $body]
         append res "\n/Length $len\n>>\nstream\n"
