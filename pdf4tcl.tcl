@@ -1334,7 +1334,7 @@ snit::type pdf4tcl::pdf4tcl {
         set pdf(orient) $options(-orient)
         set pdf(cmyk) $options(-cmyk)
 
-        # The first buffer if for collecting page data until end of page.
+        # The first buffer is for collecting page data until end of page.
         # This is to support compressing whole pages.
         set pdf(ob) ""
 
@@ -5600,8 +5600,8 @@ proc pdf4tcl::cat::TclDictToPdfDict {dict} {
 # trailer: trailer dictionary defining e.g. Root object
 # root: Dictionary from root object
 # rootid : Object number of root object
-# info: Dictionary from info object if any
-# infoid : Object number of info object if any
+# info: Dictionary from info object, if any
+# infoid : Object number of info object, if any
 # <n> : Object <n> from "n 0 obj" through "endobj". A dict with keys:
 #       full: entire object
 #       dict: main dictionary, if any, converted to tcl dict

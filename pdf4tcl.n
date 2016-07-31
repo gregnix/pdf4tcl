@@ -1,6 +1,6 @@
 '\"
 '\" Generated from file 'pdf4tcl\&.man' by tcllib/doctools with format 'nroff'
-'\" Copyright (c) 2007-2011 Peter Spjuth
+'\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\"
 .TH "pdf4tcl" n 0\&.8\&.2 pdf4tcl "Pdf document generation"
@@ -538,6 +538,9 @@ You can redefine this procedure to provide your own translation\&.
 .TP
 \fB::pdf4tcl::catPdf\fR \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
 This call concatenates PDF files into one\&.
+Currently the implementation limits the PDFs a lot since not all details
+are taken care of yet\&. Straightforward ones like those created with pdf4tcl
+or ps2pdf should work mostly ok\&.
 .PP
 .SS "OBJECT COMMAND"
 All commands created by \fB::pdf4tcl::new\fR have the following
@@ -1089,7 +1092,7 @@ doctools
 document, pdf
 .SH COPYRIGHT
 .nf
-Copyright (c) 2007-2011 Peter Spjuth
+Copyright (c) 2007-2016 Peter Spjuth
 Copyright (c) 2009 Yaroslav Schekin
 
 .fi

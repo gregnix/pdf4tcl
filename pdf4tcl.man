@@ -1,7 +1,7 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
 [manpage_begin pdf4tcl n 0.8.2]
-[copyright {2007-2011 Peter Spjuth}]
+[copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
@@ -156,6 +156,9 @@ You can redefine this procedure to provide your own translation.
 [call [cmd ::pdf4tcl::catPdf] [arg "infile"] [opt [arg "infile ..."]] [arg "outfile"]]
 
 This call concatenates PDF files into one.
+Currently the implementation limits the PDFs a lot since not all details
+are taken care of yet. Straightforward ones like those created with pdf4tcl
+or ps2pdf should work mostly ok.
 
 [list_end]
 
