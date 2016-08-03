@@ -4715,21 +4715,8 @@ snit::type pdf4tcl::pdf4tcl {
             $self Pdfoutcmd "q"
 
             # Special handling for tkpath items
-            if {[$path type $id] eq "pimage"} {
-                $self Pdfout [$path itempdf $id [list $self addTkpimgObj]]
-            } elseif {[$path type $id] eq "ptext"} {
-                $self setTkpfont [$path itemcget $id -fontsize] \
-                        [$path itemcget $id -fontfamily] \
-                        [$path itemcget $id -fontweight] \
-                        [$path itemcget $id -fontslant]
-                $self Pdfout \
-                        [$path itempdf $id [list $self addTkpextgs] \
-                                 [list $self getTkpptext $pdf(current_font)] \
-                                 $pdf(current_font)]
-            } elseif {[$path type $id] in {pline polyline ppolygon prect circle ellipse path group}} {
-                $self Pdfout [$path itempdf $id [list $self addTkpextgs] \
-				  [list $self addTkpobj] \
-				  [list $self addTkpgrad]]
+            if {[$path type $id] in {pimage ptext pline polyline ppolygon prect circle ellipse path group}} {
+                $self CanvasDoTkpathItem $path $id
             } else {
                 # Standard Tk Canvas
                 $self CanvasDoItem $path $id [$path coords $id] opts
@@ -4740,6 +4727,34 @@ snit::type pdf4tcl::pdf4tcl {
         }
         # Restore graphics state after the canvas
         $self Pdfoutcmd "Q"
+    }
+
+    # Handle one tkpath item
+    method CanvasDoTkpathItem {path id} {
+        switch [$path type $id] {
+            pimage {
+                $self Pdfout [$path itempdf $id [list $self addTkpimgObj]]
+            }
+            ptext {
+                $self setTkpfont \
+                        [$path itemcget $id -fontsize] \
+                        [$path itemcget $id -fontfamily] \
+                        [$path itemcget $id -fontweight] \
+                        [$path itemcget $id -fontslant]
+                $self Pdfout \
+                        [$path itempdf $id \
+                                 [list $self addTkpextgs] \
+                                 [list $self getTkpptext $pdf(current_font)] \
+                                 $pdf(current_font)]
+            }
+            pline - polyline - ppolygon - prect - circle - ellipse -
+            path - group {
+                $self Pdfout [$path itempdf $id \
+                                      [list $self addTkpextgs] \
+                                      [list $self addTkpobj] \
+                                      [list $self addTkpgrad]]
+            }
+        }
     }
 
     # Handle one canvas item

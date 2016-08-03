@@ -7,7 +7,19 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
 # Try to locate any tkpath
 lappend ::auto_path ../../packages/tkpath ../packages/tkpath
-testConstraint tkpath [expr {![catch {package require tkpath}]}]
+if {[catch {package require tkpath 0.3.3}]} {
+    testConstraint tkpath 0
+} else {
+    # Check that tkpath has itempdf support
+    tkp::canvas .c
+    set id [.c create pline 10 10 80 80]
+    if {[catch {.c itempdf $id}]} {
+        testConstraint tkpath 0
+    } else {
+        testConstraint tkpath 1
+    }
+    destroy .c
+}
 
 package require Tk
 wm withdraw .
@@ -72,7 +84,7 @@ test canvas-2.1 {image} -body {
         q * 2.671756 0 0 -2.671756 102.672 897.328 cm *
         82 0 0 -125 10 135 cm /image_canvas_img1 Do Q
     }
-} -cleanup {destroy .c} -result 1
+} -cleanup {destroy .c ; image delete img1} -result 1
 
 test canvas-2.2 {bitmap} -body {
     canvas .c
@@ -351,11 +363,28 @@ test canvas-10.1 {basic tkpath} -constraints tkpath -body {
     .c create pline 10 10 80 80
     .c create prect 20 20 50 60 -fill red -stroke blue
     mytest {canvas .c} {
-        0 0 0 RG 1 w 10 10 m 80 80 l S
+        0 0 0 RG 1 j 10 10 m 80 80 l S
         *
-        0 0 1 RG 1 0 0 rg 1 w 20 20 30 40 re B
+        0 0 1 RG 1 0 0 rg 1 j 20 20 30 40 re B
     }
 } -cleanup {destroy .c} -result 1
+
+test canvas-10.2 {basic tkpath} -constraints tkpath -body {
+    tkp::canvas .c
+    .c create ptext 10 10 -text Hej
+    mytest {canvas .c} {
+        0 0 0 rg 0 Tr (Hej) Tj
+    }
+} -cleanup {destroy .c} -result 1
+
+test canvas-10.3 {basic tkpath} -constraints tkpath -body {
+    tkp::canvas .c
+    image create photo img1 -file images/logo125.gif
+    .c create pimage 10 10 -image img1 -anchor nw
+    mytest {canvas .c} {
+        82 0 0 -125 0 0 cm /pimg8 Do Q
+    }
+} -cleanup {destroy .c ; image delete img1} -result 1
 
 test canvas-20.1 {demo} -constraints "demo" -body {
     # Find the demo for canvas
