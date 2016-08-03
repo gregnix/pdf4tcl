@@ -3,7 +3,7 @@
 '\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\"
-.TH "pdf4tcl" n 0\&.8\&.2 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.8\&.3 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -281,7 +281,7 @@ package require \fB?dict? \fR
 .sp
 package require \fBsnit \fR
 .sp
-package require \fBpdf4tcl  ?0\&.8\&.2?\fR
+package require \fBpdf4tcl  ?0\&.8\&.3?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp

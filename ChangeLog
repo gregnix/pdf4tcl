@@ -1,4 +1,5 @@
 2016-08-03 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Bumped revision to 0.8.3
 	* Support for characters outside BMP. (Yaroslav Schekin)
 
 2015-11-05 Peter Spjuth   <peter.spjuth@gmail.com>
