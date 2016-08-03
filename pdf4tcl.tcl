@@ -460,69 +460,125 @@ namespace eval pdf4tcl {
         binary scan $ttfdata "@${ttfpos}x2Su" cmapTableCount
         incr ttfpos 4
 
+        set priority 0
         for {set f 0} {$f < $cmapTableCount} {incr f} {
             binary scan $ttfdata "@${ttfpos}SuSuIu" platformID encodingID offset
             incr ttfpos 8
-            if {($platformID == 3 && $encodingID == 1) || ($platformID == 0)} {
-                # Microsoft, Unicode OR just Unicode
-                binary scan $ttfdata "@[expr {$cmap_offset+$offset}]Su" format
-                if {$format == 4} {
-                    set unicode_cmap_offset [expr {$cmap_offset + $offset}]
-                    break
-                }
-            }
-            # This SHOULD NOT exit loop:
-            if {($platformID == 3 && $encodingID == 0)} {
-                binary scan $ttfdata "@[expr {$cmap_offset+$offset}]Su" format
-                if {$format == 4} {
-                    set unicode_cmap_offset [expr {$cmap_offset + $offset}]
-                    break
-                }
+
+            binary scan $ttfdata "@[expr {$cmap_offset+$offset}]Su" format
+            if {$format ni [list 4 6 10 12 13]} continue
+
+            switch -glob -- $platformID,$encodingID,$priority {
+                3,10,* {set stoffset $offset; break}
+                0,4,* - 0,6,* {set stoffset $offset; set priority 3}
+                3,1,0 - 3,1,1 {set stoffset $offset; set priority 2}
+                3,*,0 {set stoffset $offset; set priority 1}
+                0,5,0 {continue}
+                0,*,0 - 1,0,0 - 1,1,0 {set stoffset $offset}
             }
         }
 
-        if {![info exists unicode_cmap_offset]} {
+        if {![info exists stoffset]} {
             error "Font does not have cmap for Unicode"
         }
-        incr unicode_cmap_offset 2
-        binary scan $ttfdata "@${unicode_cmap_offset}Sux2Su" length segCount
 
-        set segCount [expr {$segCount / 2}]
-        set limit [expr {$unicode_cmap_offset + $length}]
-        set ttfpos [expr {$unicode_cmap_offset + 12}]
-        binary scan $ttfdata "@${ttfpos}Su$segCount" endCount
-        set ttfpos [expr {$ttfpos + 2*$segCount + 2}]
-        binary scan $ttfdata "@${ttfpos}Su$segCount" startCount
-        set ttfpos [expr {$ttfpos + 2*$segCount}]
-        binary scan $ttfdata "@${ttfpos}S$segCount" idDelta
-        set ttfpos [expr {$ttfpos + 2*$segCount}]
-        set idRangeOffset_start $ttfpos
-        binary scan $ttfdata "@${ttfpos}Su$segCount" idRangeOffset
+        set unicode_cmap_offset [expr {$cmap_offset + $stoffset}]
+        binary scan $ttfdata "@${unicode_cmap_offset}Su" format
 
-        # Now it gets tricky.
-        for {set f 0} {$f < $segCount} {incr f} {
-            set r_start [lindex $startCount $f]
-            set r_end   [lindex $endCount   $f]
-            for {set unichar $r_start} {$unichar <= $r_end} {incr unichar} {
-                set r_offset [lindex $idRangeOffset $f]
-                set r_delta [lindex $idDelta $f]
-                if {$r_offset == 0} {
-                    set glyph [expr {($unichar + $r_delta) & 0xFFFF}]
-                } else {
-                    set offset [expr {($unichar - $r_start) * 2 + $r_offset}]
-                    set offset [expr {$idRangeOffset_start + 2 * $f + $offset}]
-                    if {$offset > $limit} {
-                        # workaround for broken fonts (like Thryomanes)
-                        set glyph 0
-                    } else {
-                        binary scan $ttfdata "@${offset}Su" glyph
-                        if {$glyph != 0} {
-                            set glyph [expr {($glyph + $r_delta) & 0xFFFF}]
+        switch -exact -- $format {
+            4 {
+                binary scan $ttfdata "@${unicode_cmap_offset}x2Su" length
+                set ttfpos [expr {$unicode_cmap_offset + 6}]
+                binary scan $ttfdata "@${ttfpos}Su" segCount
+                set segCount [expr {$segCount / 2}]
+                set limit [expr {$unicode_cmap_offset + $length}]
+                set ttfpos [expr {$unicode_cmap_offset + 14}]
+                binary scan $ttfdata "@${ttfpos}Su$segCount" endCount
+                set ttfpos [expr {$ttfpos + 2*$segCount + 2}]
+                binary scan $ttfdata "@${ttfpos}Su$segCount" startCount
+                set ttfpos [expr {$ttfpos + 2*$segCount}]
+                binary scan $ttfdata "@${ttfpos}S$segCount" idDelta
+                set ttfpos [expr {$ttfpos + 2*$segCount}]
+                set idRangeOffset_start $ttfpos
+                binary scan $ttfdata "@${ttfpos}Su$segCount" idRangeOffset
+
+                # Now it gets tricky.
+                for {set f 0} {$f < $segCount} {incr f} {
+                    set r_start [lindex $startCount $f]
+                    set r_end   [lindex $endCount   $f]
+                    for {set unichar $r_start} {$unichar <= $r_end} {incr unichar} {
+                        set r_offset [lindex $idRangeOffset $f]
+                        set r_delta [lindex $idDelta $f]
+                        if {$r_offset == 0} {
+                            set glyph [expr {($unichar + $r_delta) & 0xFFFF}]
+                        } else {
+                            set offset [expr {($unichar - $r_start) * 2 + $r_offset}]
+                            set offset [expr {$idRangeOffset_start + 2 * $f + $offset}]
+                            if {$offset > $limit} {
+                                # workaround for broken fonts (like Thryomanes)
+                                set glyph 0
+                            } else {
+                                binary scan $ttfdata "@${offset}Su" glyph
+                                if {$glyph != 0} {
+                                    set glyph [expr {($glyph + $r_delta) & 0xFFFF}]
+                                }
+                            }
                         }
+                        dict set BFA($ttfname,charToGlyph) $unichar $glyph ;# 8.5
+                        lappend glyphToChar($glyph) $unichar
                     }
                 }
-                dict set BFA($ttfname,charToGlyph) $unichar $glyph ;# 8.5
-                lappend glyphToChar($glyph) $unichar
+            }
+            6 {
+                set ttfpos [expr {$unicode_cmap_offset + 6}]
+                binary scan $ttfdata "@${ttfpos}SuSu" first count
+                set last [expr {$first + $count}]
+                incr ttfpos 4
+                for {set unichar $first} {$unichar < $last} {incr unichar} {
+                    binary scan $ttfdata "@${ttfpos}Su" glyph
+                    dict set BFA($ttfname,charToGlyph) $unichar $glyph
+                    lappend glyphToChar($glyph) $unichar
+                    incr ttfpos 2
+                }
+            }
+            10 {
+                set ttfpos [expr {$unicode_cmap_offset + 12}]
+                binary scan $ttfdata "@${ttfpos}IuIu" first count
+                set last [expr {$first + $count}]
+                incr ttfpos 4
+                for {set unichar $first} {$unichar < $last} {incr unichar} {
+                    binary scan $ttfdata "@${ttfpos}Su" glyph
+                    dict set BFA($ttfname,charToGlyph) $unichar $glyph
+                    lappend glyphToChar($glyph) $unichar
+                    incr ttfpos 2
+                }
+            }
+            12 {
+                set ttfpos [expr {$unicode_cmap_offset + 12}]
+                binary scan $ttfdata "@${ttfpos}Iu" segCount
+                incr ttfpos 4
+                for {set f 0} {$f < $segCount} {incr f} {
+                    binary scan $ttfdata "@${ttfpos}IuIuIu" start end glyph
+                    for {set unichar $start} {$unichar <= $end} {incr unichar} {
+                        dict set BFA($ttfname,charToGlyph) $unichar $glyph
+                        lappend glyphToChar($glyph) $unichar
+                        incr glyph
+                    }
+                    incr ttfpos 12
+                }
+            }
+            13 {
+                set ttfpos [expr {$unicode_cmap_offset + 12}]
+                binary scan $ttfdata "@${ttfpos}Iu" segCount
+                incr ttfpos 4
+                for {set f 0} {$f < $segCount} {incr f} {
+                    binary scan $ttfdata "@${ttfpos}IuIuIu" start end glyph
+                    for {set unichar $start} {$unichar <= $end} {incr unichar} {
+                        dict set BFA($ttfname,charToGlyph) $unichar $glyph
+                        lappend glyphToChar($glyph) $unichar
+                    }
+                    incr ttfpos 12
+                }
             }
         }
 
@@ -581,6 +637,14 @@ namespace eval pdf4tcl {
         return [expr {$x * 1000.0 / $BFA($ttfname,unitsPerEm)}]
     }
 
+    proc ConvertToUTF16BE {uchar} {
+        if {$uchar < 65536} {
+            return $uchar
+        }
+        set uchar [expr {$uchar - 0x010000}]
+        return [expr {((0xD800 + ($uchar >> 10)) << 16) + (0xDC00 + ($uchar & 0x3FF))}]
+    }
+
     # Creates a ToUnicode CMap for a given subset.
     proc MakeToUnicodeCMap {fontname subset} {
         set len [llength $subset]
@@ -600,7 +664,7 @@ namespace eval pdf4tcl {
         append cmap "$len beginbfchar\n"
         set f 0
         foreach uchar $subset {
-            append cmap [format "<%02X> <%04X>\n" $f $uchar]
+            append cmap [format "<%02X> <%04X>\n" $f [ConvertToUTF16BE $uchar]]
             incr f
         }
         append cmap "endbfchar\n"
