@@ -1352,7 +1352,9 @@ snit::type pdf4tcl::pdf4tcl {
         variable files
         variable fonts
         variable bitmaps
+        variable extgs
         variable patterns
+	variable grads
         variable metadata
         # Array of type1 base fonts already included in this PDF file:
         variable type1basefonts
@@ -1379,7 +1381,9 @@ snit::type pdf4tcl::pdf4tcl {
         array set images {}
         array set files {}
         array set bitmaps {}
+	array set extgs {}
         array set patterns {}
+	array set grads {}
         set pdf(objects) {}
         set pdf(compress) $options(-compress)
         set pdf(finished) false
@@ -1683,6 +1687,7 @@ snit::type pdf4tcl::pdf4tcl {
             append pdf(pageobj) "<</Type /Page\n"
             append pdf(pageobj) "/Parent 2 0 R\n"
             append pdf(pageobj) "/Resources 3 0 R\n"
+            append pdf(pageobj) "/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>\n"
             append pdf(pageobj) [format "/MediaBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
             if {$pdf(rotate) != 0} {
                 append pdf(pageobj) "/Rotate $pdf(rotate)\n"
@@ -1809,7 +1814,9 @@ snit::type pdf4tcl::pdf4tcl {
     # Finish document
     method finish {} {
         variable images
+        variable extgs
         variable patterns
+	variable grads
         variable fonts
         variable metadata
 
@@ -1872,6 +1879,16 @@ snit::type pdf4tcl::pdf4tcl {
             $self Pdfout ">>\n"
         }
 
+        # extended graphics state references
+        if {[array size extgs] > 0} {
+            $self Pdfout "/ExtGState <<\n"
+            foreach egs [array names extgs] {
+                set oid $extgs($egs)
+                $self Pdfout "/$egs $oid 0 R\n"
+            }
+            $self Pdfout ">>\n"
+        }
+
         # image references
         if {[array size images] > 0} {
             $self Pdfout "/XObject <<\n"
@@ -1883,6 +1900,7 @@ snit::type pdf4tcl::pdf4tcl {
             }
             $self Pdfout ">>\n"
         }
+
         # pattern references
         if {[array size patterns] > 0} {
             $self Pdfout "/ColorSpace <<\n"
@@ -1900,6 +1918,16 @@ snit::type pdf4tcl::pdf4tcl {
             }
             $self Pdfout ">>\n"
         }
+
+        # gradient references
+        if {[array size grads] > 0} {
+            $self Pdfout "/Shading <<\n"
+            foreach key [array names grads] {
+                set oid [lindex $grads($key) 2]
+                $self Pdfout "/$key $oid 0 R\n"
+            }
+            $self Pdfout ">>\n"
+	}
 
         $self Pdfout ">>\nendobj\n\n" ;# Resources object
 
@@ -2272,6 +2300,51 @@ snit::type pdf4tcl::pdf4tcl {
         if {$pdf(inPage)} {
             $self SetupFont
         }
+    }
+
+    # Set current font for tkpath ptext object
+    method setTkpfont {size name weight slant} {
+        variable canvasFontMapping
+        set bold [expr {$weight eq "bold"}]
+        set italic [expr {$slant ne "normal"}]
+        switch -glob [string tolower $name] {
+            *courier* - *fixed* {
+                set family Courier
+                if {$bold && $italic} {
+                    append family -BoldOblique
+                } elseif {$bold} {
+                    append family -Bold
+                } elseif {$italic} {
+                    append family -BoldOblique
+                }
+            }
+            *times* - {*nimbus roman*} {
+                if {$bold && $italic} {
+                    set family Times-BoldItalic
+                } elseif {$bold} {
+                    set family Times-Bold
+                } elseif {$italic} {
+                    set family Times-Italic
+                } else {
+                    set family Times-Roman
+                }
+            }
+            *helvetica* - *arial* - {*nimbus sans*} - default {
+                set family Helvetica
+                if {$bold && $italic} {
+                    append family -BoldOblique
+                } elseif {$bold} {
+                    append family -Bold
+                } elseif {$italic} {
+                    append family -BoldOblique
+                }
+            }
+        }
+        array set userMappingArr $canvasFontMapping
+        if {[info exists userMappingArr($name)]} {
+           set family $userMappingArr($name)
+        }
+        $self setFont $size $family 1
     }
 
     # Helpers to temporarily store and restore the current font state
@@ -4178,6 +4251,52 @@ snit::type pdf4tcl::pdf4tcl {
         }
     }
 
+    # Add tkpath pimage object, this can be either an alpha mask
+    # or a RGB image, both formatted as an PDF object with stream
+    # of pixel data appended
+    method addTkpimgObj {width height xobject} {
+        if {!$pdf(inPage)} { $self startPage }
+        variable images
+        set oid [$self AddObject $xobject]
+        set id pimg$oid
+        set images($id) [list $width $height $oid 0]
+        return [list $oid $id]
+    }
+
+    # Format one line of tkpath ptext
+    method getTkpptext {font line} {
+        return [CleanText $line $font]
+    }
+
+    # Add tkpath extended graphics state object
+    method addTkpextgs {body {smoid {}}} {
+        if {!$pdf(inPage)} { $self startPage }
+        variable extgs
+	if {$smoid ne {}} {
+	    set id smask$smoid
+	    set extgs($id) $smoid
+	}
+        set oid [$self AddObject $body]
+        set id extgs$oid
+        set extgs($id) $oid
+        return [list $oid $id]
+    }
+
+    # Add tkpath object e.g. for gradient fills
+    method addTkpobj {body} {
+        if {!$pdf(inPage)} { $self startPage }
+        return [$self AddObject $body]
+    }
+
+    # Add tkpath shading/pattern object for gradient fills
+    method addTkpgrad {oid} {
+        if {!$pdf(inPage)} { $self startPage }
+        variable grads
+        set id grad$oid
+        set grads($id) [list 0 0 $oid]
+        return [list $oid $id]
+    }
+
     # Embed a file and return a handle to the File Specification Object.
     method embedFile {fn args} {
         variable files
@@ -4588,7 +4707,6 @@ snit::type pdf4tcl::pdf4tcl {
         #set enclosed [$path find enclosed $bbx1 $bby1 $bbx2 $bby2]
         set overlapping [$path find overlapping $bbx1 $bby1 $bbx2 $bby2]
         foreach id $overlapping {
-            set coords [$path coords $id]
             CanvasGetOpts $path $id opts
             if {[info exists opts(-state)] && $opts(-state) eq "hidden"} {
                 continue
@@ -4596,7 +4714,26 @@ snit::type pdf4tcl::pdf4tcl {
             # Save graphics state for each item
             $self Pdfoutcmd "q"
 
-            $self CanvasDoItem $path $id $coords opts
+            # Special handling for tkpath items
+            if {[$path type $id] eq "pimage"} {
+                $self Pdfout [$path itempdf $id [list $self addTkpimgObj]]
+            } elseif {[$path type $id] eq "ptext"} {
+                $self setTkpfont [$path itemcget $id -fontsize] \
+                        [$path itemcget $id -fontfamily] \
+                        [$path itemcget $id -fontweight] \
+                        [$path itemcget $id -fontslant]
+                $self Pdfout \
+                        [$path itempdf $id [list $self addTkpextgs] \
+                                 [list $self getTkpptext $pdf(current_font)] \
+                                 $pdf(current_font)]
+            } elseif {[$path type $id] in {pline polyline ppolygon prect circle ellipse path group}} {
+                $self Pdfout [$path itempdf $id [list $self addTkpextgs] \
+				  [list $self addTkpobj] \
+				  [list $self addTkpgrad]]
+            } else {
+                # Standard Tk Canvas
+                $self CanvasDoItem $path $id [$path coords $id] opts
+            }
 
             # Restore graphics state after the item
             $self Pdfoutcmd "Q"
@@ -4617,14 +4754,13 @@ snit::type pdf4tcl::pdf4tcl {
         # Limited: Stipple scale and offset does not match screen display
         # Limited: window item needs Img, and needs to be mapped
 
-        set type [$path type $id]
-        switch $type {
-            rectangle - prect {
+        switch [$path type $id] {
+            rectangle {
                 foreach {x1 y1 x2 y2} $coords break
                 set w [expr {$x2 - $x1}]
                 set h [expr {$y2 - $y1}]
 
-                $self CanvasStdOpts opts [string equal $type "prect"]
+                $self CanvasStdOpts opts
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
@@ -4713,17 +4849,6 @@ snit::type pdf4tcl::pdf4tcl {
                         $self Pdfoutcmd $x $y $cmd
                         set cmd "l"
                     }
-                }
-                $self Pdfoutcmd "S"
-            }
-            pline { # TkPath item
-                $self CanvasStdOpts opts 1
-
-                # Draw lines
-                set cmd "m"
-                foreach {x y} $coords {
-                    $self Pdfoutcmd $x $y $cmd
-                    set cmd "l"
                 }
                 $self Pdfoutcmd "S"
             }
@@ -5231,7 +5356,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     # Setup the graphics state from standard options
-    method CanvasStdOpts {optsName {isTkPath 0}} {
+    method CanvasStdOpts {optsName} {
         upvar 1 $optsName opts
         variable patterns
 
@@ -5254,29 +5379,16 @@ snit::type pdf4tcl::pdf4tcl {
             set strokestippleid [$self CanvasGetBitmap $opts(-outlinestipple) \
                     $offset]
         }
-        if {$isTkPath} {
-            if {[info exists opts(-stroke)]} {
-                if {$opts(-stroke) ne ""} {
-                    $self CanvasStrokeColor $opts(-stroke) $strokestippleid
-                }
-                set opts(-outline) $opts(-stroke)
-            }
-        } else {
-            # Outline controls stroke color in Tk Canvas
-            if {[info exists opts(-outline)] && $opts(-outline) ne ""} {
-                $self CanvasStrokeColor $opts(-outline) $strokestippleid
-            }
+        # Outline controls stroke color
+        if {[info exists opts(-outline)] && $opts(-outline) ne ""} {
+            $self CanvasStrokeColor $opts(-outline) $strokestippleid
         }
         # Fill controls fill color
         if {[info exists opts(-fill)] && $opts(-fill) ne ""} {
             $self CanvasFillColor $opts(-fill) $fillstippleid
         }
         # Line width
-        if {$isTkPath} {
-            if {[info exists opts(-strokewidth)]} {
-                $self Pdfoutcmd $opts(-strokewidth) "w"
-            }
-        } elseif {[info exists opts(-width)]} {
+        if {[info exists opts(-width)]} {
             $self Pdfoutcmd $opts(-width) "w"
         }
         # Dash pattern and offset
