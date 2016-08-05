@@ -211,7 +211,7 @@ namespace eval pdf4tcl {
         if {$version == 0x4F54544F} {
             error "TTF: postscript outlines are not supported"
         }
-        if {[lsearch -exact $ttfVersions $version] < 0} {# 8.5
+        if {$version ni $ttfVersions} {
             error "Not a TrueType font: version=$version"
         }
         return [expr {$version == [lindex $ttfVersions end]}]
@@ -237,7 +237,7 @@ namespace eval pdf4tcl {
                 ttcVersion BFA($ttfname,numSubfonts)
         incr ttfpos 8
 
-        if {[lsearch -exact $ttcVersions $ttcVersion] < 0} {# 8.5
+        if {$ttcVersion ni $ttcVersions} {
             error "Not a TTC file"
         }
 
@@ -277,7 +277,7 @@ namespace eval pdf4tcl {
             binary scan $ttfdata "@${ttfpos}a4Iu3" tag rlist
             incr ttfpos 16
             set ttftables($tag) $rlist
-            if {[lsearch -exact $NT $tag] >= 0} {# 8.5
+            if {$tag in $NT} {
                 foreach {cksum offset len} $rlist break
                 set last [expr {$offset + $len - 1}]
                 set BFP($ttfname,$tag) [string range $ttfdata $offset $last]
@@ -352,7 +352,7 @@ namespace eval pdf4tcl {
             binary scan $ttfdata "@${ttfpos}SuSuSuSuSuSu" PlId EncId LangId \
                     nameId length offset
             incr ttfpos 12
-            if {[lsearch -exact $NIDS $nameId] < 0} {# 8.5
+            if {$nameId ni $NIDS} {
                 continue
             }
             set npos [expr {$SDoffset + $offset}]
@@ -1163,7 +1163,7 @@ namespace eval pdf4tcl {
         set y [expr {1.0 - $b}]
 
         # k is min of c/m/y
-        set k [lindex [lsort -real [list $c $m $y]] 0] ;# 8.5
+        set k [expr {min($c, $m, $y)}]
         # k is less than 1 since only black would give exactly 1
         # so all divisions are safe.
         # Since k is min, all numerators are >= 0
@@ -1194,19 +1194,6 @@ namespace eval pdf4tcl {
         set b [expr {1.0 - $y}]
 
         return [list $r $g $b]
-    }
-
-    # 8.4 compatibility patch for some functionality.
-    if {[llength [info commands dict]] == 0} {
-        ##nagelfar copy dict pdf4tcl::dict
-        proc ::dict {subC d args} {
-            if {$subC eq "get"} {
-                set i [lindex $args 0]
-                array set x $d
-                return $x($i)
-            }
-            return -code error "No support for dict $subC"
-        }
     }
 }
 
@@ -2367,7 +2354,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         # Font already loaded?
-        if {[lsearch -exact $::pdf4tcl::Fonts $fontname] < 0} { #8.5
+        if {$fontname ni $::pdf4tcl::Fonts} {
             return -code error "Font $fontname doesn't exist"
         }
 
@@ -2733,7 +2720,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         lset ma 4 $x
         lset ma 5 $y
 
-        eval \my Pdfoutcmd $ma "Tm" ;# 8.5
+        my Pdfoutcmd {*}$ma "Tm"
     }
 
     # Set coordinate for next text command.
@@ -3242,7 +3229,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Trans $x3 $y3 x3 y3
         if {[llength $args] == 2} {
             # Cubic curve
-            my Trans [lindex $args 0] [lindex $args 1] x4 y4 ;# 8.5
+            my Trans {*}$args x4 y4
         } else {
             # Quadratic curve
             set x4 $x3
@@ -4411,7 +4398,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         foreach {option value} $args {
             switch -- $option {
                 -icon {
-                    if {[lsearch {Paperclip Tag Graph PushPin} $value ] < 0} {
+                    if {$value ni {Paperclip Tag Graph PushPin}} {
                         if {![info exists images($value)]} {
                             return -code error "Unknown value for -icon"
                         }
@@ -4454,7 +4441,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Add an interactive form
     # Currently supports text and checkbutton
     method addForm {ftype x y width height args} {
-        if {[lsearch {text checkbutton} $ftype ] < 0} {# 8.5
+        if {$ftype ni {text checkbutton}} {
             return -code error "Unknown form type $ftype"
         }
         set initValue ""
@@ -5130,9 +5117,8 @@ oo::define ::pdf4tcl::pdf4tcl {
                 if {[info exists rotationmatrix]} {
                     # transform underlines by same matrix as text anchor point
                     foreach {x y w} $ulcoords {
-                        # 8.5
-                        eval \my Pdfoutcmd [MulVxM [list $x $y] $rotationmatrix] "m"
-                        eval \my Pdfoutcmd [MulVxM [list [expr {$x + $w}] $y] $rotationmatrix] "l"
+                        my Pdfoutcmd {*}[MulVxM [list $x $y] $rotationmatrix] "m"
+                        my Pdfoutcmd {*}[MulVxM [list [expr {$x + $w}] $y] $rotationmatrix] "l"
                         my Pdfoutcmd "S"
                     }
                 } else {
