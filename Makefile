@@ -4,7 +4,7 @@ VERSION = 083
 
 # TOOL paths
 TCLSH = tclsh
-NAGELFAR = nagelfar -encoding iso8859-1
+NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
 ESKIL    = eskil
 
 all: doc

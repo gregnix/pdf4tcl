@@ -10,10 +10,9 @@
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
 package provide pdf4tcl 0.8.3
-
+package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
-package require snit
 
 namespace eval pdf4tcl {
     # helper variables (constants) packaged into arrays to minimize
@@ -127,7 +126,13 @@ namespace eval pdf4tcl {
 
     # Wrapper to create pdf4tcl object
     proc new {args} {
-        uplevel 1 pdf4tcl::pdf4tcl create $args
+        set cmd create
+        # Support Snit style of naming
+        if {[lindex $args 0] eq "%AUTO%"} {
+            set args [lrange $args 1 end]
+            set cmd new
+        }
+        uplevel 1 pdf4tcl::pdf4tcl $cmd $args
     }
 
     # ===== Procs for TrueType fonts processing =====
@@ -1208,29 +1213,76 @@ namespace eval pdf4tcl {
 #######################################################################
 # Object used for generating pdf
 #######################################################################
-snit::type pdf4tcl::pdf4tcl {
+namespace eval ::pdf4tcl::pdf4tcl {}
+catch {pdf4tcl::pdf4tcl destroy}
+oo::class create ::pdf4tcl::pdf4tcl {
     variable pdf
+    # In 8.5 recode these as dicts within the pdf array
+    variable images
+    variable files
+    variable fonts
+    variable bitmaps
+    variable extgs
+    variable patterns
+    variable grads
+    variable metadata
+    # Array of type1 base fonts already included in this PDF file:
+    variable type1basefonts
 
     #######################################################################
     # Global option handling
     #######################################################################
+    variable options
 
-    option -file      -default "" -readonly 1
-    option -paper     -default a4     -validatemethod CheckPaper \
-            -configuremethod SetPageOption
-    option -landscape -default 0      -validatemethod CheckBoolean \
-            -configuremethod SetPageOption
-    option -orient    -default 1      -validatemethod CheckBoolean
-    option -cmyk      -default 0      -validatemethod CheckBoolean \
-            -readonly 1
-    option -unit      -default p      -validatemethod CheckUnit \
-            -configuremethod SetUnit -readonly 1
-    option -compress  -default 0      -validatemethod CheckBoolean \
-            -configuremethod SetCompress -readonly 1
-    option -margin    -default 0      -validatemethod CheckMargin \
-            -configuremethod SetPageOption
-    option -rotate    -default 0      -validatemethod CheckRotation \
-            -configuremethod SetPageOption
+    method cget {option} {
+        return $options($option)
+    }
+
+    method configure {args} {
+        if {$args eq {}} {
+            return [array get options]
+        }
+        if {[llength $args] == 1} {
+            return $options([lindex $args 0])
+        }
+        if {[llength $args] % 2 == 0} {
+            foreach {option value} $args {
+                switch -- $option {
+                    -file - -unit - compress {
+                        return -code error "option $option is readonly"
+                    }
+                    -paper {
+                        my CheckPaper $option $value
+                        my SetPageOption $option $value
+                    }
+                    -landscape {
+                        my CheckBoolean $option $value
+                        my SetPageOption $option $value
+                    }
+                    -orient {
+                        my CheckBoolean $option $value
+                        set options($option) $value
+                    }
+                    -cmyk {
+                        my CheckBoolean $option $value
+                        set options($option) $value
+                    }
+                    -margin {
+                        my CheckMargin $option $value
+                        my SetPageOption $option $value
+                    }
+                    -rotate {
+                        my CheckRotation $option $value
+                        my SetPageOption $option $value
+                    }
+                    default {
+                        return -code error "Unknown option $option"
+                    }
+                }
+            }
+        }
+        return -code error "wrong number of args"
+    }
 
     # Validator for -paper
     method CheckPaper {option value} {
@@ -1279,11 +1331,11 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Validator helper for numerics
     # TODO: Fix nagelfar annotation to handle this nicely
-    ##nagelfar syntax snit::type::pdf4tcl::pdf4tcl::CheckNumeric x x o*
-    ##nagelfar option snit::type::pdf4tcl::pdf4tcl::CheckNumeric \
+    ##nagelfar syntax pdf4tcl::pdf4tcl::CheckNumeric x x o*
+    ##nagelfar option pdf4tcl::pdf4tcl::CheckNumeric \
             -nonnegative -positive -integer -unit
-    ##nagelfar option snit::type::pdf4tcl::pdf4tcl::CheckNumeric\ -unit x
-    proc CheckNumeric {val what args} {
+    ##nagelfar option pdf4tcl::pdf4tcl::CheckNumeric\ -unit x
+    proc ::pdf4tcl::pdf4tcl::CheckNumeric {val what args} {
         set origVal $val
         # If -unit is given, the value should be interpreted by getPoints
         set i [lsearch -exact $args -unit]
@@ -1331,9 +1383,9 @@ snit::type pdf4tcl::pdf4tcl {
     method SetPageOption {option value} {
         set options($option) $value
         # Fill in page properties
-        $self SetPageSize   $options(-paper) $options(-landscape) \
+        my SetPageSize   $options(-paper) $options(-landscape) \
                 $options(-rotate)
-        $self SetPageMargin $options(-margin)
+        my SetPageMargin $options(-margin)
     }
 
     # Configure method for -unit
@@ -1347,18 +1399,7 @@ snit::type pdf4tcl::pdf4tcl {
     #######################################################################
 
     constructor {args} {
-        # In 8.5 recode these as dicts within the pdf array
-        variable images
-        variable files
-        variable fonts
-        variable bitmaps
-        variable extgs
-        variable patterns
-	variable grads
-        variable metadata
-        # Array of type1 base fonts already included in this PDF file:
-        variable type1basefonts
-
+	namespace path [list {*}[namespace path] ::pdf4tcl ::pdf4tcl::pdf4tcl]
         set pdf(bookmarks) {}
         set pdf(forms) {}
         #set metadata(CreationDate) [string range [clock format [clock seconds] -format {D:%Y%m%d%H%M%S%z} -gmt 0] 0 end-2]
@@ -1366,7 +1407,58 @@ snit::type pdf4tcl::pdf4tcl {
         # The unit translation factor is needed before parsing arguments
         set pdf(unit) 1.0
 
-        $self configurelist $args
+	set options(-file)	{}
+        set options(-paper)	a4
+        set options(-landscape)	0
+        set options(-orient)	1
+        set options(-cmyk)	0
+        set options(-unit)	p
+  	set options(-compress)	0
+        set options(-margin)	0
+        set options(-rotate)	0
+        # Parse options
+        foreach {option value} $args {
+            switch -- $option {
+		-file {
+	            set options($option) $value
+		}
+                -paper {
+                    my CheckPaper $option $value
+		    my SetPageOption $option $value
+                }
+                -landscape {
+                    my CheckBoolean $option $value
+		    my SetPageOption $option $value
+                }
+		-orient {
+                    my CheckBoolean $option $value
+	            set options($option) $value
+		}
+		-cmyk {
+                    my CheckBoolean $option $value
+	            set options($option) $value
+		}
+		-unit {
+                    my CheckUnit $option $value
+		    my SetUnit $option $value
+		}
+		-compress {
+                    my CheckBoolean $option $value
+		    my SetCompress $option $value
+		}
+                -margin {
+                    my CheckMargin $option $value
+		    my SetPageOption $option $value
+                }
+                -rotate {
+                    my CheckRotation $option $value
+		    my SetPageOption $option $value
+                }
+                default {
+                    return -code error "Unknown option $option"
+                }
+            }
+	}
 
         # Document data
         set pdf(pages) {}
@@ -1396,9 +1488,9 @@ snit::type pdf4tcl::pdf4tcl {
 
         # Page data
         # Fill in page properties
-        $self SetPageSize   $options(-paper) $options(-landscape) \
+        my SetPageSize   $options(-paper) $options(-landscape) \
                 $options(-rotate)
-        $self SetPageMargin $options(-margin)
+        my SetPageMargin $options(-margin)
         set pdf(orient) $options(-orient)
         set pdf(cmyk) $options(-cmyk)
 
@@ -1420,17 +1512,17 @@ snit::type pdf4tcl::pdf4tcl {
         set pdf(pdf) ""
 
         # Start on pdfout
-        $self Pdfout "%PDF-1.4\n"
+        my Pdfout "%PDF-1.4\n"
         set pdf(version) 1.4
         # Add some chars >= 0x80 as recommended by the PDF standard
         # to make it easy to detect that this is not an ASCII file.
-        $self Pdfout "%\xE5\xE4\xF6\n"
+        my Pdfout "%\xE5\xE4\xF6\n"
     }
 
     destructor {
         # Close any open channel
         if {[info exists pdf(ch)] && $pdf(ch) ne ""} {
-            catch {$self finish}
+            catch {my finish}
             catch {close $pdf(ch)}
             set pdf(ch) ""
         }
@@ -1438,7 +1530,7 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Deprecated destroy function
     method cleanup {} { # Deprecated
-        $self destroy
+        my destroy
     }
 
     #######################################################################
@@ -1454,7 +1546,7 @@ snit::type pdf4tcl::pdf4tcl {
     # Add line of words to accumulated pdf output
     method Pdfoutn {args} {
         set out [join $args " "]\n
-        $self Pdfout $out
+        my Pdfout $out
     }
 
     # Helper to format a line consisting of numbers and last a command
@@ -1464,7 +1556,7 @@ snit::type pdf4tcl::pdf4tcl {
             append str [Nf $num] " "
         }
         append str "[lindex $args end]\n"
-        $self Pdfout $str
+        my Pdfout $str
     }
 
     # Move data from pdf(ob) cache to final destination.
@@ -1568,22 +1660,22 @@ snit::type pdf4tcl::pdf4tcl {
         foreach {option value} $args {
             switch -- $option {
                 -paper {
-                    $self CheckPaper $option $value
+                    my CheckPaper $option $value
                 }
                 -landscape {
-                    $self CheckBoolean $option $value
+                    my CheckBoolean $option $value
                 }
                 -margin {
-                    $self CheckMargin $option $value
+                    my CheckMargin $option $value
                 }
                 -orient {
-                    $self CheckBoolean $option $value
+                    my CheckBoolean $option $value
                 }
                 -rotate {
-                    $self CheckRotation $option $value
+                    my CheckRotation $option $value
                 }
                 -noimage {
-                    $self CheckBoolean $option $value
+                    my CheckBoolean $option $value
                 }
                 default {
                     return -code error "Unknown option $option"
@@ -1591,7 +1683,7 @@ snit::type pdf4tcl::pdf4tcl {
             }
             set localopts($option) $value
         }
-        set oid [eval \$self startPage [array get localopts]]
+        set oid [eval \my startPage [array get localopts]]
         set id xobject$oid
         set images($id) [list $pdf(width) $pdf(height) $oid $localopts(-noimage)]
         return $id
@@ -1599,7 +1691,7 @@ snit::type pdf4tcl::pdf4tcl {
     # Finish an XObject, this is just a wrapper for endPage available
     # for symmetry with startXObject.
     method endXObject {} {
-        $self endPage
+        my endPage
     }
 
     # Start on a new page
@@ -1616,15 +1708,15 @@ snit::type pdf4tcl::pdf4tcl {
 
         if {[llength $args] == 1} {
             # Single arg = paper
-            $self CheckPaper -paper [lindex $args 0]
+            my CheckPaper -paper [lindex $args 0]
             set localopts(-paper) [lindex $args 0]
         } elseif {[llength $args] == 2 && [string is digit [join $args ""]]} {
             # Old style two numeric args = {width height}
-            $self CheckPaper -paper $args
+            my CheckPaper -paper $args
             set localopts(-paper) $args
         } elseif {[llength $args] == 3 && [string is digit [join $args ""]]} {
             # Old style three numeric args = {width height orient}
-            $self CheckPaper -paper [lrange $args 0 1]
+            my CheckPaper -paper [lrange $args 0 1]
             set localopts(-paper)   [lrange $args 0 1]
             set localopts(-orient)  [lindex $args 2]
         } elseif {[llength $args] % 2 != 0} {
@@ -1635,25 +1727,25 @@ snit::type pdf4tcl::pdf4tcl {
             foreach {option value} $args {
                 switch -- $option {
                     -paper {
-                        $self CheckPaper $option $value
+                        my CheckPaper $option $value
                     }
                     -landscape {
-                        $self CheckBoolean $option $value
+                        my CheckBoolean $option $value
                     }
                     -margin {
-                        $self CheckMargin $option $value
+                        my CheckMargin $option $value
                     }
                     -orient {
-                        $self CheckBoolean $option $value
+                        my CheckBoolean $option $value
                     }
                     -rotate {
-                        $self CheckRotation $option $value
+                        my CheckRotation $option $value
                     }
                     -xobject {
-                        $self CheckBoolean $option $value
+                        my CheckBoolean $option $value
                     }
                     -noimage {
-                        $self CheckBoolean $option $value
+                        my CheckBoolean $option $value
                     }
                     default {
                         return -code error "Unknown option $option"
@@ -1664,12 +1756,12 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         if {$pdf(inPage)} {
-            $self endPage
+            my endPage
         }
         # Fill in page properties
-        $self SetPageSize $localopts(-paper) $localopts(-landscape) \
+        my SetPageSize $localopts(-paper) $localopts(-landscape) \
                 $localopts(-rotate)
-        $self SetPageMargin $localopts(-margin)
+        my SetPageMargin $localopts(-margin)
         set pdf(orient) $localopts(-orient)
 
         set pdf(inPage) 1
@@ -1677,7 +1769,7 @@ snit::type pdf4tcl::pdf4tcl {
 
         # dimensions
         if {!$pdf(inXObject)} {
-            set oid [$self GetOid]
+            set oid [my GetOid]
             lappend pdf(pages) $oid
             set pdf(pageobjid) $oid
 
@@ -1692,34 +1784,34 @@ snit::type pdf4tcl::pdf4tcl {
             if {$pdf(rotate) != 0} {
                 append pdf(pageobj) "/Rotate $pdf(rotate)\n"
             }
-            append pdf(pageobj) "/Contents \[[$self NextOid] 0 R\]\n"
+            append pdf(pageobj) "/Contents \[[my NextOid] 0 R\]\n"
         }
         # reset annotations (this variable contains a list)
         set pdf(annotations) {}
 
         # start of contents
-        set oid [$self GetOid]
-        $self Pdfout "$oid 0 obj\n"
+        set oid [my GetOid]
+        my Pdfout "$oid 0 obj\n"
         # Allocate an object for the page length
-        set pdf(pagelengthoid) [$self GetOid 1]
-        $self Pdfout "<<\n"
+        set pdf(pagelengthoid) [my GetOid 1]
+        my Pdfout "<<\n"
         if {$pdf(inXObject)} {
-            $self Pdfout "/Type /XObject\n"
-            $self Pdfout "/Subtype /Form\n"
+            my Pdfout "/Type /XObject\n"
+            my Pdfout "/Subtype /Form\n"
             if {$localopts(-noimage)} {
-                $self Pdfout "/Resources 3 0 R\n"
+                my Pdfout "/Resources 3 0 R\n"
             }
-            $self Pdfout [format "/BBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
+            my Pdfout [format "/BBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
             # This matrix makes the final Xobject to be size 1x1 in user space
             # just like an image
-            $self Pdfout [format "/Matrix \[%g 0 0 %g 0 0\]\n" [expr {1.0/$pdf(width)}] [expr {1.0/$pdf(height)}]]
+            my Pdfout [format "/Matrix \[%g 0 0 %g 0 0\]\n" [expr {1.0/$pdf(width)}] [expr {1.0/$pdf(height)}]]
             # TBD: Resources?
         }
         if {$pdf(compress)} {
-            $self Pdfout "/Filter \[/FlateDecode\]\n"
+            my Pdfout "/Filter \[/FlateDecode\]\n"
         }
-        $self Pdfout "/Length $pdf(pagelengthoid) 0 R\n"
-        $self Pdfout ">>\nstream\n"
+        my Pdfout "/Length $pdf(pagelengthoid) 0 R\n"
+        my Pdfout ">>\nstream\n"
         set pdf(data_start) $pdf(out_pos)
         set pdf(in_text_object) false
 
@@ -1727,7 +1819,7 @@ snit::type pdf4tcl::pdf4tcl {
         set pdf(font_set) false
 
         # capture output
-        $self Flush
+        my Flush
 
         return $oid
     }
@@ -1738,20 +1830,20 @@ snit::type pdf4tcl::pdf4tcl {
             return
         }
         if {$pdf(in_text_object)} {
-            $self Pdfout "\nET\n"
+            my Pdfout "\nET\n"
         }
         # get buffer
-        set data_len [$self Flush $pdf(compress)]
+        set data_len [my Flush $pdf(compress)]
         set pdf(out_pos) [expr {$pdf(data_start)+$data_len}]
-        $self Pdfout "\nendstream\n"
-        $self Pdfout "endobj\n\n"
+        my Pdfout "\nendstream\n"
+        my Pdfout "endobj\n\n"
 
         # Create Length object
-        $self StoreXref $pdf(pagelengthoid)
-        $self Pdfout "$pdf(pagelengthoid) 0 obj\n"
+        my StoreXref $pdf(pagelengthoid)
+        my Pdfout "$pdf(pagelengthoid) 0 obj\n"
         incr data_len
-        $self Pdfout "$data_len\n"
-        $self Pdfout "endobj\n\n"
+        my Pdfout "$data_len\n"
+        my Pdfout "endobj\n\n"
         set pdf(inPage) false
 
         # insert annotations array and write page object
@@ -1761,12 +1853,12 @@ snit::type pdf4tcl::pdf4tcl {
             }
             append pdf(pageobj) ">>\n"
             append pdf(pageobj) "endobj\n\n"
-            $self StoreXref $pdf(pageobjid)
-            $self Pdfout $pdf(pageobj)
+            my StoreXref $pdf(pageobjid)
+            my Pdfout $pdf(pageobj)
         }
 
         # Dump stored objects
-        $self FlushObjects
+        my FlushObjects
     }
 
     method FlushObjects {} {
@@ -1776,17 +1868,17 @@ snit::type pdf4tcl::pdf4tcl {
 
         # Dump stored objects
         foreach {oid body} $pdf(objects) {
-            $self StoreXref $oid
-            $self Pdfout $body
+            my StoreXref $oid
+            my Pdfout $body
         }
         set pdf(objects) {}
-        $self Flush
+        my Flush
     }
 
     # This must create optionally compressed PDF stream.
     # dictval must contain correct string value without >> terminator.
     # Terminator and length will be added by this proc.
-    proc MakeStream {dictval body compress} {
+    proc ::pdf4tcl::pdf4tcl::MakeStream {dictval body compress} {
         set res $dictval
         if {$compress} {
             set body2 [zlib compress $body]
@@ -1806,7 +1898,7 @@ snit::type pdf4tcl::pdf4tcl {
     # Create an object to be added to the stream at a suitable time.
     # Returns the Object Id.
     method AddObject {body} {
-        set oid [$self GetOid 1]
+        set oid [my GetOid 1]
         lappend pdf(objects) $oid "$oid 0 obj\n$body\nendobj\n"
         return $oid
     }
@@ -1825,124 +1917,124 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         if {$pdf(inPage)} {
-            $self endPage
+            my endPage
         }
         # Object 1 is the Root of the document
-        $self StoreXref 1
-        $self Pdfout "1 0 obj\n"
-        $self Pdfout "<<\n"
-        $self Pdfout "/Type /Catalog\n"
+        my StoreXref 1
+        my Pdfout "1 0 obj\n"
+        my Pdfout "<<\n"
+        my Pdfout "/Type /Catalog\n"
         if {$pdf(version) > 1.4} {
-            $self Pdfout "/Version $pdf(version)\n"
+            my Pdfout "/Version $pdf(version)\n"
         }
-        $self Pdfout "/Pages 2 0 R\n"
+        my Pdfout "/Pages 2 0 R\n"
         # Determine the number of bookmarks to add to the document.
         set nbookmarks [llength $pdf(bookmarks)]
         if {$nbookmarks > 0} {
-            set bookmark_oid [$self GetOid 1]
-            $self Pdfout "/Outlines $bookmark_oid 0 R\n"
+            set bookmark_oid [my GetOid 1]
+            my Pdfout "/Outlines $bookmark_oid 0 R\n"
         }
         # Any forms?
         if {[llength $pdf(forms)] > 0} {
-            set form_oid [$self GetOid 1]
-            $self Pdfout "/AcroForm $form_oid 0 R\n"
+            set form_oid [my GetOid 1]
+            my Pdfout "/AcroForm $form_oid 0 R\n"
         }
-        $self Pdfout ">>\n"
-        $self Pdfout "endobj\n\n"
+        my Pdfout ">>\n"
+        my Pdfout "endobj\n\n"
 
         # Object 2 lists the pages
-        $self StoreXref 2
-        $self Pdfout "2 0 obj\n"
-        $self Pdfout "<<\n/Type /Pages\n"
-        $self Pdfout "/Count [llength $pdf(pages)]\n"
-        $self Pdfout "/Kids \["
+        my StoreXref 2
+        my Pdfout "2 0 obj\n"
+        my Pdfout "<<\n/Type /Pages\n"
+        my Pdfout "/Count [llength $pdf(pages)]\n"
+        my Pdfout "/Kids \["
         foreach oid $pdf(pages) {
-            $self Pdfout "$oid 0 R "
+            my Pdfout "$oid 0 R "
         }
-        $self Pdfout "\]\n"
-        $self Pdfout ">>\n"
-        $self Pdfout "endobj\n\n"
+        my Pdfout "\]\n"
+        my Pdfout ">>\n"
+        my Pdfout "endobj\n\n"
 
         # Object 3 is the Resources Object
-        $self StoreXref 3
-        $self Pdfout "3 0 obj\n"
-        $self Pdfout "<<\n"
-        $self Pdfout "/ProcSet\[/PDF /Text /ImageC\]\n"
+        my StoreXref 3
+        my Pdfout "3 0 obj\n"
+        my Pdfout "<<\n"
+        my Pdfout "/ProcSet\[/PDF /Text /ImageC\]\n"
 
         # font references
         if {[array size fonts] > 0} {
-            $self Pdfout "/Font <<\n"
+            my Pdfout "/Font <<\n"
             foreach fontname [array names fonts] {
                 set oid $fonts($fontname)
-                $self Pdfout "/$fontname $oid 0 R\n"
+                my Pdfout "/$fontname $oid 0 R\n"
             }
-            $self Pdfout ">>\n"
+            my Pdfout ">>\n"
         }
 
         # extended graphics state references
         if {[array size extgs] > 0} {
-            $self Pdfout "/ExtGState <<\n"
+            my Pdfout "/ExtGState <<\n"
             foreach egs [array names extgs] {
                 set oid $extgs($egs)
-                $self Pdfout "/$egs $oid 0 R\n"
+                my Pdfout "/$egs $oid 0 R\n"
             }
-            $self Pdfout ">>\n"
+            my Pdfout ">>\n"
         }
 
         # image references
         if {[array size images] > 0} {
-            $self Pdfout "/XObject <<\n"
+            my Pdfout "/XObject <<\n"
             foreach key [array names images] {
                 if {![lindex $images($key) 3]} {
                     set oid [lindex $images($key) 2]
-                    $self Pdfout "/$key $oid 0 R\n"
+                    my Pdfout "/$key $oid 0 R\n"
                 }
             }
-            $self Pdfout ">>\n"
+            my Pdfout ">>\n"
         }
 
         # pattern references
         if {[array size patterns] > 0} {
-            $self Pdfout "/ColorSpace <<\n"
+            my Pdfout "/ColorSpace <<\n"
             if {$pdf(cmyk)} {
-                $self Pdfout "/Cs1 \[/Pattern /DeviceCMYK\]\n"
+                my Pdfout "/Cs1 \[/Pattern /DeviceCMYK\]\n"
             } else {
-                $self Pdfout "/Cs1 \[/Pattern /DeviceRGB\]\n"
+                my Pdfout "/Cs1 \[/Pattern /DeviceRGB\]\n"
             }
-            $self Pdfout ">>\n"
+            my Pdfout ">>\n"
 
-            $self Pdfout "/Pattern <<\n"
+            my Pdfout "/Pattern <<\n"
             foreach key [array names patterns] {
                 set oid [lindex $patterns($key) 2]
-                $self Pdfout "/$key $oid 0 R\n"
+                my Pdfout "/$key $oid 0 R\n"
             }
-            $self Pdfout ">>\n"
+            my Pdfout ">>\n"
         }
 
         # gradient references
         if {[array size grads] > 0} {
-            $self Pdfout "/Shading <<\n"
+            my Pdfout "/Shading <<\n"
             foreach key [array names grads] {
                 set oid [lindex $grads($key) 2]
-                $self Pdfout "/$key $oid 0 R\n"
+                my Pdfout "/$key $oid 0 R\n"
             }
-            $self Pdfout ">>\n"
+            my Pdfout ">>\n"
 	}
 
-        $self Pdfout ">>\nendobj\n\n" ;# Resources object
+        my Pdfout ">>\nendobj\n\n" ;# Resources object
 
         if {$nbookmarks > 0} {
             set count [BookmarkCount $pdf(bookmarks) -1]
 
             # Create the outline dictionary.
-            set oid [$self NextOid]
-            $self StoreXref $bookmark_oid
-            $self Pdfout "$bookmark_oid 0 obj\n"
-            $self Pdfout "<<\n/Type /Outlines\n"
-            $self Pdfout "/First $oid 0 R\n"
-            $self Pdfout "/Last [expr {$oid + $nbookmarks - 1}] 0 R\n"
-            if {$count} {$self Pdfout "/Count $count\n"}
-            $self Pdfout ">>\nendobj\n\n"
+            set oid [my NextOid]
+            my StoreXref $bookmark_oid
+            my Pdfout "$bookmark_oid 0 obj\n"
+            my Pdfout "<<\n/Type /Outlines\n"
+            my Pdfout "/First $oid 0 R\n"
+            my Pdfout "/Last [expr {$oid + $nbookmarks - 1}] 0 R\n"
+            if {$count} {my Pdfout "/Count $count\n"}
+            my Pdfout ">>\nendobj\n\n"
 
             # Create the outline item dictionary for each bookmark.
             set nbookmark 0
@@ -1950,64 +2042,64 @@ snit::type pdf4tcl::pdf4tcl {
             set previous {}
             foreach bookmark $pdf(bookmarks) {
                 if {[lindex $bookmark 1] == 0} {
-                    set previous [$self BookmarkObject $parent $previous [lrange $pdf(bookmarks) $nbookmark end]]
+                    set previous [my BookmarkObject $parent $previous [lrange $pdf(bookmarks) $nbookmark end]]
                 }
                 incr nbookmark
             }
         }
         # Any forms?
         if {[llength $pdf(forms)] > 0} {
-            $self StoreXref $form_oid
-            $self Pdfout "$form_oid 0 obj\n"
-            $self Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
-            $self Pdfout "/DR 3 0 R\n"
-            $self Pdfout ">>\nendobj\n\n"
+            my StoreXref $form_oid
+            my Pdfout "$form_oid 0 obj\n"
+            my Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
+            my Pdfout "/DR 3 0 R\n"
+            my Pdfout ">>\nendobj\n\n"
         }
 
         # Create the PDF document information dictionary.
         if {[array exists metadata]} {
-            set metadata_oid [$self GetOid]
-            $self StoreXref $metadata_oid
-            $self Pdfout "$metadata_oid 0 obj\n<<\n"
+            set metadata_oid [my GetOid]
+            my StoreXref $metadata_oid
+            my Pdfout "$metadata_oid 0 obj\n<<\n"
             foreach {name value} [array get metadata] {
-                $self Pdfout "/$name ([CleanText $value $pdf(current_font)])\n"
+                my Pdfout "/$name ([CleanText $value $pdf(current_font)])\n"
             }
-            $self Pdfout ">>\nendobj\n\n"
+            my Pdfout ">>\nendobj\n\n"
         }
 
         # Cross reference table
         set xref_pos $pdf(out_pos)
-        $self Pdfout "xref\n"
-        $self Pdfout "0 [$self NextOid]\n"
-        $self Pdfout "0000000000 65535 f \n"
-        for {set a 1} {$a<[$self NextOid]} {incr a} {
+        my Pdfout "xref\n"
+        my Pdfout "0 [my NextOid]\n"
+        my Pdfout "0000000000 65535 f \n"
+        for {set a 1} {$a<[my NextOid]} {incr a} {
             set xref $pdf(xref,$a)
-            $self Pdfout [format "%010ld 00000 n \n" $xref]
+            my Pdfout [format "%010ld 00000 n \n" $xref]
         }
 
         # Document trailer
-        $self Pdfout "trailer\n"
-        $self Pdfout "<<\n"
-        $self Pdfout "/Size [$self NextOid]\n"
-        $self Pdfout "/Root 1 0 R\n"
+        my Pdfout "trailer\n"
+        my Pdfout "<<\n"
+        my Pdfout "/Size [my NextOid]\n"
+        my Pdfout "/Root 1 0 R\n"
         if {[info exists metadata_oid]} {
-            $self Pdfout "/Info $metadata_oid 0 R\n"
+            my Pdfout "/Info $metadata_oid 0 R\n"
         }
-        $self Pdfout ">>\n"
-        $self Pdfout "\nstartxref\n"
-        $self Pdfout "$xref_pos\n"
-        $self Pdfout "%%EOF\n"
-        $self Flush
+        my Pdfout ">>\n"
+        my Pdfout "\nstartxref\n"
+        my Pdfout "$xref_pos\n"
+        my Pdfout "%%EOF\n"
+        my Flush
         set pdf(finished) true
     }
 
     # Get finished PDF data
     method get {} {
         if {$pdf(inPage)} {
-            $self endPage
+            my endPage
         }
         if {! $pdf(finished)} {
-            $self finish
+            my finish
         }
         return $pdf(pdf)
     }
@@ -2032,7 +2124,7 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         fconfigure $chan -translation binary
-        puts -nonewline $chan [$self get]
+        puts -nonewline $chan [my get]
         if {$outfile} {
             close $chan
         }
@@ -2107,7 +2199,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set level $value
                 }
                 -closed {
-                    $self CheckBoolean $option $value
+                    my CheckBoolean $option $value
                     set closed $value
                 }
                 default {
@@ -2131,7 +2223,7 @@ snit::type pdf4tcl::pdf4tcl {
     # This procedure determines the number of open items of an outline
     # dictionary object.
 
-    proc BookmarkCount {bookmarks level} {
+    proc ::pdf4tcl::pdf4tcl::BookmarkCount {bookmarks level} {
         set count 0
 
         # Increment the count if the bookmark is not closed.
@@ -2156,8 +2248,8 @@ snit::type pdf4tcl::pdf4tcl {
         set closed      [lindex $bookmark 2]
         set title       [lindex $bookmark 3]
 
-        set oid [$self GetOid]
-        $self StoreXref $oid
+        set oid [my GetOid]
+        my StoreXref $oid
 
         BookmarkProperties $oid $level [lrange $bookmarks 1 end] \
                 next first last count
@@ -2166,17 +2258,17 @@ snit::type pdf4tcl::pdf4tcl {
             set count [expr {-$count}]
         }
 
-        $self Pdfout "$oid 0 obj\n"
-        $self Pdfout "<<\n/Title ([CleanText $title $pdf(current_font)])\n"
-        $self Pdfout "/Parent $parent 0 R\n"
-        if {$previous != {}} {$self Pdfout "/Prev $previous 0 R\n"}
-        if {$next     != {}} {$self Pdfout "/Next $next 0 R\n"}
-        if {$first    != {}} {$self Pdfout "/First $first 0 R\n"}
-        if {$last     != {}} {$self Pdfout "/Last $last 0 R\n"}
-        if {$count} {$self Pdfout "/Count $count\n"}
-        $self Pdfout "/Dest \[$destination 0 R /XYZ null null null\]\n"
-        $self Pdfout ">>\n"
-        $self Pdfout "endobj\n\n"
+        my Pdfout "$oid 0 obj\n"
+        my Pdfout "<<\n/Title ([CleanText $title $pdf(current_font)])\n"
+        my Pdfout "/Parent $parent 0 R\n"
+        if {$previous != {}} {my Pdfout "/Prev $previous 0 R\n"}
+        if {$next     != {}} {my Pdfout "/Next $next 0 R\n"}
+        if {$first    != {}} {my Pdfout "/First $first 0 R\n"}
+        if {$last     != {}} {my Pdfout "/Last $last 0 R\n"}
+        if {$count} {my Pdfout "/Count $count\n"}
+        my Pdfout "/Dest \[$destination 0 R /XYZ null null null\]\n"
+        my Pdfout ">>\n"
+        my Pdfout "endobj\n\n"
 
         if {$next != {}} {
             set previous $oid
@@ -2193,7 +2285,7 @@ snit::type pdf4tcl::pdf4tcl {
                 incr n
                 if {[lindex $bookmark 1] < $level} {break}
                 if {[lindex $bookmark 1] == $level} {
-                    set prev [$self BookmarkObject $parent $prev \
+                    set prev [my BookmarkObject $parent $prev \
                             [lrange $bookmarks $n end]]
                 }
             }
@@ -2206,7 +2298,7 @@ snit::type pdf4tcl::pdf4tcl {
     # This procedure determines the properties for an outline item dictionary
     # object.
 
-    proc BookmarkProperties {oid current bookmarks n f l c} {
+    proc ::pdf4tcl::pdf4tcl::BookmarkProperties {oid current bookmarks n f l c} {
         upvar 1 $n next $f first $l last $c count
 
         set next  {}
@@ -2298,7 +2390,7 @@ snit::type pdf4tcl::pdf4tcl {
 
         # Delay putting things in until we are actually on a page
         if {$pdf(inPage)} {
-            $self SetupFont
+            my SetupFont
         }
     }
 
@@ -2344,7 +2436,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {[info exists userMappingArr($name)]} {
            set family $userMappingArr($name)
         }
-        $self setFont $size $family 1
+        my setFont $size $family 1
     }
 
     # Helpers to temporarily store and restore the current font state
@@ -2371,7 +2463,7 @@ snit::type pdf4tcl::pdf4tcl {
         append body "/Name /$fontname\n"
         append body "/BaseFont /ZapfDingbats\n"
         append body ">>"
-        set oid [$self AddObject $body]
+        set oid [my AddObject $body]
         set fonts($fontname) $oid
     }
 
@@ -2385,9 +2477,9 @@ snit::type pdf4tcl::pdf4tcl {
             return -code error "No font set"
         }
         set fontname $pdf(current_font)
-        $self Pdfoutn "/$fontname [Nf $pdf(font_size)]" "Tf"
-        $self Pdfoutcmd 0 "Tr"
-        $self Pdfoutcmd $pdf(font_size) "TL"
+        my Pdfoutn "/$fontname [Nf $pdf(font_size)]" "Tf"
+        my Pdfoutcmd 0 "Tr"
+        my Pdfoutcmd $pdf(font_size) "TL"
 
         # Make sure a font object exists
         if {![info exists fonts($fontname)]} {
@@ -2410,7 +2502,7 @@ snit::type pdf4tcl::pdf4tcl {
                 set body [MakeStream $dictv \
                         $::pdf4tcl::FontsAttrs($fontname,data) \
                         $pdf(compress)]
-                set fsoid [$self AddObject $body]
+                set fsoid [my AddObject $body]
                 # 2. Font subset descriptor.
                 set    body "<<\n/FontName /$BaseFN\n"
                 append body "/StemV [Nf $BFA($BFN,stemV)]\n"
@@ -2423,13 +2515,13 @@ snit::type pdf4tcl::pdf4tcl {
                 append body "/FontBBox \[$fbbox\]\n"
                 append body "/Type /FontDescriptor\n"
                 append body "/CapHeight [Nf $BFA($BFN,CapHeight)]\n>>"
-                set foid [$self AddObject $body]
+                set foid [my AddObject $body]
                 # 3. ToUnicode Cmap for subset.
                 set body [MakeStream "<<" \
                         [MakeToUnicodeCMap $BaseFN \
                         $::pdf4tcl::FontsAttrs($fontname,uniset)] \
                         $pdf(compress)]
-                set uoid [$self AddObject $body]
+                set uoid [my AddObject $body]
                 # 4. Font object.
                 # Make array of widths here:
                 set Widths [list]
@@ -2460,7 +2552,7 @@ snit::type pdf4tcl::pdf4tcl {
                     append dictv "\n/Length2 $BFA($BFN,Length2)"
                     append dictv "\n/Length3 $BFA($BFN,Length3)"
                     set body [MakeStream $dictv $BFA($BFN,data) $pdf(compress)]
-                    set fsoid [$self AddObject $body]
+                    set fsoid [my AddObject $body]
                     #2. Font descriptor:
                     set    body "<<\n/FontName /$BFN\n"
                     append body "/StemV [Nf $BFA($BFN,stemV)]\n"
@@ -2473,7 +2565,7 @@ snit::type pdf4tcl::pdf4tcl {
                     append body "/FontBBox \[$fbbox\]\n"
                     append body "/Type /FontDescriptor\n"
                     append body "/CapHeight [Nf $BFA($BFN,CapHeight)]\n>>"
-                    set foid [$self AddObject $body]
+                    set foid [my AddObject $body]
                     set type1basefonts($BFN) $foid
                 } else {
                     set foid $type1basefonts($BFN)
@@ -2483,7 +2575,7 @@ snit::type pdf4tcl::pdf4tcl {
                         [MakeToUnicodeCMap $BFN \
                         $::pdf4tcl::FontsAttrs($fontname,uniset)] \
                         $pdf(compress)]
-                set uoid [$self AddObject $body]
+                set uoid [my AddObject $body]
                 # 4. Font object:
                 set Widths [list]
                 foreach ucode $::pdf4tcl::FontsAttrs($fontname,uniset) {
@@ -2507,7 +2599,7 @@ snit::type pdf4tcl::pdf4tcl {
                 append body "/BaseEncoding /WinAnsiEncoding\n"
                 append body "/Differences \[$diffs\]\n>>\n>>"
             }
-            set oid [$self AddObject $body]
+            set oid [my AddObject $body]
             set fonts($fontname) $oid
         }
         set pdf(font_set) true
@@ -2571,7 +2663,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     # Get the width of a character. "ch" must be exactly one char long.
-    proc GetCharWidth {font ch} {
+    proc ::pdf4tcl::pdf4tcl::GetCharWidth {font ch} {
         if {$ch eq "\n"} {
             return 0.0
         }
@@ -2605,13 +2697,13 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Set coordinate for next text command. Internal version
     method SetTextPosition {x y} {
-        $self BeginTextObj
+        my BeginTextObj
         set pdf(xpos) $x
         set pdf(ypos) $y
-        $self Pdfoutcmd 1 0 0 1 $pdf(xpos) $pdf(ypos) "Tm"
+        my Pdfoutcmd 1 0 0 1 $pdf(xpos) $pdf(ypos) "Tm"
     }
 
-    proc MulVxM {vector matrix} {
+    proc ::pdf4tcl::pdf4tcl::MulVxM {vector matrix} {
         foreach {x y} $vector break
         foreach {a b c d e f} $matrix break
         lappend res [expr {$a*$x + $c*$y + $e}]
@@ -2619,7 +2711,7 @@ snit::type pdf4tcl::pdf4tcl {
         return $res
     }
 
-    proc MulMxM {m1 m2} {
+    proc ::pdf4tcl::pdf4tcl::MulMxM {m1 m2} {
         foreach {a1 b1 c1 d1 e1 f1} $m1 break
         foreach {a2 b2 c2 d2 e2 f2} $m2 break
         lappend res [expr {$a1*$a2 + $b1*$c2}]
@@ -2632,7 +2724,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     method SetTextPositionAngle {x y angle xangle yangle} {
-        $self BeginTextObj
+        my BeginTextObj
         set rad [expr {$angle*3.1415926/180.0}]
         set c [expr {cos($rad)}]
         set s [expr {sin($rad)}]
@@ -2640,7 +2732,7 @@ snit::type pdf4tcl::pdf4tcl {
         set pdf(ypos) $y
 
         if {$xangle == 0 && $yangle == 0} {
-            $self Pdfoutcmd $c $s [expr {-$s}] $c $x $y "Tm"
+            my Pdfoutcmd $c $s [expr {-$s}] $c $x $y "Tm"
             return
         }
 
@@ -2654,25 +2746,25 @@ snit::type pdf4tcl::pdf4tcl {
         lset ma 4 $x
         lset ma 5 $y
 
-        eval \$self Pdfoutcmd $ma "Tm" ;# 8.5
+        eval \my Pdfoutcmd $ma "Tm" ;# 8.5
     }
 
     # Set coordinate for next text command.
     method setTextPosition {x y} {
-        $self BeginTextObj
-        $self Trans $x $y x y
+        my BeginTextObj
+        my Trans $x $y x y
         # Store for reference
         set pdf(origxpos) $x
         set pdf(origypos) $y
-        $self SetTextPosition $x $y
+        my SetTextPosition $x $y
     }
 
     # Move coordinate for next text command.
     method moveTextPosition {x y} {
-        $self TransR $x $y x y
+        my TransR $x $y x y
         set y [expr {$pdf(ypos) + $y}]
         set x [expr {$pdf(xpos) + $x}]
-        $self SetTextPosition $x $y
+        my SetTextPosition $x $y
     }
 
     # Get current test position
@@ -2695,13 +2787,13 @@ snit::type pdf4tcl::pdf4tcl {
     # Draw text at current position, with a newline before
     # DEPRECATED!
     method drawText {str} { # Deprecated
-        $self BeginTextObj
+        my BeginTextObj
         if {!$pdf(font_set)} {
-            $self SetupFont
+            my SetupFont
         }
-        $self Pdfout "([CleanText $str $pdf(current_font)]) '\n"
+        my Pdfout "([CleanText $str $pdf(current_font)]) '\n"
         # Update to next line
-        set strWidth [$self getStringWidth $str 1]
+        set strWidth [my getStringWidth $str 1]
         set pdf(ypos) [expr {$pdf(ypos) - $pdf(font_size) * $pdf(line_spacing)}]
         set pdf(xpos) [expr {$pdf(origxpos) + $strWidth}]
     }
@@ -2717,7 +2809,7 @@ snit::type pdf4tcl::pdf4tcl {
         # Update to next line
         set y [expr {$pdf(ypos) - $pdf(font_size) * $spacing}]
         set x $pdf(origxpos)
-        $self SetTextPosition $x $y
+        my SetTextPosition $x $y
     }
 
     # Set Line spacing factor (which is used by method newLine
@@ -2735,7 +2827,7 @@ snit::type pdf4tcl::pdf4tcl {
     # Draw a text string
     # Returns the width of the drawn string.
     method text {str args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         set align "left"
         set angle 0
         set xangle 0
@@ -2763,15 +2855,15 @@ snit::type pdf4tcl::pdf4tcl {
                     if {[string is boolean -strict $value]} {
                         set bg $value
                     } else {
-                        set bg [$self GetColor $value]
+                        set bg [my GetColor $value]
                     }
                 }
                 "-y" {
-                    $self Trans 0 $value _ y
+                    my Trans 0 $value _ y
                     set posSet 1
                 }
                 "-x" {
-                    $self Trans $value 0 x _
+                    my Trans $value 0 x _
                     set posSet 1
                 }
                 default {
@@ -2781,10 +2873,10 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         if {!$pdf(font_set)} {
-            $self SetupFont
+            my SetupFont
         }
 
-        set strWidth [$self getStringWidth $str 1]
+        set strWidth [my getStringWidth $str 1]
         if {$align == "right"} {
             set x [expr {$x - $strWidth * cos($angle*3.1415926/180.0)}]
             set y [expr {$y - $strWidth * sin($angle*3.1415926/180.0)}]
@@ -2796,18 +2888,18 @@ snit::type pdf4tcl::pdf4tcl {
         }
         # Draw a background box if needed.
         if {[llength $bg] > 1 || $bg} {
-            set bboxb [$self getFontMetric bboxb 1]
-            set bboxt [$self getFontMetric bboxt 1]
+            set bboxb [my getFontMetric bboxb 1]
+            set bboxt [my getFontMetric bboxt 1]
             set ytop [expr {$y + $bboxt}]
             set ybot [expr {$y + $bboxb}]
             set dh [expr {$bboxt - $bboxb}]
-            $self EndTextObj
+            my EndTextObj
             # Temporarily shift fill color
-            $self Pdfoutcmd "q"
+            my Pdfoutcmd "q"
             if {[llength $bg] > 1} {
-                $self SetFillColor $bg
+                my SetFillColor $bg
             } else {
-                $self SetFillColor $pdf(bgColor)
+                my SetFillColor $pdf(bgColor)
             }
             if {$angle || $xangle || $yangle} {
                 # Create rotated and skewed background polygon:
@@ -2835,22 +2927,22 @@ snit::type pdf4tcl::pdf4tcl {
                 set p2 [MulVxM [list $x2 $ytop] $ma]
                 set p3 [MulVxM [list $x2 $y2] $ma]
                 set p4 [MulVxM [list $x $y2] $ma]
-                eval \$self DrawPoly 0 1 $p1 $p2 $p3 $p4
+                eval \my DrawPoly 0 1 $p1 $p2 $p3 $p4
             } else {
-                $self DrawRect $x $ybot $strWidth $dh 0 1
+                my DrawRect $x $ybot $strWidth $dh 0 1
             }
-            $self Pdfoutcmd "Q"
+            my Pdfoutcmd "Q"
             # Position needs to be set since we left the text object
             set posSet 1
         }
-        $self BeginTextObj
+        my BeginTextObj
         if {$angle || $xangle || $yangle} {
-            $self SetTextPositionAngle $x $y $angle $xangle $yangle
+            my SetTextPositionAngle $x $y $angle $xangle $yangle
         } elseif {$posSet} {
-            $self SetTextPosition $x $y
+            my SetTextPosition $x $y
         }
 
-        $self Pdfout "([CleanText $str $pdf(current_font)]) Tj\n"
+        my Pdfout "([CleanText $str $pdf(current_font)]) Tj\n"
         set pdf(xpos) [expr {$x + $strWidth}]
         return $strWidth
     }
@@ -2858,22 +2950,22 @@ snit::type pdf4tcl::pdf4tcl {
     # Draw a text string at a given position.
     method DrawTextAt {x y str {align left}} {
         if {! $pdf(font_set)} {
-            $self SetupFont
+            my SetupFont
         }
 
-        set strWidth [$self getStringWidth $str 1]
+        set strWidth [my getStringWidth $str 1]
         if {$align == "right"} {
             set x [expr {$x - $strWidth}]
         } elseif {$align == "center"} {
             set x [expr {$x - $strWidth / 2}]
         }
-        $self BeginTextObj
-        $self SetTextPosition $x $y
-        $self Pdfout "([CleanText $str $pdf(current_font)]) Tj\n"
+        my BeginTextObj
+        my SetTextPosition $x $y
+        my Pdfout "([CleanText $str $pdf(current_font)]) Tj\n"
     }
 
     method drawTextBox {x y width height txt args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         set align left
         set linesVar ""
         foreach {arg value} $args {
@@ -2895,8 +2987,8 @@ snit::type pdf4tcl::pdf4tcl {
         }
         set lines 0
 
-        $self Trans  $x $y x y
-        $self TransR $width $height width height
+        my Trans  $x $y x y
+        my TransR $width $height width height
 
         if {!$pdf(orient)} {
             # Always have anchor position upper left
@@ -2906,17 +2998,17 @@ snit::type pdf4tcl::pdf4tcl {
             set height [expr {- $height}]
         }
 
-        $self BeginTextObj
+        my BeginTextObj
         if {! $pdf(font_set)} {
-            $self SetupFont
+            my SetupFont
         }
 
         # pre-calculate some values
         set font_height [expr {$pdf(font_size) * $pdf(line_spacing)}]
-        set space_width [$self getCharWidth " " 1]
+        set space_width [my getCharWidth " " 1]
 
         # Displace y to put the first line within the box
-        set bboxb [$self getFontMetric bboxb 1]
+        set bboxb [my getFontMetric bboxb 1]
         set ystart $y
         set y [expr {$y - $pdf(font_size) - $bboxb}]
 
@@ -2935,7 +3027,7 @@ snit::type pdf4tcl::pdf4tcl {
             if {[regexp "\[ \t\r\n-\]" $ch]} {
                 set lastbp $pos
             }
-            set w [$self getCharWidth $ch 1]
+            set w [my getCharWidth $ch 1]
             if {($cwidth+$w)>$width || $pos>=$len || $ch=="\n"} {
                 if {$pos>=$len} {
                     set done true
@@ -2958,24 +3050,24 @@ snit::type pdf4tcl::pdf4tcl {
                         set words [split $sent " "]
                         if {[llength $words]>1 && (!$done) && $ch!="\n"} {
                             # determine additional width per space
-                            set sw [$self getStringWidth $sent 1]
+                            set sw [my getStringWidth $sent 1]
                             set add [expr {($width-$sw)/([llength $words]-1)}]
                             # display words
-                            $self Pdfoutcmd $add "Tw"
-                            $self DrawTextAt $x $y $sent
-                            $self Pdfoutcmd 0 "Tw"
+                            my Pdfoutcmd $add "Tw"
+                            my DrawTextAt $x $y $sent
+                            my Pdfoutcmd 0 "Tw"
                         } else {
-                            $self DrawTextAt $x $y $sent
+                            my DrawTextAt $x $y $sent
                         }
                     }
                     "right" {
-                        $self DrawTextAt [expr {$x+$width}] $y $sent right
+                        my DrawTextAt [expr {$x+$width}] $y $sent right
                     }
                     "center" {
-                        $self DrawTextAt [expr {$x+$width/2.0}] $y $sent center
+                        my DrawTextAt [expr {$x+$width/2.0}] $y $sent center
                     }
                     default {
-                        $self DrawTextAt $x $y $sent
+                        my DrawTextAt $x $y $sent
                     }
                 }
                 # Move y down to next line
@@ -3002,16 +3094,16 @@ snit::type pdf4tcl::pdf4tcl {
     # start text object, if not already in text
     method BeginTextObj {} {
         if {!$pdf(in_text_object)} {
-            $self Pdfout "BT\n"
+            my Pdfout "BT\n"
             set pdf(in_text_object) true
         }
     }
 
     # end text object, if in text, else do nothing
     method EndTextObj {} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         if {$pdf(in_text_object)} {
-            $self Pdfout "ET\n"
+            my Pdfout "ET\n"
             set pdf(in_text_object) false
         }
     }
@@ -3079,16 +3171,16 @@ snit::type pdf4tcl::pdf4tcl {
         if {[llength $args] > 0 && $sum == 0} {
             return -code error "Dash pattern may not be all zeroes"
         }
-        $self EndTextObj
-        $self Pdfoutcmd $width "w"
-        $self Pdfout "\[$pattern\] 0 d\n"
+        my EndTextObj
+        my Pdfoutcmd $width "w"
+        my Pdfout "\[$pattern\] 0 d\n"
     }
 
     method setLineWidth {width} {
         set width [CheckNumeric $width "line width" -nonnegative \
                            -unit $pdf(unit)]
-        $self EndTextObj
-        $self Pdfoutcmd $width "w"
+        my EndTextObj
+        my Pdfoutcmd $width "w"
     }
 
     # Arguments are pairs for dash pattern plus an optional offset
@@ -3113,43 +3205,43 @@ snit::type pdf4tcl::pdf4tcl {
         if {[llength $args] > 0 && $sum == 0} {
             return -code error "Dash pattern may not be all zeroes"
         }
-        $self EndTextObj
-        $self Pdfout "\[$pattern\] [Nf $offset] d\n"
+        my EndTextObj
+        my Pdfout "\[$pattern\] [Nf $offset] d\n"
     }
 
     method DrawLine {args} {
-        $self EndTextObj
+        my EndTextObj
         set cmd "m"
         foreach {x y} $args {
-            $self Pdfoutcmd $x $y $cmd
+            my Pdfoutcmd $x $y $cmd
             set cmd "l"
         }
-        $self Pdfoutcmd "S"
+        my Pdfoutcmd "S"
     }
 
     method line {x1 y1 x2 y2} {
-        if {!$pdf(inPage)} { $self startPage }
-        $self Trans $x1 $y1 x1 y1
-        $self Trans $x2 $y2 x2 y2
+        if {!$pdf(inPage)} { my startPage }
+        my Trans $x1 $y1 x1 y1
+        my Trans $x2 $y2 x2 y2
 
-        $self DrawLine $x1 $y1 $x2 $y2
+        my DrawLine $x1 $y1 $x2 $y2
     }
 
     # qCurve is deprecated in favor of curve
     method qCurve {x1 y1 xc yc x2 y2} { # Deprecated
-        $self EndTextObj
-        $self Trans $x1 $y1 x1 y1
-        $self Trans $xc $yc xc yc
-        $self Trans $x2 $y2 x2 y2
-        $self Pdfoutcmd $x1 $y1 "m"
-        $self Pdfoutcmd \
+        my EndTextObj
+        my Trans $x1 $y1 x1 y1
+        my Trans $xc $yc xc yc
+        my Trans $x2 $y2 x2 y2
+        my Pdfoutcmd $x1 $y1 "m"
+        my Pdfoutcmd \
                 [expr {0.3333*$x1+0.6667*$xc}] \
                 [expr {0.3333*$y1+0.6667*$yc}] \
                 [expr {0.3333*$x2+0.6667*$xc}] \
                 [expr {0.3333*$y2+0.6667*$yc}] \
                 $x2 \
                 $y2 "c"
-        $self Pdfoutcmd "S"
+        my Pdfoutcmd "S"
     }
 
     # Draw a quadratic or cubic bezier curve
@@ -3157,13 +3249,13 @@ snit::type pdf4tcl::pdf4tcl {
         if {[llength $args] != 2 && [llength $args] != 0} {
             return -code error "wrong # args: should be curve x1 y1 x2 y2 x3 y3 ?x4 y4?"
         }
-        $self EndTextObj
-        $self Trans $x1 $y1 x1 y1
-        $self Trans $x2 $y2 x2 y2
-        $self Trans $x3 $y3 x3 y3
+        my EndTextObj
+        my Trans $x1 $y1 x1 y1
+        my Trans $x2 $y2 x2 y2
+        my Trans $x3 $y3 x3 y3
         if {[llength $args] == 2} {
             # Cubic curve
-            $self Trans [lindex $args 0] [lindex $args 1] x4 y4 ;# 8.5
+            my Trans [lindex $args 0] [lindex $args 1] x4 y4 ;# 8.5
         } else {
             # Quadratic curve
             set x4 $x3
@@ -3173,14 +3265,14 @@ snit::type pdf4tcl::pdf4tcl {
             set x2 [expr {($x1+2.0*$x2)/3.0}]
             set y2 [expr {($y1+2.0*$y2)/3.0}]
         }
-        $self Pdfoutcmd $x1 $y1 "m"
-        $self Pdfoutcmd $x2 $y2 $x3 $y3 $x4 $y4 "c"
-        $self Pdfoutcmd "S"
+        my Pdfoutcmd $x1 $y1 "m"
+        my Pdfoutcmd $x2 $y2 $x3 $y3 $x4 $y4 "c"
+        my Pdfoutcmd "S"
     }
 
     # Draw a polygon
     method polygon {args} {
-        $self EndTextObj
+        my EndTextObj
 
         set filled 0
         set stroke 1
@@ -3199,26 +3291,26 @@ snit::type pdf4tcl::pdf4tcl {
                     }
                 }
             } else {
-                $self Trans $x $y x y
+                my Trans $x $y x y
                 if {$start} {
-                    $self Pdfoutcmd $x $y "m"
+                    my Pdfoutcmd $x $y "m"
                     set start 0
                 } else {
-                    $self Pdfoutcmd $x $y "l"
+                    my Pdfoutcmd $x $y "l"
                 }
             }
         }
         if {$filled && $stroke} {
-            $self Pdfoutcmd "b"
+            my Pdfoutcmd "b"
         } elseif {$filled && !$stroke} {
-            $self Pdfoutcmd "f"
+            my Pdfoutcmd "f"
         } else {
-            $self Pdfoutcmd "s"
+            my Pdfoutcmd "s"
         }
     }
 
     method DrawOval {x y rx ry stroke filled} {
-        $self EndTextObj
+        my EndTextObj
 
         set sq [expr {4.0*(sqrt(2.0)-1.0)/3.0}]
         set x0(0) [expr {$x+$rx}]
@@ -3247,9 +3339,9 @@ snit::type pdf4tcl::pdf4tcl {
         set y2(3) [expr {$y-$ry*$sq}]
         set x3(3) [expr {$x+$rx}]
         set y3(3) $y
-        $self Pdfoutcmd $x0(0) $y0(0) "m"
+        my Pdfoutcmd $x0(0) $y0(0) "m"
         for {set i 0} {$i < 4} {incr i} {
-            $self Pdfoutcmd $x1($i) \
+            my Pdfoutcmd $x1($i) \
                             $y1($i) \
                             $x2($i) \
                             $y2($i) \
@@ -3257,16 +3349,16 @@ snit::type pdf4tcl::pdf4tcl {
                             $y3($i) "c"
         }
         if {$filled && $stroke} {
-            $self Pdfoutcmd "b"
+            my Pdfoutcmd "b"
         } elseif {$filled && !$stroke} {
-            $self Pdfoutcmd "f"
+            my Pdfoutcmd "f"
         } else {
-            $self Pdfoutcmd " s"
+            my Pdfoutcmd " s"
         }
     }
 
     method circle {x y r args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         set filled 0
         set stroke 1
 
@@ -3284,14 +3376,14 @@ snit::type pdf4tcl::pdf4tcl {
             }
         }
 
-        $self Trans $x $y x y
+        my Trans $x $y x y
         set r [pdf4tcl::getPoints $r $pdf(unit)]
 
-        $self DrawOval $x $y $r $r $stroke $filled
+        my DrawOval $x $y $r $r $stroke $filled
     }
 
     method oval {x y rx ry args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         set filled 0
         set stroke 1
 
@@ -3309,15 +3401,15 @@ snit::type pdf4tcl::pdf4tcl {
             }
         }
 
-        $self Trans $x $y x y
+        my Trans $x $y x y
         set rx [pdf4tcl::getPoints $rx $pdf(unit)]
         set ry [pdf4tcl::getPoints $ry $pdf(unit)]
 
-        $self DrawOval $x $y $rx $ry $stroke $filled
+        my DrawOval $x $y $rx $ry $stroke $filled
     }
 
     # rotate by phi, scale with rx/ry and move by (dx, dy)
-    proc Transform {rx ry phi dx dy points} {
+    proc ::pdf4tcl::pdf4tcl::Transform {rx ry phi dx dy points} {
         set cos_phi [expr {cos($phi)}]
         set sin_phi [expr {sin($phi)}]
         set res [list]
@@ -3331,7 +3423,7 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Create a four-point spline that forms an arc along the unit circle
     # from angle -phi2 to +phi2 (where phi2 is in radians)
-    proc Simplearc {phi2} {
+    proc ::pdf4tcl::pdf4tcl::Simplearc {phi2} {
         set x0 [expr {cos($phi2)}]
         set y0 [expr {-sin($phi2)}]
         set x3 $x0
@@ -3345,11 +3437,11 @@ snit::type pdf4tcl::pdf4tcl {
 
     method DrawArc {x0 y0 rx ry phi extend stroke filled style} {
         if {abs($extend) >= 360.0} {
-            $self DrawOval $x0 $y0 $rx $ry $stroke $filled
+            my DrawOval $x0 $y0 $rx $ry $stroke $filled
             return
         }
         if {abs($extend) < 0.01} return
-        $self EndTextObj
+        my EndTextObj
 
         set count 1
         while {abs($extend) > 90} {
@@ -3361,14 +3453,14 @@ snit::type pdf4tcl::pdf4tcl {
         set phi2 [expr {0.5*$extend}]
         set x [expr {$x0+$rx*cos($phi)}]
         set y [expr {$y0+$ry*sin($phi)}]
-        $self Pdfoutcmd $x $y "m"
+        my Pdfoutcmd $x $y "m"
         set points [Simplearc $phi2]
         set phi [expr {$phi+$phi2}]
         for {set i 0} {$i < $count} {incr i} {
             foreach {x y x1 y1 x2 y2 x3 y3} \
                     [Transform $rx $ry $phi $x0 $y0 $points] break
             set phi [expr {$phi+$extend}]
-            $self Pdfoutcmd $x1 $y1 $x2 $y2 $x3 $y3 "c"
+            my Pdfoutcmd $x1 $y1 $x2 $y2 $x3 $y3 "c"
         }
         switch $style {
             "arc" {
@@ -3376,27 +3468,27 @@ snit::type pdf4tcl::pdf4tcl {
             }
             "pieslice" {
                 # Add the line to the center
-                $self Pdfoutcmd $x0 $y0 "l"
+                my Pdfoutcmd $x0 $y0 "l"
                 # Close the path
-                $self Pdfoutcmd "h"
+                my Pdfoutcmd "h"
             }
             "chord" {
                 # Close the path
-                $self Pdfoutcmd "h"
+                my Pdfoutcmd "h"
             }
         }
         if {$filled && $stroke} {
-            $self Pdfoutcmd "B"
+            my Pdfoutcmd "B"
         } elseif {$filled && !$stroke} {
-            $self Pdfoutcmd "f"
+            my Pdfoutcmd "f"
         } else {
-            $self Pdfoutcmd "S"
+            my Pdfoutcmd "S"
         }
     }
 
     # Draw an arc
     method arc {x0 y0 rx ry phi extend args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         set filled 0
         set stroke 1
         set style arc
@@ -3418,71 +3510,71 @@ snit::type pdf4tcl::pdf4tcl {
             }
         }
 
-        $self Trans $x0 $y0 x0 y0
+        my Trans $x0 $y0 x0 y0
         set rx [pdf4tcl::getPoints $rx $pdf(unit)]
         set ry [pdf4tcl::getPoints $ry $pdf(unit)]
 
-        $self DrawArc $x0 $y0 $rx $ry $phi $extend $stroke $filled $style
+        my DrawArc $x0 $y0 $rx $ry $phi $extend $stroke $filled $style
     }
 
     method arrow {x1 y1 x2 y2 sz {angle 20}} {
-        if {!$pdf(inPage)} { $self startPage }
-        $self Trans $x1 $y1 x1 y1
-        $self Trans $x2 $y2 x2 y2
+        if {!$pdf(inPage)} { my startPage }
+        my Trans $x1 $y1 x1 y1
+        my Trans $x2 $y2 x2 y2
         set sz [pdf4tcl::getPoints $sz $pdf(unit)]
 
-        $self DrawLine $x1 $y1 $x2 $y2
+        my DrawLine $x1 $y1 $x2 $y2
         set rad [expr {$angle*3.1415926/180.0}]
         set ang [expr {atan2(($y1-$y2), ($x1-$x2))}]
-        $self DrawLine $x2 $y2 [expr {$x2+$sz*cos($ang+$rad)}] [expr {$y2+$sz*sin($ang+$rad)}]
-        $self DrawLine $x2 $y2 [expr {$x2+$sz*cos($ang-$rad)}] [expr {$y2+$sz*sin($ang-$rad)}]
+        my DrawLine $x2 $y2 [expr {$x2+$sz*cos($ang+$rad)}] [expr {$y2+$sz*sin($ang+$rad)}]
+        my DrawLine $x2 $y2 [expr {$x2+$sz*cos($ang-$rad)}] [expr {$y2+$sz*sin($ang-$rad)}]
     }
 
     method setBgColor {args} {
-        set pdf(bgColor) [$self GetColor $args]
+        set pdf(bgColor) [my GetColor $args]
     }
 
     method SetFillColor {color} {
         if {$pdf(cmyk)} {
             foreach {red green blue k} $color break
-            $self Pdfoutcmd $red $green $blue $k "k"
+            my Pdfoutcmd $red $green $blue $k "k"
         } else {
             foreach {red green blue} $color break
-            $self Pdfoutcmd $red $green $blue "rg"
+            my Pdfoutcmd $red $green $blue "rg"
         }
     }
 
     method setFillColor {args} {
-        if {!$pdf(inPage)} { $self startPage }
-        set pdf(fillColor) [$self GetColor $args]
-        $self SetFillColor $pdf(fillColor)
+        if {!$pdf(inPage)} { my startPage }
+        set pdf(fillColor) [my GetColor $args]
+        my SetFillColor $pdf(fillColor)
     }
 
     method SetStrokeColor {color} {
         if {$pdf(cmyk)} {
             foreach {red green blue k} $color break
-            $self Pdfoutcmd $red $green $blue $k "K"
+            my Pdfoutcmd $red $green $blue $k "K"
         } else {
             foreach {red green blue} $color break
-            $self Pdfoutcmd $red $green $blue "RG"
+            my Pdfoutcmd $red $green $blue "RG"
         }
     }
 
     method setStrokeColor {args} {
-        if {!$pdf(inPage)} { $self startPage }
-        set pdf(strokeColor) [$self GetColor $args]
-        $self SetStrokeColor $pdf(strokeColor)
+        if {!$pdf(inPage)} { my startPage }
+        set pdf(strokeColor) [my GetColor $args]
+        my SetStrokeColor $pdf(strokeColor)
     }
 
     # Draw a rectangle, internal version
     method DrawRect {x y w h stroke filled} {
-        $self Pdfoutcmd $x $y $w $h "re"
+        my Pdfoutcmd $x $y $w $h "re"
         if {$filled && $stroke} {
-            $self Pdfoutcmd "B"
+            my Pdfoutcmd "B"
         } elseif {$filled && !$stroke} {
-            $self Pdfoutcmd "f"
+            my Pdfoutcmd "f"
         } else {
-            $self Pdfoutcmd "S"
+            my Pdfoutcmd "S"
         }
     }
 
@@ -3491,24 +3583,24 @@ snit::type pdf4tcl::pdf4tcl {
         set start 1
         foreach {x y} $args {
             if {$start} {
-                $self Pdfoutcmd $x $y "m"
+                my Pdfoutcmd $x $y "m"
                 set start 0
             } else {
-                $self Pdfoutcmd $x $y "l"
+                my Pdfoutcmd $x $y "l"
             }
         }
         if {$filled && $stroke} {
-            $self Pdfoutcmd "b"
+            my Pdfoutcmd "b"
         } elseif {$filled && !$stroke} {
-            $self Pdfoutcmd "f"
+            my Pdfoutcmd "f"
         } else {
-            $self Pdfoutcmd "s"
+            my Pdfoutcmd "s"
         }
     }
 
     # Draw a rectangle
     method rectangle {x y w h args} {
-        $self EndTextObj
+        my EndTextObj
 
         set filled 0
         set stroke 1
@@ -3525,10 +3617,10 @@ snit::type pdf4tcl::pdf4tcl {
                 }
             }
         }
-        $self Trans $x $y x y
-        $self TransR $w $h w h
+        my Trans $x $y x y
+        my TransR $w $h w h
 
-        $self DrawRect $x $y $w $h $stroke $filled
+        my DrawRect $x $y $w $h $stroke $filled
     }
 
     #######################################################################
@@ -3537,7 +3629,7 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Add an image to the document
     method addImage {filename args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         set id ""
         set type ""
         foreach {arg val} $args {
@@ -3566,10 +3658,10 @@ snit::type pdf4tcl::pdf4tcl {
         }
         switch $type {
             png {
-                set id [$self AddPng $filename $id]
+                set id [my AddPng $filename $id]
             }
             jpg - jpeg {
-                set id [$self addJpeg $filename $id]
+                set id [my addJpeg $filename $id]
             }
             default {
                 return -code error "Unknown image type $type"
@@ -3580,7 +3672,7 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Deprecated jpeg adder, use addImage
     method addJpeg {filename id} { # Deprecated
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         variable images
 
         set imgOK false
@@ -3628,7 +3720,7 @@ snit::type pdf4tcl::pdf4tcl {
         append xobject $img
         append xobject "\nendstream"
 
-        set oid [$self AddObject $xobject]
+        set oid [my AddObject $xobject]
 
         if {$id eq ""} {
             set id image$oid
@@ -3723,7 +3815,7 @@ snit::type pdf4tcl::pdf4tcl {
         append xobject "/Width $width\n/Height $height\n"
 
         if {$depth > 8} {
-            $self RequireVersion 1.5
+            my RequireVersion 1.5
         }
 
         switch $color {
@@ -3746,14 +3838,14 @@ snit::type pdf4tcl::pdf4tcl {
                 append xobject "/DecodeParms << /Predictor 15 /Colors 1 /BitsPerComponent $depth /Columns $width>>\n"
             }
             4 { # Gray + alpha
-                $self PngInitGrayAlpha
+                my PngInitGrayAlpha
                 append xobject "/ColorSpace $pdf(png_ga) 0 R\n"
                 append xobject "/BitsPerComponent $depth\n"
                 append xobject "/Filter /FlateDecode\n"
                 append xobject "/DecodeParms << /Predictor 15 /Colors 2 /BitsPerComponent $depth /Columns $width>>\n"
             }
             6 { # RGBA
-                $self PngInitRgba
+                my PngInitRgba
                 append xobject "/ColorSpace $pdf(png_rgba) 0 R\n"
                 append xobject "/BitsPerComponent $depth\n"
                 append xobject "/Filter /FlateDecode\n"
@@ -3766,7 +3858,7 @@ snit::type pdf4tcl::pdf4tcl {
         append xobject $img_data
         append xobject "\nendstream"
 
-        set oid [$self AddObject $xobject]
+        set oid [my AddObject $xobject]
 
         if {$id eq ""} {
             set id image$oid
@@ -3786,14 +3878,14 @@ snit::type pdf4tcl::pdf4tcl {
         append body {stream} \n
         append body {{pop}} \n
         append body {endstream}
-        set oid [$self AddObject $body]
+        set oid [my AddObject $body]
 
         set body    "\[ /DeviceN\n"
         append body "   \[ /Red /Green /Blue /Alpha \]\n"
         append body "    /DeviceRGB\n"
         append body "    $oid 0 R   % Tint transformation function\n"
         append body "\]"
-        set pdf(png_rgba) [$self AddObject $body]
+        set pdf(png_rgba) [my AddObject $body]
     }
 
     # Create the Color Space needed to display Gray+Alpha as Gray
@@ -3807,14 +3899,14 @@ snit::type pdf4tcl::pdf4tcl {
         append body {stream} \n
         append body {{pop}} \n
         append body {endstream}
-        set oid [$self AddObject $body]
+        set oid [my AddObject $body]
 
         set body    "\[ /DeviceN\n"
         append body "   \[ /_Gray_ /_Alpha_ \]\n"
         append body "    /DeviceGray\n"
         append body "    $oid 0 R   % Tint transformation function\n"
         append body "\]"
-        set pdf(png_ga) [$self AddObject $body]
+        set pdf(png_ga) [my AddObject $body]
     }
 
     # Incomplete gif experiment...
@@ -3913,7 +4005,7 @@ snit::type pdf4tcl::pdf4tcl {
         append xobject "/Width $width\n/Height $height\n"
 
         if {$depth > 8} {
-            $self RequireVersion 1.5
+            my RequireVersion 1.5
         }
 
         switch $color {
@@ -3936,14 +4028,14 @@ snit::type pdf4tcl::pdf4tcl {
                 append xobject "/DecodeParms << /Predictor 15 /Colors 1 /BitsPerComponent $depth /Columns $width>>\n"
             }
             4 { # Gray + alpha
-                $self PngInitGrayAlpha
+                my PngInitGrayAlpha
                 append xobject "/ColorSpace $pdf(png_ga) 0 R\n"
                 append xobject "/BitsPerComponent $depth\n"
                 append xobject "/Filter /FlateDecode\n"
                 append xobject "/DecodeParms << /Predictor 15 /Colors 2 /BitsPerComponent $depth /Columns $width>>\n"
             }
             6 { # RGBA
-                $self PngInitRgba
+                my PngInitRgba
                 append xobject "/ColorSpace $pdf(png_rgba) 0 R\n"
                 append xobject "/BitsPerComponent $depth\n"
                 append xobject "/Filter /FlateDecode\n"
@@ -3956,7 +4048,7 @@ snit::type pdf4tcl::pdf4tcl {
         append xobject $img_data
         append xobject "\nendstream"
 
-        set oid [$self AddObject $xobject]
+        set oid [my AddObject $xobject]
 
         if {$id eq ""} {
             set id image$oid
@@ -3998,11 +4090,11 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Place an image at the page
     method putImage {id x y args} {
-        $self EndTextObj
+        my EndTextObj
         variable images
         foreach {width height oid} $images($id) {break}
 
-        $self Trans $x $y x y
+        my Trans $x $y x y
         set w $width
         set h $height
         set wfix 0
@@ -4025,14 +4117,14 @@ snit::type pdf4tcl::pdf4tcl {
         if {$pdf(orient)} {
             set y [expr {$y-$h}]
         }
-        $self Pdfoutcmd "q"
-        $self Pdfoutcmd $w 0 0 $h $x $y "cm"
-        $self Pdfout "/$id Do\nQ\n"
+        my Pdfoutcmd "q"
+        my Pdfoutcmd $w 0 0 $h $x $y "cm"
+        my Pdfout "/$id Do\nQ\n"
     }
 
     # Add a raw image to the document, to be placed later
     method addRawImage {img_data args} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         variable images
         # Determine the width and height of the image, which is
         # a list of lists(rows).
@@ -4067,7 +4159,7 @@ snit::type pdf4tcl::pdf4tcl {
         append xobject $img
         append xobject "\nendstream"
 
-        set oid [$self AddObject $xobject]
+        set oid [my AddObject $xobject]
 
         if {$id eq ""} {
             set id image$oid
@@ -4078,13 +4170,13 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Place a raw image at the page
     method putRawImage {img_data x y args} {
-        $self EndTextObj
+        my EndTextObj
         # Determine the width and height of the image, which is
         # a list of lists(rows).
         set width [llength [lindex $img_data 0]]
         set height [llength $img_data]
 
-        $self Trans $x $y x y
+        my Trans $x $y x y
         set w $width
         set h $height
         set wfix 0
@@ -4107,14 +4199,14 @@ snit::type pdf4tcl::pdf4tcl {
         if {$pdf(orient)} {
             set y [expr {$y-$h}]
         }
-        $self Pdfoutcmd "q"
-        $self Pdfoutcmd $w 0 0 $h $x $y "cm"
-        $self Pdfoutcmd "BI"
-        $self Pdfoutn   "/W [Nf $width]"
-        $self Pdfoutn   "/H [Nf $height]"
-        $self Pdfoutn   "/CS /RGB"
-        $self Pdfoutn   "/BPC 8"
-        $self Pdfoutcmd "ID"
+        my Pdfoutcmd "q"
+        my Pdfoutcmd $w 0 0 $h $x $y "cm"
+        my Pdfoutcmd "BI"
+        my Pdfoutn   "/W [Nf $width]"
+        my Pdfoutn   "/H [Nf $height]"
+        my Pdfoutn   "/CS /RGB"
+        my Pdfoutn   "/BPC 8"
+        my Pdfoutcmd "ID"
 
         # Iterate on each row of the image data.
         foreach rawRow $img_data {
@@ -4122,12 +4214,12 @@ snit::type pdf4tcl::pdf4tcl {
             set row [string map "# {} { } {}" $rawRow]
             # Convert data to binary format and
             # add to data stream.
-            $self Pdfout [binary format H* $row]
+            my Pdfout [binary format H* $row]
         }
 
-        $self Pdfout    \n
-        $self Pdfoutcmd "EI"
-        $self Pdfoutcmd "Q"
+        my Pdfout    \n
+        my Pdfoutcmd "EI"
+        my Pdfoutcmd "Q"
     }
 
     # Add a bitmap to the document, as a pattern
@@ -4194,7 +4286,7 @@ snit::type pdf4tcl::pdf4tcl {
             append xobject $bitstream
             append xobject "\nendstream"
 
-            set imoid [$self AddObject $xobject]
+            set imoid [my AddObject $xobject]
             if {$id eq ""} {
                 set id bitmap$imoid
             }
@@ -4241,7 +4333,7 @@ snit::type pdf4tcl::pdf4tcl {
             append xobject $stream
             append xobject "\nendstream"
 
-            set oid [$self AddObject $xobject]
+            set oid [my AddObject $xobject]
 
             if {$id eq ""} {
                 set id pattern$oid
@@ -4255,9 +4347,9 @@ snit::type pdf4tcl::pdf4tcl {
     # or a RGB image, both formatted as an PDF object with stream
     # of pixel data appended
     method addTkpimgObj {width height xobject} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         variable images
-        set oid [$self AddObject $xobject]
+        set oid [my AddObject $xobject]
         set id pimg$oid
         set images($id) [list $width $height $oid 0]
         return [list $oid $id]
@@ -4270,13 +4362,13 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Add tkpath extended graphics state object
     method addTkpextgs {body {smoid {}}} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         variable extgs
 	if {$smoid ne {}} {
 	    set id smask$smoid
 	    set extgs($id) $smoid
 	}
-        set oid [$self AddObject $body]
+        set oid [my AddObject $body]
         set id extgs$oid
         set extgs($id) $oid
         return [list $oid $id]
@@ -4284,13 +4376,13 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Add tkpath object e.g. for gradient fills
     method addTkpobj {body} {
-        if {!$pdf(inPage)} { $self startPage }
-        return [$self AddObject $body]
+        if {!$pdf(inPage)} { my startPage }
+        return [my AddObject $body]
     }
 
     # Add tkpath shading/pattern object for gradient fills
     method addTkpgrad {oid} {
-        if {!$pdf(inPage)} { $self startPage }
+        if {!$pdf(inPage)} { my startPage }
         variable grads
         set id grad$oid
         set grads($id) [list 0 0 $oid]
@@ -4323,14 +4415,14 @@ snit::type pdf4tcl::pdf4tcl {
 
         # 1. make stream with file contents
         set body [MakeStream "<< /Type /EmbeddedFile " $contents $pdf(compress)]
-        set sid [$self AddObject $body]
+        set sid [my AddObject $body]
 
         # 2. create file specification dictionary
         set fsdict "<< /Type /Filespec\n"
         append fsdict " /F [QuoteString $fn]\n"
         append fsdict " /EF << /F $sid 0 R >>\n"
         append fsdict ">>\n"
-        set fsid [$self AddObject $fsdict]
+        set fsid [my AddObject $fsdict]
 
         if {$id eq ""} {
             set id file$fsid
@@ -4363,8 +4455,8 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         # recompute coordinates to current system
-        $self Trans  $x $y x y
-        $self TransR $width $height width height
+        my Trans  $x $y x y
+        my TransR $width $height width height
         set x2 [expr {$x+$width}]
         set y2 [expr {$y+$height}]
 
@@ -4383,7 +4475,7 @@ snit::type pdf4tcl::pdf4tcl {
         }
         append andict "  /Rect \[$x $y $x2 $y2\]\n"
         append andict ">>\n"
-        set anid [$self AddObject $andict]
+        set anid [my AddObject $andict]
 
         # 4. Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
@@ -4446,8 +4538,8 @@ snit::type pdf4tcl::pdf4tcl {
         }
 
         # recompute coordinates to current system
-        $self Trans  $x $y x y
-        $self TransR $width $height width height
+        my Trans  $x $y x y
+        my TransR $width $height width height
         set x2 [expr {$x+$width}]
         # Make sure we have a positive height, regardless of coordinate system.
         if {$height < 0} {
@@ -4461,7 +4553,7 @@ snit::type pdf4tcl::pdf4tcl {
         if {$ftype eq "checkbutton"} {
             # Note, the xobject will be scaled to fit in the form's Rect and
             # thus do not need to be the same size.
-            $self SetupZaDbFont
+            my SetupZaDbFont
 
             # Appearance streams for on and off state of check button.
             set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
@@ -4480,7 +4572,7 @@ snit::type pdf4tcl::pdf4tcl {
                 append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
                 append stream "\[(4)\]TJ ET EMC"
                 set body [MakeStream $obj $stream $pdf(compress)]
-                set onid [$self AddObject $body]
+                set onid [my AddObject $body]
             }
             if {$offObj ne ""} {
                 set offid [lindex $images($offObj) 2]
@@ -4489,7 +4581,7 @@ snit::type pdf4tcl::pdf4tcl {
                 if {![info exists pdf(checkboxoffobj)]} {
                     set stream ""
                     set body [MakeStream $obj $stream $pdf(compress)]
-                    set pdf(checkboxoffobj) [$self AddObject $body]
+                    set pdf(checkboxoffobj) [my AddObject $body]
                 }
                 set offid $pdf(checkboxoffobj)
             }
@@ -4506,7 +4598,7 @@ snit::type pdf4tcl::pdf4tcl {
                 append stream "([CleanText $initValue $pdf(current_font)]) Tj "
                 append stream "ET EMC"
                 set body [MakeStream $obj $stream $pdf(compress)]
-                set onid [$self AddObject $body]
+                set onid [my AddObject $body]
             }
         }
 
@@ -4521,7 +4613,7 @@ snit::type pdf4tcl::pdf4tcl {
             # Form type text
             append andict "  /FT /Tx\n"
             # Unique Identity
-            append andict "  /T (textform[$self NextOid])\n"
+            append andict "  /T (textform[my NextOid])\n"
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
             # Left justified flag
@@ -4536,7 +4628,7 @@ snit::type pdf4tcl::pdf4tcl {
             # Form type checkbutton (Ff flags are zero for checkbutton)
             append andict "  /FT /Btn\n"
             # Unique Identity
-            append andict "  /T (checkbuttonform[$self NextOid])\n"
+            append andict "  /T (checkbuttonform[my NextOid])\n"
             # State
             if {$initValue} {
                 append andict "  /AS /Yes\n"
@@ -4558,7 +4650,7 @@ snit::type pdf4tcl::pdf4tcl {
         # Flag for print
         append andict "  /F 4\n"
         append andict ">>\n"
-        set anid [$self AddObject $andict]
+        set anid [my AddObject $andict]
 
         # Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
@@ -4572,10 +4664,10 @@ snit::type pdf4tcl::pdf4tcl {
 
     method canvas {path args} {
         variable canvasFontMapping
-        $self EndTextObj
+        my EndTextObj
 
         set sticky "nw"
-        $self Trans 0 0 x y
+        my Trans 0 0 x y
         set width ""
         set height ""
         set bbox [$path bbox all]
@@ -4587,8 +4679,8 @@ snit::type pdf4tcl::pdf4tcl {
                 "-width"  {set width  [pdf4tcl::getPoints $value $pdf(unit)]}
                 "-height" {set height [pdf4tcl::getPoints $value $pdf(unit)]}
                 "-sticky" {set sticky $value}
-                "-y"      {$self Trans 0 $value _ y}
-                "-x"      {$self Trans $value 0 x _}
+                "-y"      {my Trans 0 $value _ y}
+                "-x"      {my Trans $value 0 x _}
                 "-bbox"   {set bbox $value}
                 "-bg"     {set bg $value}
                 "-fontmap" {set canvasFontMapping $value}
@@ -4662,46 +4754,46 @@ snit::type pdf4tcl::pdf4tcl {
 
         # Set up clean graphics modes
 
-        $self Pdfoutcmd "q"
-        $self Pdfoutcmd 1.0 "w"
-        $self Pdfout "\[\] 0 d\n"
+        my Pdfoutcmd "q"
+        my Pdfoutcmd 1.0 "w"
+        my Pdfout "\[\] 0 d\n"
         if {$pdf(cmyk)} {
-            $self Pdfoutcmd 0 0 0 1 "k"
-            $self Pdfoutcmd 0 0 0 1 "K"
+            my Pdfoutcmd 0 0 0 1 "k"
+            my Pdfoutcmd 0 0 0 1 "K"
         } else {
-            $self Pdfoutcmd 0 0 0 "rg"
-            $self Pdfoutcmd 0 0 0 "RG"
+            my Pdfoutcmd 0 0 0 "rg"
+            my Pdfoutcmd 0 0 0 "RG"
         }
-        $self Pdfoutcmd 0 "J" ;# Butt cap style
-        $self Pdfoutcmd 0 "j" ;# Miter join style
+        my Pdfoutcmd 0 "J" ;# Butt cap style
+        my Pdfoutcmd 0 "j" ;# Miter join style
         # Miter limit; Tk switches from miter to bevel at 11 degrees
-        $self Pdfoutcmd [expr {1.0/sin(11.0/180.0*3.14159265/2.0)}] "M"
+        my Pdfoutcmd [expr {1.0/sin(11.0/180.0*3.14159265/2.0)}] "M"
         # Store scale. Used to get the correct size of stipple patterns.
         set pdf(canvasscale) [list [Nf $xscale] [Nf [expr {-$yscale}]] \
                 [Nf $xoffset] [Nf $yoffset]]
 
         # Use better resolution for the scale since that can be small numbers
-        $self Pdfoutn [Nf $xscale 6] 0 0 [Nf $yscale 6] \
+        my Pdfoutn [Nf $xscale 6] 0 0 [Nf $yscale 6] \
                 [Nf $xoffset] [Nf $yoffset] "cm"
 
         # Clip region
-        $self Pdfoutcmd $bbx1 $bby1 "m"
-        $self Pdfoutcmd $bbx1 $bby2 "l"
-        $self Pdfoutcmd $bbx2 $bby2 "l"
-        $self Pdfoutcmd $bbx2 $bby1 "l"
-        #$self Pdfoutcmd $bbx1 $bby1 $bbw $bbh "re"
-        $self Pdfoutcmd "W"
+        my Pdfoutcmd $bbx1 $bby1 "m"
+        my Pdfoutcmd $bbx1 $bby2 "l"
+        my Pdfoutcmd $bbx2 $bby2 "l"
+        my Pdfoutcmd $bbx2 $bby1 "l"
+        #my Pdfoutcmd $bbx1 $bby1 $bbw $bbh "re"
+        my Pdfoutcmd "W"
         if {$bg} {
             # Draw the region in background color if requested
-            $self SetFillColor [$self GetColor [$path cget -background]]
-            $self Pdfoutcmd "f"
+            my SetFillColor [my GetColor [$path cget -background]]
+            my Pdfoutcmd "f"
             if {$pdf(cmyk)} {
-                $self Pdfoutcmd 0 0 0 1 "k"
+                my Pdfoutcmd 0 0 0 1 "k"
             } else {
-                $self Pdfoutcmd 0 0 0 "rg"
+                my Pdfoutcmd 0 0 0 "rg"
             }
         } else {
-            $self Pdfoutcmd "n"
+            my Pdfoutcmd "n"
         }
 
         #set enclosed [$path find enclosed $bbx1 $bby1 $bbx2 $bby2]
@@ -4712,47 +4804,47 @@ snit::type pdf4tcl::pdf4tcl {
                 continue
             }
             # Save graphics state for each item
-            $self Pdfoutcmd "q"
+            my Pdfoutcmd "q"
 
             # Special handling for tkpath items
             if {[$path type $id] in {pimage ptext pline polyline ppolygon prect circle ellipse path group}} {
-                $self CanvasDoTkpathItem $path $id
+                my CanvasDoTkpathItem $path $id
             } else {
                 # Standard Tk Canvas
-                $self CanvasDoItem $path $id [$path coords $id] opts
+                my CanvasDoItem $path $id [$path coords $id] opts
             }
 
             # Restore graphics state after the item
-            $self Pdfoutcmd "Q"
+            my Pdfoutcmd "Q"
         }
         # Restore graphics state after the canvas
-        $self Pdfoutcmd "Q"
+        my Pdfoutcmd "Q"
     }
 
     # Handle one tkpath item
     method CanvasDoTkpathItem {path id} {
         switch [$path type $id] {
             pimage {
-                $self Pdfout [$path itempdf $id [list $self addTkpimgObj]]
+                my Pdfout [$path itempdf $id [list my addTkpimgObj]]
             }
             ptext {
-                $self setTkpfont \
+                my setTkpfont \
                         [$path itemcget $id -fontsize] \
                         [$path itemcget $id -fontfamily] \
                         [$path itemcget $id -fontweight] \
                         [$path itemcget $id -fontslant]
-                $self Pdfout \
+                my Pdfout \
                         [$path itempdf $id \
-                                 [list $self addTkpextgs] \
-                                 [list $self getTkpptext $pdf(current_font)] \
+                                 [list my addTkpextgs] \
+                                 [list my getTkpptext $pdf(current_font)] \
                                  $pdf(current_font)]
             }
             pline - polyline - ppolygon - prect - circle - ellipse -
             path - group {
-                $self Pdfout [$path itempdf $id \
-                                      [list $self addTkpextgs] \
-                                      [list $self addTkpobj] \
-                                      [list $self addTkpgrad]]
+                my Pdfout [$path itempdf $id \
+                                      [list my addTkpextgs] \
+                                      [list my addTkpobj] \
+                                      [list my addTkpgrad]]
             }
         }
     }
@@ -4775,11 +4867,11 @@ snit::type pdf4tcl::pdf4tcl {
                 set w [expr {$x2 - $x1}]
                 set h [expr {$y2 - $y1}]
 
-                $self CanvasStdOpts opts
+                my CanvasStdOpts opts
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
-                $self DrawRect $x1 $y1 $w $h $stroke $filled
+                my DrawRect $x1 $y1 $w $h $stroke $filled
             }
             line {
                 # For a line, -fill means the stroke colour
@@ -4787,7 +4879,7 @@ snit::type pdf4tcl::pdf4tcl {
                 set opts(-outlinestipple) $opts(-stipple)
                 set opts(-outlineoffset)  $opts(-offset)
 
-                $self CanvasStdOpts opts
+                my CanvasStdOpts opts
 
                 set arrows {}
                 if {$opts(-arrow) eq "first" || $opts(-arrow) eq "both"} {
@@ -4845,27 +4937,27 @@ snit::type pdf4tcl::pdf4tcl {
                         # Draw polygon
                         set cmd "m"
                         foreach {x y} $poly {
-                            $self Pdfoutcmd $x $y $cmd
+                            my Pdfoutcmd $x $y $cmd
                             set cmd "l"
                         }
-                        $self Pdfoutcmd "f"
+                        my Pdfoutcmd "f"
                     }
                 }
 
                 # Draw lines
                 if {([string is true -strict $opts(-smooth)] || \
                         $opts(-smooth) eq "bezier") && [llength $coords] > 4} {
-                    $self CanvasBezier $coords
+                    my CanvasBezier $coords
                 } elseif {$opts(-smooth) eq "raw"} {
-                    $self CanvasRawCurve $coords
+                    my CanvasRawCurve $coords
                 } else {
                     set cmd "m"
                     foreach {x y} $coords {
-                        $self Pdfoutcmd $x $y $cmd
+                        my Pdfoutcmd $x $y $cmd
                         set cmd "l"
                     }
                 }
-                $self Pdfoutcmd "S"
+                my Pdfoutcmd "S"
             }
             oval {
                 foreach {x1 y1 x2 y2} $coords break
@@ -4874,11 +4966,11 @@ snit::type pdf4tcl::pdf4tcl {
                 set rx [expr {($x2 - $x1) / 2.0}]
                 set ry [expr {($y2 - $y1) / 2.0}]
 
-                $self CanvasStdOpts opts
+                my CanvasStdOpts opts
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
-                $self DrawOval $x $y $rx $ry $stroke $filled
+                my DrawOval $x $y $rx $ry $stroke $filled
             }
             arc {
                 foreach {x1 y1 x2 y2} $coords break
@@ -4892,18 +4984,18 @@ snit::type pdf4tcl::pdf4tcl {
                 if {![info exists opts(-joinstyle)]} {
                     set opts(-joinstyle) bevel
                 }
-                $self CanvasStdOpts opts
+                my CanvasStdOpts opts
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
                 set phi $opts(-start)
                 set extend $opts(-extent)
 
-                $self DrawArc $x $y $rx $ry $phi $extend $stroke $filled \
+                my DrawArc $x $y $rx $ry $phi $extend $stroke $filled \
                         $opts(-style)
             }
             polygon {
-                $self CanvasStdOpts opts
+                my CanvasStdOpts opts
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
@@ -4914,35 +5006,35 @@ snit::type pdf4tcl::pdf4tcl {
                                 [lindex $coords 1] != [lindex $coords end]} {
                         lappend coords [lindex $coords 0] [lindex $coords 1]
                     }
-                    $self CanvasBezier $coords
+                    my CanvasBezier $coords
                 } elseif {$opts(-smooth) eq "raw"} {
-                    $self CanvasRawCurve $coords
+                    my CanvasRawCurve $coords
                 } else {
                     set cmd "m"
                     foreach {x y} $coords {
-                        $self Pdfoutcmd $x $y $cmd
+                        my Pdfoutcmd $x $y $cmd
                         set cmd "l"
                     }
                 }
                 if {$filled && $stroke} {
-                    $self Pdfoutcmd "b"
+                    my Pdfoutcmd "b"
                 } elseif {$filled && !$stroke} {
-                    $self Pdfoutcmd "f"
+                    my Pdfoutcmd "f"
                 } else {
-                    $self Pdfoutcmd "s"
+                    my Pdfoutcmd "s"
                 }
             }
             text {
                 # Width is not a stroke option here
                 array unset opts -width
-                $self CanvasStdOpts opts
+                my CanvasStdOpts opts
 
                 set lines [CanvasGetWrappedText $path $id underline]
                 foreach {x y} $coords break
                 foreach {x1 y1 x2 y2} [$path bbox $id] break
 
-                $self PushFont
-                $self CanvasSetFont $opts(-font) $canvasFontMapping
+                my PushFont
+                my CanvasSetFont $opts(-font) $canvasFontMapping
                 set fontsize $pdf(font_size)
                 # Next, figure out if the text fits within the bbox
                 # with the current font, or it needs to be scaled.
@@ -4951,7 +5043,7 @@ snit::type pdf4tcl::pdf4tcl {
                 set widest 0.0
                 set cwidest 0.0
                 foreach line $lines {
-                    set width [$self getStringWidth $line 1]
+                    set width [my getStringWidth $line 1]
                     set cwidth [font measure $opts(-font) $line]
                     if {$width > $widest} {
                         set widest $width
@@ -4970,7 +5062,7 @@ snit::type pdf4tcl::pdf4tcl {
                         ($y2 - $y1)}]
                 # Scale down if the font is too big
                 if {$xscale > 1.001} {
-                    $self setFont [expr {$fontsize / $xscale}] "" 1
+                    my setFont [expr {$fontsize / $xscale}] "" 1
                     set fontsize $pdf(font_size)
                     set widest [expr {$widest / $xscale}]
                 }
@@ -4989,7 +5081,7 @@ snit::type pdf4tcl::pdf4tcl {
                 # Thus it is assumed that:
                 #  line spacing = font size
                 #  canvas coordinate = corner of bounding box
-                set bboxHeight [$self getFontMetric height 1]
+                set bboxHeight [my getFontMetric height 1]
                 set height [expr {$fontsize * [llength $lines] + \
                         $bboxHeight - $fontsize}]
 
@@ -5011,14 +5103,14 @@ snit::type pdf4tcl::pdf4tcl {
                 # Displace y to base line of font
                 # Since canvas coordinates are assumed to point to corner of
                 # bounding box, we use bboxt to displace.
-                set bboxt [$self getFontMetric bboxt 1]
+                set bboxt [my getFontMetric bboxt 1]
                 # The -1 is a fudge factor that has given better results in
                 # practice. I do not understand why it is needed.
                 set y [expr {$y + $bboxt - 1.0}]
                 set lineNo 0
                 set ulcoords {}
                 foreach line $lines {
-                    set width [$self getStringWidth $line 1]
+                    set width [my getStringWidth $line 1]
                     set x0 [expr {$x - $xjustify * $width / 2.0}]
 
                     # Since we have put the coordinate system upside
@@ -5044,19 +5136,19 @@ snit::type pdf4tcl::pdf4tcl {
 
                         # compute final coordinates.
                         foreach {xs ys} [MulVxM [list $x0 $y] $rotationmatrix] break
-                        $self Pdfoutcmd $cx $sx $sx $mcx $xs $ys "Tm"
+                        my Pdfoutcmd $cx $sx $sx $mcx $xs $ys "Tm"
                     } else {
-                        $self Pdfoutcmd 1 0 0 -1 $x0 $y "Tm"
+                        my Pdfoutcmd 1 0 0 -1 $x0 $y "Tm"
                     }
 
-                    $self Pdfout "([CleanText $line $pdf(current_font)]) Tj\n"
+                    my Pdfout "([CleanText $line $pdf(current_font)]) Tj\n"
 
                     if {$underline != -1} {
                         if {[lindex $underline 0] eq $lineNo} {
                             set index [lindex $underline 1]
-                            set ulx [$self getStringWidth [string range $line \
+                            set ulx [my getStringWidth [string range $line \
                                                0 [expr {$index - 1}]] 1]
-                            set ulw [$self getStringWidth [string index $line $index] 1]
+                            set ulw [my getStringWidth [string index $line $index] 1]
                             lappend ulcoords [expr {$x0 + $ulx}] \
                                     [expr {$y + 1.0}] $ulw
                         }
@@ -5064,23 +5156,23 @@ snit::type pdf4tcl::pdf4tcl {
                     incr lineNo
                     set y [expr {$y + $fontsize}]
                 }
-                $self EndTextObj
-                $self PopFont
+                my EndTextObj
+                my PopFont
 
                 # Draw any underline
                 if {[info exists rotationmatrix]} {
                     # transform underlines by same matrix as text anchor point
                     foreach {x y w} $ulcoords {
                         # 8.5
-                        eval \$self Pdfoutcmd [MulVxM [list $x $y] $rotationmatrix] "m"
-                        eval \$self Pdfoutcmd [MulVxM [list [expr {$x + $w}] $y] $rotationmatrix] "l"
-                        $self Pdfoutcmd "S"
+                        eval \my Pdfoutcmd [MulVxM [list $x $y] $rotationmatrix] "m"
+                        eval \my Pdfoutcmd [MulVxM [list [expr {$x + $w}] $y] $rotationmatrix] "l"
+                        my Pdfoutcmd "S"
                     }
                 } else {
                     foreach {x y w} $ulcoords {
-                        $self Pdfoutcmd $x $y "m"
-                        $self Pdfoutcmd [expr {$x + $w}] $y "l"
-                        $self Pdfoutcmd "S"
+                        my Pdfoutcmd $x $y "m"
+                        my Pdfoutcmd [expr {$x + $w}] $y "l"
+                        my Pdfoutcmd "S"
                     }
                 }
             }
@@ -5091,7 +5183,7 @@ snit::type pdf4tcl::pdf4tcl {
                 }
                 set id bitmap_canvas_[file rootname [file tail $bitmap]]
                 if {![info exists bitmaps($id)]} {
-                    $self AddBitmap $bitmap -id $id
+                    my AddBitmap $bitmap -id $id
                 }
                 foreach {width height imoid stream} $bitmaps($id) break
                 foreach {x1 y1} $coords break
@@ -5118,8 +5210,8 @@ snit::type pdf4tcl::pdf4tcl {
                     set bg $opts(-foreground)
                 }
                 # Build a two-color palette
-                set colors [concat [$self GetColor $bg] \
-                                    [$self GetColor $opts(-foreground)]]
+                set colors [concat [my GetColor $bg] \
+                                    [my GetColor $opts(-foreground)]]
                 set PaletteHex ""
                 foreach color $colors {
                     append PaletteHex [format %02x \
@@ -5149,13 +5241,13 @@ snit::type pdf4tcl::pdf4tcl {
                 append xobject $stream
                 append xobject "\nendstream"
 
-                set newoid [$self AddObject $xobject]
+                set newoid [my AddObject $xobject]
                 set newid image$newoid
                 set images($newid) [list $width $height $newoid 0]
 
                 # Put the image on the page
-                $self Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
-                $self Pdfout "/$newid Do\n"
+                my Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
+                my Pdfout "/$newid Do\n"
             }
             image {
                 set image $opts(-image)
@@ -5164,7 +5256,7 @@ snit::type pdf4tcl::pdf4tcl {
                 }
                 set id image_canvas_$image
                 if {![info exists images($id)]} {
-                    $self addRawImage [$image data] -id $id
+                    my addRawImage [$image data] -id $id
                 }
                 foreach {width height oid} $images($id) break
                 foreach {x1 y1} $coords break
@@ -5185,8 +5277,8 @@ snit::type pdf4tcl::pdf4tcl {
                 set x [expr {$x1 - $width  * $dx}]
                 set y [expr {$y1 + $height * $dy}]
 
-                $self Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
-                $self Pdfout "/$id Do\n"
+                my Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
+                my Pdfout "/$id Do\n"
             }
             window {
                 catch {package require Img}
@@ -5206,7 +5298,7 @@ snit::type pdf4tcl::pdf4tcl {
                         if {$height > 1} break
                     }
                 } else {
-                    set id [$self addRawImage [$image data]]
+                    set id [my addRawImage [$image data]]
 
                     foreach {width height oid} $images($id) break
                 }
@@ -5230,12 +5322,12 @@ snit::type pdf4tcl::pdf4tcl {
 
                 if {$image eq ""} {
                     # Draw a black box
-                    $self Pdfoutcmd $x [expr {$y - $height}] \
+                    my Pdfoutcmd $x [expr {$y - $height}] \
                             $width $height "re"
-                    $self Pdfoutcmd "f"
+                    my Pdfoutcmd "f"
                 } else {
-                    $self Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
-                    $self Pdfout "/$id Do\n"
+                    my Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
+                    my Pdfout "/$id Do\n"
                 }
             }
         } ;# End of switch over item type
@@ -5257,13 +5349,13 @@ snit::type pdf4tcl::pdf4tcl {
             set y2 [expr {0.833* [lindex $coords 1]     + 0.167*[lindex $coords 3]}]
             set x3 [expr {0.5  * [lindex $coords 0]     + 0.5  *[lindex $coords 2]}]
             set y3 [expr {0.5  * [lindex $coords 1]     + 0.5  *[lindex $coords 3]}]
-            $self Pdfoutcmd $x0 $y0 "m"
-            $self Pdfoutcmd $x1 $y1 $x2 $y2 $x3 $y3 "c"
+            my Pdfoutcmd $x0 $y0 "m"
+            my Pdfoutcmd $x1 $y1 $x2 $y2 $x3 $y3 "c"
         } else {
             set closed 0
             set x3 [lindex $coords 0]
             set y3 [lindex $coords 1]
-            $self Pdfoutcmd $x3 $y3 "m"
+            my Pdfoutcmd $x3 $y3 "m"
         }
         set len [llength $coords]
         for {set i 2} {$i < ($len - 2)} {incr i 2} {
@@ -5281,14 +5373,14 @@ snit::type pdf4tcl::pdf4tcl {
             }
             set x2 [expr {0.333 * $x3 + 0.667 * $px1}]
             set y2 [expr {0.333 * $y3 + 0.667 * $py1}]
-            $self Pdfoutcmd $x1 $y1 $x2 $y2 $x3 $y3 "c"
+            my Pdfoutcmd $x1 $y1 $x2 $y2 $x3 $y3 "c"
         }
     }
 
     method CanvasRawCurve {coords} {
         set x3 [lindex $coords 0]
         set y3 [lindex $coords 1]
-        $self Pdfoutcmd $x3 $y3 "m"
+        my Pdfoutcmd $x3 $y3 "m"
 
         set len [llength $coords]
         # Is there a complete set of segments in the list?
@@ -5301,9 +5393,9 @@ snit::type pdf4tcl::pdf4tcl {
                     [lrange $coords $i [expr {$i + 7}]] break
             if {$px1 == $px2 && $py1 == $py2 && $px3 == $px4 && $py3 == $py4} {
                 # Straight line
-                $self Pdfoutcmd $px4 $py4 "l"
+                my Pdfoutcmd $px4 $py4 "l"
             } else {
-                $self Pdfoutcmd $px2 $py2 $px3 $py3 $px4 $py4 "c"
+                my Pdfoutcmd $px2 $py2 $px3 $py3 $px4 $py4 "c"
             }
         }
     }
@@ -5323,13 +5415,13 @@ snit::type pdf4tcl::pdf4tcl {
         set tail [string map {. x} [join $scale _]]
         set id pattern_canvas_[file rootname [file tail $bitmap]]_$tail
         if {![info exists patterns($id)]} {
-            $self AddBitmap $bitmap -id $id -pattern $scale
+            my AddBitmap $bitmap -id $id -pattern $scale
         }
         return $id
     }
 
     # Utility for translating dash patterns - if needed
-    proc CanvasMakeDashPattern {pattern linewidth} {
+    proc ::pdf4tcl::pdf4tcl::CanvasMakeDashPattern {pattern linewidth} {
         # If numeric, return the same
         if { ! [regexp {[.,-_]} $pattern] } {
             return $pattern
@@ -5378,7 +5470,7 @@ snit::type pdf4tcl::pdf4tcl {
         # Stipple for fill color
         set fillstippleid ""
         if {[info exists opts(-stipple)] && $opts(-stipple) ne ""} {
-            set fillstippleid [$self CanvasGetBitmap $opts(-stipple) \
+            set fillstippleid [my CanvasGetBitmap $opts(-stipple) \
                     $opts(-offset)]
         }
         # Stipple for stroke color
@@ -5391,34 +5483,34 @@ snit::type pdf4tcl::pdf4tcl {
             } else {
                 set offset $opts(-offset)
             }
-            set strokestippleid [$self CanvasGetBitmap $opts(-outlinestipple) \
+            set strokestippleid [my CanvasGetBitmap $opts(-outlinestipple) \
                     $offset]
         }
         # Outline controls stroke color
         if {[info exists opts(-outline)] && $opts(-outline) ne ""} {
-            $self CanvasStrokeColor $opts(-outline) $strokestippleid
+            my CanvasStrokeColor $opts(-outline) $strokestippleid
         }
         # Fill controls fill color
         if {[info exists opts(-fill)] && $opts(-fill) ne ""} {
-            $self CanvasFillColor $opts(-fill) $fillstippleid
+            my CanvasFillColor $opts(-fill) $fillstippleid
         }
         # Line width
         if {[info exists opts(-width)]} {
-            $self Pdfoutcmd $opts(-width) "w"
+            my Pdfoutcmd $opts(-width) "w"
         }
         # Dash pattern and offset
         if {[info exists opts(-dash)] && $opts(-dash) ne ""} {
             set dashPattern [CanvasMakeDashPattern $opts(-dash) $opts(-width)]
-            $self Pdfout "\[$dashPattern\] $opts(-dashoffset) d\n"
+            my Pdfout "\[$dashPattern\] $opts(-dashoffset) d\n"
         }
         # Cap style
         if {[info exists opts(-capstyle)] && $opts(-capstyle) ne "butt"} {
             switch $opts(-capstyle) {
                 projecting {
-                    $self Pdfoutcmd 2 "J"
+                    my Pdfoutcmd 2 "J"
                 }
                 round {
-                    $self Pdfoutcmd 1 "J"
+                    my Pdfoutcmd 1 "J"
                 }
             }
         }
@@ -5426,10 +5518,10 @@ snit::type pdf4tcl::pdf4tcl {
         if {[info exists opts(-joinstyle)] && $opts(-joinstyle) ne "miter"} {
             switch $opts(-joinstyle) {
                 bevel {
-                    $self Pdfoutcmd 2 "j"
+                    my Pdfoutcmd 2 "j"
                 }
                 round {
-                    $self Pdfoutcmd 1 "j"
+                    my Pdfoutcmd 1 "j"
                 }
             }
         }
@@ -5437,39 +5529,39 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Set the fill color from a Tk color
     method CanvasFillColor {color {bitmapid ""}} {
-        set cList [$self GetColor $color]
+        set cList [my GetColor $color]
         if {$bitmapid eq ""} {
-            $self SetFillColor $cList
+            my SetFillColor $cList
         } else {
             foreach {red green blue k} $cList break
-            $self Pdfout "/Cs1 cs\n"
-            #$self Pdfoutcmd $red $green $blue "scn"
+            my Pdfout "/Cs1 cs\n"
+            #my Pdfoutcmd $red $green $blue "scn"
             if {$pdf(cmyk)} { #8.5
-                $self Pdfoutcmd $red $green $blue $k "/$bitmapid scn"
+                my Pdfoutcmd $red $green $blue $k "/$bitmapid scn"
             } else {
-                $self Pdfoutcmd $red $green $blue "/$bitmapid scn"
+                my Pdfoutcmd $red $green $blue "/$bitmapid scn"
             }
         }
     }
 
     # Set the stroke color from a Tk color
     method CanvasStrokeColor {color {bitmapid ""}} {
-        set cList [$self GetColor $color]
+        set cList [my GetColor $color]
         if {$bitmapid eq ""} {
-            $self SetStrokeColor $cList
+            my SetStrokeColor $cList
         } else {
             foreach {red green blue k} $cList break
-            $self Pdfout "/Cs1 CS\n"
+            my Pdfout "/Cs1 CS\n"
             if {$pdf(cmyk)} { #8.5
-                $self Pdfoutcmd $red $green $blue $k "/$bitmapid SCN"
+                my Pdfoutcmd $red $green $blue $k "/$bitmapid SCN"
             } else {
-                $self Pdfoutcmd $red $green $blue "/$bitmapid SCN"
+                my Pdfoutcmd $red $green $blue "/$bitmapid SCN"
             }
         }
     }
 
     # Helper to extract configuration from a canvas item
-    proc CanvasGetOpts {path id arrName} {
+    proc ::pdf4tcl::pdf4tcl::CanvasGetOpts {path id arrName} {
         upvar 1 $arrName arr
         array unset arr
         foreach item [$path itemconfigure $id] {
@@ -5494,7 +5586,7 @@ snit::type pdf4tcl::pdf4tcl {
 
     # Get the text from a text item, as a list of lines
     # This takes and line wrapping into account
-    proc CanvasGetWrappedText {w item ulName} {
+    proc ::pdf4tcl::pdf4tcl::CanvasGetWrappedText {w item ulName} {
         upvar 1 $ulName underline
         set text  [$w itemcget $item -text]
         set width [$w itemcget $item -width]
@@ -5618,8 +5710,8 @@ snit::type pdf4tcl::pdf4tcl {
            set family $userMappingArr($font)
         }
         set fontsize $fontinfo(-linespace)
-        $self BeginTextObj
-        $self setFont $fontsize $family 1
+        my BeginTextObj
+        my setFont $fontsize $family 1
     }
 
     #######################################################################
@@ -5627,7 +5719,7 @@ snit::type pdf4tcl::pdf4tcl {
     #######################################################################
 
     # helper function: mask parentheses and backslash
-    proc CleanText {in fn} {
+    proc ::pdf4tcl::pdf4tcl::CleanText {in fn} {
         variable ::pdf4tcl::FontsAttrs
         if {$FontsAttrs($fn,specialencoding)} {
             # Convert using special encoding of font subset:
@@ -5643,7 +5735,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     # helper function: correctly quote string with parentheses
-    proc QuoteString {string} {
+    proc ::pdf4tcl::pdf4tcl::QuoteString {string} {
         # map special characters
         return "([string map {\n "\\n" \r "\\r" \t "\\t" \b "\\b" \f "\\f" ( "\\(" ) "\\)" \\ "\\\\"} $string])"
     }
@@ -5651,7 +5743,7 @@ snit::type pdf4tcl::pdf4tcl {
     # helper function: consume and return an object id
     method GetOid {{noxref 0}} {
         if {!$noxref} {
-            $self StoreXref
+            my StoreXref
         }
         set res $pdf(pdf_obj)
         incr pdf(pdf_obj)
@@ -5672,7 +5764,7 @@ snit::type pdf4tcl::pdf4tcl {
     }
 
     # helper function for formatting floating point numbers
-    proc Nf {n {deci 3}} {
+    proc ::pdf4tcl::pdf4tcl::Nf {n {deci 3}} {
         # Up to 3 decimals
         set num [format %.*f $deci $n]
         # Remove surplus decimals
@@ -5683,7 +5775,7 @@ snit::type pdf4tcl::pdf4tcl {
         }
         return $num
     }
-} ;# end of snit::type pdf4tcl::pdf4tcl
+} ;# end of class pdf4tcl::pdf4tcl
 
 
 #######################################################################
