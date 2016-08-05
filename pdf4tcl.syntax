@@ -1,12 +1,3 @@
 # Unknown functions
-##nagelfar syntax zlib s x
-##nagelfar syntax MakeSFNamePrefix x
-##nagelfar syntax MakeToUnicodeCMap x x 
-##nagelfar syntax MakeEncDiff x x
+# Currently non needed
 
-# Object helpers
-##nagelfar syntax pdf4tcl::pdf4tcl dc=_obj,pdf4tcl p*
-##nagelfar option pdf4tcl::pdf4tcl -file
-##nagelfar return pdf4tcl::pdf4tcl _obj,pdf4tcl
-
-##nagelfar implicitvarns snit::type::pdf4tcl::pdf4tcl self\ _obj,pdf4tcl pdf options

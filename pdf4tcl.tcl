@@ -1213,7 +1213,6 @@ namespace eval pdf4tcl {
 #######################################################################
 # Object used for generating pdf
 #######################################################################
-namespace eval ::pdf4tcl::pdf4tcl {}
 catch {pdf4tcl::pdf4tcl destroy}
 oo::class create ::pdf4tcl::pdf4tcl {
     variable pdf
@@ -1330,12 +1329,11 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # Validator helper for numerics
-    # TODO: Fix nagelfar annotation to handle this nicely
-    ##nagelfar syntax pdf4tcl::pdf4tcl::CheckNumeric x x o*
-    ##nagelfar option pdf4tcl::pdf4tcl::CheckNumeric \
+    ##nagelfar syntax pdf4tcl::CheckNumeric x x o*
+    ##nagelfar option pdf4tcl::CheckNumeric \
             -nonnegative -positive -integer -unit
-    ##nagelfar option pdf4tcl::pdf4tcl::CheckNumeric\ -unit x
-    proc ::pdf4tcl::pdf4tcl::CheckNumeric {val what args} {
+    ##nagelfar option pdf4tcl::CheckNumeric\ -unit x
+    proc ::pdf4tcl::CheckNumeric {val what args} {
         set origVal $val
         # If -unit is given, the value should be interpreted by getPoints
         set i [lsearch -exact $args -unit]
@@ -1399,7 +1397,8 @@ oo::class create ::pdf4tcl::pdf4tcl {
     #######################################################################
 
     constructor {args} {
-	namespace path [list {*}[namespace path] ::pdf4tcl ::pdf4tcl::pdf4tcl]
+        # Object should be able to find pdf4tcl help procedures
+	namespace path [list {*}[namespace path] ::pdf4tcl]
         set pdf(bookmarks) {}
         set pdf(forms) {}
         #set metadata(CreationDate) [string range [clock format [clock seconds] -format {D:%Y%m%d%H%M%S%z} -gmt 0] 0 end-2]
@@ -1646,7 +1645,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Start on a new XObject
     method startXObject {args} {
-        variable images
         # Get some defaults from document
         set localopts(-orient)    $options(-orient)
         set localopts(-landscape) 0
@@ -1878,7 +1876,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # This must create optionally compressed PDF stream.
     # dictval must contain correct string value without >> terminator.
     # Terminator and length will be added by this proc.
-    proc ::pdf4tcl::pdf4tcl::MakeStream {dictval body compress} {
+    proc ::pdf4tcl::MakeStream {dictval body compress} {
         set res $dictval
         if {$compress} {
             set body2 [zlib compress $body]
@@ -1905,13 +1903,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Finish document
     method finish {} {
-        variable images
-        variable extgs
-        variable patterns
-	variable grads
-        variable fonts
-        variable metadata
-
         if {$pdf(finished)} {
             return
         }
@@ -2223,7 +2214,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # This procedure determines the number of open items of an outline
     # dictionary object.
 
-    proc ::pdf4tcl::pdf4tcl::BookmarkCount {bookmarks level} {
+    proc ::pdf4tcl::BookmarkCount {bookmarks level} {
         set count 0
 
         # Increment the count if the bookmark is not closed.
@@ -2298,7 +2289,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # This procedure determines the properties for an outline item dictionary
     # object.
 
-    proc ::pdf4tcl::pdf4tcl::BookmarkProperties {oid current bookmarks n f l c} {
+    proc ::pdf4tcl::BookmarkProperties {oid current bookmarks n f l c} {
         upvar 1 $n next $f first $l last $c count
 
         set next  {}
@@ -2341,7 +2332,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     #--------------------------------------------------------------------------
     # Configure method for the PDF document metadata options.
     method metadata {args} {
-        variable metadata
         foreach {option value} $args {
             set value [string trim $value]
             if {[string length $value] > 0} {
@@ -2396,7 +2386,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Set current font for tkpath ptext object
     method setTkpfont {size name weight slant} {
-        variable canvasFontMapping
+        my variable canvasFontMapping
         set bold [expr {$weight eq "bold"}]
         set italic [expr {$slant ne "normal"}]
         switch -glob [string tolower $name] {
@@ -2455,7 +2445,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Make Sure ZaDb font is available, for internal use
     method SetupZaDbFont {} {
-        variable fonts
         set fontname ZaDb
         if {[info exists fonts($fontname)]} return
         set body    "<<\n/Type /Font\n"
@@ -2469,9 +2458,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Set the current font on the page
     method SetupFont {} {
-        variable fonts
         variable ::pdf4tcl::BFA
-        variable type1basefonts
 
         if {$pdf(current_font) eq ""} {
             return -code error "No font set"
@@ -2663,7 +2650,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # Get the width of a character. "ch" must be exactly one char long.
-    proc ::pdf4tcl::pdf4tcl::GetCharWidth {font ch} {
+    proc ::pdf4tcl::GetCharWidth {font ch} {
         if {$ch eq "\n"} {
             return 0.0
         }
@@ -2703,7 +2690,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
         my Pdfoutcmd 1 0 0 1 $pdf(xpos) $pdf(ypos) "Tm"
     }
 
-    proc ::pdf4tcl::pdf4tcl::MulVxM {vector matrix} {
+    proc ::pdf4tcl::MulVxM {vector matrix} {
         foreach {x y} $vector break
         foreach {a b c d e f} $matrix break
         lappend res [expr {$a*$x + $c*$y + $e}]
@@ -2711,7 +2698,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
         return $res
     }
 
-    proc ::pdf4tcl::pdf4tcl::MulMxM {m1 m2} {
+    proc ::pdf4tcl::MulMxM {m1 m2} {
         foreach {a1 b1 c1 d1 e1 f1} $m1 break
         foreach {a2 b2 c2 d2 e2 f2} $m2 break
         lappend res [expr {$a1*$a2 + $b1*$c2}]
@@ -3409,7 +3396,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # rotate by phi, scale with rx/ry and move by (dx, dy)
-    proc ::pdf4tcl::pdf4tcl::Transform {rx ry phi dx dy points} {
+    proc ::pdf4tcl::Transform {rx ry phi dx dy points} {
         set cos_phi [expr {cos($phi)}]
         set sin_phi [expr {sin($phi)}]
         set res [list]
@@ -3423,7 +3410,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Create a four-point spline that forms an arc along the unit circle
     # from angle -phi2 to +phi2 (where phi2 is in radians)
-    proc ::pdf4tcl::pdf4tcl::Simplearc {phi2} {
+    proc ::pdf4tcl::Simplearc {phi2} {
         set x0 [expr {cos($phi2)}]
         set y0 [expr {-sin($phi2)}]
         set x3 $x0
@@ -3673,7 +3660,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Deprecated jpeg adder, use addImage
     method addJpeg {filename id} { # Deprecated
         if {!$pdf(inPage)} { my startPage }
-        variable images
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
@@ -3740,7 +3726,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # and provide them as raw images.
 
     method AddPng {filename id} {
-        variable images
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
@@ -3911,7 +3896,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Incomplete gif experiment...
     method AddGif {filename id} {
-        variable images
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
@@ -4059,7 +4043,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Return the height of an image.
     method getImageHeight {id} {
-        variable images
         set status {}
         if {[info exists images($id)]} {
             set status [lindex $images($id) 1]
@@ -4070,7 +4053,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Return the size of an image. The size is returned as a list containing
     # the width and height of the image.
     method getImageSize {id} {
-        variable images
         set status {}
         if {[info exists images($id)]} {
             set status [lrange $images($id) 0 1]
@@ -4080,7 +4062,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Return the width of an image.
     method getImageWidth {id} {
-        variable images
         set status {}
         if {[info exists images($id)]} {
             set status [lindex $images($id) 0]
@@ -4091,7 +4072,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Place an image at the page
     method putImage {id x y args} {
         my EndTextObj
-        variable images
         foreach {width height oid} $images($id) {break}
 
         my Trans $x $y x y
@@ -4125,7 +4105,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Add a raw image to the document, to be placed later
     method addRawImage {img_data args} {
         if {!$pdf(inPage)} { my startPage }
-        variable images
         # Determine the width and height of the image, which is
         # a list of lists(rows).
         set width [llength [lindex $img_data 0]]
@@ -4224,9 +4203,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Add a bitmap to the document, as a pattern
     method AddBitmap {bitmap args} {
-        variable bitmaps
-        variable patterns
-
         set id ""
         set pattern ""
         foreach {arg value} $args {
@@ -4348,7 +4324,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # of pixel data appended
     method addTkpimgObj {width height xobject} {
         if {!$pdf(inPage)} { my startPage }
-        variable images
         set oid [my AddObject $xobject]
         set id pimg$oid
         set images($id) [list $width $height $oid 0]
@@ -4363,7 +4338,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Add tkpath extended graphics state object
     method addTkpextgs {body {smoid {}}} {
         if {!$pdf(inPage)} { my startPage }
-        variable extgs
 	if {$smoid ne {}} {
 	    set id smask$smoid
 	    set extgs($id) $smoid
@@ -4383,7 +4357,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Add tkpath shading/pattern object for gradient fills
     method addTkpgrad {oid} {
         if {!$pdf(inPage)} { my startPage }
-        variable grads
         set id grad$oid
         set grads($id) [list 0 0 $oid]
         return [list $oid $id]
@@ -4391,7 +4364,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Embed a file and return a handle to the File Specification Object.
     method embedFile {fn args} {
-        variable files
         set id ""
         set contents ""
         set contentsIsSet 0
@@ -4434,8 +4406,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Embed a file and create a file annotation
     method attachFile {x y width height fid description args} {
-        variable files
-        variable images
         set icon Paperclip
 
         foreach {option value} $args {
@@ -4484,7 +4454,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Add an interactive form
     # Currently supports text and checkbutton
     method addForm {ftype x y width height args} {
-        variable images
         if {[lsearch {text checkbutton} $ftype ] < 0} {# 8.5
             return -code error "Unknown form type $ftype"
         }
@@ -4663,7 +4632,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     #######################################################################
 
     method canvas {path args} {
-        variable canvasFontMapping
+        my variable canvasFontMapping
         my EndTextObj
 
         set sticky "nw"
@@ -4852,9 +4821,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Handle one canvas item
     method CanvasDoItem {path id coords optsName} {
         upvar 1 $optsName opts
-        variable images
-        variable bitmaps
-        variable canvasFontMapping
+        my variable canvasFontMapping
 
         # Not implemented: line/polygon -splinesteps
         # Not implemented: stipple offset
@@ -5421,7 +5388,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # Utility for translating dash patterns - if needed
-    proc ::pdf4tcl::pdf4tcl::CanvasMakeDashPattern {pattern linewidth} {
+    proc ::pdf4tcl::CanvasMakeDashPattern {pattern linewidth} {
         # If numeric, return the same
         if { ! [regexp {[.,-_]} $pattern] } {
             return $pattern
@@ -5465,7 +5432,6 @@ oo::class create ::pdf4tcl::pdf4tcl {
     # Setup the graphics state from standard options
     method CanvasStdOpts {optsName} {
         upvar 1 $optsName opts
-        variable patterns
 
         # Stipple for fill color
         set fillstippleid ""
@@ -5561,7 +5527,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # Helper to extract configuration from a canvas item
-    proc ::pdf4tcl::pdf4tcl::CanvasGetOpts {path id arrName} {
+    proc ::pdf4tcl::CanvasGetOpts {path id arrName} {
         upvar 1 $arrName arr
         array unset arr
         foreach item [$path itemconfigure $id] {
@@ -5586,7 +5552,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
 
     # Get the text from a text item, as a list of lines
     # This takes and line wrapping into account
-    proc ::pdf4tcl::pdf4tcl::CanvasGetWrappedText {w item ulName} {
+    proc ::pdf4tcl::CanvasGetWrappedText {w item ulName} {
         upvar 1 $ulName underline
         set text  [$w itemcget $item -text]
         set width [$w itemcget $item -width]
@@ -5719,7 +5685,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     #######################################################################
 
     # helper function: mask parentheses and backslash
-    proc ::pdf4tcl::pdf4tcl::CleanText {in fn} {
+    proc ::pdf4tcl::CleanText {in fn} {
         variable ::pdf4tcl::FontsAttrs
         if {$FontsAttrs($fn,specialencoding)} {
             # Convert using special encoding of font subset:
@@ -5735,7 +5701,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # helper function: correctly quote string with parentheses
-    proc ::pdf4tcl::pdf4tcl::QuoteString {string} {
+    proc ::pdf4tcl::QuoteString {string} {
         # map special characters
         return "([string map {\n "\\n" \r "\\r" \t "\\t" \b "\\b" \f "\\f" ( "\\(" ) "\\)" \\ "\\\\"} $string])"
     }
@@ -5764,7 +5730,7 @@ oo::class create ::pdf4tcl::pdf4tcl {
     }
 
     # helper function for formatting floating point numbers
-    proc ::pdf4tcl::pdf4tcl::Nf {n {deci 3}} {
+    proc ::pdf4tcl::Nf {n {deci 3}} {
         # Up to 3 decimals
         set num [format %.*f $deci $n]
         # Remove surplus decimals
