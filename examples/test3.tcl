@@ -51,8 +51,8 @@ canvas .c
 .c create rectangle 0 0 500 500 -outline black
 
 # Control fonts using named fonts
-font create MyArial1 -family Arial -size 10
-font create MyArial2 -family Arial -size 10
+font create MyArial1 -family Arial -size -14
+font create MyArial2 -family Arial -size -14
 # Chars within iso8859-1
 .c create text 10 10 -text "Apa bepa \xe5 \xd5 cepa" -anchor nw \
         -font MyArial1

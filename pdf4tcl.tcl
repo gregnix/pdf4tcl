@@ -356,7 +356,8 @@ namespace eval pdf4tcl {
                 continue
             }
             set npos [expr {$SDoffset + $offset}]
-            set Nstr [string range $ttfdata $npos $npos+$length] ;# 8.5
+            set nend [expr {$npos + $length - 1}]
+            set Nstr [string range $ttfdata $npos $nend]
             set N ""
 
             if {$PlId == 3 && $EncId == 1 && $LangId == 0x409} {
