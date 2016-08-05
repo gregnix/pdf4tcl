@@ -1213,8 +1213,8 @@ namespace eval pdf4tcl {
 #######################################################################
 # Object used for generating pdf
 #######################################################################
-catch {pdf4tcl::pdf4tcl destroy}
-oo::class create ::pdf4tcl::pdf4tcl {
+catch {oo::class create ::pdf4tcl::pdf4tcl}
+oo::define ::pdf4tcl::pdf4tcl {
     variable pdf
     # In 8.5 recode these as dicts within the pdf array
     variable images
