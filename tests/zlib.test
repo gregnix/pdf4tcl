@@ -14,10 +14,12 @@ test zlib-1.1 {compress flag} -body {
     set res {}
     lappend res [catch {pdf4tcl::new apa -compress urga}]
     pdf4tcl::new apa -compress 0
+    lappend res [apa cget -compress]
     apa destroy
     pdf4tcl::new apa -compress 1
+    lappend res [apa cget -compress]
     set res
-} -result {1} -cleanup {apa destroy}
+} -result {1 0 1} -cleanup {apa destroy}
 
 test zlib-1.2 {zlib used} -body {
     set ::zlibcalled 0
@@ -31,6 +33,12 @@ test zlib-1.2 {zlib used} -body {
     set res
 } -result {0 0 1} -cleanup {apa destroy}
 
+test zlib-1.3 {compress read only} -body {
+    pdf4tcl::new apa -compress 1
+    apa configure -compress 0
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -result "option -compress can only be set at instance creation"
 
 # No zlib
 catch {::_instrument_::cleanup}

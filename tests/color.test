@@ -53,4 +53,11 @@ test color-4.2 {user cmyk} -body {
     }
 } -result 1
 
+test color-5.1 {cmyk read only} -body {
+    pdf4tcl::new apa -cmyk 1
+    apa configure -cmyk 0
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -result "option -cmyk can only be set at instance creation"
+
 ::tcltest::cleanupTests
