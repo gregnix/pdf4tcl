@@ -1217,9 +1217,69 @@ oo::define ::pdf4tcl::pdf4tcl {
     variable type1basefonts
 
     #######################################################################
-    # Global option handling
+    # Snit-like option handling
     #######################################################################
     variable options
+
+    # Define an option
+    # Should be called from constructor
+    method Option {option args} {
+        my variable optiondefs
+
+        dict set optiondefs $option -readonly 0
+        dict set optiondefs $option -default ""
+        dict set optiondefs $option -validatemethod ""
+        dict set optiondefs $option -configuremethod ""
+        dict set optiondefs $option _Initialised 0
+
+        foreach {opt val} $args {
+            dict set optiondefs $option $opt $val
+        }
+        set options($option) [dict get $optiondefs $option -default]
+    }
+    
+    # Handle a configuration command.
+    # Should always be called from constructor
+    method Configurelist {lst} {
+        my variable optiondefs
+        if {[llength $lst] % 2 != 0} {
+            return -code error "wrong number of args"
+        }
+        foreach {option value} $lst {
+            if {![dict exists $optiondefs $option]} {
+                return -code error "Unknown option $option"
+            }
+            if {[dict get $optiondefs $option -readonly] && \
+                        [dict get $optiondefs $option _Initialised]} {
+                return -code error "option $option can only be set at instance creation"
+            }
+            if {[dict get $optiondefs $option -validatemethod] ne ""} {
+                ##nagelfar ignore Non static subcommand
+                my [dict get $optiondefs $option -validatemethod] \
+                        $option $value
+            }
+            if {[dict get $optiondefs $option -configuremethod] ne ""} {
+                ##nagelfar ignore Non static subcommand
+                my [dict get $optiondefs $option -configuremethod] \
+                        $option $value
+            } else {
+                set options($option) $value
+            }
+            dict set optiondefs $option _Initialised 1
+        }
+        foreach option [dict keys $optiondefs] {
+            if {![dict get $optiondefs $option _Initialised]} {
+                # Uninitialised options should get their defaults through
+                # configuremethod if there is any.
+                if {[dict get $optiondefs $option -configuremethod] ne ""} {
+                    ##nagelfar ignore Non static subcommand
+                    my [dict get $optiondefs $option -configuremethod] \
+                            $option [dict get $optiondefs $option -default]
+                }
+                dict set optiondefs $option _Initialised 1
+            }
+        }
+    }
 
     method cget {option} {
         return $options($option)
@@ -1232,44 +1292,12 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {[llength $args] == 1} {
             return $options([lindex $args 0])
         }
-        if {[llength $args] % 2 == 0} {
-            foreach {option value} $args {
-                switch -- $option {
-                    -file - -unit - compress {
-                        return -code error "option $option is readonly"
-                    }
-                    -paper {
-                        my CheckPaper $option $value
-                        my SetPageOption $option $value
-                    }
-                    -landscape {
-                        my CheckBoolean $option $value
-                        my SetPageOption $option $value
-                    }
-                    -orient {
-                        my CheckBoolean $option $value
-                        set options($option) $value
-                    }
-                    -cmyk {
-                        my CheckBoolean $option $value
-                        set options($option) $value
-                    }
-                    -margin {
-                        my CheckMargin $option $value
-                        my SetPageOption $option $value
-                    }
-                    -rotate {
-                        my CheckRotation $option $value
-                        my SetPageOption $option $value
-                    }
-                    default {
-                        return -code error "Unknown option $option"
-                    }
-                }
-            }
-        }
-        return -code error "wrong number of args"
+        my Configurelist $args
     }
+
+    #######################################################################
+    # Option handling methods
+    #######################################################################
 
     # Validator for -paper
     method CheckPaper {option value} {
@@ -1394,58 +1422,24 @@ oo::define ::pdf4tcl::pdf4tcl {
         # The unit translation factor is needed before parsing arguments
         set pdf(unit) 1.0
 
-	set options(-file)	{}
-        set options(-paper)	a4
-        set options(-landscape)	0
-        set options(-orient)	1
-        set options(-cmyk)	0
-        set options(-unit)	p
-  	set options(-compress)	0
-        set options(-margin)	0
-        set options(-rotate)	0
-        # Parse options
-        foreach {option value} $args {
-            switch -- $option {
-		-file {
-	            set options($option) $value
-		}
-                -paper {
-                    my CheckPaper $option $value
-		    my SetPageOption $option $value
-                }
-                -landscape {
-                    my CheckBoolean $option $value
-		    my SetPageOption $option $value
-                }
-		-orient {
-                    my CheckBoolean $option $value
-	            set options($option) $value
-		}
-		-cmyk {
-                    my CheckBoolean $option $value
-	            set options($option) $value
-		}
-		-unit {
-                    my CheckUnit $option $value
-		    my SetUnit $option $value
-		}
-		-compress {
-                    my CheckBoolean $option $value
-		    my SetCompress $option $value
-		}
-                -margin {
-                    my CheckMargin $option $value
-		    my SetPageOption $option $value
-                }
-                -rotate {
-                    my CheckRotation $option $value
-		    my SetPageOption $option $value
-                }
-                default {
-                    return -code error "Unknown option $option"
-                }
-            }
-	}
+        my Option -file      -default "" -readonly 1
+        my Option -paper     -default a4     -validatemethod CheckPaper \
+                -configuremethod SetPageOption
+        my Option -landscape -default 0      -validatemethod CheckBoolean \
+                -configuremethod SetPageOption
+        my Option -orient    -default 1      -validatemethod CheckBoolean
+        my Option -cmyk      -default 0      -validatemethod CheckBoolean \
+                -readonly 1
+        my Option -unit      -default p      -validatemethod CheckUnit \
+                -configuremethod SetUnit -readonly 1
+        my Option -compress  -default 0      -validatemethod CheckBoolean \
+                -configuremethod SetCompress -readonly 1
+        my Option -margin    -default 0      -validatemethod CheckMargin \
+                -configuremethod SetPageOption
+        my Option -rotate    -default 0      -validatemethod CheckRotation \
+                -configuremethod SetPageOption
+
+        my Configurelist $args
 
         # Document data
         set pdf(pages) {}
