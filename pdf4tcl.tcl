@@ -1225,6 +1225,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Should be called from constructor
     method Option {option args} {
         my variable optiondefs
+        my variable optiondeflist
 
         dict set optiondefs $option -readonly 0
         dict set optiondefs $option -default ""
@@ -1236,18 +1237,23 @@ oo::define ::pdf4tcl::pdf4tcl {
             dict set optiondefs $option $opt $val
         }
         set options($option) [dict get $optiondefs $option -default]
+        # Keep a nice list available
+        set optiondeflist [lsort -dictionary [dict keys $optiondefs]]
     }
     
     # Handle a configuration command.
     # Should always be called from constructor
     method Configurelist {lst} {
         my variable optiondefs
+        my variable optiondeflist
         if {[llength $lst] % 2 != 0} {
             return -code error "wrong number of args"
         }
         foreach {option value} $lst {
+            # TODO: recode to use prefix matching
+            #tcl::prefix match $optiondeflist $option
             if {![dict exists $optiondefs $option]} {
-                return -code error "Unknown option $option"
+                return -code error "unknown option \"$option\""
             }
             if {[dict get $optiondefs $option -readonly] && \
                         [dict get $optiondefs $option _Initialised]} {
