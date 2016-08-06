@@ -14,7 +14,7 @@ test text-1.2 {text method} -body {
     mytest {text "Hej hopp" -miffo gurka} {
         BT (Hej hopp) Tj ET
     }
-} -returnCodes 1 -result "unknown option -miffo"
+} -returnCodes 1 -result {unknown option "-miffo"}
 
 test text-2.1 {text method, align} -body {
     mytest {setFont 10 Courier} {text Gurka -x 10 -y 10 -align left} {
@@ -119,14 +119,14 @@ test text-5.2 {lineSpacing} -body {
     Apa setLineSpacing gurka
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line spacing 'gurka', must be numeric}
+} -returnCodes 1 -result {Bad line spacing "gurka", must be numeric}
 
 test text-5.3 {lineSpacing} -body {
     pdf4tcl::new Apa
     Apa newLine gurka
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line spacing 'gurka', must be numeric}
+} -returnCodes 1 -result {Bad line spacing "gurka", must be numeric}
 
 test text-6.1 {moveTextPosition} -body {
     mytest {setFont 20 Courier} \

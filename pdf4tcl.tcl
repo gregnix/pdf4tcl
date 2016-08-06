@@ -1237,14 +1237,14 @@ snit::type pdf4tcl::pdf4tcl {
     method CheckPaper {option value} {
         set papersize [pdf4tcl::getPaperSize $value]
         if {[llength $papersize] == 0} {
-            return -code error "papersize $value is unknown"
+            return -code error "papersize \"$value\" is unknown"
         }
     }
 
     # Validator for -unit
     method CheckUnit {option value} {
         if {![info exists ::pdf4tcl::units($value)]} {
-            return -code error "unit $value is unknown"
+            return -code error "unit \"$value\" is unknown"
         }
     }
 
@@ -1254,12 +1254,12 @@ snit::type pdf4tcl::pdf4tcl {
             1 - 2 - 4 {
                 foreach elem $value {
                     if {[catch {pdf4tcl::getPoints $elem}]} {
-                        return -code error "Bad margin value '$elem'"
+                        return -code error "bad margin value \"$elem\""
                     }
                 }
             }
             default {
-                return -code error "Bad margin list '$value'"
+                return -code error "bad margin list \"$value\""
             }
         }
     }
@@ -1267,14 +1267,15 @@ snit::type pdf4tcl::pdf4tcl {
     # Validator for boolean options
     method CheckBoolean {option value} {
         if {![string is boolean -strict $value]} {
-            return -code error "option $option must have a boolean value."
+            return -code error "option $option must have a boolean value"
         }
     }
 
     # Validator for -rotate
     method CheckRotation {option value} {
+        CheckNumeric $value rotation -nonnegative -integer
         if { $value % 90  } {
-            return -code error "Rotation $value not a multiple of 90"
+            return -code error "rotation $value not a multiple of 90"
         }
     }
 
@@ -1291,24 +1292,24 @@ snit::type pdf4tcl::pdf4tcl {
         if {$i >= 0} {
             set unit [lindex $args [expr {$i + 1}]]
             if {[catch {pdf4tcl::getPoints $val $unit} p]} {
-                return -code error "Bad $what '$val', must be numeric"
+                return -code error "Bad $what \"$val\", must be numeric"
             }
             set val $p
         }
         if {![string is double -strict $val]} {
-            return -code error "Bad $what '$origVal', must be numeric"
+            return -code error "Bad $what \"$origVal\", must be numeric"
         }
         set nonneg [lsearch -exact $args -nonnegative]
         set pos    [lsearch -exact $args -positive]
         set int    [lsearch -exact $args -integer]
         if {$nonneg >= 0 && $val < 0} {
-            return -code error "Bad $what '$origVal', may not be negative"
+            return -code error "Bad $what \"$origVal\", may not be negative"
         }
         if {$pos >= 0 && $val <= 0} {
-            return -code error "Bad $what '$origVal', must be positive"
+            return -code error "Bad $what \"$origVal\", must be positive"
         }
         if {$int >= 0 && ![string is integer -strict $val]} {
-            return -code error "Bad $what '$origVal', must be integer"
+            return -code error "Bad $what \"$origVal\", must be integer"
         }
         return $val
     }
@@ -1587,7 +1588,7 @@ snit::type pdf4tcl::pdf4tcl {
                     $self CheckBoolean $option $value
                 }
                 default {
-                    return -code error "Unknown option $option"
+                    return -code error "unknown option \"$option\""
                 }
             }
             set localopts($option) $value
@@ -1657,7 +1658,7 @@ snit::type pdf4tcl::pdf4tcl {
                         $self CheckBoolean $option $value
                     }
                     default {
-                        return -code error "Unknown option $option"
+                        return -code error "unknown option \"$option\""
                     }
                 }
                 set localopts($option) $value
@@ -2027,7 +2028,7 @@ snit::type pdf4tcl::pdf4tcl {
                     }
                 }
                 default {
-                    return -code error "unknown option $arg."
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -2112,7 +2113,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set closed $value
                 }
                 default {
-                    return -code error "Unknown option $option"
+                    return -code error "unknown option \"$option\""
                 }
             }
         }
@@ -2776,7 +2777,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set posSet 1
                 }
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -2886,7 +2887,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set linesVar $value
                 }
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -3196,7 +3197,7 @@ snit::type pdf4tcl::pdf4tcl {
                         set stroke $y
                     }
                     default {
-                        return -code error "unknown option $x"
+                        return -code error "unknown option \"$x\""
                     }
                 }
             } else {
@@ -3280,7 +3281,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set stroke $value
                 }
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -3305,7 +3306,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set stroke $value
                 }
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -3414,7 +3415,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set style $value
                 }
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -3522,7 +3523,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set stroke $value
                 }
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }
@@ -3561,7 +3562,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set type jpg
                 }
                 default {
-                    return -code error "Unknown image type $filename"
+                    return -code error "unknown image type \"$filename\""
                 }
             }
         }
@@ -3573,7 +3574,7 @@ snit::type pdf4tcl::pdf4tcl {
                 set id [$self addJpeg $filename $id]
             }
             default {
-                return -code error "Unknown image type $type"
+                return -code error "unknown image type \"$type\""
             }
         }
         return $id
@@ -4358,7 +4359,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set icon $value
                 }
                 default {
-                    return -code error "Unknown option $option"
+                    return -code error "unknown option \"$option\""
                 }
             }
         }
@@ -4417,7 +4418,7 @@ snit::type pdf4tcl::pdf4tcl {
                     set offObj $value
                 }
                 default {
-                    return -code error "Unknown option $option"
+                    return -code error "unknown option \"$option\""
                 }
             }
         }
@@ -4594,7 +4595,7 @@ snit::type pdf4tcl::pdf4tcl {
                 "-bg"     {set bg $value}
                 "-fontmap" {set canvasFontMapping $value}
                 default {
-                    return -code error "unknown option $arg"
+                    return -code error "unknown option \"$arg\""
                 }
             }
         }

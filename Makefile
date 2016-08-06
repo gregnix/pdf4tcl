@@ -57,8 +57,8 @@ IFILES   = $(SRCFILES:.tcl=.tcl_i)
 LOGFILES = $(SRCFILES:.tcl=.tcl_log)
 MFILES   = $(SRCFILES:.tcl=.tcl_m)
 
-%.tcl_i: %.tcl
-	@$(NAGELFAR) -instrument $<
+%.tcl_i: %.tcl pdf4tcl_h.syntax
+	@$(NAGELFAR) -instrument pdf4tcl_h.syntax $<
 
 instrument: $(IFILES)
 	@rm -f $(LOGFILES)

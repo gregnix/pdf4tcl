@@ -91,14 +91,14 @@ test graphics-4.3 {line style} -body {
     Apa setLineStyle -1
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line width '-1', may not be negative}
+} -returnCodes 1 -result {Bad line width "-1", may not be negative}
 
 test graphics-4.3.1 {line style} -body {
     pdf4tcl::new Apa
     Apa setLineWidth -1
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line width '-1', may not be negative}
+} -returnCodes 1 -result {Bad line width "-1", may not be negative}
 
 test graphics-4.4 {line style} -body {
     pdf4tcl::new Apa
@@ -119,21 +119,21 @@ test graphics-4.5 {line style} -body {
     Apa setLineStyle 1 -2.3
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad dash pattern '-2.3', may not be negative}
+} -returnCodes 1 -result {Bad dash pattern "-2.3", may not be negative}
 
 test graphics-4.6 {line style} -body {
     pdf4tcl::new Apa
     Apa setLineStyle 1 gurka
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad dash pattern 'gurka', must be numeric}
+} -returnCodes 1 -result {Bad dash pattern "gurka", must be numeric}
 
 test graphics-4.7 {line style} -body {
     pdf4tcl::new Apa
     Apa setLineStyle gurka
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line width 'gurka', must be numeric}
+} -returnCodes 1 -result {Bad line width "gurka", must be numeric}
 
 test graphics-4.8 {line style} -body {
     mytest {setLineWidth 12.3p} {setLineDash 5.3 7i 2p} {line 100 100 400 700} {

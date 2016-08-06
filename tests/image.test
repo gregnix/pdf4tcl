@@ -22,12 +22,12 @@ test image-1.1 {misc image handling} -body {
 test image-1.2 {misc image handling} -body {
     # Test type recognition
     mytest {addImage miffo -type gurka} {}
-} -returnCodes 1 -result "Unknown image type gurka"
+} -returnCodes 1 -result {unknown image type "gurka"}
 
 test image-1.3 {misc image handling} -body {
     # Test type recognition
     mytest {addImage tcl.ext} {}
-} -returnCodes 1 -result "Unknown image type tcl.ext"
+} -returnCodes 1 -result {unknown image type "tcl.ext"}
 
 test image-1.4 {misc image handling} -body {
     # Test type recognition
