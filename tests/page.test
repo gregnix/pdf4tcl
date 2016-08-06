@@ -137,6 +137,10 @@ test page-2.4 {misc page handling, rotate} -body {
 } -cleanup {apa destroy} -match glob \
         -result 0
 
+test page-2.5 {misc page handling, rotate} -body {
+    pdf4tcl::new apa -rotate 95
+} -returnCodes 1 -match glob -result {*rotation 95 not a multiple of 90}
+
 test page-3.1 {file attachment annnotation} -body {
     pdf4tcl::new apa -paper {400 400} -compress false
     apa startPage
@@ -146,5 +150,73 @@ test page-3.1 {file attachment annnotation} -body {
     apa attachFile 10 10 50 50 GG "This is the description"
     apa get
 } -cleanup {apa destroy} -match glob -result {*<< /Type /EmbeddedFile*This should be in the file.*<< /Type /Filespec*/F (data.txt)*<< /Type /Annot*/Contents (This is the description)*}
+
+test page-4.1 {options errors} -body {
+    pdf4tcl::new apa -mooo 1
+} -returnCodes 1 -match glob -result {*unknown option "-mooo"}
+
+test page-4.2 {options errors} -body {
+    pdf4tcl::new apa -uni mm -c 1
+} -returnCodes 1 -match glob -result {*unknown option "-uni"}
+
+test page-4.3 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa configure -mooo 1
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {*unknown option "-mooo"}
+
+test page-4.4 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -mooo 1
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {unknown option "-mooo"}
+
+test page-4.5 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -landscape xxx
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {option -landscape must have a boolean value}
+
+test page-4.6 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -margin xxx
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {bad margin value "xxx"}
+
+test page-4.7 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -orient xxx
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {option -orient must have a boolean value}
+
+test page-4.8 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -noimage xxx
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {option -noimage must have a boolean value}
+
+test page-4.9 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -paper xxx
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {papersize "xxx" is unknown}
+
+test page-4.10 {options errors} -body {
+    pdf4tcl::new apa -unit mm
+    apa startXObject -rotate xxx
+} -cleanup {
+    apa destroy
+} -returnCodes 1 -match glob -result {Bad rotation "xxx", must be numeric}
+
+test page-4.11 {options errors} -body {
+    pdf4tcl::new apa -unit xxx
+} -returnCodes 1 -match glob -result {*unit "xxx" is unknown}
 
 ::tcltest::cleanupTests
