@@ -3,13 +3,13 @@
 #
 # Copyright (c) 2004 by Frank Richter <frichter@truckle.in-chemnitz.de> and
 #                       Jens Ponisch <jens@ruessel.in-chemnitz.de>
-# Copyright (c) 2006-2015 by Peter Spjuth <peter.spjuth@gmail.com>
+# Copyright (c) 2006-2016 by Peter Spjuth <peter.spjuth@gmail.com>
 # Copyright (c) 2009 by Yaroslav Schekin <ladayaroslav@yandex.ru>
 #
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.8.3
+package provide pdf4tcl 0.8.4
 
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
