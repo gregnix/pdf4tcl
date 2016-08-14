@@ -85,3 +85,6 @@ release: doc
 	@\rm -f pdf4tcl$(VERSION)
 	@cp pdf4tcl.tar.gz pdf4tcl`date +%Y%m%d`.tar.gz
 	@mv pdf4tcl.tar.gz pdf4tcl$(VERSION).tar.gz
+
+upload:
+	rsync -e ssh README pdf4tcl$(VERSION).tar.gz pspjuth@frs.sourceforge.net:/home/frs/project/pdf4tcl/
