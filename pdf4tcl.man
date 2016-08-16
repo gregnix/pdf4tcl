@@ -453,7 +453,7 @@ Draw the text string [arg "str"] wrapping at blanks and tabs so that it fits wit
 by [arg "x"], [arg "y"], [arg "width"] and [arg "height"]. An embedded newline in [arg "str"] causes
 a new line in the output. If [arg "str"] is too long to fit in the specified box, it is truncated and the unused remainder is returned.
    [list_begin options]
-      [opt_def -align "[arg left|right|center|justify])"]
+      [opt_def -align "[arg left|right|center|justify]"]
          Specifies the justification. If not given, the text is left justified.
       [opt_def -linesvar "[arg var]"]
          Gives the name of a variable which will be set to the number of lines written.

@@ -5,3 +5,8 @@ tests/init.tcl (package require)
 pkgIndex.tcl (package ifneeded)
 Makefile (VERSION)
 pdf4tcl.man (two places) (regenerate doc)
+
+Also update
+ChangeLog
+web/index.html
+web/changes.html

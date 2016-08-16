@@ -11,6 +11,22 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.8.4 (2016-08-15):<br>
+<ul>
+  <li> Note: 0.8.4 will be the last version to support Tcl 8.4/8.5, and the
+    last to require Snit. Next will require TclOO and other 8.6 features.
+  <li> Adapted to tkpath items, using itempdf support in tkpath. </li>
+  <li> Support for characters outside BMP, if run in a Tcl-version
+    supporting it.</li>
+  <li> Added addForm method, for creating interactive forms. </li>
+  <li> Added catPdf command.</li>
+  <li> setLineStyle, setLineWidth and setLineDash now interprets their
+    inputs with units, like all distances </li>
+  <li> Added document flag -cmyk and started on CMYK support. </li>
+  <li> Added startXObject method, for creating Form XObjects. </li>
+  <li> Added embedFile and attachFile methods. </li>
+</ul>
+
 Changes in v0.8 (2012-06-12):<br>
 <ul>
  <li> Added curve method, replacing qCurve. </li>

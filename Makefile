@@ -7,7 +7,7 @@ TCLSH = tclsh
 NAGELFAR = nagelfar -encoding iso8859-1
 ESKIL    = eskil
 
-all: doc
+all: doc web
 
 # Documentation
 doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
@@ -23,6 +23,14 @@ checkdoc:
 
 web/mypdf.pdf: mkweb.tcl web/index.html
 	./mkweb.tcl
+
+web/pdf4tcl.html: pdf4tcl.html
+	/bin/cp pdf4tcl.html web/pdf4tcl.html
+
+web : web/mypdf.pdf web/pdf4tcl.html
+
+webt: web
+	rsync -e ssh -rv web/* pspjuth@web.sourceforge.net:/home/project-web/pdf4tcl/htdocs
 
 example:
 	@cd examples && $(TCLSH) test0.tcl

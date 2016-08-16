@@ -786,7 +786,7 @@ by \fIx\fR, \fIy\fR, \fIwidth\fR and \fIheight\fR\&. An embedded newline in \fIs
 a new line in the output\&. If \fIstr\fR is too long to fit in the specified box, it is truncated and the unused remainder is returned\&.
 .RS
 .TP
-\fB-align\fR \fIleft|right|center|justify\fR)
+\fB-align\fR \fIleft|right|center|justify\fR
 Specifies the justification\&. If not given, the text is left justified\&.
 .TP
 \fB-linesvar\fR \fIvar\fR
