@@ -67,21 +67,6 @@ namespace eval pdf4tcl {
     variable type1AFM
     variable type1PFB
 
-    # Locating zlib.
-    # 1. Look for existing, e.g. in Tcl 8.6
-    # 2. Try to get package zlib
-    if {[info commands zlib] eq "zlib"} {
-        set g(haveZlib) 1
-    } elseif {[catch {package require zlib} err]} {
-        set g(haveZlib) 0
-        # Check for command just in case
-        if {[info commands zlib] eq "zlib"} {
-            set g(haveZlib) 1
-        }
-    } else {
-        set g(haveZlib) 1
-    }
-
     # Utility to look up paper size by name
     # A two element list of width and height is also allowed.
     # Return value is in points
@@ -428,7 +413,7 @@ namespace eval pdf4tcl {
             set BFA($ttfname,CapHeight) $BFA($ttfname,ascend)
         }
 
-        set BFA($ttfname,stemV) [expr {50 + int(pow($usWeightClass / 65.0, 2))}] ;# 8.5
+        set BFA($ttfname,stemV) [expr {50 + int(pow($usWeightClass / 65.0, 2))}]
 
         #----------------------
         # post - PostScript table (needs data from OS/2 table)
@@ -533,7 +518,7 @@ namespace eval pdf4tcl {
                                 }
                             }
                         }
-                        dict set BFA($ttfname,charToGlyph) $unichar $glyph ;# 8.5
+                        dict set BFA($ttfname,charToGlyph) $unichar $glyph
                         lappend glyphToChar($glyph) $unichar
                     }
                 }
@@ -1388,21 +1373,6 @@ oo::define ::pdf4tcl::pdf4tcl {
         return $val
     }
 
-    # Configure method for -compress
-    method SetCompress {option value} {
-        variable ::pdf4tcl::g
-        if {$value} {
-            if {$g(haveZlib)} {
-                set options($option) 1
-            } else {
-                # Package zlib not available. Sorry, no compression.
-                set options($option) 0
-            }
-        } else {
-            set options($option) 0
-        }
-    }
-
     # Configure method for page properties
     method SetPageOption {option value} {
         set options($option) $value
@@ -1443,7 +1413,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Option -unit      -default p      -validatemethod CheckUnit \
                 -configuremethod SetUnit -readonly 1
         my Option -compress  -default 0      -validatemethod CheckBoolean \
-                -configuremethod SetCompress -readonly 1
+                -readonly 1
         my Option -margin    -default 0      -validatemethod CheckMargin \
                 -configuremethod SetPageOption
         my Option -rotate    -default 0      -validatemethod CheckRotation \
@@ -5169,7 +5139,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                     # negative y scale here to get the text correct.
 
                     # if -angle is present, turn
-                    if {[info exists opts(-angle)]} { # 8.6 only
+                    if {$opts(-angle) != 0} {
                         #puts "Angle is $opts(-angle)"
                         set sx [expr {sin(-$opts(-angle)*3.14159265358979/180)}]
                         set cx [expr {cos(-$opts(-angle)*3.14159265358979/180)}]
@@ -5526,14 +5496,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set strokestippleid ""
         if {[info exists opts(-outlinestipple)] && \
                 $opts(-outlinestipple) ne ""} {
-            # Outlineoffset is a 8.5 feature
-            if {[info exists opts(-outlineoffset)]} {
-                set offset $opts(-outlineoffset)
-            } else {
-                set offset $opts(-offset)
-            }
             set strokestippleid [my CanvasGetBitmap $opts(-outlinestipple) \
-                    $offset]
+                    $opts(-outlineoffset)]
         }
         # Outline controls stroke color
         if {[info exists opts(-outline)] && $opts(-outline) ne ""} {
@@ -5584,8 +5548,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         } else {
             foreach {red green blue k} $cList break
             my Pdfout "/Cs1 cs\n"
-            #my Pdfoutcmd $red $green $blue "scn"
-            if {$pdf(cmyk)} { #8.5
+            if {$pdf(cmyk)} {
                 my Pdfoutcmd $red $green $blue $k "/$bitmapid scn"
             } else {
                 my Pdfoutcmd $red $green $blue "/$bitmapid scn"
@@ -5601,7 +5564,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         } else {
             foreach {red green blue k} $cList break
             my Pdfout "/Cs1 CS\n"
-            if {$pdf(cmyk)} { #8.5
+            if {$pdf(cmyk)} {
                 my Pdfoutcmd $red $green $blue $k "/$bitmapid SCN"
             } else {
                 my Pdfoutcmd $red $green $blue "/$bitmapid SCN"
@@ -5639,10 +5602,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         upvar 1 $ulName underline
         set text  [$w itemcget $item -text]
         set width [$w itemcget $item -width]
-        # Underline is a 8.5 feature
-        if {[catch {$w itemcget $item -underline} underline]} {
-            set underline -1
-        }
+        set underline [$w itemcget $item -underline]
 
         # Simple non-wrapping case. Only divide on newlines.
         if {$width == 0} {

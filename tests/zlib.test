@@ -1,12 +1,6 @@
 # Test zlib usage                                                    -*-tcl-*-
 #
-# $Id$
 
-# Override zlib
-if {[catch {package require zlib}]} {
-    package provide zlib 1.0
-    package require zlib
-}
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 proc zlib {args} {set ::zlibcalled 1 ; return "zlib_dummy"}
 
@@ -39,34 +33,5 @@ test zlib-1.3 {compress read only} -body {
 } -cleanup {
     apa destroy
 } -returnCodes 1 -result "option -compress can only be set at instance creation"
-
-# No zlib
-catch {::_instrument_::cleanup}
-package forget zlib
-package forget pdf4tcl
-rename zlib {}
-source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
-proc zlib {args} {set ::zlibcalled 1 ; return "zlib_dummy"}
-
-test zlib-2.1 {compress flag} -body {
-    set res {}
-    lappend res [catch {pdf4tcl::new apa -compress urga}]
-    pdf4tcl::new apa -compress 0
-    apa destroy
-    pdf4tcl::new apa -compress 1
-    set res
-} -result {1} -cleanup {apa destroy}
-
-test zlib-2.2 {zlib not used} -body {
-    set ::zlibcalled 0
-    set res {}
-    pdf4tcl::new apa -compress 1
-    lappend res $::zlibcalled
-    apa startPage
-    lappend res $::zlibcalled
-    apa endPage
-    lappend res $::zlibcalled
-    set res
-} -result {0 0 0} -cleanup {apa destroy}
 
 ::tcltest::cleanupTests
