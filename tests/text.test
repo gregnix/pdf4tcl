@@ -119,14 +119,14 @@ test text-5.2 {lineSpacing} -body {
     Apa setLineSpacing gurka
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line spacing "gurka", must be numeric}
+} -returnCodes 1 -result {bad line spacing "gurka", must be numeric}
 
 test text-5.3 {lineSpacing} -body {
     pdf4tcl::new Apa
     Apa newLine gurka
 } -cleanup {
     Apa destroy
-} -returnCodes 1 -result {Bad line spacing "gurka", must be numeric}
+} -returnCodes 1 -result {bad line spacing "gurka", must be numeric}
 
 test text-6.1 {moveTextPosition} -body {
     mytest {setFont 20 Courier} \

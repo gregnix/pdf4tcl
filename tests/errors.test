@@ -33,7 +33,7 @@ test errors-1.3 {setFont errors} -body {
     set res {}
 
     lappend res [catch {apa setFont 10 "no_such_font"} msg] $msg
-} -result {1 {Font no_such_font doesn't exist}} \
+} -result {1 {font no_such_font doesn't exist}} \
         -cleanup {apa destroy}
 
 test errors-1.4 {misc option errors} -body {
@@ -54,7 +54,7 @@ test errors-1.5 {addJpeg errors} -body {
     removeFile dummy.tmp
     # No file
     lappend res [catch {apa addJpeg $f 0} msg] $msg
-} -match glob -result {1 {*does not contain*} 1 {Could not open*}} \
+} -match glob -result {1 {*does not contain*} 1 {could not open*}} \
         -cleanup {apa destroy}
 
 test errors-1.6 {write errors} -body {

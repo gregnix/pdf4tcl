@@ -7,22 +7,22 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 test form-1.1 {addForm method, errors} -body {
     mytest {addForm apa 0 0 10 10} {
     }
-} -returnCodes 1 -result "Unknown form type apa"
+} -returnCodes 1 -result "unknown form type apa"
 
 test form-1.2 {addForm method, errors} -body {
     mytest {addForm checkbutton 0 0 10 10 -init hej} {
     }
-} -returnCodes 1 -result "Initial value for checkbutton must be boolean"
+} -returnCodes 1 -result "initial value for checkbutton must be boolean"
 
 test form-1.3 {addForm method, errors} -body {
     mytest {addForm checkbutton 0 0 10 10 -on hej} {
     }
-} -returnCodes 1 -result "Bad id for -on"
+} -returnCodes 1 -result "bad id for -on"
 
 test form-1.4 {addForm method, errors} -body {
     mytest {addForm checkbutton 0 0 10 10 -off hej} {
     }
-} -returnCodes 1 -result "Bad id for -off"
+} -returnCodes 1 -result "bad id for -off"
 
 test form-2.1 {addForm method, text} -body {
     mytest -all {addForm text 0 0 10 10} {

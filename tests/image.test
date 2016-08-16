@@ -50,19 +50,19 @@ test image-2.1 {image introspection} -body {
 
 test image-3.1 {image} -body {
     mytest {putRawImage {} 0 0 -angle a} {}
-} -returnCodes 1 -result {Bad angle "a", must be numeric}
+} -returnCodes 1 -result {bad angle "a", must be numeric}
 
 test image-3.2 {image} -body {
     mytest {putRawImage {} 0 0 -anchor a} {}
-} -returnCodes 1 -result {Bad anchor "a"}
+} -returnCodes 1 -result {bad anchor "a"}
 
 test image-3.3 {image} -body {
     mytest {addImage tcl.jpg -id 1} {putImage 1 0 0 -angle a} {}
-} -returnCodes 1 -result {Bad angle "a", must be numeric}
+} -returnCodes 1 -result {bad angle "a", must be numeric}
 
 test image-3.4 {image} -body {
     mytest {addImage tcl.jpg -id 1} {putImage 1 0 0 -anchor a} {}
-} -returnCodes 1 -result {Bad anchor "a"}
+} -returnCodes 1 -result {bad anchor "a"}
 
 
 file delete tcl.jpg tcl.ext

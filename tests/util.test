@@ -42,15 +42,15 @@ test util-2.1 {getPoints} -body {
 
 test util-2.2 {getPoints, error} -body {
     pdf4tcl::getPoints 1.3g
-} -returnCodes 1 -result "Unknown value 1.3g"
+} -returnCodes 1 -result "unknown value 1.3g"
 
 test util-2.3 {getPoints, error} -body {
     pdf4tcl::getPoints 1q
-} -returnCodes 1 -result "Unknown value 1q"
+} -returnCodes 1 -result "unknown value 1q"
 
 test util-2.4 {getPoints, error} -body {
     pdf4tcl::getPoints 1x1mm
-} -returnCodes 1 -result "Unknown value 1x1mm"
+} -returnCodes 1 -result "unknown value 1x1mm"
 
 test util-3.1 {write method} -body {
     set pdf [pdf4tcl::new %AUTO%]

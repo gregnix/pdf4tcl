@@ -213,7 +213,7 @@ test page-4.10 {options errors} -body {
     apa startXObject -rotate xxx
 } -cleanup {
     apa destroy
-} -returnCodes 1 -match glob -result {Bad rotation "xxx", must be numeric}
+} -returnCodes 1 -match glob -result {bad rotation "xxx", must be numeric}
 
 test page-4.11 {options errors} -body {
     pdf4tcl::new apa -unit xxx

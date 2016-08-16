@@ -109,7 +109,7 @@ namespace eval pdf4tcl {
                 }
             }
         }
-        return -code error "Unknown value $val"
+        return -code error "unknown value $val"
     }
 
     # Wrapper to create pdf4tcl object
@@ -200,7 +200,7 @@ namespace eval pdf4tcl {
             error "TTF: postscript outlines are not supported"
         }
         if {$version ni $ttfVersions} {
-            error "Not a TrueType font: version=$version"
+            error "not a TrueType font: version=$version"
         }
         return [expr {$version == [lindex $ttfVersions end]}]
     }
@@ -209,7 +209,7 @@ namespace eval pdf4tcl {
         variable ttfdata
         set checksum [CalcTTFCheckSum $ttfdata 0 [string length $ttfdata]]
         if {$checksum != 0xB1B0AFBA} {
-            error "Invalid TTF file checksum [format %X $checksum]"
+            error "invalid TTF file checksum [format %X $checksum]"
         }
     }
 
@@ -226,7 +226,7 @@ namespace eval pdf4tcl {
         incr ttfpos 8
 
         if {$ttcVersion ni $ttcVersions} {
-            error "Not a TTC file"
+            error "not a TTC file"
         }
 
         binary scan $ttfdata "@${ttfpos}Iu$BFA($ttfname,numSubfonts)" \
@@ -238,7 +238,7 @@ namespace eval pdf4tcl {
         variable ttfpos
         variable ttfSubFontOffsets
         if {$subfontIndex >= [llength $ttfSubFontOffsets]} {
-            error "Bad subfontIndex $subfontIndex"
+            error "bad subfontIndex $subfontIndex"
         }
         set ttfpos [lindex $ttfSubFontOffsets $subfontIndex]
         ReadHeader
@@ -371,7 +371,7 @@ namespace eval pdf4tcl {
 
         set BFA($ttfname,psName) [string map {" " -} $names(6)]
         if {$BFA($ttfname,psName) eq ""} {
-            error "Could not find PostScript font name"
+            error "could not find PostScript font name"
         }
 
         #----------------------------------
@@ -382,8 +382,8 @@ namespace eval pdf4tcl {
                 BFA($ttfname,unitsPerEm) xMin yMin xMax yMax \
                 indexToLocFormat glyphDataFormat
 
-        if {$ver_maj != 1} {error "Unknown head table version $ver_maj"}
-        if {$magic != 0x5F0F3CF5} {error "Invalid head table magic $magic"}
+        if {$ver_maj != 1} {error "unknown head table version $ver_maj"}
+        if {$magic != 0x5F0F3CF5} {error "invalid head table magic $magic"}
 
         set BFA($ttfname,bbox) [list \
                 [Rescale $xMin] [Rescale $yMin] [Rescale $xMax] [Rescale $yMax]]
@@ -434,19 +434,19 @@ namespace eval pdf4tcl {
         set ttfpos [lindex $ttftables(hhea) 1]
         binary scan $ttfdata "@${ttfpos}SuSux28SuSu" \
                 ver_maj ver_min metricDataFormat numberOfHMetrics
-        if {$ver_maj != 1} {error "Unknown hhea table version"}
-        if {$metricDataFormat != 0} {error "Unknown horizontal metric data format"}
-        if {$numberOfHMetrics == 0} {error "Number of horizontal metrics is 0"}
+        if {$ver_maj != 1} {error "unknown hhea table version"}
+        if {$metricDataFormat != 0} {error "unknown horizontal metric data format"}
+        if {$numberOfHMetrics == 0} {error "number of horizontal metrics is 0"}
 
         # maxp - Maximum profile table
         set ttfpos [lindex $ttftables(maxp) 1]
         binary scan $ttfdata "@${ttfpos}SuSuSu" \
                 ver_maj ver_min numGlyphs
-        if {$ver_maj != 1} {error "Unknown maxp table version"}
+        if {$ver_maj != 1} {error "unknown maxp table version"}
         if {!$charInfo} return
 
         # We don't care of this earlier:
-        if {$glyphDataFormat != 0} {error "Unknown glyph data format"}
+        if {$glyphDataFormat != 0} {error "unknown glyph data format"}
 
         # cmap - Character to glyph index mapping table
         set ttfpos [lindex $ttftables(cmap) 1]
@@ -473,7 +473,7 @@ namespace eval pdf4tcl {
         }
 
         if {![info exists stoffset]} {
-            error "Font does not have cmap for Unicode"
+            error "font does not have cmap for Unicode"
         }
 
         set unicode_cmap_offset [expr {$cmap_offset + $stoffset}]
@@ -621,7 +621,7 @@ namespace eval pdf4tcl {
         } elseif {$indexToLocFormat == 1} {
             binary scan $ttfdata "@${ttfpos}Iu$numGlyphs" BFA($ttfname,glyphPos)
         } else {
-            error "Unknown location table format $indexToLocFormat"
+            error "unknown location table format $indexToLocFormat"
         }
     }
 
@@ -1000,7 +1000,7 @@ namespace eval pdf4tcl {
 
     proc PfbCheck {pos data mark} {
         binary scan $data "@${pos}cucu" d0 d1
-        if {($d0 != 0x80) || ($d1 != $mark)} {error "Bad pfb data at $pos"}
+        if {($d0 != 0x80) || ($d1 != $mark)} {error "bad pfb data at $pos"}
         if {$mark == 3} return; #PFB_EOF
         incr pos 2
         binary scan $data "@${pos}iu" l
@@ -1069,9 +1069,9 @@ namespace eval pdf4tcl {
                 }
                 # Convert and store tokens:
                 foreach {l r} $toklst {et ss} [list C %d WX %d N %s] {
-                    if {$l != $et} {error "Bad line in font AFM ($et)"}
+                    if {$l != $et} {error "bad line in font AFM ($et)"}
                     if {![scan $r $ss val]} {
-                        error "Incorrect '$et' value in font AFM"
+                        error "incorrect '$et' value in font AFM"
                     }
                     lappend reslst $val
                 }
@@ -1333,42 +1333,42 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Validator for -rotate
     method CheckRotation {option value} {
-        CheckNumeric $value rotation -nonnegative -integer
+        my CheckNumeric $value rotation -nonnegative -integer
         if { $value % 90  } {
             return -code error "rotation $value not a multiple of 90"
         }
     }
 
     # Validator helper for numerics
-    ##nagelfar syntax pdf4tcl::CheckNumeric x x o*
-    ##nagelfar option pdf4tcl::CheckNumeric \
+    ##nagelfar syntax _obj,pdf4tcl\ CheckNumeric x x o*
+    ##nagelfar option _obj,pdf4tcl\ CheckNumeric \
             -nonnegative -positive -integer -unit
-    ##nagelfar option pdf4tcl::CheckNumeric\ -unit x
-    proc ::pdf4tcl::CheckNumeric {val what args} {
+    ##nagelfar option _obj,pdf4tcl\ CheckNumeric\ -unit x
+    method CheckNumeric {val what args} {
         set origVal $val
         # If -unit is given, the value should be interpreted by getPoints
         set i [lsearch -exact $args -unit]
         if {$i >= 0} {
             set unit [lindex $args [expr {$i + 1}]]
             if {[catch {pdf4tcl::getPoints $val $unit} p]} {
-                return -code error "Bad $what \"$val\", must be numeric"
+                return -code error "bad $what \"$val\", must be numeric"
             }
             set val $p
         }
         if {![string is double -strict $val]} {
-            return -code error "Bad $what \"$origVal\", must be numeric"
+            return -code error "bad $what \"$origVal\", must be numeric"
         }
         set nonneg [lsearch -exact $args -nonnegative]
         set pos    [lsearch -exact $args -positive]
         set int    [lsearch -exact $args -integer]
         if {$nonneg >= 0 && $val < 0} {
-            return -code error "Bad $what \"$origVal\", may not be negative"
+            return -code error "bad $what \"$origVal\", may not be negative"
         }
         if {$pos >= 0 && $val <= 0} {
-            return -code error "Bad $what \"$origVal\", must be positive"
+            return -code error "bad $what \"$origVal\", must be positive"
         }
         if {$int >= 0 && ![string is integer -strict $val]} {
-            return -code error "Bad $what \"$origVal\", must be integer"
+            return -code error "bad $what \"$origVal\", must be integer"
         }
         return $val
     }
@@ -1463,7 +1463,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(ch) ""
         if {$options(-file) ne ""} {
             if {[catch {open $options(-file) "w"} ch]} {
-                return -code error "Could not open file $options(-file) for writing: $ch"
+                return -code error "could not open file $options(-file) for writing: $ch"
             }
             fconfigure $ch -translation binary
             set pdf(ch) $ch
@@ -1681,7 +1681,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             set localopts(-orient)  [lindex $args 2]
         } elseif {[llength $args] % 2 != 0} {
             # Uneven, error
-            return -code error "Uneven number of arguments to startPage"
+            return -code error "uneven number of arguments to startPage"
         } else {
             # Parse options
             foreach {option value} $args {
@@ -2065,7 +2065,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             switch -- $arg {
                 "-file" {
                     if {[catch {open $value "w"} chan]} {
-                        return -code error "Could not open file $value for writing: $chan"
+                        return -code error "could not open file $value for writing: $chan"
                     } else {
                         set outfile 1
                     }
@@ -2137,17 +2137,17 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -title {
                     set value [string trim $value]
                     if {[string length $value] == 0} {
-                        return -code error "Option $option requires a string."
+                        return -code error "option $option requires a string"
                     }
                     set title $value
                 }
                 -level {
                     if {[string is integer -strict $value]} {
                         if {$value < 0} {
-                            return -code error "Option $option requires a non-negative integer value."
+                            return -code error "option $option requires a non-negative integer value"
                         }
                     } else {
-                        return -code error "Option $option requires a non-negative integer value."
+                        return -code error "option $option requires a non-negative integer value"
                     }
                     set level $value
                 }
@@ -2162,7 +2162,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         if {$pdf(pages) == {}} {
-            return -code error "No pages defined."
+            return -code error "no pages defined"
         }
 
         # Determine the object id of the current page.
@@ -2323,14 +2323,14 @@ oo::define ::pdf4tcl::pdf4tcl {
     method setFont {size {fontname ""} {internal 0}} {
         if {$fontname eq ""} {
             if {$pdf(current_font) eq ""} {
-                return -code error "No font family set"
+                return -code error "no font family set"
             }
             set fontname $pdf(current_font)
         }
 
         # Font already loaded?
         if {$fontname ni $::pdf4tcl::Fonts} {
-            return -code error "Font $fontname doesn't exist"
+            return -code error "font $fontname doesn't exist"
         }
 
         if {!$internal} {
@@ -2423,7 +2423,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         variable ::pdf4tcl::BFA
 
         if {$pdf(current_font) eq ""} {
-            return -code error "No font set"
+            return -code error "no font set"
         }
         set fontname $pdf(current_font)
         my Pdfoutn "/$fontname [Nf $pdf(font_size)]" "Tf"
@@ -2569,7 +2569,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # bboxy   = bboxb, kept for backward compatibility
     method getFontMetric {metric {internal 0}} {
         if {$pdf(current_font) eq ""} {
-            return -code error "No font set"
+            return -code error "no font set"
         }
         set BFN $::pdf4tcl::FontsAttrs($pdf(current_font),basefontname)
         set bbox $::pdf4tcl::BFA($BFN,bbox)
@@ -2584,7 +2584,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
             default {
                 if {![info exists ::pdf4tcl::BFA($BFN,$metric)]} {
-                    return -code error "Metric $metric doesn't exist"
+                    return -code error "metric $metric doesn't exist"
                 }
                 return $::pdf4tcl::BFA($BFN,$metric)
             }
@@ -2599,7 +2599,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Get the width of a string under the current font.
     method getStringWidth {txt {internal 0}} {
         if {$pdf(current_font) eq ""} {
-            return -code error "No font set"
+            return -code error "no font set"
         }
         set w 0.0
         foreach ch [split $txt ""] {
@@ -2629,7 +2629,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Get the width of a character under the current font.
     method getCharWidth {ch {internal 0}} {
         if {$pdf(current_font) eq ""} {
-            return -code error "No font set"
+            return -code error "no font set"
         }
         set len [string length $ch]
         if {$len == 0} {
@@ -2753,7 +2753,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {$spacing eq ""} {
             set spacing $pdf(line_spacing)
         } else {
-            CheckNumeric $spacing "line spacing"
+            my CheckNumeric $spacing "line spacing"
         }
         # Update to next line
         set y [expr {$pdf(ypos) - $pdf(font_size) * $spacing}]
@@ -2764,7 +2764,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Set Line spacing factor (which is used by method newLine
     # if no explicit spacing is given)
     method setLineSpacing {spacing} {
-        CheckNumeric $spacing "line spacing"
+        my CheckNumeric $spacing "line spacing"
         set pdf(line_spacing) $spacing
     }
 
@@ -3088,7 +3088,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         } else {
             # Use catch both to catch bad color, and to catch Tk not present
             if {[catch {winfo rgb . $color} tkcolor]} {
-                return -code error "Unknown color: $color"
+                return -code error "unknown color: $color"
             }
             foreach {red green blue} $tkcolor break
             set red   [expr {($red   & 0xFF00) / 65280.0}]
@@ -3106,19 +3106,19 @@ oo::define ::pdf4tcl::pdf4tcl {
     ###<jpo 2004-11-08: replaced "on off" by "args"
     ###                 to enable resetting dashed lines
     method setLineStyle {width args} {
-        set width [CheckNumeric $width "line width" -nonnegative \
+        set width [my CheckNumeric $width "line width" -nonnegative \
                            -unit $pdf(unit)]
         # Validate dash pattern
         set sum 0
         set pattern {}
         foreach p $args {
-            set p [CheckNumeric $p "dash pattern" -nonnegative \
+            set p [my CheckNumeric $p "dash pattern" -nonnegative \
                            -unit $pdf(unit)]
             set sum [expr {$sum + $p}]
             lappend pattern [Nf $p]
         }
         if {[llength $args] > 0 && $sum == 0} {
-            return -code error "Dash pattern may not be all zeroes"
+            return -code error "dash pattern may not be all zeroes"
         }
         my EndTextObj
         my Pdfoutcmd $width "w"
@@ -3126,7 +3126,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     method setLineWidth {width} {
-        set width [CheckNumeric $width "line width" -nonnegative \
+        set width [my CheckNumeric $width "line width" -nonnegative \
                            -unit $pdf(unit)]
         my EndTextObj
         my Pdfoutcmd $width "w"
@@ -3140,19 +3140,19 @@ oo::define ::pdf4tcl::pdf4tcl {
         } else {
             set offset 0
         }
-        set offset [CheckNumeric $offset "dash offset" -nonnegative \
+        set offset [my CheckNumeric $offset "dash offset" -nonnegative \
                             -unit $pdf(unit)]
         # Validate dash pattern
         set sum 0
         set pattern {}
         foreach p $args {
-            set p [CheckNumeric $p "dash pattern" -nonnegative \
+            set p [my CheckNumeric $p "dash pattern" -nonnegative \
                            -unit $pdf(unit)]
             set sum [expr {$sum + $p}]
             lappend pattern [Nf $p]
         }
         if {[llength $args] > 0 && $sum == 0} {
-            return -code error "Dash pattern may not be all zeroes"
+            return -code error "dash pattern may not be all zeroes"
         }
         my EndTextObj
         my Pdfout "\[$pattern\] [Nf $offset] d\n"
@@ -3624,7 +3624,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
-            return -code error "Could not open file $filename"
+            return -code error "could not open file $filename"
         }
 
         fconfigure $if -translation binary
@@ -3632,7 +3632,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         close $if
         binary scan $img "H4" h
         if {$h != "ffd8"} {
-            return -code error "file $filename does not contain JPEG data."
+            return -code error "file $filename does not contain JPEG data"
         }
         set pos 2
         set img_length [string length $img]
@@ -3690,7 +3690,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
-            return -code error "Could not open file $filename"
+            return -code error "could not open file $filename"
         }
 
         fconfigure $if -translation binary
@@ -3743,7 +3743,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         if {$interlace != 0} {
             # Would need to unpack and repack to do interlaced
-            return -code error "Interlaced PNG is not supported"
+            return -code error "interlaced PNG is not supported"
         }
 
         if {$palette ne ""} {
@@ -3860,7 +3860,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
-            return -code error "Could not open file $filename"
+            return -code error "could not open file $filename"
         }
 
         fconfigure $if -translation binary
@@ -3932,7 +3932,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         if {$interlace != 0} {
             # Would need to unpack and repack to do interlaced
-            return -code error "Interlaced PNG is not supported"
+            return -code error "interlaced PNG is not supported"
         }
 
         if {$palette ne ""} {
@@ -4031,9 +4031,9 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     # Check an anchor value and optionally translate it
-    method checkAnchor {value {dxName ""} {dyName ""}} {
+    method CheckAnchor {value {dxName ""} {dyName ""}} {
         if {$value ni {nw n ne e se s sw w center}} {
-            return -code error "Bad anchor \"$value\""
+            return -code error "bad anchor \"$value\""
         }
         if {$dxName eq "" && $dyName eq ""} return
         upvar 1 $dxName dx $dyName dy
@@ -4072,11 +4072,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         foreach {arg value} $args {
             switch -- $arg {
                 "-angle" {
-                    CheckNumeric $value "angle"
+                    my CheckNumeric $value "angle"
                     set angle $value
                 }
                 "-anchor" {
-                    my checkAnchor $value
+                    my CheckAnchor $value
                     set anchor $value
                 }
                 "-width"  {
@@ -4100,7 +4100,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         # 1: Translate origin, to rotate around the anchor
         # 
-        my checkAnchor $anchor dx dy
+        my CheckAnchor $anchor dx dy
         set mt [list 1 0 0 1 [- $dx] [- $dy]]
         # 2: Scale while in the right direction
         set mt [MulMxM $mt [list $w 0 0 $h 0 0]]
@@ -4188,11 +4188,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         foreach {arg value} $args {
             switch -- $arg {
                 "-angle" {
-                    CheckNumeric $value "angle"
+                    my CheckNumeric $value "angle"
                     set angle $value
                 }
                 "-anchor" {
-                    my checkAnchor $value
+                    my CheckAnchor $value
                     set anchor $value
                 }
                 "-width"  {
@@ -4216,7 +4216,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         # 1: Translate origin, to rotate around the anchor
         # 
-        my checkAnchor $anchor dx dy
+        my CheckAnchor $anchor dx dy
         set mt [list 1 0 0 1 [- $dx] [- $dy]]
         # 2: Scale while in the right direction
         set mt [MulMxM $mt [list $w 0 0 $h 0 0]]
@@ -4274,19 +4274,19 @@ oo::define ::pdf4tcl::pdf4tcl {
             set filename [file join $::pdf4tcl::dir "bitmaps" ${bitmap}.xbm]
         }
         if {![file exists $filename]} {
-            return -code error "No such bitmap $bitmap"
+            return -code error "no such bitmap $bitmap"
         }
         set ch [open $filename "r"]
         set bitmapdata [read $ch]
         close $ch
         if {![regexp {_width (\d+)} $bitmapdata -> width]} {
-            return -code error "Not a bitmap $bitmap"
+            return -code error "not a bitmap $bitmap"
         }
         if {![regexp {_height (\d+)} $bitmapdata -> height]} {
-            return -code error "Not a bitmap $bitmap"
+            return -code error "not a bitmap $bitmap"
         }
         if {![regexp {_bits\s*\[\]\s*=\s*\{(.*)\}} $bitmapdata -> rawdata]} {
-            return -code error "Not a bitmap $bitmap"
+            return -code error "not a bitmap $bitmap"
         }
         set bytes [regexp -all -inline {0x[a-fA-F0-9]{2}} $rawdata]
         set bytesPerLine [expr {[llength $bytes] / $height}]
@@ -4467,7 +4467,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -icon {
                     if {$value ni {Paperclip Tag Graph PushPin}} {
                         if {![info exists images($value)]} {
-                            return -code error "Unknown value for -icon"
+                            return -code error "unknown value for -icon"
                         }
                     }
                     set icon $value
@@ -4509,7 +4509,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Currently supports text and checkbutton
     method addForm {ftype x y width height args} {
         if {$ftype ni {text checkbutton}} {
-            return -code error "Unknown form type $ftype"
+            return -code error "unknown form type $ftype"
         }
         set initValue ""
         set onObj ""
@@ -4538,24 +4538,24 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Check init value
         if {$ftype eq "checkbutton"} {
             if {![string is boolean -strict $initValue]} {
-                return -code error "Initial value for checkbutton must be boolean"
+                return -code error "initial value for checkbutton must be boolean"
             }
             if {$offObj ne ""} {
                 if {![info exists images($offObj)]} {
-                    return -code error "Bad id for -off"
+                    return -code error "bad id for -off"
                 }
                 # Must have been created by xobject, image is no good
                 if {![string match xobject* $offObj]} {
-                    return -code error "Bad id for -off"
+                    return -code error "bad id for -off"
                 }
             }
             if {$onObj ne ""} {
                 if {![info exists images($onObj)]} {
-                    return -code error "Bad id for -on"
+                    return -code error "bad id for -on"
                 }
                 # Must have been created by xobject, image is no good
                 if {![string match xobject* $onObj]} {
-                    return -code error "Bad id for -on"
+                    return -code error "bad id for -on"
                 }
             }
         }
