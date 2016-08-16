@@ -3608,8 +3608,6 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Add an image to the document
     method addImage {filename args} {
-        # TODO is this needed here? This does not affect page
-        if {!$pdf(inPage)} { my startPage }
         set id ""
         set type ""
         foreach {arg val} $args {
@@ -4154,7 +4152,6 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Add a raw image to the document, to be placed later
     method addRawImage {img_data args} {
-        if {!$pdf(inPage)} { my startPage }
         # Determine the width and height of the image, which is
         # a list of lists(rows).
         set width [llength [lindex $img_data 0]]

@@ -1,4 +1,7 @@
 2016-08-16 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Removed unnecessary startPage from addImage and addRawImage.
+
+2016-08-16 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Added -angle and -anchor options to putImage and putRawImage.
 
 2016-08-16 Peter Spjuth   <peter.spjuth@gmail.com>
