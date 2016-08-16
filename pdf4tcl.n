@@ -830,14 +830,23 @@ Put an image on the current page\&. The image must have been added previously by
 from the add command\&.
 .RS
 .TP
-\fB-width\fR \fIwidth\fR
-Set the width of the image\&.  Default width is one point per pixel\&.
-If \fIheight\fR is set but not \fIwidth\fR, the width is selected to
-preserve the aspect ratio of the image\&.
+\fB-angle\fR \fIdegrees\fR
+Rotate image \fIdegrees\fR counterclockwise around the anchor point\&.
+Default is 0\&.
+.TP
+\fB-anchor\fR \fIanchor\fR
+Set the anchor point (nw, n, ne etc\&.) of the image\&.
+Coordinates \fIx\fR and \fIy\fR places the anchor point, and any rotation is around the anchor point\&.
+Default is nw if \fB-orient\fR is true, othewise se\&.
 .TP
 \fB-height\fR \fIheight\fR
 Set the height of the image\&.  Default height is one point per pixel\&.  If \fIwidth\fR is set but not \fIheight\fR,
 the height is selected to preserve the aspect ratio of the image\&.
+.TP
+\fB-width\fR \fIwidth\fR
+Set the width of the image\&.  Default width is one point per pixel\&.
+If \fIheight\fR is set but not \fIwidth\fR, the width is selected to
+preserve the aspect ratio of the image\&.
 .RE
 .TP
 \fIobjectName\fR \fBputRawImage\fR \fIdata\fR \fIx\fR \fIy\fR ?\fIoption value\fR\&.\&.\&.?

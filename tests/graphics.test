@@ -45,7 +45,7 @@ test graphics-2.2 {arc} -body {
 
 test graphics-3.1 {image} -body {
     mytest -orient 1 \
-            {putRawImage {{#ff0000 #00ff00} {#0000ff #000000}} 40 50 -width 100} \
+            {putRawImage {"#ff0000 #00ff00" "#0000ff #000000"} 40 50 -width 100} \
             {line 35 45 45 55} {line 35 55 45 45} {
                 q
                 100 0 0 100 140 750 cm
@@ -57,7 +57,7 @@ test graphics-3.1 {image} -body {
 test graphics-3.2 {image} -body {
     # Test both orientations
     mytest \
-            {putRawImage {{#ff0000 #00ff00} {#0000ff #000000}} 40 50 -width 100} \
+            {putRawImage {"#ff0000 #00ff00" "#0000ff #000000"} 40 50 -width 100} \
             {line 35 45 45 55} {line 35 55 45 45} {
                 q
                 100 0 0 100 140 250 cm

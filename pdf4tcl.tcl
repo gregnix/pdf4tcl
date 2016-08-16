@@ -22,6 +22,9 @@ namespace eval pdf4tcl {
     variable units
     variable dir [file dirname [file join [pwd] [info script]]]
 
+    # Make mathops available
+    namespace import ::tcl::mathop::*
+    
     # Known paper sizes. These are always in points.
     array set paper_sizes {
         a0     {2380.0 3368.0}
@@ -1240,7 +1243,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Keep a nice list available
         set optiondeflist [lsort -dictionary [dict keys $optiondefs]]
     }
-    
+
     # Handle a configuration command.
     # Should always be called from constructor
     method Configurelist {lst} {
@@ -3605,6 +3608,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Add an image to the document
     method addImage {filename args} {
+        # TODO is this needed here? This does not affect page
         if {!$pdf(inPage)} { my startPage }
         set id ""
         set type ""
@@ -4058,6 +4062,27 @@ oo::define ::pdf4tcl::pdf4tcl {
         return $status
     }
 
+    # Check an anchor value and optionally translate it
+    method checkAnchor {value {dxName ""} {dyName ""}} {
+        if {$value ni {nw n ne e se s sw w center}} {
+            return -code error "Bad anchor \"$value\""
+        }
+        if {$dxName eq "" && $dyName eq ""} return
+        upvar 1 $dxName dx $dyName dy
+
+        switch $value {
+            nw { set dx 0.0 ; set dy 1.0 }
+            n  { set dx 0.5 ; set dy 1.0 }
+            ne { set dx 1.0 ; set dy 1.0 }
+            e  { set dx 1.0 ; set dy 0.5 }
+            se { set dx 1.0 ; set dy 0.0 }
+            s  { set dx 0.5 ; set dy 0.0 }
+            sw { set dx 0.0 ; set dy 0.0 }
+            w  { set dx 0.0 ; set dy 0.5 }
+            default { set dx 0.5 ; set dy 0.5 }
+        }
+    }
+
     # Place an image at the page
     method putImage {id x y args} {
         my EndTextObj
@@ -4068,12 +4093,32 @@ oo::define ::pdf4tcl::pdf4tcl {
         set h $height
         set wfix 0
         set hfix 0
+        set angle 0
+        # Default anchor depends on coordinate system
+        if {$pdf(orient)} {
+            set anchor nw
+        } else {
+            set anchor sw
+        }
 
         foreach {arg value} $args {
-            set value [pdf4tcl::getPoints $value $pdf(unit)]
             switch -- $arg {
-                "-width"  {set w $value; set wfix 1}
-                "-height" {set h $value; set hfix 1}
+                "-angle" {
+                    CheckNumeric $value "angle"
+                    set angle $value
+                }
+                "-anchor" {
+                    my checkAnchor $value
+                    set anchor $value
+                }
+                "-width"  {
+                    set w [pdf4tcl::getPoints $value $pdf(unit)]
+                    set wfix 1
+                }
+                "-height" {
+                    set h [pdf4tcl::getPoints $value $pdf(unit)]
+                    set hfix 1
+                }
             }
         }
         if {$wfix && !$hfix} {
@@ -4083,11 +4128,27 @@ oo::define ::pdf4tcl::pdf4tcl {
             set w [expr {$width*$h/$height}]
         }
 
-        if {$pdf(orient)} {
-            set y [expr {$y-$h}]
-        }
         my Pdfoutcmd "q"
-        my Pdfoutcmd $w 0 0 $h $x $y "cm"
+
+        # 1: Translate origin, to rotate around the anchor
+        # 
+        my checkAnchor $anchor dx dy
+        set mt [list 1 0 0 1 [- $dx] [- $dy]]
+        # 2: Scale while in the right direction
+        set mt [MulMxM $mt [list $w 0 0 $h 0 0]]
+        # 3: Rotate
+        if {$angle != 0} {
+            # Rotation matrix:
+            set r1 [expr {$angle*3.1415926/180.0}]
+            set c [expr {cos($r1)}]
+            set s [expr {sin($r1)}]
+            set mr [list $c $s [- $s] $c 0 0]
+            # Which order should this be?
+            set mt [MulMxM $mt $mr]
+        }
+        # Move into place
+        set mt [MulMxM $mt [list 1 0 0 1 $x $y]]
+        my Pdfoutcmd {*}$mt "cm"
         my Pdfout "/$id Do\nQ\n"
     }
 
@@ -4149,14 +4210,34 @@ oo::define ::pdf4tcl::pdf4tcl {
         set h $height
         set wfix 0
         set hfix 0
-        foreach {arg value} $args {
-            set value [pdf4tcl::getPoints $value $pdf(unit)]
-            switch -- $arg {
-                "-width"  {set w $value; set wfix 1}
-                "-height" {set h $value; set hfix 1}
-            }
+        set angle 0
+        # Default anchor depends on coordinate system
+        if {$pdf(orient)} {
+            set anchor nw
+        } else {
+            set anchor sw
         }
 
+        foreach {arg value} $args {
+            switch -- $arg {
+                "-angle" {
+                    CheckNumeric $value "angle"
+                    set angle $value
+                }
+                "-anchor" {
+                    my checkAnchor $value
+                    set anchor $value
+                }
+                "-width"  {
+                    set w [pdf4tcl::getPoints $value $pdf(unit)]
+                    set wfix 1
+                }
+                "-height" {
+                    set h [pdf4tcl::getPoints $value $pdf(unit)]
+                    set hfix 1
+                }
+            }
+        }
         if {$wfix && !$hfix} {
             set h [expr {$height*$w/$width}]
         }
@@ -4164,11 +4245,28 @@ oo::define ::pdf4tcl::pdf4tcl {
             set w [expr {$width*$h/$height}]
         }
 
-        if {$pdf(orient)} {
-            set y [expr {$y-$h}]
-        }
         my Pdfoutcmd "q"
-        my Pdfoutcmd $w 0 0 $h $x $y "cm"
+
+        # 1: Translate origin, to rotate around the anchor
+        # 
+        my checkAnchor $anchor dx dy
+        set mt [list 1 0 0 1 [- $dx] [- $dy]]
+        # 2: Scale while in the right direction
+        set mt [MulMxM $mt [list $w 0 0 $h 0 0]]
+        # 3: Rotate
+        if {$angle != 0} {
+            # Rotation matrix:
+            set r1 [expr {$angle*3.1415926/180.0}]
+            set c [expr {cos($r1)}]
+            set s [expr {sin($r1)}]
+            set mr [list $c $s [- $s] $c 0 0]
+            # Which order should this be?
+            set mt [MulMxM $mt $mr]
+        }
+        # Move into place
+        set mt [MulMxM $mt [list 1 0 0 1 $x $y]]
+        my Pdfoutcmd {*}$mt "cm"
+ 
         my Pdfoutcmd "BI"
         my Pdfoutn   "/W [Nf $width]"
         my Pdfoutn   "/H [Nf $height]"

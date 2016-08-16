@@ -559,13 +559,20 @@ package to load and dump images to raw format which can be fed to
 <b class="method">addImage</b> or <b class="method">addRawImage</b>. The <i class="arg">id</i> is the one returned
 from the add command.</p>
 <dl class="options">
+<dt><b class="option">-angle</b> <i class="arg">degrees</i></dt>
+<dd><p>Rotate image <i class="arg">degrees</i> counterclockwise around the anchor point.
+Default is 0.</p></dd>
+<dt><b class="option">-anchor</b> <i class="arg">anchor</i></dt>
+<dd><p>Set the anchor point (nw, n, ne etc.) of the image.
+Coordinates <i class="arg">x</i> and <i class="arg">y</i> places the anchor point, and any rotation is around the anchor point.
+Default is nw if <b class="option">-orient</b> is true, othewise se.</p></dd>
+<dt><b class="option">-height</b> <i class="arg">height</i></dt>
+<dd><p>Set the height of the image.  Default height is one point per pixel.  If <i class="arg">width</i> is set but not <i class="arg">height</i>,
+the height is selected to preserve the aspect ratio of the image.</p></dd>
 <dt><b class="option">-width</b> <i class="arg">width</i></dt>
 <dd><p>Set the width of the image.  Default width is one point per pixel.
 If <i class="arg">height</i> is set but not <i class="arg">width</i>, the width is selected to
 preserve the aspect ratio of the image.</p></dd>
-<dt><b class="option">-height</b> <i class="arg">height</i></dt>
-<dd><p>Set the height of the image.  Default height is one point per pixel.  If <i class="arg">width</i> is set but not <i class="arg">height</i>,
-the height is selected to preserve the aspect ratio of the image.</p></dd>
 </dl></dd>
 <dt><a name="47"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Put an image on the current page. Works like <b class="method">putImage</b> except that the raw image data is given directly.</p>

@@ -44,7 +44,7 @@ p1 setLineStyle 0.2 1 0
 p1 polygon 100 600 300 600 250 650 150 650 -filled 1
 p1 setStrokeColor 0 0.5 0
 p1 polygon 300 650 500 650 450 600 350 600
-#
+# Second page uses -orient 0
 p1 startPage -orient 0
 p1 line 100 140 300 160
 p1 setStrokeColor 1 0 0
@@ -83,6 +83,40 @@ p1 polygon 100 600 300 600 250 650 150 650 -filled 1
 p1 setStrokeColor 0 0.5 0
 p1 polygon 300 650 500 650 450 600 350 600
 
+# Image stuff
+p1 startPage -orient 1
+p1 addImage ../examples/smile.png -id 2
+namespace import tcl::mathop::*
+proc cross {x y} {
+    p1 line [- $x 100] $y [+ $x 100] $y
+    p1 line $x [- $y 100] $x [+ $y 100]
+}
+# Rotated image
+p1 putImage 2 200 200 -height 75 -angle 0
+p1 putImage 2 200 200 -height 75 -angle 60
+p1 putImage 2 200 200 -height 75 -angle 120
+p1 putImage 2 200 200 -height 75 -angle 180
+p1 putImage 2 200 200 -height 75 -angle 240
+cross 200 200
+p1 putImage 2 200 400 -height 90 -angle 223 -anchor center
+cross 200 400
+p1 putImage 2 400 400 -height 52 -angle 65 -anchor ne
+cross 400 400
+p1 putImage 2 400 600 -height 87 -angle 87 -anchor se
+cross 400 600
+# Rotated image, other orientation
+p1 startPage -orient 0
+p1 putImage 2 200 200 -height 75 -angle 0
+p1 putImage 2 200 200 -height 75 -angle 60
+p1 putImage 2 200 200 -height 75 -angle 120
+p1 putImage 2 200 200 -height 75 -angle 180
+p1 putImage 2 200 200 -height 75 -angle 240
+cross 200 200
+p1 putImage 2 200 400 -height 90 -angle 223 -anchor center
+cross 200 400
+p1 putImage 2 400 400 -height 52 -angle 65 -anchor ne
+cross 400 400
+p1 putImage 2 400 600 -height 87 -angle 87 -anchor se
+cross 400 600
 p1 write -file test4.pdf
 p1 cleanup
-

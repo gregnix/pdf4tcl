@@ -502,14 +502,23 @@ from the add command.
 
 [list_begin options]
 
-[opt_def -width [arg width]]
-Set the width of the image.  Default width is one point per pixel.
-If [arg height] is set but not [arg width], the width is selected to
-preserve the aspect ratio of the image.
+[opt_def -angle [arg degrees]]
+Rotate image [arg degrees] counterclockwise around the anchor point.
+Default is 0.
+
+[opt_def -anchor [arg anchor]]
+Set the anchor point (nw, n, ne etc.) of the image.
+Coordinates [arg "x"] and [arg "y"] places the anchor point, and any rotation is around the anchor point.
+Default is nw if [option -orient] is true, othewise se.
 
 [opt_def -height [arg height]]
 Set the height of the image.  Default height is one point per pixel.  If [arg width] is set but not [arg height],
 the height is selected to preserve the aspect ratio of the image.
+
+[opt_def -width [arg width]]
+Set the width of the image.  Default width is one point per pixel.
+If [arg height] is set but not [arg width], the width is selected to
+preserve the aspect ratio of the image.
 
 [list_end]
 
