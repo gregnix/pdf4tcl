@@ -25,6 +25,13 @@ test image-1.1b {misc image handling} -body {
     mytest -compress 1 {addRawImage "#444546"} {addRawImage "#646566"} $res
 } -result 1
 
+test image-1.1c {misc image handling} -body {
+    # Check that compressed image data ends up in document
+    set res "Flate* [zlib compress DEF] *Flate* [zlib compress def]"
+    mytest {addRawImage "#444546" -compress 1} \
+            {addRawImage "#646566" -compress 1} $res
+} -result 1
+
 test image-1.2 {misc image handling} -body {
     # Test type recognition
     mytest {addImage miffo -type gurka} {}
@@ -69,6 +76,10 @@ test image-3.3 {image} -body {
 test image-3.4 {image} -body {
     mytest {addImage tcl.jpg -id 1} {putImage 1 0 0 -anchor a} {}
 } -returnCodes 1 -result {bad anchor "a"}
+
+test image-3.5 {image} -body {
+    mytest {putRawImage {} 0 0 -compress a} {}
+} -returnCodes 1 -result {option -compress must have a boolean value}
 
 
 file delete tcl.jpg tcl.ext

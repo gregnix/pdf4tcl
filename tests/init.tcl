@@ -48,21 +48,20 @@ proc mytest {args} {
 
     set cmds {}
     # Default paper has a simple size
-    set opts {-orient 0 -paper {800 1000} -margin {100 0 100 200}}
-    set isopt 0
+    set opts {-compress 0 -orient 0 -paper {800 1000} -margin {100 0 100 200}}
+    set isopt ""
     set debug 0
     set checkall 0
     foreach arg $args {
-        if {$isopt} {
-            set isopt 0
-            lappend opts $arg
+        if {$isopt ne ""} {
+            dict set opts $isopt $arg
+            set isopt ""
         } elseif {[string match "-debug" $arg]} {
             set debug 1
         } elseif {[string match "-all" $arg]} {
             set checkall 1
         } elseif {[string match "-*" $arg]} {
-            set isopt 1
-            lappend opts $arg
+            set isopt $arg
         } else {
             lappend cmds $arg
         }

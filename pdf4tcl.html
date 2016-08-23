@@ -289,7 +289,7 @@ pdf4tcl::loadBaseTrueTypeFont BaseArial &quot;arial.ttf&quot;
 pdf4tcl::createFont BaseArial MyArial cp1251 
 pdf4tcl::loadBaseType1Font BaseType1 &quot;a010013l.afm&quot; &quot;a010013l.pfb&quot;
 pdf4tcl::createFont BaseType1 MyType1 cp1251 
-pdf4tcl::new mypdf -paper a4 -compress 1
+pdf4tcl::new mypdf -paper a4 -compress 0
 mypdf startPage
 mypdf setFont 10 MyArial
 set txt &quot;\u042D\u0442\u043E \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0440\u0443\u0441\u0441\u043A\u043E\u043C\
@@ -306,7 +306,7 @@ mypdf destroy
 The <i class="arg">subset</i> must be a list of unicode values.</p></dd>
 <dt><a name="11"><b class="cmd">::pdf4tcl::rgb2Cmyk</b> <i class="arg">rgb</i></a></dt>
 <dd><p>This call translates an RGB color value to a CMYK color value.
-It is used internally if <i class="arg">-cmyk</i> was set at object creation to 
+It is used internally if <b class="option">-cmyk</b> was set at object creation to 
 translate colors.
 You can redefine this procedure to provide your own translation.</p></dd>
 <dt><a name="12"><b class="cmd">::pdf4tcl::cmyk2Rgb</b> <i class="arg">cmyk</i></a></dt>
@@ -565,7 +565,7 @@ Default is 0.</p></dd>
 <dt><b class="option">-anchor</b> <i class="arg">anchor</i></dt>
 <dd><p>Set the anchor point (nw, n, ne etc.) of the image.
 Coordinates <i class="arg">x</i> and <i class="arg">y</i> places the anchor point, and any rotation is around the anchor point.
-Default is nw if <b class="option">-orient</b> is true, othewise se.</p></dd>
+Default is nw if <b class="option">-orient</b> is true, otherwise se.</p></dd>
 <dt><b class="option">-height</b> <i class="arg">height</i></dt>
 <dd><p>Set the height of the image.  Default height is one point per pixel.  If <i class="arg">width</i> is set but not <i class="arg">height</i>,
 the height is selected to preserve the aspect ratio of the image.</p></dd>
@@ -576,6 +576,11 @@ preserve the aspect ratio of the image.</p></dd>
 </dl></dd>
 <dt><a name="47"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Put an image on the current page. Works like <b class="method">putImage</b> except that the raw image data is given directly.</p>
+<dl class="options">
+<dt><b class="option">-compress</b> <i class="arg">boolean</i></dt>
+<dd><p>Raw data will be zlib compressed if this option is set to true.
+Default value is the document's <b class="option">-compress</b> setting.</p></dd>
+</dl>
 <pre class="example">
   image create photo img1 -file image.gif
   set imgdata [img1 data]
@@ -593,7 +598,12 @@ calls to <b class="method">putImage</b>. Supported formats are PNG and JPEG.</p>
 option helps when that is not possible.  This can be either &quot;png&quot; or &quot;jpeg&quot;.</p></dd>
 </dl></dd>
 <dt><a name="49"><i class="arg">objectName</i> <b class="method">addRawImage</b> <i class="arg">data</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
-<dd>
+<dd><p>Add an image to the document. Works like <b class="method">addImage</b> except that the raw image data is given directly.</p>
+<dl class="options">
+<dt><b class="option">-compress</b> <i class="arg">boolean</i></dt>
+<dd><p>Raw data will be zlib compressed if this option is set to true.
+Default value is the document's <b class="option">-compress</b> setting.</p></dd>
+</dl>
 <pre class="example">
   image create photo img1 -file image.gif
   set imgdata [img1 data]
@@ -727,8 +737,7 @@ Default value is false.
 This option can only be set at object creation.</p></dd>
 <dt><b class="option">-compress</b> <i class="arg">boolean</i></dt>
 <dd><p>Pages will be zlib compressed if this option is set to true.
-This requires the presence of the zlib package (or Tcl 8.6), and will
-be silently ignored if not.
+Default value is true.
 This option can only be set at object creation.</p></dd>
 <dt><b class="option">-file</b> <i class="arg">filename</i></dt>
 <dd><p>Continuously write pdf to <i class="arg">filename</i> instead of storing it

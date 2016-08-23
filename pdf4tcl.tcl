@@ -1412,7 +1412,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -readonly 1
         my Option -unit      -default p      -validatemethod CheckUnit \
                 -configuremethod SetUnit -readonly 1
-        my Option -compress  -default 0      -validatemethod CheckBoolean \
+        my Option -compress  -default 1      -validatemethod CheckBoolean \
                 -readonly 1
         my Option -margin    -default 0      -validatemethod CheckMargin \
                 -configuremethod SetPageOption
@@ -4127,10 +4127,15 @@ oo::define ::pdf4tcl::pdf4tcl {
         set width [llength [lindex $img_data 0]]
         set height [llength $img_data]
 
+        set compress $pdf(compress)
         set id ""
         foreach {arg value} $args {
             switch -- $arg {
-                "-id"     {set id $value}
+                "-compress" {
+                    my CheckBoolean -compress $value
+                    set compress $value
+                }
+                "-id" {set id $value}
             }
         }
 
@@ -4150,7 +4155,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             append img [binary format H* $row]
         }
 
-        if {$pdf(compress)} {
+        if {$compress} {
             append xobject "/Filter \[/FlateDecode\]\n"
             set img [zlib compress $img]
         }
@@ -4183,6 +4188,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set wfix 0
         set hfix 0
         set angle 0
+        set compress $pdf(compress)
         # Default anchor depends on coordinate system
         if {$pdf(orient)} {
             set anchor nw
@@ -4199,6 +4205,10 @@ oo::define ::pdf4tcl::pdf4tcl {
                 "-anchor" {
                     my CheckAnchor $value
                     set anchor $value
+                }
+                "-compress" {
+                    my CheckBoolean -compress $value
+                    set compress $value
                 }
                 "-width"  {
                     set w [pdf4tcl::getPoints $value $pdf(unit)]
@@ -4244,17 +4254,24 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfoutn   "/H [Nf $height]"
         my Pdfoutn   "/CS /RGB"
         my Pdfoutn   "/BPC 8"
-        my Pdfoutcmd "ID"
 
         # Iterate on each row of the image data.
+        set img ""
         foreach rawRow $img_data {
             # Remove spaces and # characters
             set row [string map "# {} { } {}" $rawRow]
             # Convert data to binary format and
             # add to data stream.
-            my Pdfout [binary format H* $row]
+            append img [binary format H* $row]
         }
 
+        if {$compress} {
+            my Pdfoutn "/F /Fl"
+            set img [zlib compress $img]
+        }
+
+        my Pdfoutcmd "ID"
+        my Pdfout    $img
         my Pdfout    \n
         my Pdfoutcmd "EI"
         my Pdfoutcmd "Q"

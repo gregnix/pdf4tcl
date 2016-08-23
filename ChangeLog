@@ -1,5 +1,9 @@
 2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
-	* Compress images in addRawImage if compress is on.
+	* Default value for document option -compress is true.
+	  *** INCOMPATIBLE CHANGE ***
+
+2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Added -compress option to addRawImage and putRawImage.
 
 2016-08-16 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Cleaned out code supporting < 8.6.

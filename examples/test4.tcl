@@ -86,6 +86,9 @@ p1 polygon 300 650 500 650 450 600 350 600
 # Image stuff
 p1 startPage -orient 1
 p1 addImage ../examples/smile.png -id 2
+package require Tk
+image create photo img1 -file ../examples/smile.png
+set imgdata [img1 data]
 namespace import tcl::mathop::*
 proc cross {x y} {
     p1 line [- $x 100] $y [+ $x 100] $y
@@ -96,7 +99,7 @@ p1 putImage 2 200 200 -height 75 -angle 0
 p1 putImage 2 200 200 -height 75 -angle 60
 p1 putImage 2 200 200 -height 75 -angle 120
 p1 putImage 2 200 200 -height 75 -angle 180
-p1 putImage 2 200 200 -height 75 -angle 240
+p1 putRawImage $imgdata 200 200 -height 75 -angle 240 -compress 1
 cross 200 200
 p1 putImage 2 200 400 -height 90 -angle 223 -anchor center
 cross 200 400
@@ -120,3 +123,4 @@ p1 putImage 2 400 600 -height 87 -angle 87 -anchor se
 cross 400 600
 p1 write -file test4.pdf
 p1 cleanup
+exit

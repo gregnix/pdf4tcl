@@ -34,9 +34,12 @@ test examples-1.3 {example test3} -body {
 } -result {} -cleanup {catch {p1 destroy}; rename exit {} ; rename _exit exit}
 
 test examples-1.4 {example test4} -body {
+    # test4 contains an exit statement, stub it
+    rename exit _exit
+    proc exit args {}
     source ../examples/test4.tcl
     exec diff -a ../examples/test4.pdf test4.pdf
-} -result {} -cleanup {catch {p1 destroy}}
+} -result {} -cleanup {catch {p1 destroy}; rename exit {} ; rename _exit exit}
 
 test examples-1.5 {example test5} -body {
     source ../examples/test5.tcl
