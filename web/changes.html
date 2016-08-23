@@ -13,7 +13,10 @@
 
 Changes in v0.9.0 (not released yet):<br>
 <ul>
-  <li> Requires Tcl 8.6 </li>
+  <li> Requires Tcl 8.6. Does not require Snit. </li>
+  <li> *Incompatible change* : Pdf4tcl objects are now TclOO objects.
+    Some of the ways to create an object is therefore different and will
+    not work. pdf4tcl::new should work as before. 
   <li> Compress images in addRawImage if compress is on. </li>
   <li> Removed unnecessary startPage from addImage and addRawImage. </li>
   <li> Added -angle and -anchor options to putImage and putRawImage. </li>
