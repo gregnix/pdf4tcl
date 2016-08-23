@@ -19,6 +19,12 @@ test image-1.1 {misc image handling} -body {
     }
 } -result 1
 
+test image-1.1b {misc image handling} -body {
+    # Check that compressed image data ends up in document
+    set res "Flate* [zlib compress DEF] *Flate* [zlib compress def]"
+    mytest -compress 1 {addRawImage "#444546"} {addRawImage "#646566"} $res
+} -result 1
+
 test image-1.2 {misc image handling} -body {
     # Test type recognition
     mytest {addImage miffo -type gurka} {}

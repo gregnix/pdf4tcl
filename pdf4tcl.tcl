@@ -4139,8 +4139,6 @@ oo::define ::pdf4tcl::pdf4tcl {
         append xobject "/Width $width\n/Height $height\n"
         append xobject "/ColorSpace /DeviceRGB\n"
         append xobject "/BitsPerComponent 8\n"
-        append xobject "/Length [expr {$width * $height * 3}]>>\n"
-        append xobject "stream\n"
 
         # Iterate on each row of the image data.
         set img ""
@@ -4152,6 +4150,13 @@ oo::define ::pdf4tcl::pdf4tcl {
             append img [binary format H* $row]
         }
 
+        if {$pdf(compress)} {
+            append xobject "/Filter \[/FlateDecode\]\n"
+            set img [zlib compress $img]
+        }
+
+        append xobject "/Length [string length $img]>>\n"
+        append xobject "stream\n"
         append xobject $img
         append xobject "\nendstream"
 

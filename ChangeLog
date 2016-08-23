@@ -1,3 +1,6 @@
+2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Compress images in addRawImage if compress is on.
+
 2016-08-16 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Cleaned out code supporting < 8.6.
 	* Removed unnecessary startPage from addImage and addRawImage.
