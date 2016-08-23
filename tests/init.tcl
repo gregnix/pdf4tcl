@@ -27,7 +27,7 @@ set ::auto_path [concat [list $tmp] $::auto_path]
 if {[file exists $tmp/pdf4tcl.tcl_i]} {
     source $tmp/pdf4tcl.tcl_i
 }
-package require pdf4tcl 0.8.4
+package require pdf4tcl 0.9.0
 
 proc myexec {args} {
     set ch [open "|$args"]

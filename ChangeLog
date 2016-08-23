@@ -1,4 +1,7 @@
 2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Bumped revision to 0.9.0
+
+2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Default value for document option -compress is true.
 	  *** INCOMPATIBLE CHANGE ***
 

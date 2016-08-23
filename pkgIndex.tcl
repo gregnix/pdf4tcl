@@ -8,7 +8,7 @@
 # script is sourced, the variable $dir must contain the
 # full path name of this file's directory.
 
-package ifneeded pdf4tcl 0.8.4 [list source [file join $dir pdf4tcl.tcl]]
+package ifneeded pdf4tcl 0.9.0 [list source [file join $dir pdf4tcl.tcl]]
 package ifneeded pdf4tcl::stdmetrics 0.1 [list source [file join $dir stdmetrics.tcl]]
 package ifneeded pdf4tcl::glyph2unicode 0.1 [list source [file join $dir glyph2uni.tcl]]
 
