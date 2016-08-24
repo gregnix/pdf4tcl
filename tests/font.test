@@ -69,10 +69,35 @@ test font-4.1 {font, truetype} -constraints {FreeSans} -body {
 } -result 1
 
 test font-4.2 {font, truetype} -constraints {FreeSans} -body {
-    #pdf4tcl::loadBaseTrueTypeFont BaseArial "../examples/FreeSans.ttf"
-    pdf4tcl::createFont BaseArial MyArial cp1252
+    set ch [open "../examples/FreeSans.ttf" "rb"]
+    set ttf [read $ch]
+    close $ch
+    pdf4tcl::createBaseTrueTypeFont BaseArial2 $ttf 1
+    pdf4tcl::createFont BaseArial2 MyArial cp1252
 
     mytest {setFont 16 MyArial} {text 1\u20ac!} *1\x80!*
+} -result 1
+
+test font-4.3 {font, truetype} -constraints {FreeSans} -body {
+    # Just try to locate a bunch of ttf and load them. Just to exercise
+    # the code for now.
+    set fn [file normalize "../examples/FreeSans.ttf"]
+    catch {set fn [file link $fn]}
+    set dir [file dirname [file dirname $fn]]
+    set files [glob -nocomplain -dir $dir -type f */*.ttf]
+    set t 0
+    set e 0
+    foreach file $files {
+        try {
+            pdf4tcl::loadBaseTrueTypeFont BaseJunk$t $file
+        } trap PDF4TCL _ {
+            # Only catch errors from font parsing.
+            # Any runtime errors should be visible
+            incr e
+        }
+        incr t
+    }
+    expr {$t > 0}
 } -result 1
 
 test font-5.1 {font, type1} -constraints {a010013l} -body {
@@ -81,6 +106,22 @@ test font-5.1 {font, type1} -constraints {a010013l} -body {
     pdf4tcl::createFont BaseFont1 MyArial cp1252
 
     mytest {setFont 16 MyArial} {text 1\u20ac!} *1\x80!*
+} -result 1
+
+test font-5.2 {font, type1} -constraints {a010013l} -body {
+    set ch [open "../examples/a010013l.afm" "rb"]
+    set afm [read $ch]
+    close $ch
+    set ch [open "../examples/a010013l.pfb" "rb"]
+    set pfb [read $ch]
+    close $ch
+
+    pdf4tcl::createBaseType1Font BaseFont1 $afm $pfb
+    # "1" "euro" and "!" maps to 0 1 end 2
+    set subset [list 49 [expr 0x20AC] 33]
+    pdf4tcl::createFontSpecEnc BaseFont1 MyArial2 $subset
+
+    mytest {setFont 16 MyArial2} {text 1\u20ac!} *\x00\x01\x02*
 } -result 1
 
 ::tcltest::cleanupTests

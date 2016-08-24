@@ -1,4 +1,8 @@
 2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Use throw everywhere to generate errors.
+	* All errors from Pdf4Tcl has an error code set.
+
+2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Bumped revision to 0.9.0
 
 2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
