@@ -98,7 +98,7 @@ test canvas-2.2 {bitmap} -body {
     }
 } -cleanup {destroy .c} -result 1
 
-test canvas-3.1 {text} -constraints {runin85 knownbug} -body {
+test canvas-3.1 {text} -constraints {knownbug} -body {
     canvas .c
     .c create rectangle 0 0 500 500 -outline black
     # Needs 8.5 since underline is 8.5 feature
@@ -125,7 +125,7 @@ test canvas-3.1 {text} -constraints {runin85 knownbug} -body {
     }
 } -cleanup {destroy .c} -result 1
 
-test canvas-3.2 {text, font} -constraints {runin85 FreeSans} -body {
+test canvas-3.2 {text, font} -constraints {FreeSans} -body {
     canvas .c
     .c create rectangle 0 0 500 500 -outline black
     set font "Helvetica -10"
@@ -343,18 +343,28 @@ test canvas-8.3 {dash} -body {
     }
 } -cleanup {destroy .c} -result 1
 
-# TBD: Test for angled text needs 8.6
-test canvas-9.1 {angled text} -constraints runin86 -body {
+test canvas-9.1 {angled text} -body {
     # test angled text on canvas
     canvas .c -width 400 -height 400
-    # mark anchor position with a cross
+    # mark anchor position with a cross, for debug
     .c create line {90 200 110 200}
     .c create line {100 190 100 210}
-    for {set angle 0} {$angle < 180} {incr angle 20} {
+    for {set angle 0} {$angle <= 80} {incr angle 20} {
         .c create text {100 200} -anchor w -text "String $angle." -angle $angle -underline 6
     }
     mytest {canvas .c} {
-        ????
+        q * q * Q q * Q
+        q * 1 0 0 -1 100 203.942 Tm (String 0.) Tj ET
+        136.568 204.942 m 140.46 204.942 l S Q
+        q * 0.94 -0.342 -0.342 -0.94 101.348 203.704 Tm (String 20.) Tj ET
+        136.053 192.137 m 139.71 190.806 l S Q
+        q * 0.766 -0.643 -0.643 -0.766 102.534 203.02 Tm (String 40.) Tj ET
+        131.189 180.28 m 134.171 177.779 l S Q
+        q * 0.5 -0.866 -0.866 -0.5 103.414 201.971 Tm (String 60.) Tj ET
+        122.564 170.802 m 124.51 167.432 l S Q
+        q * 0.174 -0.985 -0.985 -0.174 103.882 200.685 Tm (String 80.) Tj ET
+        111.217 164.846 m 111.893 161.013 l S Q
+        Q
     }
 } -cleanup {destroy .c} -result 1
 

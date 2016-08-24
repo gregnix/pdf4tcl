@@ -20,7 +20,6 @@ if {[lsearch [namespace children] ::tcltest] == -1} {
     package require tcltest
     namespace import -force ::tcltest::*
 }
-testConstraint runin85 [expr {![catch {list {*}{hej}}]}]
 
 set tmp [file join [pwd] ..]
 set ::auto_path [concat [list $tmp] $::auto_path]
@@ -47,7 +46,7 @@ proc mytest {args} {
     set args [lrange $args 0 end-1]
 
     set cmds {}
-    # Default paper has a simple size
+    # Default paper has a simple size. Compress is off to see what happens.
     set opts {-compress 0 -orient 0 -paper {800 1000} -margin {100 0 100 200}}
     set isopt ""
     set debug 0
