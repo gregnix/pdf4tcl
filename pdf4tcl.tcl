@@ -1517,11 +1517,6 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
     }
 
-    # Deprecated destroy function
-    method cleanup {} { # Deprecated
-        my destroy
-    }
-
     #######################################################################
     # Collect PDF Output
     #######################################################################
@@ -1694,20 +1689,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set localopts(-xobject)   0
         set localopts(-noimage)   0
 
-        if {[llength $args] == 1} {
-            # Single arg = paper
-            my CheckPaper -paper [lindex $args 0]
-            set localopts(-paper) [lindex $args 0]
-        } elseif {[llength $args] == 2 && [string is digit [join $args ""]]} {
-            # Old style two numeric args = {width height}
-            my CheckPaper -paper $args
-            set localopts(-paper) $args
-        } elseif {[llength $args] == 3 && [string is digit [join $args ""]]} {
-            # Old style three numeric args = {width height orient}
-            my CheckPaper -paper [lrange $args 0 1]
-            set localopts(-paper)   [lrange $args 0 1]
-            set localopts(-orient)  [lindex $args 2]
-        } elseif {[llength $args] % 2 != 0} {
+        if {[llength $args] % 2 != 0} {
             # Uneven, error
             throw "PDF4TCL" "uneven number of arguments to startPage"
         } else {
@@ -2765,20 +2747,6 @@ oo::define ::pdf4tcl::pdf4tcl {
         return [ list $tx $ty ]
     }
 
-    # Draw text at current position, with a newline before
-    # DEPRECATED!
-    method drawText {str} { # Deprecated
-        my BeginTextObj
-        if {!$pdf(font_set)} {
-            my SetupFont
-        }
-        my Pdfout "([CleanText $str $pdf(current_font)]) '\n"
-        # Update to next line
-        set strWidth [my getStringWidth $str 1]
-        set pdf(ypos) [expr {$pdf(ypos) - $pdf(font_size) * $pdf(line_spacing)}]
-        set pdf(xpos) [expr {$pdf(origxpos) + $strWidth}]
-    }
-
     # Move text position to new line, relative to last
     # setTextPosition command.
     method newLine {{spacing {}}} {
@@ -3208,23 +3176,6 @@ oo::define ::pdf4tcl::pdf4tcl {
         my DrawLine $x1 $y1 $x2 $y2
     }
 
-    # qCurve is deprecated in favor of curve
-    method qCurve {x1 y1 xc yc x2 y2} { # Deprecated
-        my EndTextObj
-        my Trans $x1 $y1 x1 y1
-        my Trans $xc $yc xc yc
-        my Trans $x2 $y2 x2 y2
-        my Pdfoutcmd $x1 $y1 "m"
-        my Pdfoutcmd \
-                [expr {0.3333*$x1+0.6667*$xc}] \
-                [expr {0.3333*$y1+0.6667*$yc}] \
-                [expr {0.3333*$x2+0.6667*$xc}] \
-                [expr {0.3333*$y2+0.6667*$yc}] \
-                $x2 \
-                $y2 "c"
-        my Pdfoutcmd "S"
-    }
-
     # Draw a quadratic or cubic bezier curve
     method curve {x1 y1 x2 y2 x3 y3 args} {
         if {[llength $args] != 2 && [llength $args] != 0} {
@@ -3643,7 +3594,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 set id [my AddPng $filename $id]
             }
             jpg - jpeg {
-                set id [my addJpeg $filename $id]
+                set id [my AddJpeg $filename $id]
             }
             default {
                 throw "PDF4TCL" "unknown image type \"$type\""
@@ -3652,8 +3603,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         return $id
     }
 
-    # Deprecated jpeg adder, use addImage
-    method addJpeg {filename id} { # Deprecated
+    # JPEG part of addImage
+    method AddJpeg {filename id} {
         if {!$pdf(inPage)} { my startPage }
 
         set imgOK false

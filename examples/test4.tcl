@@ -9,7 +9,7 @@ p1 startPage
 p1 line 100 140 300 160
 p1 setStrokeColor 1 0 0
 p1 arrow 100 150 300 170 10 15
-p1 qCurve 100 100 200 300 300 100
+p1 curve 100 100 200 300 300 100
 p1 setStrokeColor 0 0 0
 p1 setFillColor 0.3 0.6 0.9
 p1 rectangle 400 40 166 166 -filled 1
@@ -36,7 +36,7 @@ p1 setFillColor 0.8 0.8 0.8
 p1 rectangle 348 408 224 54 -filled 1
 p1 setFillColor 0 0 0
 p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbündige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls möglich." -align right
-p1 addJpeg tcl.jpg 1
+p1 addImage tcl.jpg -id 1
 p1 putImage 1 20 20 -height 75
 p1 setFillColor 1.0 0 0
 p1 setStrokeColor 0 0 1
@@ -49,7 +49,7 @@ p1 startPage -orient 0
 p1 line 100 140 300 160
 p1 setStrokeColor 1 0 0
 p1 arrow 100 150 300 170 10 15
-p1 qCurve 100 100 200 300 300 100
+p1 curve 100 100 200 300 300 100
 p1 setStrokeColor 0 0 0
 p1 setFillColor 0.3 0.6 0.9
 p1 rectangle 400 40 166 166 -filled 1
@@ -122,5 +122,5 @@ cross 400 400
 p1 putImage 2 400 600 -height 87 -angle 87 -anchor se
 cross 400 600
 p1 write -file test4.pdf
-p1 cleanup
+p1 destroy
 exit

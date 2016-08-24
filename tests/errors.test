@@ -44,16 +44,16 @@ test errors-1.4 {misc option errors} -body {
     lappend res [catch {apa rectangle   0 0 0 0   -badoption x}]
 } -result {1 1 1} -cleanup {apa destroy}
 
-test errors-1.5 {addJpeg errors} -body {
+test errors-1.5 {addImage errors} -body {
     pdf4tcl::new apa
     set res {}
 
     # Bad file
     set f [makeFile {xxxxxxx} dummy.tmp]
-    lappend res [catch {apa addJpeg $f 0} msg] $msg
+    lappend res [catch {apa addImage $f -type jpg} msg] $msg
     removeFile dummy.tmp
     # No file
-    lappend res [catch {apa addJpeg $f 0} msg] $msg
+    lappend res [catch {apa addImage $f -type jpg} msg] $msg
 } -match glob -result {1 {*does not contain*} 1 {could not open*}} \
         -cleanup {apa destroy}
 

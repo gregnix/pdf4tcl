@@ -42,4 +42,4 @@ for {set ang 0} {$ang <= 90} {incr ang 45} {
 }
 
 p1 write -file test5.pdf
-p1 cleanup
+p1 destroy

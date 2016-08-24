@@ -15,16 +15,25 @@ Changes in v0.9.0 (not released yet):<br>
 <ul>
   <li> Requires Tcl 8.6. Does not require Snit. </li>
   <li> Added -compress option to addRawImage and putRawImage. </li>
-  <li> Removed unnecessary startPage from addImage and addRawImage. </li>
   <li> Added -angle and -anchor options to putImage and putRawImage. </li>
+  <li> Fixed bug where an unnecessary startPage was called from addImage and addRawImage. </li>
 </ul>
 
 <strong>Incompatible changes in v0.9:</strong><br>
 <ul>
   <li> Pdf4tcl objects are now TclOO objects.
-    Some of the ways to create an object is therefore different and will
-    not work. pdf4tcl::new should work as before. </li>
- <li> Default value of document option -compress is now true. </li>
+    Some of the ways to create an object is therefore different and will not
+    work. The documented way, using pdf4tcl::new, should work as before. </li>
+  <li> Default value of document option -compress is now true. </li>
+  <li> Removed deprecated functionality:
+    <ul>
+      <li> Method cleanup removed (use destroy) </li>
+      <li> Method qCurve removed (use curve) </li>
+      <li> Method drawText removed (use text and newLine) </li>
+      <li> Method addJpeg removed (use addImage) </li>
+      <li> Non-option arguments to startPage removed (use options) </li>
+    </ul>
+  </li>
 </ul>
 
 Changes in v0.8.4 (2016-08-15):<br>
@@ -53,7 +62,7 @@ Changes in v0.8 (2012-06-12):<br>
  <li> Fixed bug "that makes non-latin Italic TTF-fonts unusable". </li>
 </ul>
 
-Incompatible changes in v0.8:<br>
+<strong>Incompatible changes in v0.8:</strong><br>
 <ul>
  <li> Corrected text angle to be CCW like other angles. </li>
  <li> Deprecated: qCurve.</li>

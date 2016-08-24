@@ -60,12 +60,12 @@ p1 setFillColor 0.8 0.8 0.8
 p1 rectangle 348 408 224 54 -filled 1
 p1 setFillColor 0 0 0
 p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbündige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls möglich." -align right
-p1 addJpeg tcl.jpg 1
+p1 addImage tcl.jpg -id 1
 p1 putImage 1 20 20 -height 75
 p1 rectangle 95 95 20 20
 p1 addForm checkbutton 95 95 20 20 -on $xobj1
 p1 rectangle 115 115 20 20
 p1 addForm checkbutton 115 115 20 20 -on $xobj2
 p1 write -file test1.pdf
-p1 cleanup
+p1 destroy
 

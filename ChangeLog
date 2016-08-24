@@ -1,4 +1,13 @@
-2016-08-23 Peter Spjuth   <peter.spjuth@gmail.com>
+2016-08-25 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Removed deprecated functionality.
+	* Method cleanup removed (use destroy)
+	* Method qCurve removed (use curve)
+	* Method drawText removed (use text and newLine)
+	* Method addJpeg removed (use addImage)
+	* Non-option arguments to startPage removed (use options)
+	  *** INCOMPATIBLE CHANGE ***
+
+2016-08-25 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Use throw everywhere to generate errors.
 	* All errors from Pdf4Tcl has an error code set.
 

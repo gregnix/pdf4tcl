@@ -74,4 +74,4 @@ p1 bookmarkAdd -title "Bookmark 3.2.1" -level 2
 p1 bookmarkAdd -title "Bookmark 3.2.2" -level 2
 
 p1 write -file test6.pdf
-p1 cleanup
+p1 destroy
