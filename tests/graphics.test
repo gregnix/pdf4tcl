@@ -26,6 +26,10 @@ test graphics-1.2 {circle} -body {
     }
 } -result 1
 
+test graphics-1.3 {circle} -body {
+    mytest {circle 20 20 10 -hurga 0} { }
+} -returnCodes 1 -result {unknown option "-hurga"}
+
 test graphics-2.1 {arc} -body {
     # 360 degree arc = circle
     mytest {arc 10  10  5 5 50 360} {
@@ -42,6 +46,10 @@ test graphics-2.2 {arc} -body {
     # 0 degree arc = nothing
     mytest {arc 10  10  5 5 60 0.0001} {stream endstream}
 } -result 1
+
+test graphics-2.3 {arc} -body {
+    mytest {arc 10  10  5 5 50 360 -hurga 0} { }
+} -returnCodes 1 -result {unknown option "-hurga"}
 
 test graphics-3.1 {image} -body {
     mytest -orient 1 \
@@ -174,6 +182,10 @@ test graphics-5.3 {oval} -body {
     }
 } -result 1
 
+test graphics-5.4 {oval} -body {
+    mytest {oval 10 10 4 8  -hurga 0} { }
+} -returnCodes 1 -result {unknown option "-hurga"}
+
 test graphics-6.1 {curve} -body {
     mytest {curve 100 100 110 120 130 140 150 150} {
          200 300 m 210 320 230 340 250 350 c S
@@ -197,5 +209,33 @@ test graphics-6.4 {curve} -body {
 test graphics-6.5 {curve} -body {
     mytest {curve 100 100 130 160 250 10 20 10 20} {}
 } -returnCodes 1 -result "wrong # args: should be curve x1 y1 x2 y2 x3 y3 ?x4 y4?"
+
+test graphics-7.1 {polygon} -body {
+    mytest {polygon 10 10 10 20 20 20 20 10} {
+        110 210 m
+        110 220 l 120 220 l 120 210 l
+        s
+    }
+} -result 1
+
+test graphics-7.2 {polygon} -body {
+    mytest {polygon 10 10 10 20 20 20 20 10 -filled 1} {
+        110 210 m
+        110 220 l 120 220 l 120 210 l
+        b
+    }
+} -result 1
+
+test graphics-7.2 {polygon} -body {
+    mytest {polygon 10 10 10 20 20 20 20 10 -filled 1 -stroke 0} {
+        110 210 m
+        110 220 l 120 220 l 120 210 l
+        f
+    }
+} -result 1
+
+test graphics-7.3 {polygon} -body {
+    mytest {polygon 10 10 10 20 20 20 20 10 -hurga 0} { }
+} -returnCodes 1 -result {unknown option "-hurga"}
 
 ::tcltest::cleanupTests

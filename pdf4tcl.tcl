@@ -1768,6 +1768,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {$pdf(inXObject)} {
             my Pdfout "/Type /XObject\n"
             my Pdfout "/Subtype /Form\n"
+            # If the XObject is created with -noimage it is not included in
+            # the image list in Resources. It then needs a ref to Resources.
             if {$localopts(-noimage)} {
                 my Pdfout "/Resources 3 0 R\n"
             }
@@ -1950,6 +1952,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {[array size images] > 0} {
             my Pdfout "/XObject <<\n"
             foreach key [array names images] {
+                # If it is an XObject created with -noimage, it is not added.
                 if {![lindex $images($key) 3]} {
                     set oid [lindex $images($key) 2]
                     my Pdfout "/$key $oid 0 R\n"
@@ -1998,7 +2001,9 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "<<\n/Type /Outlines\n"
             my Pdfout "/First $oid 0 R\n"
             my Pdfout "/Last [expr {$oid + $nbookmarks - 1}] 0 R\n"
-            if {$count} {my Pdfout "/Count $count\n"}
+            if {$count} {
+                my Pdfout "/Count $count\n"
+            }
             my Pdfout ">>\nendobj\n\n"
 
             # Create the outline item dictionary for each bookmark.
@@ -2155,13 +2160,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                     set title $value
                 }
                 -level {
-                    if {[string is integer -strict $value]} {
-                        if {$value < 0} {
-                            throw "PDF4TCL" "option $option requires a non-negative integer value"
-                        }
-                    } else {
-                        throw "PDF4TCL" "option $option requires a non-negative integer value"
-                    }
+                    my CheckNumeric $value -level -nonnegative -integer
                     set level $value
                 }
                 -closed {

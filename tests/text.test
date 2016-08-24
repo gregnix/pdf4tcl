@@ -155,7 +155,7 @@ test text-6.2 {moveTextPosition, -orient 1} -body {
 } -result 1
 
 test text-7.1 {drawTextBox} -body {
-    mytest {setFont 20 Courier} \
+    mytest -orient 0 {setFont 20 Courier} \
             {rectangle 100 100 150 250} \
             {drawTextBox 100 100 150 250 "Hej\nHopp\nBlaBlaBlaBlaBla"} {
                 200 535 Tm (Hej) * (Hopp) * (BlaBlaBlaBla) * (Bla) Tj ET
@@ -202,8 +202,25 @@ test text-7.6 {drawTextBox, overflow} -body {
     Apa destroy
 } -result {Bla}
 
-test text-8.1 {getTextPosition} -body {
+test text-7.7 {drawTextBox, lines} -body {
     pdf4tcl::new Apa
+    Apa setFont 20 Courier
+    Apa drawTextBox 100 100 150 60 "Hej\nHopp\nBlaBlaBla" -linesvar lines
+    set lines
+} -cleanup {
+    Apa destroy
+} -result {3}
+
+test text-7.8 {drawTextBox, center} -body {
+    mytest {setFont 20 Courier} \
+            {rectangle 100 100 150 250} \
+            {drawTextBox 100 100 150 250 "Hej\nHopp\nBlaBlaBlaBlaBla" -align center} {
+                257 535 Tm (Hej) * (Hopp) * (BlaBlaBlaBla) * (Bla) Tj ET
+            }
+} -result 1
+
+test text-8.1 {getTextPosition} -body {
+    pdf4tcl::new Apa -orient 0
     set res [list [Apa getTextPosition]]
     Apa setTextPosition 30 40
     lappend res [Apa getTextPosition]
@@ -211,7 +228,7 @@ test text-8.1 {getTextPosition} -body {
     lappend res [Apa getTextPosition]
 } -cleanup {
     Apa destroy
-} -result {{0.0 0.0} {30.0 40.0} {174.0 256.0}}
+} -result {{0.0 842.0} {30.0 40.0} {174.0 256.0}}
 
 test text-8.2 {getTextPosition} -body {
     pdf4tcl::new Apa -unit i -orient 1

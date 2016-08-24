@@ -141,8 +141,12 @@ test page-2.5 {misc page handling, rotate} -body {
     pdf4tcl::new apa -rotate 95
 } -returnCodes 1 -match glob -result {*rotation 95 not a multiple of 90}
 
+test page-2.6 {misc page handling, rotate} -body {
+    pdf4tcl::new apa -rotate 90.0
+} -returnCodes 1 -match glob -result {*bad rotation "90.0", must be integer}
+
 test page-3.1 {file attachment annnotation} -body {
-    pdf4tcl::new apa -paper {400 400} -compress false
+    pdf4tcl::new apa -paper {400 400} -compress 1
     apa startPage
     apa setFont 12 Times-Roman
     apa drawTextBox 10 10 200 200 "This is a text mark"
@@ -218,5 +222,85 @@ test page-4.10 {options errors} -body {
 test page-4.11 {options errors} -body {
     pdf4tcl::new apa -unit xxx
 } -returnCodes 1 -match glob -result {*unit "xxx" is unknown}
+
+test page-5.1 {metadata} -body {
+    mytest -all {metadata -author Peter} {
+        /Author (Peter)
+    }
+} -result 1
+
+test page-5.2 {metadata} -body {
+    mytest -all {metadata -creator Peter} {
+        /Creator (Peter)
+    }
+} -result 1
+
+test page-5.3 {metadata} -body {
+    mytest -all {metadata -keywords Peter} {
+        /Keywords (Peter)
+    }
+} -result 1
+
+test page-5.4 {metadata} -body {
+    mytest -all {metadata -producer Peter} {
+        /Producer (Peter)
+    }
+} -result 1
+
+test page-5.5 {metadata} -body {
+    mytest -all {metadata -subject Peter} {
+        /Subject (Peter)
+    }
+} -result 1
+
+test page-5.6 {metadata} -body {
+    mytest -all {metadata -title Peter} {
+        /Title (Peter)
+    }
+} -result 1
+
+test page-5.7 {metadata} -body {
+    mytest -all {metadata -creationdate 0} {
+        /CreationDate (D:*)
+    }
+} -result 1
+
+test page-5.8 {metadata} -body {
+    mytest -all {metadata -creationdate 1} {
+        /CreationDate (D:1970*)
+    }
+} -result 1
+
+test page-6.1 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -title "Bookmark1"} {
+        /Title (Bookmark1)
+    }
+} -result 1
+
+test page-6.2 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -title "Bookmark1" -closed 1} {
+        /Title (Bookmark1)
+    }
+} -result 1
+
+test page-6.3 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -title ""} {   }
+} -returnCodes 1 -match glob -result {option -title requires a string}
+
+test page-6.4 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -level a} {   }
+} -returnCodes 1 -match glob -result {bad -level "a", must be numeric}
+
+test page-6.5 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -level -1} {   }
+} -returnCodes 1 -match glob -result {bad -level "-1", may not be negative}
+
+test page-6.6 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -closed a} {   }
+} -returnCodes 1 -match glob -result {option -closed must have a boolean value}
+
+test page-6.7 {bookmarks} -body {
+    mytest -all {startPage} {bookmarkAdd -mooo a} {   }
+} -returnCodes 1 -match glob -result {*unknown option "-mooo"}
 
 ::tcltest::cleanupTests

@@ -31,7 +31,7 @@ proc TestPng {args} {
         }
         set file [file join $::pngdir $file]
         set jpeg [JpegReference $file]
-        set gif [file rootname $file].gif
+        set gif [file rootname $file].png
         image create photo img1 -file $gif
         set imgdata [img1 data]
         image delete img1
