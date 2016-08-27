@@ -598,10 +598,20 @@ This method starts a new XObject in the document\&.  An XObject is a reusable
 drawing object and behaves just like a page where you can draw any graphics\&.
 An XObject must be created between pages and this method will end any ongoing
 page\&. The return value is an id that can be used with \fBputImage\fR to draw
-it on the current page\&. All page settings (\fBPAGE CONFIGURATION\fR) are
+it on the current page or with some forms\&.
+All page settings (\fBPAGE CONFIGURATION\fR) are
 valid when creating an XObject\&. Default options are
 \fB-paper\fR = {100p 100p}, \fB-landscape\fR = 0,
 \fB-orient\fR = document default, \fB-margin\fR= 0\&.
+.RS
+.TP
+\fB-noimage\fR \fIbool\fR
+If this is set the XObject is not added to the image resource set and cannot
+be used with putImage, only in forms\&. The XObject also gets access to resources
+which is needed to use e\&.g\&. fonts within the XObject\&. This behaviour has shown
+to be PDF reader dependent, and it is currently not known if this can be
+made to work better\&.
+.RE
 .TP
 \fIobjectName\fR \fBendXObject\fR
 This method ends an XObject definition\&. It works just like \fBendPage\fR\&.

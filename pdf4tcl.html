@@ -370,10 +370,19 @@ work finished before reentering the event loop.</p></dd>
 drawing object and behaves just like a page where you can draw any graphics.
 An XObject must be created between pages and this method will end any ongoing
 page. The return value is an id that can be used with <b class="method">putImage</b> to draw
-it on the current page. All page settings (<span class="sectref"><a href="#subsection10">PAGE CONFIGURATION</a></span>) are
+it on the current page or with some forms.
+All page settings (<span class="sectref"><a href="#subsection10">PAGE CONFIGURATION</a></span>) are
 valid when creating an XObject. Default options are
 <b class="option">-paper</b> = {100p 100p}, <b class="option">-landscape</b> = 0,
-<b class="option">-orient</b> = document default, <b class="option">-margin</b>= 0.</p></dd>
+<b class="option">-orient</b> = document default, <b class="option">-margin</b>= 0.</p>
+<dl class="options">
+<dt><b class="option">-noimage</b> <i class="arg">bool</i></dt>
+<dd><p>If this is set the XObject is not added to the image resource set and cannot
+be used with putImage, only in forms. The XObject also gets access to resources
+which is needed to use e.g. fonts within the XObject. This behaviour has shown
+to be PDF reader dependent, and it is currently not known if this can be
+made to work better.</p></dd>
+</dl></dd>
 <dt><a name="23"><i class="arg">objectName</i> <b class="method">endXObject</b></a></dt>
 <dd><p>This method ends an XObject definition. It works just like <b class="method">endPage</b>.</p></dd>
 <dt><a name="24"><i class="arg">objectName</i> <b class="method">finish</b></a></dt>
