@@ -805,6 +805,11 @@ Specifies the justification\&. If not given, the text is left justified\&.
 .TP
 \fB-linesvar\fR \fIvar\fR
 Gives the name of a variable which will be set to the number of lines written\&.
+.TP
+\fB-dryrun\fR \fIbool\fR
+If true, no changes will be made to the PDF document\&. The return
+value and \fB-linesvar\fR gives information of what would happen
+with the given text\&.
 .RE
 .TP
 \fIobjectName\fR \fBgetFontMetric\fR \fImetric\fR

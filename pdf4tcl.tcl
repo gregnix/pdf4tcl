@@ -1523,6 +1523,12 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
     }
 
+    # This is only for internal testing
+    method DebugGetInternalState {} {
+        array get pdf
+    }
+    export DebugGetInternalState
+
     #######################################################################
     # Collect PDF Output
     #######################################################################
@@ -2919,9 +2925,9 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     method drawTextBox {x y width height txt args} {
-        if {!$pdf(inPage)} { my startPage }
         set align left
         set linesVar ""
+        set dryrun 0
         foreach {arg value} $args {
             switch -- $arg {
                 "-align" {
@@ -2930,11 +2936,17 @@ oo::define ::pdf4tcl::pdf4tcl {
                 "-linesvar" {
                     set linesVar $value
                 }
+                "-dryrun" {
+                    my CheckBoolean -dryrun $value
+                    set dryrun $value
+                }
                 default {
                     throw "PDF4TCL" "unknown option \"$arg\""
                 }
             }
         }
+
+        if {!$pdf(inPage) && !$dryrun} { my startPage }
 
         if {$linesVar ne ""} {
             upvar 1 $linesVar lines
@@ -2952,9 +2964,11 @@ oo::define ::pdf4tcl::pdf4tcl {
             set height [expr {- $height}]
         }
 
-        my BeginTextObj
-        if {! $pdf(font_set)} {
-            my SetupFont
+        if {!$dryrun} {
+            my BeginTextObj
+            if {! $pdf(font_set)} {
+                my SetupFont
+            }
         }
 
         # pre-calculate some values
@@ -3007,21 +3021,31 @@ oo::define ::pdf4tcl::pdf4tcl {
                             set sw [my getStringWidth $sent 1]
                             set add [expr {($width-$sw)/([llength $words]-1)}]
                             # display words
-                            my Pdfoutcmd $add "Tw"
-                            my DrawTextAt $x $y $sent
-                            my Pdfoutcmd 0 "Tw"
+                            if {!$dryrun} {
+                                my Pdfoutcmd $add "Tw"
+                                my DrawTextAt $x $y $sent
+                                my Pdfoutcmd 0 "Tw"
+                            }
                         } else {
-                            my DrawTextAt $x $y $sent
+                            if {!$dryrun} {
+                                my DrawTextAt $x $y $sent
+                            }
                         }
                     }
                     "right" {
-                        my DrawTextAt [expr {$x+$width}] $y $sent right
+                        if {!$dryrun} {
+                            my DrawTextAt [expr {$x+$width}] $y $sent right
+                        }
                     }
                     "center" {
-                        my DrawTextAt [expr {$x+$width/2.0}] $y $sent center
+                        if {!$dryrun} {
+                            my DrawTextAt [expr {$x+$width/2.0}] $y $sent center
+                        }
                     }
                     default {
-                        my DrawTextAt $x $y $sent
+                        if {!$dryrun} {
+                            my DrawTextAt $x $y $sent
+                        }
                     }
                 }
                 # Move y down to next line

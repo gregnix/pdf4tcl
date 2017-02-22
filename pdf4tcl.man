@@ -474,6 +474,10 @@ a new line in the output. If [arg "str"] is too long to fit in the specified box
          Specifies the justification. If not given, the text is left justified.
       [opt_def -linesvar "[arg var]"]
          Gives the name of a variable which will be set to the number of lines written.
+      [opt_def -dryrun "[arg bool]"]
+         If true, no changes will be made to the PDF document. The return
+         value and [option -linesvar] gives information of what would happen
+         with the given text.
    [list_end]
 
 

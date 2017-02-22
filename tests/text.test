@@ -202,14 +202,38 @@ test text-7.6 {drawTextBox, overflow} -body {
     Apa destroy
 } -result {Bla}
 
+test text-7.6.2 {drawTextBox, overflow} -body {
+    pdf4tcl::new Apa
+    Apa setFont 20 Courier
+    set old [Apa DebugGetInternalState]
+    set res [Apa drawTextBox 100 100 150 60 "Hej\nHopp\nBlaBlaBlaBlaBla" \-dryrun 1]
+    set new [Apa DebugGetInternalState]
+    lappend res [expr {$old eq $new}]
+} -cleanup {
+    Apa destroy
+} -result {Bla 1}
+
 test text-7.7 {drawTextBox, lines} -body {
     pdf4tcl::new Apa
     Apa setFont 20 Courier
-    Apa drawTextBox 100 100 150 60 "Hej\nHopp\nBlaBlaBla" -linesvar lines
-    set lines
+    set res [Apa drawTextBox 100 100 150 60 "Hej\nHopp\nBlaBlaBla" \
+                     -linesvar lines]
+    lappend res $lines
 } -cleanup {
     Apa destroy
 } -result {3}
+
+test text-7.7.2 {drawTextBox, lines} -body {
+    pdf4tcl::new Apa
+    Apa setFont 20 Courier
+    set old [Apa DebugGetInternalState]
+    set res [Apa drawTextBox 100 100 150 60 "Hej\nHopp\nBlaBlaBla" \
+                     -linesvar lines -dryrun 1]
+    set new [Apa DebugGetInternalState]
+    lappend res $lines [expr {$old eq $new}]
+} -cleanup {
+    Apa destroy
+} -result {3 1}
 
 test text-7.8 {drawTextBox, center} -body {
     mytest {setFont 20 Courier} \
