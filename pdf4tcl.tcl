@@ -957,6 +957,12 @@ namespace eval pdf4tcl {
         set FontsAttrs($fontname,encoding) $enc_name
     }
 
+    # Give list of available fonts
+    proc getFonts {} {
+        variable Fonts
+        return $Fonts
+    }
+
     # subset must be a list of unicode values:
     proc createFontSpecEnc {bfname fontname subset} {
         variable FontsAttrs

@@ -138,6 +138,13 @@ mypdf destroy
 This call creates a font that can be used in documents from a base font.
 The [arg "subset"] must be a list of unicode values.
 
+[call [cmd ::pdf4tcl::getFonts]]
+
+This call returns the list of known font names, i.e. those accepted in a call
+to [method setFont].
+This includes the default fonts and fonts created by e.g.
+[cmd ::pdf4tcl::createFont].
+
 [call [cmd ::pdf4tcl::rgb2Cmyk] [arg "rgb"]]
 
 This call translates an RGB color value to a CMYK color value.

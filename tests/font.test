@@ -124,4 +124,8 @@ test font-5.2 {font, type1} -constraints {a010013l} -body {
     mytest {setFont 16 MyArial2} {text 1\u20ac!} *\x00\x01\x02*
 } -result 1
 
+test font-6.1 {getFonts call} -body {
+    lsort -dictionary [pdf4tcl::getFonts]
+} -match glob -result {*Courier * MyArial * MyArial2 * ZapfDingbats*}
+
 ::tcltest::cleanupTests

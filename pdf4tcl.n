@@ -299,6 +299,8 @@ package require \fBpdf4tcl  ?0\&.9\&.0?\fR
 .sp
 \fB::pdf4tcl::createFontSpecEnc\fR \fIbasefontname\fR \fIfontname\fR \fIsubset\fR
 .sp
+\fB::pdf4tcl::getFonts\fR
+.sp
 \fB::pdf4tcl::rgb2Cmyk\fR \fIrgb\fR
 .sp
 \fB::pdf4tcl::cmyk2Rgb\fR \fIcmyk\fR
@@ -520,6 +522,12 @@ mypdf destroy
 \fB::pdf4tcl::createFontSpecEnc\fR \fIbasefontname\fR \fIfontname\fR \fIsubset\fR
 This call creates a font that can be used in documents from a base font\&.
 The \fIsubset\fR must be a list of unicode values\&.
+.TP
+\fB::pdf4tcl::getFonts\fR
+This call returns the list of known font names, i\&.e\&. those accepted in a call
+to \fBsetFont\fR\&.
+This includes the default fonts and fonts created by e\&.g\&.
+\fB::pdf4tcl::createFont\fR\&.
 .TP
 \fB::pdf4tcl::rgb2Cmyk\fR \fIrgb\fR
 This call translates an RGB color value to a CMYK color value\&.
