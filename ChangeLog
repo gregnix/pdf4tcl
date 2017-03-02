@@ -1,3 +1,6 @@
+2017-03-02 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Bumped revision to 0.9.1
+
 2017-02-22 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Added pdf4tcl::getFonts call. [FR #6]
 	* Added -dryrun option to drawTextBox method. [FR #7]
