@@ -270,19 +270,20 @@ as points.</p></dd>
 <dd><p>This call loads a TTF font from file to be used by any pdf4tcl objects.
 The <i class="arg">basefontname</i> is used to reference this font.
 To use this base font in documents, a font with some encoding must be
-created from it using createFont.
-Note that the font loading functions require Tcl 8.5.</p></dd>
+created from it using <b class="cmd">createFont</b> or <b class="cmd">createFontSpecEnc</b>.</p></dd>
 <dt><a name="6"><b class="cmd">::pdf4tcl::createBaseTrueTypeFont</b> <i class="arg">basefontname</i> <i class="arg">ttf_data</i></a></dt>
 <dd><p>This call creates a base font from TTF binary data.</p></dd>
 <dt><a name="7"><b class="cmd">::pdf4tcl::loadBaseType1Font</b> <i class="arg">basefontname</i> <i class="arg">AFM_file_name</i> <i class="arg">PFB_file_name</i></a></dt>
 <dd><p>This call loads a Type1 font from two files (.afm and .pfb) to be used by
 any pdf4tcl objects. The <i class="arg">basefontname</i> is used to reference this font.
 To use this base font in documents, a font with some encoding must be
-created from it using createFont.</p></dd>
+created from it using <b class="cmd">createFont</b> or <b class="cmd">createFontSpecEnc</b>.</p></dd>
 <dt><a name="8"><b class="cmd">::pdf4tcl::createBaseType1Font</b> <i class="arg">basefontname</i> <i class="arg">AFM_data</i> <i class="arg">PFB_data</i></a></dt>
 <dd><p>This call creates a base font from AFM text and PFB binary data.</p></dd>
 <dt><a name="9"><b class="cmd">::pdf4tcl::createFont</b> <i class="arg">basefontname</i> <i class="arg">fontname</i> <i class="arg">encoding_name</i></a></dt>
-<dd><p>This call creates a font that can be used in documents from a base font.</p>
+<dd><p>This call creates a font that can be used in documents from a base font. The given encoding
+defines the (up to) 256 unicode characters that can be drawn when <i class="arg">fontname</i> is selected.
+To use more characters, multiple fonts need to be created and selected based on what needs to be written.</p>
 <pre class="example">
 pdf4tcl::loadBaseTrueTypeFont BaseArial &quot;arial.ttf&quot;
 pdf4tcl::createFont BaseArial MyArial cp1251 
@@ -302,7 +303,23 @@ mypdf destroy
 </dd>
 <dt><a name="10"><b class="cmd">::pdf4tcl::createFontSpecEnc</b> <i class="arg">basefontname</i> <i class="arg">fontname</i> <i class="arg">subset</i></a></dt>
 <dd><p>This call creates a font that can be used in documents from a base font.
-The <i class="arg">subset</i> must be a list of unicode values.</p></dd>
+The <i class="arg">subset</i> must be a list of (up to 256) unicode values which are the characters that can be
+drawn when <i class="arg">fontname</i> is selected.</p>
+<pre class="example">
+pdf4tcl::loadBaseTrueTypeFont BaseArial &quot;arial.ttf&quot;
+# Subset is a list of unicodes:
+for {set f 0} {$f &lt; 128} {incr f} {lappend subset $f}
+lappend subset [expr 0xB2] [expr 0x3B2]
+pdf4tcl::createFontSpecEnc BaseArial MyArial $subset 
+pdf4tcl::new mypdf -paper a4
+mypdf startPage
+mypdf setFont 16 MyArial
+set txt &quot;sin\u00B2\u03B2 + cos\u00B2\u03B2 = 1&quot;
+mypdf text $txt -x 50 -y 100
+mypdf write -file specenc.pdf
+mypdf destroy
+</pre>
+</dd>
 <dt><a name="11"><b class="cmd">::pdf4tcl::getFonts</b></a></dt>
 <dd><p>This call returns the list of known font names, i.e. those accepted in a call
 to <b class="method">setFont</b>.

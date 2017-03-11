@@ -981,6 +981,7 @@ namespace eval pdf4tcl {
         set FontsAttrs($fontname,basefontname) $bfname
         set FontsAttrs($fontname,uniset) $subset
         set FontsAttrs($fontname,specialencoding) 1
+        set FontsAttrs($fontname,encoding) {}
 
         set symcode 0
         foreach ucode $subset {

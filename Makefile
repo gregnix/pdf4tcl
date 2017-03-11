@@ -40,6 +40,8 @@ example:
 	@cd examples && $(TCLSH) test4.tcl
 	@cd examples && $(TCLSH) test5.tcl
 	@cd examples && $(TCLSH) test6.tcl
+	@cd examples && $(TCLSH) specenc.tcl
+	@cd examples && $(TCLSH) multiout.tcl
 
 # Helpers
 

@@ -89,8 +89,7 @@ as points.
 This call loads a TTF font from file to be used by any pdf4tcl objects.
 The [arg "basefontname"] is used to reference this font.
 To use this base font in documents, a font with some encoding must be
-created from it using createFont.
-Note that the font loading functions require Tcl 8.5.
+created from it using [cmd createFont] or [cmd createFontSpecEnc].
 
 
 [call [cmd ::pdf4tcl::createBaseTrueTypeFont] [arg "basefontname"] [arg "ttf_data"]]
@@ -103,7 +102,7 @@ This call creates a base font from TTF binary data.
 This call loads a Type1 font from two files (.afm and .pfb) to be used by
 any pdf4tcl objects. The [arg "basefontname"] is used to reference this font.
 To use this base font in documents, a font with some encoding must be
-created from it using createFont.
+created from it using [cmd createFont] or [cmd createFontSpecEnc].
 
 
 [call [cmd ::pdf4tcl::createBaseType1Font] [arg "basefontname"] [arg "AFM_data"] [arg "PFB_data"]]
@@ -113,9 +112,11 @@ This call creates a base font from AFM text and PFB binary data.
 
 [call [cmd ::pdf4tcl::createFont] [arg "basefontname"] [arg "fontname"] [arg "encoding_name"]]
 
-This call creates a font that can be used in documents from a base font.
+This call creates a font that can be used in documents from a base font. The given encoding
+defines the (up to) 256 unicode characters that can be drawn when [arg "fontname"] is selected.
+To use more characters, multiple fonts need to be created and selected based on what needs to be written.
 
-[comment "String map used to be able to include backslash-nl in the example"]
+[comment "String map is used here to be able to include backslash-nl in the example"]
 [example [string map {% \\} {
 pdf4tcl::loadBaseTrueTypeFont BaseArial "arial.ttf"
 pdf4tcl::createFont BaseArial MyArial cp1251 
@@ -136,7 +137,23 @@ mypdf destroy
 [call [cmd ::pdf4tcl::createFontSpecEnc] [arg "basefontname"] [arg "fontname"] [arg "subset"]]
 
 This call creates a font that can be used in documents from a base font.
-The [arg "subset"] must be a list of unicode values.
+The [arg "subset"] must be a list of (up to 256) unicode values which are the characters that can be
+drawn when [arg "fontname"] is selected.
+
+[example {
+pdf4tcl::loadBaseTrueTypeFont BaseArial "arial.ttf"
+# Subset is a list of unicodes:
+for {set f 0} {$f < 128} {incr f} {lappend subset $f}
+lappend subset [expr 0xB2] [expr 0x3B2]
+pdf4tcl::createFontSpecEnc BaseArial MyArial $subset 
+pdf4tcl::new mypdf -paper a4
+mypdf startPage
+mypdf setFont 16 MyArial
+set txt "sin\u00B2\u03B2 + cos\u00B2\u03B2 = 1"
+mypdf text $txt -x 50 -y 100
+mypdf write -file specenc.pdf
+mypdf destroy
+}]
 
 [call [cmd ::pdf4tcl::getFonts]]
 
