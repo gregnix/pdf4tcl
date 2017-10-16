@@ -4883,9 +4883,11 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Handle one tkpath item
     method CanvasDoTkpathItem {path id} {
+        # Get the fully qualified name for callback to this object
+        set myCb [namespace which my]
         switch [$path type $id] {
             pimage {
-                my Pdfout [$path itempdf $id [list my addTkpimgObj]]
+                my Pdfout [$path itempdf $id [list $myCb addTkpimgObj]]
             }
             ptext {
                 my setTkpfont \
@@ -4895,16 +4897,16 @@ oo::define ::pdf4tcl::pdf4tcl {
                         [$path itemcget $id -fontslant]
                 my Pdfout \
                         [$path itempdf $id \
-                                 [list my addTkpextgs] \
-                                 [list my getTkpptext $pdf(current_font)] \
+                                 [list $myCb addTkpextgs] \
+                                 [list $myCb getTkpptext $pdf(current_font)] \
                                  $pdf(current_font)]
             }
             pline - polyline - ppolygon - prect - circle - ellipse -
             path - group {
                 my Pdfout [$path itempdf $id \
-                                      [list my addTkpextgs] \
-                                      [list my addTkpobj] \
-                                      [list my addTkpgrad]]
+                                      [list $myCb addTkpextgs] \
+                                      [list $myCb addTkpobj] \
+                                      [list $myCb addTkpgrad]]
             }
         }
     }

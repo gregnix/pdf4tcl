@@ -6,6 +6,7 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
 # Try to locate any tkpath
+lappend ::auto_path {*}[glob -nocomplain ~/install/lib/tkpath*]
 lappend ::auto_path ../../packages/tkpath ../packages/tkpath
 if {[catch {package require tkpath 0.3.3}]} {
     testConstraint tkpath 0
