@@ -429,6 +429,8 @@ is created.</p></dd>
 <dt><a name="28"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add an interactive form at the given position and size. Supported types are <i class="arg">text</i> and <i class="arg">checkbutton</i>.
 Option <i class="arg">-init</i> gives an initial value for the form.
+Option <i class="arg">-id</i> gives the form an ID that must be unique within a document. If not given, one will be generated.
+For a text, option <i class="arg">-multiline</i> enables multi line editing.
 For a checkbutton, options <i class="arg">-on</i> and <i class="arg">-off</i> can be given an xobject (created with <b class="method">startXObject</b>) to control its appearance.</p></dd>
 </dl>
 </div>

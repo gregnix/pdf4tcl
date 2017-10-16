@@ -24,6 +24,16 @@ test form-1.4 {addForm method, errors} -body {
     }
 } -returnCodes 1 -result "bad id for -off"
 
+test form-1.5 {addForm method, errors} -body {
+    mytest {addForm text 0 0 10 10 -multiline hej} {
+    }
+} -returnCodes 1 -result "option -multiline must have a boolean value"
+
+test form-1.6 {addForm method, errors} -body {
+    mytest {addForm text 0 0 10 10 -id 6.7} {
+    }
+} -returnCodes 1 -result "option -id must be alphanumeric"
+
 test form-2.1 {addForm method, text} -body {
     mytest -all {addForm text 0 0 10 10} {
         /Subtype /Widget * /FT /Tx /T * /DA
@@ -36,6 +46,12 @@ test form-2.2 {addForm method, text} -body {
     }
 } -result 1
 
+test form-2.3 {addForm method, text} -body {
+    mytest -all {addForm text 0 0 10 10 -id MyPrecious} {
+        /Subtype /Widget * /FT /Tx /T (MyPrecious) /DA
+    }
+} -result 1
+
 test form-3.1 {addForm method, checkbutton} -body {
     mytest -all {addForm checkbutton 0 0 10 10} {
         /Subtype /Widget * /FT /Btn /T * /AS /Off
@@ -45,6 +61,12 @@ test form-3.1 {addForm method, checkbutton} -body {
 test form-3.2 {addForm method, checkbutton} -body {
     mytest -all {addForm checkbutton 0 0 10 10 -init true} {
         /Subtype /Widget * /FT /Btn /T * /AS /Yes
+    }
+} -result 1
+
+test form-3.3 {addForm method, checkbutton} -body {
+    mytest -all {addForm checkbutton 0 0 10 10 -id TheSuperForm} {
+        /Subtype /Widget * /FT /Btn /T (TheSuperForm) /AS /Off
     }
 } -result 1
 

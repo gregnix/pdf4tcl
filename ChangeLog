@@ -1,4 +1,7 @@
 2017-10-16 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Added -id and -multiline options to addForm method. [FR #8] (Gerald W Lester)
+
+2017-10-16 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Patch from Alexander Schope:
 	* Added clip method.
 	* Added gsave method.

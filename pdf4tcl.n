@@ -670,6 +670,8 @@ is created\&.
 \fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 Add an interactive form at the given position and size\&. Supported types are \fItext\fR and \fIcheckbutton\fR\&.
 Option \fI-init\fR gives an initial value for the form\&.
+Option \fI-id\fR gives the form an ID that must be unique within a document\&. If not given, one will be generated\&.
+For a text, option \fI-multiline\fR enables multi line editing\&.
 For a checkbutton, options \fI-on\fR and \fI-off\fR can be given an xobject (created with \fBstartXObject\fR) to control its appearance\&.
 .PP
 .SS "OBJECT METHODS, PAGE"

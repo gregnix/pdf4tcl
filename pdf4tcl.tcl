@@ -1367,6 +1367,13 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
     }
 
+    # Validator for word restricted options
+    method CheckWord {option value} {
+        if {![string is wordchar -strict $value]} {
+            throw "PDF4TCL" "option $option must be alphanumeric"
+        }
+    }
+
     # Validator for -rotate
     method CheckRotation {option value} {
         my CheckNumeric $value rotation -nonnegative -integer
@@ -4588,6 +4595,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set initValue ""
         set onObj ""
         set offObj ""
+        set idStr ""
+        set multiline 0
         if {$ftype eq "checkbutton"} {
             set initValue 0
         }
@@ -4604,11 +4613,26 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -off {
                     set offObj $value
                 }
+                -id {
+                    # An ID may not include a period according to PDF standard.
+                    # We keep it stricter to stay within word characters.
+                    my CheckWord $option $value
+                    set idStr $value
+                }
+                -multiline {
+                    my CheckBoolean $option $value
+                    set multiline $value
+                }
                 default {
                     throw "PDF4TCL" "unknown option \"$option\""
                 }
             }
         }
+        # Unique id if none was given
+        if {$idStr eq ""} {
+            set idStr ${ftype}form[my NextOid]
+        }
+
         # Check init value
         if {$ftype eq "checkbutton"} {
             if {![string is boolean -strict $initValue]} {
@@ -4710,7 +4734,12 @@ oo::define ::pdf4tcl::pdf4tcl {
             # Form type text
             append andict "  /FT /Tx\n"
             # Unique Identity
-            append andict "  /T (textform[my NextOid])\n"
+            append andict "  /T ($idStr)\n"
+            # Multi-line text form
+            if {$multiline} {
+                # Set flag bit 13 to indicate multi line
+                append andict "  /Ff 4096\n"
+            }
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
             # Left justified flag
@@ -4725,7 +4754,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             # Form type checkbutton (Ff flags are zero for checkbutton)
             append andict "  /FT /Btn\n"
             # Unique Identity
-            append andict "  /T (checkbuttonform[my NextOid])\n"
+            append andict "  /T ($idStr)\n"
             # State
             if {$initValue} {
                 append andict "  /AS /Yes\n"

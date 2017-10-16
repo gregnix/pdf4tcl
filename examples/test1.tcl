@@ -45,6 +45,9 @@ p1 setFont 8 "Helvetica"
 p1 rectangle 400 40 50 20
 p1 addForm text 400 40 50 20 -init "Hej hopp"
 
+p1 rectangle 400 60 50 100
+p1 addForm text 400 60 50 100 -init "Multi" -multiline 1
+
 p1 rectangle 200 80 40 40
 p1 addForm checkbutton 200 80 40 40
 
