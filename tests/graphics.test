@@ -238,4 +238,19 @@ test graphics-7.3 {polygon} -body {
     mytest {polygon 10 10 10 20 20 20 20 10 -hurga 0} { }
 } -returnCodes 1 -result {unknown option "-hurga"}
 
+test graphics-7.4 {polygon} -body {
+    mytest {polygon 10 10 10 20 20 20 20 10 -closed 0} {
+        110 210 m
+        110 220 l 120 220 l 120 210 l
+        S
+    }
+} -result 1
+
+test graphics-8.1 {clip} -body {
+    mytest {gsave} {clip 100 100 400 700} {grestore} {
+         q 200 300 m 600 300 l 600 1000 l 200 1000 l 200 300 l W n Q
+    }
+} -result 1
+
+
 ::tcltest::cleanupTests

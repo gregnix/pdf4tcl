@@ -3239,6 +3239,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set filled 0
         set stroke 1
         set start 1
+        set closed 1
+        
         foreach {x y} $args {
             if {[string match {-[a-z]*} $x]} {
                 switch -- $x {
@@ -3247,6 +3249,9 @@ oo::define ::pdf4tcl::pdf4tcl {
                     }
                     "-stroke" {
                         set stroke $y
+                    }
+                    "-closed" {
+                        set closed $y
                     }
                     default {
                         throw "PDF4TCL" "unknown option \"$x\""
@@ -3266,8 +3271,10 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfoutcmd "b"
         } elseif {$filled && !$stroke} {
             my Pdfoutcmd "f"
-        } else {
+        } elseif {$closed} {
             my Pdfoutcmd "s"
+        } else {
+            my Pdfoutcmd "S"
         }
     }
 
@@ -3587,6 +3594,36 @@ oo::define ::pdf4tcl::pdf4tcl {
         my DrawRect $x $y $w $h $stroke $filled
     }
 
+    # Clip outside a rectangle
+    method clip {x y w h} {
+        my EndTextObj
+
+        my Trans $x $y x y
+        my TransR $w $h w h
+        set x1 $x
+        set y1 $y
+        set x2 [expr {$x + $w}]
+        set y2 [expr {$y + $h}]
+
+        my Pdfoutcmd $x1 $y1 "m"
+        my Pdfoutcmd $x2 $y1 "l"
+        my Pdfoutcmd $x2 $y2 "l"
+        my Pdfoutcmd $x1 $y2 "l"
+        my Pdfoutcmd $x1 $y1 "l"
+        my Pdfoutcmd "W"
+        my Pdfoutcmd "n"
+    }
+
+    # Save graphic context
+    method gsave {} {
+        my Pdfoutcmd "q"
+    }
+
+    # Restore graphic context
+    method grestore {} {
+        my Pdfoutcmd "Q"
+    }
+    
     #######################################################################
     # Image Handling
     #######################################################################

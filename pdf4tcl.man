@@ -418,7 +418,9 @@ $pdfobject attachFile 0 0 100 100 $fid "This is the description"
 }]
 
 [list_end]
+
 [subsection {OBJECT METHODS, TEXT}]
+
 [list_begin definitions]
 
 [call [arg objectName] [method setFont] [arg "size"] [opt [arg "fontname"]]]
@@ -623,6 +625,7 @@ return value is a list of width and height.
 This method returns the width of the image identified by [arg "id"].
 
 [list_end]
+
 [subsection {OBJECT METHODS, COLORS}]
 
 Colors can be expressed in various formats. First, as a three element list
@@ -652,7 +655,9 @@ Sets the stroke color for graphics operations.
 Alternative calling form, to set color in CMYK color space.
 
 [list_end]
+
 [subsection {OBJECT METHODS, GRAPHICS}]
+
 [list_begin definitions]
 
 [call [arg objectName] [method setLineWidth] [arg "width"]]
@@ -693,12 +698,14 @@ Alternative calling form, to set color in CMYK color space.
 
 [call [arg objectName] [method polygon] [opt [arg "x y"]...] [opt [arg "option value"]...]]
    Draw a polygon. There must be at least 3 points.
-   The polygon is closed back to the first coordinate.
+   The polygon is closed back to the first coordinate unless [arg -closed] is false in which case a poly-line is drawn.
    [list_begin options]
       [opt_def -filled "[arg bool]   (default 0)"]
       Fill the polygon.
       [opt_def -stroke "[arg bool]   (default 1)"]
       Draw an outline of the polygon.
+      [opt_def -closed "[arg bool]   (default 1)"]
+      Close polygon.
    [list_end]
 
 [call [arg objectName] [method circle] [arg "x"] [arg "y"] [arg "radius"] [opt [arg "option value"]...]]
@@ -741,6 +748,15 @@ Alternative calling form, to set color in CMYK color space.
       [opt_def -stroke "[arg bool]   (default 1)"]
       Draw an outline of the rectangle.
    [list_end]
+
+[call [arg objectName] [method clip] [arg "x"] [arg "y"] [arg "width"] [arg "height"]]
+   Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.
+
+[call [arg objectName] [method gsave]]
+   Save graphic context. (I.e. insert a raw PDF "q" command).
+
+[call [arg objectName] [method grestore]]
+   Restore graphic context. (I.e. insert a raw PDF "Q" command).
 
 [list_end]
 

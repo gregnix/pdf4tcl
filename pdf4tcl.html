@@ -207,6 +207,9 @@
 <li><a href="#68"><i class="arg">objectName</i> <b class="method">arc</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <i class="arg">phi</i> <i class="arg">extend</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
 <li><a href="#69"><i class="arg">objectName</i> <b class="method">arrow</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">size</i> <span class="opt">?<i class="arg">angle</i>?</span></a></li>
 <li><a href="#70"><i class="arg">objectName</i> <b class="method">rectangle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#71"><i class="arg">objectName</i> <b class="method">clip</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></li>
+<li><a href="#72"><i class="arg">objectName</i> <b class="method">gsave</b></a></li>
+<li><a href="#73"><i class="arg">objectName</i> <b class="method">grestore</b></a></li>
 </ul>
 </div>
 </div>
@@ -709,13 +712,15 @@ text operations.</p></dd>
    <em>y2</em></p></dd>
 <dt><a name="65"><i class="arg">objectName</i> <b class="method">polygon</b> <span class="opt">?<i class="arg">x y</i>...?</span> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw a polygon. There must be at least 3 points.
-   The polygon is closed back to the first coordinate.</p>
+   The polygon is closed back to the first coordinate unless <i class="arg">-closed</i> is false in which case a poly-line is drawn.</p>
 <dl class="options">
       
 <dt><b class="option">-filled</b> <i class="arg">bool</i>   (default 0)</dt>
 <dd><p>Fill the polygon.</p></dd>
 <dt><b class="option">-stroke</b> <i class="arg">bool</i>   (default 1)</dt>
 <dd><p>Draw an outline of the polygon.</p></dd>
+<dt><b class="option">-closed</b> <i class="arg">bool</i>   (default 1)</dt>
+<dd><p>Close polygon.</p></dd>
 </dl></dd>
 <dt><a name="66"><i class="arg">objectName</i> <b class="method">circle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radius</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw a circle at the given center coordinates.</p>
@@ -757,6 +762,12 @@ text operations.</p></dd>
 <dt><b class="option">-stroke</b> <i class="arg">bool</i>   (default 1)</dt>
 <dd><p>Draw an outline of the rectangle.</p></dd>
 </dl></dd>
+<dt><a name="71"><i class="arg">objectName</i> <b class="method">clip</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></dt>
+<dd><p>Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.</p></dd>
+<dt><a name="72"><i class="arg">objectName</i> <b class="method">gsave</b></a></dt>
+<dd><p>Save graphic context. (I.e. insert a raw PDF &quot;q&quot; command).</p></dd>
+<dt><a name="73"><i class="arg">objectName</i> <b class="method">grestore</b></a></dt>
+<dd><p>Restore graphic context. (I.e. insert a raw PDF &quot;Q&quot; command).</p></dd>
 </dl>
 </div>
 <div id="subsection9" class="subsection"><h3><a name="subsection9">OBJECT CONFIGURATION</a></h3>

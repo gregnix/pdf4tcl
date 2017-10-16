@@ -419,6 +419,12 @@ package require \fBpdf4tcl  ?0\&.9\&.1?\fR
 .sp
 \fIobjectName\fR \fBrectangle\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
+\fIobjectName\fR \fBclip\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
+.sp
+\fIobjectName\fR \fBgsave\fR
+.sp
+\fIobjectName\fR \fBgrestore\fR
+.sp
 .BE
 .SH DESCRIPTION
 This package provides a container class for generating \fIpdf\fR documents\&.
@@ -1009,7 +1015,7 @@ If \fIx4,\fR \fIy4\fR are present, draws a cubic bezier from \fIx1,\fR
 .TP
 \fIobjectName\fR \fBpolygon\fR ?\fIx y\fR\&.\&.\&.? ?\fIoption value\fR\&.\&.\&.?
 Draw a polygon\&. There must be at least 3 points\&.
-The polygon is closed back to the first coordinate\&.
+The polygon is closed back to the first coordinate unless \fI-closed\fR is false in which case a poly-line is drawn\&.
 .RS
 .TP
 \fB-filled\fR \fIbool\fR   (default 0)
@@ -1017,6 +1023,9 @@ Fill the polygon\&.
 .TP
 \fB-stroke\fR \fIbool\fR   (default 1)
 Draw an outline of the polygon\&.
+.TP
+\fB-closed\fR \fIbool\fR   (default 1)
+Close polygon\&.
 .RE
 .TP
 \fIobjectName\fR \fBcircle\fR \fIx\fR \fIy\fR \fIradius\fR ?\fIoption value\fR\&.\&.\&.?
@@ -1068,6 +1077,15 @@ Fill the rectangle\&.
 \fB-stroke\fR \fIbool\fR   (default 1)
 Draw an outline of the rectangle\&.
 .RE
+.TP
+\fIobjectName\fR \fBclip\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
+Create a clip region\&. To cancel a clip region you must restore a graphic context that was saved before\&.
+.TP
+\fIobjectName\fR \fBgsave\fR
+Save graphic context\&. (I\&.e\&. insert a raw PDF "q" command)\&.
+.TP
+\fIobjectName\fR \fBgrestore\fR
+Restore graphic context\&. (I\&.e\&. insert a raw PDF "Q" command)\&.
 .PP
 .SS "OBJECT CONFIGURATION"
 All pdf4tcl objects understand the options from \fBPAGE CONFIGURATION\fR,

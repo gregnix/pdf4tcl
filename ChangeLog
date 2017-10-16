@@ -1,3 +1,13 @@
+2017-10-16 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Patch from Alexander Schope:
+	* Added clip method.
+	* Added gsave method.
+	* Added grestore method.
+	* Added -closed option to polygon method.
+
+2017-10-16 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Robust callback given to TkPath itempdf.
+
 2017-03-02 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Bumped revision to 0.9.1
 
