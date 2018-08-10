@@ -71,7 +71,7 @@ proc mytest {args} {
     if {$debug} {
         # Draw a grid to see better in debug mode
         foreach {w h} [$pdf getDrawableArea] break
-        $pdf Pdfoutcmd q
+        $pdf gsave
         $pdf setStrokeColor 0.5 0.5 0.5
         $pdf setLineStyle 0.1 0.1 2
         $pdf polygon 0 0 $w 0 $w $h 0 $h
@@ -81,7 +81,7 @@ proc mytest {args} {
         for {set t 100} {$t < $h} {incr t 100} {
             $pdf line 0 $t $w $t
         }
-        $pdf Pdfoutcmd Q
+        $pdf grestore
     }
     foreach cmd $cmds {
         eval \$pdf $cmd
@@ -102,6 +102,14 @@ proc mytest {args} {
         }
         file copy -force testdebug.pdf ..
         #file delete testdebug.pdf
+
+        set pat [string map {" * " " *\n"} $pattern]
+        regsub -line -all {(?: |^)([[:alpha:]]+) } $pat " \\1\n" pat
+        regsub -line -all {^\s+} $pat "" pat
+        set ch [open ../testdebug.txt w]
+        fconfigure $ch -translation binary
+        puts -nonewline $ch $pat
+        close $ch
     }
     # Normally we just check the stream part
     if {!$checkall} {
