@@ -6017,32 +6017,97 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set data [read $ch]
     close $ch
 
-    # Locate xref table
+    # Locate all incremental xref tables
+    set allXref {}
+    set xrefIndices {}
+    # Locate last xref table
     regexp {startxref\s+(\d+)\s+%%EOF\s*$} $data -> startxref
-    set endpart [string range $data $startxref end]
-    set objs [string range $data 0 [expr {$startxref - 1}]]
-    # Extract trailer
-    regexp {trailer\s+(.*?)\s+startxref} $endpart -> trailertxt
-    set trailer [PdfDictToTclDict $trailertxt]
-
-    # Extract xrefs
-    set obj 1
-    set xrefs {}
-    foreach line [split $endpart \n] {
-        if {[string match *trailer* $line]} break
-        if {[regexp {(\d+) \d+ n} $line -> index]} {
-            lappend xrefs [list $obj [string trimleft $index 0]]
-            incr obj
+    while 1 {
+        set endpart [string range $data $startxref end]
+        lappend xrefIndices $startxref
+        # Extract trailer
+        regexp {(?:trailer\s+(.*?)\s+startxref){1,1}?} $endpart -> trailertxt
+        set trailer [PdfDictToTclDict $trailertxt]
+        # Store
+        lappend allXref $endpart $trailer
+        # Fetch previous if there is one
+        if {[dict exists $trailer /Prev]} {
+            set startxref [dict get $trailer /Prev]
+            #puts "New startxref $startxref"
+        } else {
+            break
         }
     }
-    dict set pdfdata N $obj
+    set xrefIndices [lsort -integer $xrefIndices]
+    #puts "[llength $allXref]"
+
+    # Go through xref tables from front
+    set allTrailer {}
+    set xrefs {}
+    set unusedIndices {}
+    foreach {trailer endpart} [lreverse $allXref] {
+        # Merge the trailer dictionaries
+        set allTrailer [dict merge $allTrailer $trailer]
+        # Extract xrefs
+        set obj 0
+        foreach line [split $endpart \n] {
+            if {[string match *trailer* $line]} break
+            if {[regexp {(\d+) (\d+)\s*$}  $line -> objNo nObjs]} {
+                #puts "OBJS $objNo $nObjs"
+                set obj $objNo
+                continue
+            }
+            if {[regexp {(\d+) (\d+) (n|f)} $line -> index _rev flag]} {
+                # If we overwrite a reference, keep the index for later
+                if {[dict exists $xrefs $obj]} {
+                    lappend unusedIndices [dict get $xrefs $obj]
+                }
+                if {$flag eq "n"} {
+                    dict set xrefs $obj [string trimleft $index 0]
+                } elseif {$flag eq "f"} {
+                    # TBD handle deleted objs?
+                    dict set xrefs $obj -1
+                }
+                incr obj
+            }
+        }
+    }
+    # Extract unused into dummy object numbers
+    set obj -1
+    foreach index $unusedIndices {
+        dict set xrefs $obj $index
+        incr obj -1
+    }
+
+    # Do not keep any Prev in final trailer
+    set trailer $allTrailer
+    dict unset trailer /Prev
+    #puts $trailer
+
+    # Highest object number
+    set obj [lindex [lsort -stride 2 -integer -decreasing -index 0 $xrefs] 0]
+    dict set pdfdata N [expr {$obj + 1}]
     dict set pdfdata "trailer" $trailer
     # Cut out objects, from the end
-    set xrefs [lsort -integer -decreasing -index 1 $xrefs]
-    foreach xref $xrefs {
-        foreach {obj index} $xref break
-        dict set pdfdata $obj full [string trim [string range $objs $index end]]
-        set objs [string range $objs 0 [expr {$index - 1}]]
+    set xrefs [lsort -stride 2 -integer -decreasing -index 1 $xrefs]
+    #puts $xrefs
+    foreach {obj index} $xrefs {
+        # Negative index is a deleted object
+        if {$index < 0} continue
+        # See if there is an xref after this object
+        set xxx [lsearch -integer -bisect $xrefIndices $index]
+        set xrefIx [expr {[lindex $xrefIndices [expr {$xxx + 1}]] - 1}]
+        # Limit object extaction to xref
+        set fullObj [string trim [string range $data $index $xrefIx]]
+        set data [string range $data 0 [expr {$index - 1}]]
+        if {$obj >= 0} {
+            # TBD limit length properly on the full string
+            if {![string match *endobj $fullObj]} {
+                # This should not happen if the xref limit above works
+                puts "XXXX $obj [regexp -all -inline {endobj} $fullObj]"
+            }
+            dict set pdfdata $obj full $fullObj
+        }
     }
     # Get root object
     set rval [dict get $trailer /Root]
@@ -6065,7 +6130,9 @@ proc pdf4tcl::cat::Dump {pdfdata} {
     array set d $pdfdata
     parray d {[a-zA-Z]*}
     # lowest id
-    parray d [lindex [lsort -dictionary [dict keys $pdfdata]] 0]
+    set ix [lindex [lsort -dictionary [dict keys $pdfdata]] 0]
+    puts "Lowest id: $ix"
+    parray d $ix
     parray d 6
     parray d 285
 }
