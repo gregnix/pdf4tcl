@@ -575,9 +575,24 @@ or ps2pdf should work mostly ok\&.
 .TP
 \fB::pdf4tcl::getForms\fR \fIinfile\fR
 This call extracts form data from a PDF file\&.
-The return value is a dictionary with id/value pairs\&.
+The return value is a dictionary with id/info pairs\&.
 The id is the one set with \fI-id\fR to \fBaddForm\fR, if the PDF
 was generated with pdf4tcl\&.
+The info is a dictionary with the following fields:
+.RS
+.TP
+\fBtype\fR
+Field type\&.
+.TP
+\fBvalue\fR
+Form value\&.
+.TP
+\fBflags\fR
+Value of form flags field\&.
+.TP
+\fBdefault\fR
+Default value, if any\&.
+.RE
 .PP
 .SS "OBJECT COMMAND"
 All commands created by \fB::pdf4tcl::new\fR have the following

@@ -185,9 +185,17 @@ or ps2pdf should work mostly ok.
 [call [cmd ::pdf4tcl::getForms] [arg "infile"]]
 
 This call extracts form data from a PDF file.
-The return value is a dictionary with id/value pairs.
+The return value is a dictionary with id/info pairs.
 The id is the one set with [arg -id] to [method addForm], if the PDF
 was generated with pdf4tcl.
+The info is a dictionary with the following fields:
+
+[list_begin options]
+[opt_def type] Field type.
+[opt_def value] Form value.
+[opt_def flags] Value of form flags field.
+[opt_def default] Default value, if any.
+[list_end]
 
 [list_end]
 

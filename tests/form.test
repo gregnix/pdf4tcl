@@ -70,4 +70,14 @@ test form-3.3 {addForm method, checkbutton} -body {
     }
 } -result 1
 
+test form-4.1 {getForms command} -body {
+    mytest -file {addForm text 0 0 10 10 -id MyPrecious} {}
+    pdf4tcl::getForms testdebug.pdf
+} -cleanup {file delete testdebug.pdf} -result [list MyPrecious [list type /Tx value {} flags 0]]
+
+test form-4.2 {getForms command} -body {
+    mytest -file {addForm checkbutton 0 0 10 10 -id TheSuperForm} {}
+    pdf4tcl::getForms testdebug.pdf
+} -cleanup {file delete testdebug.pdf} -result [list TheSuperForm [list type /Btn default /Off value /Off flags 0]]
+
 ::tcltest::cleanupTests

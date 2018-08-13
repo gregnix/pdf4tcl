@@ -6337,10 +6337,15 @@ proc pdf4tcl::catPdf {args} {
 }
 
 # Extract form data from a PDF file
-# Return value is a dictionary of id/value pairs.
+# Return value is a dictionary of id/info pairs.
+#  info is a dictionary containing these fields:
+#   type    : Field type.
+#   value   : Form value.
+#   flags   : Value of form flags field.
+#   default : Default value, if any.
 proc pdf4tcl::getForms {pdfFile} {
     if {![file exists $pdfFile]} {
-        return -code error "No such file: $pdfFile"
+        throw "PDF4TCL" "No such file: $pdfFile"
     }
     set pdf [pdf4tcl::cat::ReadPdf $pdfFile]
 
@@ -6351,8 +6356,30 @@ proc pdf4tcl::getForms {pdfFile} {
         if {![dict exists $pdf $o]} continue
         set d [pdf4tcl::cat::PdfObjToTclDict [dict get $pdf $o full]]
         if {[dict exists $d /Subtype] && [dict get $d /Subtype] eq "/Widget"} {
+            set id [dict get $d /T]
+            # Remove parens from ID-string
+            set id [string trim $id "()"]
+            # Field Type (/Tx or /Btn)
+            if {[dict exists $d /FT]} {
+                dict set result $id type [dict get $d /FT]
+            } else {
+                dict set result $id type {}
+            }
+            # Default value, if any
+            if {[dict exists $d /AS]} {
+                dict set result $id default [dict get $d /AS]
+            }
+            # Value
             if {[dict exists $d /V]} {
-                dict set result [dict get $d /T] [dict get $d /V]
+                dict set result $id value [dict get $d /V]
+            } else {
+                dict set result $id value {}
+            }
+            # Flags
+            if {[dict exists $d /Ff]} {
+                dict set result $id flags [dict get $d /Ff]
+            } else {
+                dict set result $id flags 0
             }
         }
     }

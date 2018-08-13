@@ -51,12 +51,15 @@ proc mytest {args} {
     set isopt ""
     set debug 0
     set checkall 0
+    set createfile 0
     foreach arg $args {
         if {$isopt ne ""} {
             dict set opts $isopt $arg
             set isopt ""
         } elseif {[string match "-debug" $arg]} {
             set debug 1
+        } elseif {[string match "-file" $arg]} {
+            set createfile 1
         } elseif {[string match "-all" $arg]} {
             set checkall 1
         } elseif {[string match "-*" $arg]} {
@@ -89,11 +92,13 @@ proc mytest {args} {
     set res [$pdf get]
     $pdf destroy
 
-    if {$debug} {
+    if {$debug || $createfile} {
         set ch [open testdebug.pdf w]
         fconfigure $ch -translation binary
         puts -nonewline $ch $res
         close $ch
+    }
+    if {$debug} {
         foreach app {acroread kpdf xpdf kghostview} {
             if {[auto_execok $app] ne ""} {
                 myexec $app testdebug.pdf

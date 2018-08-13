@@ -345,9 +345,20 @@ are taken care of yet. Straightforward ones like those created with pdf4tcl
 or ps2pdf should work mostly ok.</p></dd>
 <dt><a name="15"><b class="cmd">::pdf4tcl::getForms</b> <i class="arg">infile</i></a></dt>
 <dd><p>This call extracts form data from a PDF file.
-The return value is a dictionary with id/value pairs.
+The return value is a dictionary with id/info pairs.
 The id is the one set with <i class="arg">-id</i> to <b class="method">addForm</b>, if the PDF
-was generated with pdf4tcl.</p></dd>
+was generated with pdf4tcl.
+The info is a dictionary with the following fields:</p>
+<dl class="doctools_options">
+<dt><b class="option">type</b></dt>
+<dd><p>Field type.</p></dd>
+<dt><b class="option">value</b></dt>
+<dd><p>Form value.</p></dd>
+<dt><b class="option">flags</b></dt>
+<dd><p>Value of form flags field.</p></dd>
+<dt><b class="option">default</b></dt>
+<dd><p>Default value, if any.</p></dd>
+</dl></dd>
 </dl>
 </div>
 <div id="subsection2" class="doctools_subsection"><h3><a name="subsection2">OBJECT COMMAND</a></h3>
