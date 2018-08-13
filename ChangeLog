@@ -1,3 +1,7 @@
+2018-08-13 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Bumped revision to 0.9.2
+	* Added getForms command for extracting Form data from PDF file.
+
 2018-08-10 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Make PDF reader handle incremental updates in files.
 

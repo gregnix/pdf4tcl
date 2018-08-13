@@ -9,7 +9,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.1
+package provide pdf4tcl 0.9.2
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -6163,6 +6163,7 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     WriteCh $ch "0 $N\n" pos
     WriteCh $ch "0000000000 65535 f \n" pos
     for {set a 1} {$a < $N} {incr a} {
+        # TBD handle missing objects?
         WriteCh $ch [format "%010ld 00000 n \n" [dict get $xref $a]] pos
     }
     WriteCh $ch "trailer\n" pos
@@ -6288,6 +6289,17 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
     dict set pdf1 $pages1id full $newobj
 
     # TODO: Merge other stuff in Catalog, like AcroForm or Metadata
+    if {[dict exists $pdf1 root /AcroForm] && \
+                [dict exists $pdf2 root /AcroForm]
+    } {
+        set ob1 [lindex [dict get $pdf1 root /AcroForm] 0]
+        set ob2 [lindex [dict get $pdf2 root /AcroForm] 0]
+        set d1 [PdfObjToTclDict [dict get $pdf1 $ob1 full]]
+        set d2 [PdfObjToTclDict [dict get $pdf2 $ob2 full]]
+        # How to do this???
+        #puts $d1
+        #puts $d2
+    }
 
     # Transfer all objects from 2 to 1
     foreach {key val} $pdf2 {
@@ -6322,6 +6334,29 @@ proc pdf4tcl::catPdf {args} {
         set pdf1 [pdf4tcl::cat::AppendPdf $pdf1 $pdf2]
     }
     pdf4tcl::cat::WritePdf $outfile $pdf1
+}
+
+# Extract form data from a PDF file
+# Return value is a dictionary of id/value pairs.
+proc pdf4tcl::getForms {pdfFile} {
+    if {![file exists $pdfFile]} {
+        return -code error "No such file: $pdfFile"
+    }
+    set pdf [pdf4tcl::cat::ReadPdf $pdfFile]
+
+    # Locate Forms
+    set N [dict get $pdf N]
+    set result {}
+    for {set o 1} {$o <= $N} {incr o} {
+        if {![dict exists $pdf $o]} continue
+        set d [pdf4tcl::cat::PdfObjToTclDict [dict get $pdf $o full]]
+        if {[dict exists $d /Subtype] && [dict get $d /Subtype] eq "/Widget"} {
+            if {[dict exists $d /V]} {
+                dict set result [dict get $d /T] [dict get $d /V]
+            }
+        }
+    }
+    return $result
 }
 
 # vim: tw=0
