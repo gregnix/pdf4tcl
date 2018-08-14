@@ -5923,6 +5923,8 @@ proc pdf4tcl::cat::PdfDictToTclDict {dict} {
     set result {}
     set i 0
     set len [string length $values]
+    set bracketDepth 0
+    set firstVal 1
     while {$i < $len} {
         set c [string index $values $i]
         switch $state {
@@ -5941,23 +5943,42 @@ proc pdf4tcl::cat::PdfDictToTclDict {dict} {
                     set state space
                     incr i
                 } else {
-                    set value $c
-                    incr i
+                    # Do not consume the first value char here
+                    set value ""
                     set state val
+                    set firstVal 1
                 }
             }
             space {
                 if {[string is space $c]} {
                     incr i
                 } else {
-                    set value $c
-                    incr i
+                    # Do not consume the first value char here
+                    set value ""
                     set state val
+                    set firstVal 1
+                }
+            }
+            valbr {
+                append value $c
+                incr i
+                if {$c eq "\]"} {
+                    incr bracketDepth -1
+                    if {$bracketDepth <= 0} {
+                        set state val
+                    }
+                } elseif {$c eq "\["} {
+                    incr bracketDepth
                 }
             }
             val {
-                if {$c eq "/"} {
-                    # Start of a new key
+                if {$c eq "\["} {
+                    append value $c
+                    incr i
+                    set bracketDepth 1
+                    set state valbr
+                } elseif {$c eq "/" && !$firstVal} {
+                    # Start of a new key, unless it is first in the value
                     dict set result $key [string trim $value]
                     set key $c
                     set value ""
@@ -5969,6 +5990,7 @@ proc pdf4tcl::cat::PdfDictToTclDict {dict} {
                     append value $c
                     incr i
                 }
+                set firstVal 0
             }
         }
     }
@@ -5980,13 +6002,32 @@ proc pdf4tcl::cat::PdfDictToTclDict {dict} {
 
 # Parse a PDF object's dictionary and put its elements and values in a
 # tcl dict
-proc pdf4tcl::cat::PdfObjToTclDict {obj} {
+proc pdf4tcl::cat::PdfObjToTclDict {obj {streamName {}}} {
+    # Optional out parameter
+    if {$streamName ne ""} {
+        upvar 1 $streamName stream
+    }
     #set apa $dict
     # Remove surrounding obj
     regexp {^\s*\d+\s+0\s+obj\s*(.*)$} $obj -> obj
     set obj [string trim $obj]
     # Remove endobj
     set dict [string range $obj 0 end-6]
+    # Stream after dict:
+    set stream ""
+    if {[regexp -indices {>>\s*\nstream\n} $dict ixs]} {
+        lassign $ixs sIndex eIndex
+        incr sIndex
+        incr eIndex
+        set stream [string range $dict $eIndex end]
+        set dict [string range $dict 0 $sIndex]
+    }
+    if {[regexp -indices {endstream\s*$} $stream ixs]} {
+        lassign $ixs sIndex eIndex
+        incr sIndex -1
+        set stream [string range $stream 0 $sIndex]
+    }
+    # TODO, only stream handled?
     # TODO: remove any stream?
     return [PdfDictToTclDict $dict]
 }
@@ -6312,6 +6353,86 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
     dict set pdf1 N [dict get $pdf2 N]
 
     return $pdf1
+}
+
+# Extract page objects from pdf dictionary (from ReadPdf)
+# Return type is a list of page streams, uncompressed
+proc pdf4tcl::cat::GetPages {pdf} {
+    # Get the pages from Kids vector
+    set pages1id [lindex [dict get $pdf root /Pages] 0]
+    regexp {/Kids\s*\[([^\]]*)\]} [dict get $pdf $pages1id full] -> kidsvec
+
+    set pages {}
+    foreach {id _ _} $kidsvec {
+        # Page object to get contents reference
+        set pObj [dict get $pdf $id]
+        set fullObj [dict get $pObj full]
+        set d [PdfObjToTclDict $fullObj]
+        set contentsRef [dict get $d /Contents]
+        set contentsRef [string trim $contentsRef "\[\]"]
+        lassign $contentsRef contentsId
+
+        # Contents object
+        set cObj [dict get $pdf $contentsId]
+        set fullObj [dict get $cObj full]
+        set d [PdfObjToTclDict $fullObj stream]
+        if {[dict exists $d /Filter]} {
+            set filter [dict get $d /Filter]
+            # TODO: Other filters?
+            if {[string match "*/FlateDecode*" $filter]} {
+                set stream [zlib decompress $stream]
+            }
+        }
+        lappend pages $stream
+    }
+    return $pages
+}
+
+# Extract text from a page stream, uncompressed
+# Result is a list of lines in y coordinate order.
+# Each line is a list of text chunks from the same y coordinate, in x order.
+proc pdf4tcl::cat::GetTextFromPage {pageStream} {
+    # TODO: Handle more complex stuff, this basically assumes being generated from
+    # straightforward pdf4tcl usage.
+    # Needs to handle transforms and other text commands than Tm/Tj.
+    # Also, cannot assume linebreaks after each command?
+    set textChunks {}
+    set currX 0.0
+    set currY 0.0
+    foreach line [split $pageStream \n] {
+        if {[regexp { Tm\s*$} $line]} {
+            lassign $line _ _ _ _ currX currY _
+            continue
+        }
+        if {[regexp {\((.*)\)\s+Tj\s*$} $line -> text]} {
+            # TODO: clean up from escapes
+            # TODO: fix encoding issues with fonts (tricky)
+            lappend textChunks $currX $currY $text
+        }
+    }
+    # Sort in x first
+    set textChunks [lsort -real -increasing -stride 3 -index 0 $textChunks]
+    # Then in y to make it primary
+    set textChunks [lsort -real -decreasing -stride 3 -index 1 $textChunks]
+
+    set result {}
+    set line {}
+    set currY -100000
+    foreach {x y t} $textChunks {
+        if {$y != $currY} {
+            if {[llength $line] != 0} {
+                lappend result $line
+            }
+            set line [list $t]
+            set currY $y
+        } else {
+            lappend line $t
+        }
+    }
+    if {[llength $line] != 0} {
+        lappend result $line
+    }
+    return $result
 }
 
 # Concatenate PDFs.
