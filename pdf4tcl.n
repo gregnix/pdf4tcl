@@ -1109,7 +1109,7 @@ Create a clip region\&. To cancel a clip region you must restore a graphic conte
 .TP
 \fIobjectName\fR \fBgsave\fR
 Save graphic/text context\&. (I\&.e\&. insert a raw PDF "q" command)\&.
-This saves the settings of at least these calls: \fBsetBgColor\fR, \fBsetFillColor\fR, \fBsetStrokeColor\fR, \fBsetLineStyle\fR, \fBsetLineWidth\fR, \fBsetLineDash\fR, \fBsetFont\fR, and \fBsetLineSpacing\fR\&.
+This saves the settings of at least these calls: \fBclip\fR, \fBsetBgColor\fR, \fBsetFillColor\fR, \fBsetStrokeColor\fR, \fBsetLineStyle\fR, \fBsetLineWidth\fR, \fBsetLineDash\fR, \fBsetFont\fR, and \fBsetLineSpacing\fR\&.
 Each call to \fBgsave\fR should be followed by a later call to \fBgrestore\fR in the same page\&.
 .TP
 \fIobjectName\fR \fBgrestore\fR

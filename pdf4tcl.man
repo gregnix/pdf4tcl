@@ -772,7 +772,7 @@ Alternative calling form, to set color in CMYK color space.
 
 [call [arg objectName] [method gsave]]
    Save graphic/text context. (I.e. insert a raw PDF "q" command).
-   This saves the settings of at least these calls: [method setBgColor], [method setFillColor], [method setStrokeColor], [method setLineStyle], [method setLineWidth], [method setLineDash], [method setFont], and [method setLineSpacing].
+This saves the settings of at least these calls: [method clip], [method setBgColor], [method setFillColor], [method setStrokeColor], [method setLineStyle], [method setLineWidth], [method setLineDash], [method setFont], and [method setLineSpacing].
    Each call to [method gsave] should be followed by a later call to [method grestore] in the same page.
 
 [call [arg objectName] [method grestore]]

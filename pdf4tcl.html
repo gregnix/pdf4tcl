@@ -786,7 +786,7 @@ text operations.</p></dd>
 <dd><p>Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.</p></dd>
 <dt><a name="73"><i class="arg">objectName</i> <b class="method">gsave</b></a></dt>
 <dd><p>Save graphic/text context. (I.e. insert a raw PDF &quot;q&quot; command).
-   This saves the settings of at least these calls: <b class="method">setBgColor</b>, <b class="method">setFillColor</b>, <b class="method">setStrokeColor</b>, <b class="method">setLineStyle</b>, <b class="method">setLineWidth</b>, <b class="method">setLineDash</b>, <b class="method">setFont</b>, and <b class="method">setLineSpacing</b>.
+This saves the settings of at least these calls: <b class="method">clip</b>, <b class="method">setBgColor</b>, <b class="method">setFillColor</b>, <b class="method">setStrokeColor</b>, <b class="method">setLineStyle</b>, <b class="method">setLineWidth</b>, <b class="method">setLineDash</b>, <b class="method">setFont</b>, and <b class="method">setLineSpacing</b>.
    Each call to <b class="method">gsave</b> should be followed by a later call to <b class="method">grestore</b> in the same page.</p></dd>
 <dt><a name="74"><i class="arg">objectName</i> <b class="method">grestore</b></a></dt>
 <dd><p>Restore graphic/text context. (I.e. insert a raw PDF &quot;Q&quot; command).</p></dd>
