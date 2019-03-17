@@ -6,7 +6,33 @@ pkgIndex.tcl (package ifneeded)
 Makefile (VERSION)
 pdf4tcl.man (two places) (regenerate doc)
 
-Also update
+Also update these:
 ChangeLog
 web/index.html
 web/changes.html
+
+
+
+To do when updating code:
+
+Is pdf4tcl.man, ChangeLog, web/changes.html updated?
+Everything clean?
+make
+make test
+make check
+make example
+
+Review and commit:
+eskil -review / git commit
+
+
+
+To do when doing a release:
+
+All clean above? Revision bumped?
+
+make release
+make upload
+make webt
+
+Go to sourceforge and mark uploaded file as latest release for all platforms.

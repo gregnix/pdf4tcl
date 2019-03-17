@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 092
+VERSION = 093
 
 # TOOL paths
 TCLSH = tclsh
@@ -57,9 +57,6 @@ pdf4tcl_h.syntax : pdf4tcl.tcl pdf4tcl.syntax
 
 check: pdf4tcl_h.syntax
 	$(NAGELFAR) pdf4tcl_h.syntax pdf4tcl.tcl
-
-bench: cleancc
-	$(TCLSH) bench/all.tcl
 
 # Code coverage tests
 SRCFILES = pdf4tcl.tcl
