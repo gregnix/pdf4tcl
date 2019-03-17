@@ -69,7 +69,7 @@ pdf4tcl::createFontSpecEnc BaseArial MyArial2 $subset
 .c create line 10 50 80 80 -dash "..."
 .c create line 10 60 80 90 -dash "..." -width 5
 
-p1 canvas .c -fontmap {MyArial1 MyArial1 MyArial2 MyArial2}
+p1 canvas .c -fontmap {MyArial1 "MyArial1 16" MyArial2 "MyArial2 13"}
 
 p1 write -file test3.pdf
 p1 destroy

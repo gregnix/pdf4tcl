@@ -727,7 +727,8 @@ one to use to get a reasonable display on the page\&.
 .sp
 An element in a font mapping must exactly match the -font option in the
 text item\&. The corresponding mapping value is a PDF font family, e\&.g\&. one
-created by \fBpdf4tcl::createFont\fR\&. It is recommended to use named fonts
+created by \fBpdf4tcl::createFont\fR, possibly followed by a size\&.
+It is recommended to use named fonts
 in Tk to control the font mapping in detail\&.
 .sp
 Limitations:
@@ -1107,10 +1108,12 @@ Draw an outline of the rectangle\&.
 Create a clip region\&. To cancel a clip region you must restore a graphic context that was saved before\&.
 .TP
 \fIobjectName\fR \fBgsave\fR
-Save graphic context\&. (I\&.e\&. insert a raw PDF "q" command)\&.
+Save graphic/text context\&. (I\&.e\&. insert a raw PDF "q" command)\&.
+This saves the settings of at least these calls: \fBsetBgColor\fR, \fBsetFillColor\fR, \fBsetStrokeColor\fR, \fBsetLineStyle\fR, \fBsetLineWidth\fR, \fBsetLineDash\fR, \fBsetFont\fR, and \fBsetLineSpacing\fR\&.
+Each call to \fBgsave\fR should be followed by a later call to \fBgrestore\fR in the same page\&.
 .TP
 \fIobjectName\fR \fBgrestore\fR
-Restore graphic context\&. (I\&.e\&. insert a raw PDF "Q" command)\&.
+Restore graphic/text context\&. (I\&.e\&. insert a raw PDF "Q" command)\&.
 .PP
 .SS "OBJECT CONFIGURATION"
 All pdf4tcl objects understand the options from \fBPAGE CONFIGURATION\fR,

@@ -353,7 +353,7 @@ test canvas-9.1 {angled text} -body {
     for {set angle 0} {$angle <= 80} {incr angle 20} {
         .c create text {100 200} -anchor w -text "String $angle." -angle $angle -underline 6
     }
-    mytest {canvas .c} {
+    mytest {canvas .c -fontmap {TkDefaultFont {Helvetica 14}}} {
         q * q * Q q * Q
         q * 1 0 0 -1 100 203.942 Tm (String 0.) Tj ET
         136.568 204.942 m 140.46 204.942 l S Q

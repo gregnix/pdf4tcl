@@ -1484,11 +1484,36 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(finished) false
         set pdf(inPage) false
         set pdf(fillColor) [list 0 0 0]
+        set pdf(bgColor) [list 0 0 0]
+        set pdf(strokeColor) [list 0 0 0]
         # start without default font
         set pdf(font_size) 1
         set pdf(current_font) ""
         set pdf(line_spacing) 1.0
+        # The gsave/grestore commands affect the graphics and text state in
+        # the PDF document. Some of those are kept in copy in pdf4tcl and thus
+        # should be restored as well. The following variable lists all elements
+        # of pdf() that contains such state.
+        # xpos or ypos in saved?
+        set tmp {
+            # Graphics State:
+            # fillColor is normally associated with the "rg" operator
+            fillColor
+            # strokeColor is normally associated with the "RG" operator
+            strokeColor
+            # bgColor is a pdf4tcl thing, but stored for symmetry
+            bgColor
+            # Other Graphics State are not stored
 
+            # Text State stores font/size:
+            current_font
+            font_size
+            # line_spacing is a pdf4tcl thing, but stored for symmetry
+            line_spacing
+        }
+        # Trick to allow comments in above list
+        set pdf(stateToGSave) [regsub -all -line "\#.*" $tmp ""]
+        
         # Page data
         # Fill in page properties
         my SetPageSize   $options(-paper) $options(-landscape) \
@@ -3624,11 +3649,23 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Save graphic context
     method gsave {} {
         my Pdfoutcmd "q"
+        # Keep track of the state in the PDF object that is stored in paralell
+        foreach item $pdf(stateToGSave) {
+            lappend pdf(saved,$item) $pdf($item)
+        }
     }
 
     # Restore graphic context
     method grestore {} {
         my Pdfoutcmd "Q"
+        foreach item $pdf(stateToGSave) {
+            if {[info exists pdf(saved,$item)]} {
+                if {[llength $pdf(saved,$item)] > 0} {
+                    set pdf($item) [lindex $pdf(saved,$item) end]
+                    set pdf(saved,$item) [lrange $pdf(saved,$item) 0 end-1]
+                }
+            }
+        }
     }
     
     #######################################################################
@@ -5824,11 +5861,17 @@ oo::define ::pdf4tcl::pdf4tcl {
                 }
             }
         }
+        set fontsize $fontinfo(-linespace)
         array set userMappingArr $userMapping
         if {[info exists userMappingArr($font)]} {
-           set family $userMappingArr($font)
+            set family $userMappingArr($font)
+            if {[string is list $family] && [llength $family] > 1} {
+                if {[string is integer -strict [lindex $family 1]]} {
+                    set fontsize [lindex $family 1]
+                    set family [lindex $family 0]
+                }
+            }
         }
-        set fontsize $fontinfo(-linespace)
         my BeginTextObj
         my setFont $fontsize $family 1
     }
@@ -6015,7 +6058,7 @@ proc pdf4tcl::cat::PdfObjToTclDict {obj {streamName {}}} {
     set dict [string range $obj 0 end-6]
     # Stream after dict:
     set stream ""
-    if {[regexp -indices {>>\s*\nstream\n} $dict ixs]} {
+    if {[regexp -indices {>>\s*\nstream\s*\n} $dict ixs]} {
         lassign $ixs sIndex eIndex
         incr sIndex
         incr eIndex

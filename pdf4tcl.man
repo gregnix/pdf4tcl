@@ -370,7 +370,8 @@ one to use to get a reasonable display on the page.
 [para]
 An element in a font mapping must exactly match the -font option in the
 text item. The corresponding mapping value is a PDF font family, e.g. one
-created by [cmd pdf4tcl::createFont]. It is recommended to use named fonts
+created by [cmd pdf4tcl::createFont], possibly followed by a size.
+It is recommended to use named fonts
 in Tk to control the font mapping in detail.
 [para]
 Limitations:
@@ -770,10 +771,12 @@ Alternative calling form, to set color in CMYK color space.
    Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.
 
 [call [arg objectName] [method gsave]]
-   Save graphic context. (I.e. insert a raw PDF "q" command).
+   Save graphic/text context. (I.e. insert a raw PDF "q" command).
+   This saves the settings of at least these calls: [method setBgColor], [method setFillColor], [method setStrokeColor], [method setLineStyle], [method setLineWidth], [method setLineDash], [method setFont], and [method setLineSpacing].
+   Each call to [method gsave] should be followed by a later call to [method grestore] in the same page.
 
 [call [arg objectName] [method grestore]]
-   Restore graphic context. (I.e. insert a raw PDF "Q" command).
+   Restore graphic/text context. (I.e. insert a raw PDF "Q" command).
 
 [list_end]
 

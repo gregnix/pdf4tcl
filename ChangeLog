@@ -1,3 +1,7 @@
+2019-03-17 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Save pdf4tcl state with gsave/grestore.
+	* Allow canvas -fontmap to select size.
+
 2018-08-13 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Bumped revision to 0.9.2
 	* Added getForms command for extracting Form data from PDF file.
