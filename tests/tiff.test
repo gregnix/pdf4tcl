@@ -1,0 +1,43 @@
+# Test TIFF support                                                   -*-tcl-*-
+#
+# $Id$
+
+package require tiff
+
+set thisDir [file dirname [file join [pwd] [info script]]]
+source [file join $thisDir init.tcl]
+
+set ::tiffdir [file join $thisDir tiffsuite]
+variable examples [file dirname $thisDir]/examples
+
+proc JpegReference {file} {
+    set jpeg [file rootname $file].jpg
+
+    exec tifftopnm $file | pnmtojpeg --quality=95 > $jpeg 2>@stderr
+    return $jpeg
+}
+
+
+test tiff-1.1 {tif} -body {
+	set chan [file temp file1 _tmp_.tif]
+	set chan2 [file temp outfile _tmp_.pdf]
+	set infile $examples/smile.png
+	try {
+		exec pngtopam $infile | pamdepth 2 \
+			| pamthreshold 2>@stderr | pamtotiff -g4 > $file1
+
+		exec tiff2pdf $file1 > $tiffpdf
+
+		pdf4tcl::new pdf1 -file $outfile -compress 0
+		set id [pdf1 addImage $file1]
+		pdf1 putImage $id 0 0
+		pdf1 write
+		pdf1 destroy
+	} finally {
+		close $chan
+		if {[file exists $fname]} {
+			file delete $fname
+		}
+		close $chan2
+	}
+} -result {} 
