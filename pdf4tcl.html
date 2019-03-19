@@ -606,8 +606,9 @@ a new line in the output. If <i class="arg">str</i> is too long to fit in the sp
 </dl>
 </div>
 <div id="subsection6" class="doctools_subsection"><h3><a name="subsection6">OBJECT METHODS, IMAGES</a></h3>
-<p>A limited set of image formats are directly understood by pdf4tcl, currently
-JPEG and some PNG formats.  To use unsupported formats, use Tk and the Img
+<p>A limited set of image formats are directly understood by pdf4tcl,
+currently JPEG, some PNG, and some TIFF formats.
+To use unsupported formats, use Tk and the Img
 package to load and dump images to raw format which can be fed to
 <b class="method">putRawImage</b> and <b class="method">addRawImage</b>.</p>
 <dl class="doctools_definitions">
@@ -646,13 +647,14 @@ Default value is the document's <b class="option">-compress</b> setting.</p></dd
 </dd>
 <dt><a name="50"><i class="arg">objectName</i> <b class="method">addImage</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add an image to the document. Returns an id that can be used in subsequent
-calls to <b class="method">putImage</b>. Supported formats are PNG and JPEG.</p>
+calls to <b class="method">putImage</b>. Supported formats are PNG, JPEG and TIFF.</p>
 <dl class="doctools_options">
 <dt><b class="option">-id</b> <i class="arg">id</i></dt>
 <dd><p>Explicitly select an id for the image. The <i class="arg">id</i> must be unique within the document.</p></dd>
 <dt><b class="option">-type</b> <i class="arg">name</i></dt>
 <dd><p>Set the image type.  This can usually be deduced from the file name, this
-option helps when that is not possible.  This can be either &quot;png&quot; or &quot;jpeg&quot;.</p></dd>
+option helps when that is not possible.  This can be either &quot;png&quot;, &quot;jpeg&quot;,
+or &quot;tiff&quot;.</p></dd>
 </dl></dd>
 <dt><a name="51"><i class="arg">objectName</i> <b class="method">addRawImage</b> <i class="arg">data</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add an image to the document. Works like <b class="method">addImage</b> except that the raw image data is given directly.</p>

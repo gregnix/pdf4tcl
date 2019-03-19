@@ -24,7 +24,7 @@ namespace eval pdf4tcl {
 
     # Make mathops available
     namespace import ::tcl::mathop::*
-    
+
     # Known paper sizes. These are always in points.
     array set paper_sizes {
         a0     {2380.0 3368.0}
@@ -1513,7 +1513,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         # Trick to allow comments in above list
         set pdf(stateToGSave) [regsub -all -line "\#.*" $tmp ""]
-        
+
         # Page data
         # Fill in page properties
         my SetPageSize   $options(-paper) $options(-landscape) \
@@ -3272,7 +3272,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set stroke 1
         set start 1
         set closed 1
-        
+
         foreach {x y} $args {
             if {[string match {-[a-z]*} $x]} {
                 switch -- $x {
@@ -3667,7 +3667,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
     }
-    
+
     #######################################################################
     # Image Handling
     #######################################################################
@@ -3688,16 +3688,16 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         if {$type eq ""} {
-            switch -glob $filename {
+            switch -glob -nocase $filename {
                 *.png {
                     set type png
                 }
                 *.jpg - *.jpeg {
                     set type jpg
                 }
-				*.tif - *.tiff {
-					set type tif
-				}
+                *.tif - *.tiff {
+                    set type tiff
+                }
                 default {
                     throw "PDF4TCL" "unknown image type \"$filename\""
                 }
@@ -3710,9 +3710,9 @@ oo::define ::pdf4tcl::pdf4tcl {
             jpg - jpeg {
                 set id [my AddJpeg $filename $id]
             }
-			tif - tiff {
+            tif - tiff {
                 set id [my AddTiff $filename $id]
-			}
+            }
             default {
                 throw "PDF4TCL" "unknown image type \"$type\""
             }
@@ -3937,71 +3937,79 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
 
-	method AddTiff {filename id} {
-		package require tiff
-		if {![::tiff::isTIFF $filename]} {
-            throw PDF4TCL [list {could not open file} $filename]
-		}
-        if {[catch {open $filename r} chan]} {
-            throw PDF4TCL [list {does not contain TIFF data} file $filename]
+    # TIFF part of addImage
+    method AddTiff {filename id} {
+        if {[catch {package require tiff}]} {
+            throw PDF4TCL "package tiff is required to use TIFF"
         }
-		try {
-			chan configure $chan -translation binary
+        if {![::tiff::isTIFF $filename]} {
+            throw PDF4TCL "file $filename does not contain TIFF data"
+        }
+        if {[catch {open $filename r} chan]} {
+            throw PDF4TCL "could not open file $filename"
+        }
+        try {
+            chan configure $chan -translation binary
 
-			lassign [::tiff::getEntry $filename Compression] -> compression
-			lassign [::tiff::getEntry $filename ImageWidth] -> width
-			lassign [::tiff::getEntry $filename PhotometricInterpretation] -> \
-				photometric
-			lassign [::tiff::getEntry $filename ImageLength] -> height
-			lassign [::tiff::getEntry $filename StripOffsets] -> offsets
-			lassign [::tiff::getEntry $filename StripByteCounts] -> sbc
-			lassign [::tiff::getEntry $filename RowsPerStrip] -> rps
+            lassign [::tiff::getEntry $filename Compression] -> compression
+            lassign [::tiff::getEntry $filename ImageWidth] -> width
+            lassign [::tiff::getEntry $filename PhotometricInterpretation] -> \
+                    photometric
+            lassign [::tiff::getEntry $filename ImageLength] -> height
+            lassign [::tiff::getEntry $filename StripOffsets] -> offsets
+            lassign [::tiff::getEntry $filename StripByteCounts] -> sbc
+            lassign [::tiff::getEntry $filename RowsPerStrip] -> rps
+            lassign [::tiff::getEntry $filename FillOrder] -> fillOrder
 
-			set img_data {}
-			foreach offset $offsets bc $sbc {
-				seek $chan $offset
-				append img_data [read $chan $bc] 
-			}
+            set img_data {}
+            foreach offset $offsets bc $sbc {
+                seek $chan $offset
+                append img_data [read $chan $bc]
+            }
 
-			set    xobject "<<\n/Type /XObject\n"
-			append xobject "/Subtype /Image\n"
-			append xobject "/Width $width\n/Height $height\n"
+            set    xobject "<<\n/Type /XObject\n"
+            append xobject "/Subtype /Image\n"
+            append xobject "/Width $width\n/Height $height\n"
 
-			append xobject "/Length [string length $img_data]\n"
+            append xobject "/Length [string length $img_data]\n"
 
-			if {$photometric} {
-				set blackisone { /BlackIs1 true}
-			} else {
-				set blackisone {}
-			}
+            if {$photometric} {
+                set blackisone { /BlackIs1 true}
+            } else {
+                set blackisone {}
+            }
 
-			switch $compression {
-				4 {
-					append xobject "/BitsPerComponent 1\n"
-					append xobject "/ColorSpace /DeviceGray\n"
-					append xobject "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns $width /Rows $height $blackisone>>\n"
-				}
-				default {
-					error [list {to do}]
-				}
-			}
-			append xobject ">>\n"
-			append xobject stream\n
-			append xobject $img_data
-			append xobject \nendstream
+            switch $compression {
+                4 {
+                    append xobject "/BitsPerComponent 1\n"
+                    append xobject "/ColorSpace /DeviceGray\n"
+                    append xobject "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns $width /Rows $height $blackisone>>\n"
 
-			set oid [my AddObject $xobject]
-			if {$id eq {}} {
-				set id image$oid
-			}
-			set images($id) [list $width $height $oid 0]
-		} finally {
-			close $chan
-		}
-		return $id
-	}
+                    if {$fillOrder == 2} {
+                        # Swap bitwise endian in each byte
+                        binary scan $img_data b* apa
+                        set img_data [binary format B* $apa]
+                    }
+                }
+                default {
+                    throw PDF4TCL "unsupported TIFF compression"
+                }
+            }
+            append xobject ">>\n"
+            append xobject stream\n
+            append xobject $img_data
+            append xobject \nendstream
 
-
+            set oid [my AddObject $xobject]
+            if {$id eq {}} {
+                set id image$oid
+            }
+            set images($id) [list $width $height $oid 0]
+        } finally {
+            close $chan
+        }
+        return $id
+    }
 
     # Create the Color Space needed to display Gray+Alpha as Gray
     method PngInitGrayAlpha {} {
@@ -4268,7 +4276,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfoutcmd "q"
 
         # 1: Translate origin, to rotate around the anchor
-        # 
+        #
         my CheckAnchor $anchor dx dy
         set mt [list 1 0 0 1 [- $dx] [- $dy]]
         # 2: Scale while in the right direction
@@ -4399,7 +4407,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfoutcmd "q"
 
         # 1: Translate origin, to rotate around the anchor
-        # 
+        #
         my CheckAnchor $anchor dx dy
         set mt [list 1 0 0 1 [- $dx] [- $dy]]
         # 2: Scale while in the right direction
@@ -4417,7 +4425,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Move into place
         set mt [MulMxM $mt [list 1 0 0 1 $x $y]]
         my Pdfoutcmd {*}$mt "cm"
- 
+
         my Pdfoutcmd "BI"
         my Pdfoutn   "/W [Nf $width]"
         my Pdfoutn   "/H [Nf $height]"

@@ -1,3 +1,6 @@
+2019-03-19 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Added TIFF image support. [MR #1] (Poor Yorick)
+
 2019-03-17 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Bumped revision to 0.9.3
 	* Release 0.9.2

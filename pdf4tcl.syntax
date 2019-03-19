@@ -6,3 +6,8 @@
 # Pdf4Tcl's source uses "throw" for errors. This disallows other ways.
 ##nagelfar syntax error 0
 ##nagelfar syntax return r 0 1
+
+##nagelfar package known tiff
+##nagelfar syntax tiff::isTIFF x
+##nagelfar syntax tiff::getEntry x x
+

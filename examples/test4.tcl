@@ -85,7 +85,10 @@ p1 polygon 300 650 500 650 450 600 350 600
 
 # Image stuff
 p1 startPage -orient 1
-p1 addImage ../examples/smile.png -id 2
+p1 addImage ../examples/smile.png   -id 2
+p1 addImage ../examples/ccitt_4.tif -id 3
+p1 addImage ../examples/ecf22e.tif  -id 4 
+
 package require Tk
 image create photo img1 -file ../examples/smile.png
 set imgdata [img1 data]
@@ -121,6 +124,11 @@ p1 putImage 2 400 400 -height 52 -angle 65 -anchor ne
 cross 400 400
 p1 putImage 2 400 600 -height 87 -angle 87 -anchor se
 cross 400 600
+p1 putImage 3 200 600 -height 100 -anchor center
+cross 200 600
+p1 putImage 4 200 700 -height 100 -anchor center
+cross 200 700
+
 p1 write -file test4.pdf
 p1 destroy
 exit

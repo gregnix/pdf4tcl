@@ -545,8 +545,9 @@ Height of font's Bounding Box.
 
 [subsection {OBJECT METHODS, IMAGES}]
 
-A limited set of image formats are directly understood by pdf4tcl, currently
-JPEG and some PNG formats.  To use unsupported formats, use Tk and the Img
+A limited set of image formats are directly understood by pdf4tcl,
+currently JPEG, some PNG, and some TIFF formats.
+To use unsupported formats, use Tk and the Img
 package to load and dump images to raw format which can be fed to
 [method putRawImage] and [method addRawImage].
 
@@ -600,7 +601,7 @@ Default value is the document's [option -compress] setting.
 [call [arg objectName] [method addImage] [arg "filename"] [opt [arg "option value"]...]]
 
 Add an image to the document. Returns an id that can be used in subsequent
-calls to [method putImage]. Supported formats are PNG and JPEG.
+calls to [method putImage]. Supported formats are PNG, JPEG and TIFF.
 [list_begin options]
 
 [opt_def -id [arg id]]
@@ -608,7 +609,8 @@ Explicitly select an id for the image. The [arg "id"] must be unique within the 
 
 [opt_def -type [arg name]]
 Set the image type.  This can usually be deduced from the file name, this
-option helps when that is not possible.  This can be either "png" or "jpeg".
+option helps when that is not possible.  This can be either "png", "jpeg",
+or "tiff".
 [list_end]
 
 [call [arg objectName] [method addRawImage] [arg "data"] [opt [arg "option value"]...]]

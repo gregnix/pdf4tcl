@@ -889,8 +889,9 @@ Height of font's Bounding Box\&.
 .RE
 .PP
 .SS "OBJECT METHODS, IMAGES"
-A limited set of image formats are directly understood by pdf4tcl, currently
-JPEG and some PNG formats\&.  To use unsupported formats, use Tk and the Img
+A limited set of image formats are directly understood by pdf4tcl,
+currently JPEG, some PNG, and some TIFF formats\&.
+To use unsupported formats, use Tk and the Img
 package to load and dump images to raw format which can be fed to
 \fBputRawImage\fR and \fBaddRawImage\fR\&.
 .TP
@@ -938,7 +939,7 @@ Default value is the document's \fB-compress\fR setting\&.
 .TP
 \fIobjectName\fR \fBaddImage\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 Add an image to the document\&. Returns an id that can be used in subsequent
-calls to \fBputImage\fR\&. Supported formats are PNG and JPEG\&.
+calls to \fBputImage\fR\&. Supported formats are PNG, JPEG and TIFF\&.
 .RS
 .TP
 \fB-id\fR \fIid\fR
@@ -946,7 +947,8 @@ Explicitly select an id for the image\&. The \fIid\fR must be unique within the 
 .TP
 \fB-type\fR \fIname\fR
 Set the image type\&.  This can usually be deduced from the file name, this
-option helps when that is not possible\&.  This can be either "png" or "jpeg"\&.
+option helps when that is not possible\&.  This can be either "png", "jpeg",
+or "tiff"\&.
 .RE
 .TP
 \fIobjectName\fR \fBaddRawImage\fR \fIdata\fR ?\fIoption value\fR\&.\&.\&.?

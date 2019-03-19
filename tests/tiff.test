@@ -2,10 +2,24 @@
 #
 # $Id$
 
-package require tiff
-
 set thisDir [file dirname [file join [pwd] [info script]]]
 source [file join $thisDir init.tcl]
+
+tcltest::testConstraint Tiff 0
+tcltest::testConstraint Tiff2 0
+if {[catch {package require tiff}]} {
+    puts "Skipping Tiff test due to missing tiff package"
+} else {
+    tcltest::testConstraint Tiff 1
+    tcltest::testConstraint Tiff2 1
+    foreach p {tifftopnm pngtopam tiff2pdf} {
+        if {[auto_execok $p] eq ""} {
+            tcltest::testConstraint Tiff2 0
+            puts "Skipping Tiff2 test due to missing '$p'"
+            break
+        }
+    }
+}
 
 set ::tiffdir [file join $thisDir tiffsuite]
 variable examples [file dirname $thisDir]/examples
@@ -18,29 +32,29 @@ proc JpegReference {file} {
 }
 
 
-test tiff-1.1 {tif} -body {
-	set chan [file temp file1 _tmp_.tif]
-	set chan2 [file temp outfile _tmp_.pdf]
-	set infile $examples/smile.png
-	try {
-		exec pngtopam $infile | pamdepth 2 \
-			| pamthreshold 2>@stderr | pamtotiff -g4 > $file1
+test tiff-1.1 {tif} -constraints Tiff2 -body {
+    set chan [file temp file1 _tmp_.tif]
+    set chan2 [file temp outfile _tmp_.pdf]
+    set infile $examples/smile.png
+    try {
+        exec pngtopam $infile | pamdepth 2 \
+                | pamthreshold 2>@stderr | pamtotiff -g4 > $file1
 
-		exec tiff2pdf $file1 > $outfile
+        exec tiff2pdf $file1 > $outfile
 
-		pdf4tcl::new pdf1 -file $outfile -compress 0
-		set id [pdf1 addImage $file1]
-		pdf1 putImage $id 0 0
-		pdf1 write
-		pdf1 destroy
-	} finally {
-		close $chan
-		if {[file exists $file1]} {
-			file delete $file1
-		}
-		close $chan2
-		if {[file exists $outfile]} {
-			file delete $outfile
-		}
-	}
-} -result {} 
+        pdf4tcl::new pdf1 -file $outfile -compress 0
+        set id [pdf1 addImage $file1]
+        pdf1 putImage $id 0 0
+        pdf1 write
+        pdf1 destroy
+    } finally {
+        close $chan
+        if {[file exists $file1]} {
+            file delete $file1
+        }
+        close $chan2
+        if {[file exists $outfile]} {
+            file delete $outfile
+        }
+    }
+} -result {}
