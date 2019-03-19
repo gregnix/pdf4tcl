@@ -18,7 +18,7 @@ proc JpegReference {file} {
     return $jpeg
 }
 
-# Produce a pdf with multiple png images lined up with referece images
+# Produce a pdf with multiple png images lined up with reference images
 proc TestPng {args} {
     package require Tk
     wm withdraw .

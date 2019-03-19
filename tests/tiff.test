@@ -26,7 +26,7 @@ test tiff-1.1 {tif} -body {
 		exec pngtopam $infile | pamdepth 2 \
 			| pamthreshold 2>@stderr | pamtotiff -g4 > $file1
 
-		exec tiff2pdf $file1 > $tiffpdf
+		exec tiff2pdf $file1 > $outfile
 
 		pdf4tcl::new pdf1 -file $outfile -compress 0
 		set id [pdf1 addImage $file1]
@@ -35,9 +35,12 @@ test tiff-1.1 {tif} -body {
 		pdf1 destroy
 	} finally {
 		close $chan
-		if {[file exists $fname]} {
-			file delete $fname
+		if {[file exists $file1]} {
+			file delete $file1
 		}
 		close $chan2
+		if {[file exists $outfile]} {
+			file delete $outfile
+		}
 	}
 } -result {} 

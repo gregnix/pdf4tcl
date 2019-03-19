@@ -3945,55 +3945,59 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {[catch {open $filename r} chan]} {
             throw PDF4TCL [list {does not contain TIFF data} file $filename]
         }
-		chan configure $chan -translation binary
+		try {
+			chan configure $chan -translation binary
 
-		lassign [::tiff::getEntry $filename Compression] -> compression
-		lassign [::tiff::getEntry $filename ImageWidth] -> width
-		lassign [::tiff::getEntry $filename PhotometricInterpretation] -> \
-			photometric
-		lassign [::tiff::getEntry $filename ImageLength] -> height
-		lassign [::tiff::getEntry $filename StripOffsets] -> offsets
-		lassign [::tiff::getEntry $filename StripByteCounts] -> sbc
-		lassign [::tiff::getEntry $filename RowsPerStrip] -> rps
+			lassign [::tiff::getEntry $filename Compression] -> compression
+			lassign [::tiff::getEntry $filename ImageWidth] -> width
+			lassign [::tiff::getEntry $filename PhotometricInterpretation] -> \
+				photometric
+			lassign [::tiff::getEntry $filename ImageLength] -> height
+			lassign [::tiff::getEntry $filename StripOffsets] -> offsets
+			lassign [::tiff::getEntry $filename StripByteCounts] -> sbc
+			lassign [::tiff::getEntry $filename RowsPerStrip] -> rps
 
-		set img_data {}
-		foreach offset $offsets bc $sbc {
-			seek $chan $offset
-			append img_data [read $chan $bc] 
-		}
-
-        set    xobject "<<\n/Type /XObject\n"
-        append xobject "/Subtype /Image\n"
-        append xobject "/Width $width\n/Height $height\n"
-
-        append xobject "/Length [string length $img_data]\n"
-
-		if {$photometric} {
-			set blackisone { /BlackIs1 true}
-		} else {
-			set blackisone {}
-		}
-
-		switch $compression {
-			4 {
-				append xobject "/BitsPerComponent 1\n"
-				append xobject "/ColorSpace /DeviceGray\n"
-				append xobject "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns $width /Rows $height $blackisone>>\n"
+			set img_data {}
+			foreach offset $offsets bc $sbc {
+				seek $chan $offset
+				append img_data [read $chan $bc] 
 			}
-			default {
-				error [list {to do}]
-			}
-		}
-		append xobject ">>\n"
-        append xobject stream\n
-        append xobject $img_data
-        append xobject \nendstream
 
-        set oid [my AddObject $xobject]
-        if {$id eq {}} {
-            set id image$oid
-        }
-        set images($id) [list $width $height $oid 0]
+			set    xobject "<<\n/Type /XObject\n"
+			append xobject "/Subtype /Image\n"
+			append xobject "/Width $width\n/Height $height\n"
+
+			append xobject "/Length [string length $img_data]\n"
+
+			if {$photometric} {
+				set blackisone { /BlackIs1 true}
+			} else {
+				set blackisone {}
+			}
+
+			switch $compression {
+				4 {
+					append xobject "/BitsPerComponent 1\n"
+					append xobject "/ColorSpace /DeviceGray\n"
+					append xobject "/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns $width /Rows $height $blackisone>>\n"
+				}
+				default {
+					error [list {to do}]
+				}
+			}
+			append xobject ">>\n"
+			append xobject stream\n
+			append xobject $img_data
+			append xobject \nendstream
+
+			set oid [my AddObject $xobject]
+			if {$id eq {}} {
+				set id image$oid
+			}
+			set images($id) [list $width $height $oid 0]
+		} finally {
+			close $chan
+		}
 		return $id
 	}
 
