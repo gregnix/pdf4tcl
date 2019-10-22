@@ -129,6 +129,9 @@ cross 200 600
 p1 putImage 4 200 700 -height 100 -anchor center
 cross 200 700
 
+p1 addImage gmarbles2.jpg -id marble
+p1 putImage marble 20 700 -height 75
+
 p1 write -file test4.pdf
 p1 destroy
 exit

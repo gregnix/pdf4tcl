@@ -3745,7 +3745,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             if {$h == "ffc0"} {
                 incr pos 4
                 set endpos [expr {$pos+6}]
-                binary scan [string range $img $pos $endpos] "cSS" depth height width
+                binary scan [string range $img $pos $endpos] "cSSc" \
+                        depth height width components
                 set height [expr {$height & 0xffff}]
                 set width [expr {$width & 0xffff}]
                 set imgOK true
@@ -3761,7 +3762,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         set    xobject "<<\n/Type /XObject\n"
         append xobject "/Subtype /Image\n"
         append xobject "/Width $width\n/Height $height\n"
-        append xobject "/ColorSpace /DeviceRGB\n"
+        if {$components == 1} {
+            append xobject "/ColorSpace /DeviceGray\n"
+        } else {
+            append xobject "/ColorSpace /DeviceRGB\n"
+        }
         append xobject "/BitsPerComponent $depth\n"
         append xobject "/Filter /DCTDecode\n"
         append xobject "/Length $img_length >>\n"

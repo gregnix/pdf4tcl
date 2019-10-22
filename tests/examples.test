@@ -8,6 +8,7 @@ source [file join $thisDir init.tcl]
 
 if {![file exists tcl.jpg]} {
     file link tcl.jpg ../examples/tcl.jpg
+    file link gmarbles2.jpg ../examples/gmarbles2.jpg
 }
 
 test examples-1.0 {example test0} -body {
@@ -54,4 +55,5 @@ test examples-1.6 {example test6} -body {
 # Cleanup
 eval file delete [glob test*.pdf]
 file delete tcl.jpg
+file delete gmarbles2.jpg
 ::tcltest::cleanupTests

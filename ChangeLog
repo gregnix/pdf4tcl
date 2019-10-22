@@ -1,3 +1,6 @@
+2019-10-31 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Support grayscale JPEG. [FR #11]
+
 2019-03-19 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Added TIFF image support. [MR #1] (Poor Yorick)
 

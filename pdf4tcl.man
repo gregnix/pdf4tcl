@@ -546,7 +546,7 @@ Height of font's Bounding Box.
 [subsection {OBJECT METHODS, IMAGES}]
 
 A limited set of image formats are directly understood by pdf4tcl,
-currently JPEG, some PNG, and some TIFF formats.
+currently some JPEG, some PNG, and some TIFF formats.
 To use unsupported formats, use Tk and the Img
 package to load and dump images to raw format which can be fed to
 [method putRawImage] and [method addRawImage].
