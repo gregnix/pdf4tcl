@@ -349,6 +349,7 @@ in the document's default unit.
 [call [arg objectName] [method canvas] [arg "path"] [opt [arg "option value"]...]]
 
 Draws the contents of the canvas widget [arg "path"] on the current page.
+The return value is the bounding box in pdf page coordinates of the area covered.
 Option [arg "-bbox"] gives the area of the canvas to be drawn. Default is
 the entire contents, i.e. the result of $path bbox all.
 Options [arg "-x"], [arg "-y"], [arg "-width"] and [arg "-height"] defines
@@ -361,6 +362,7 @@ The area is always filled in one direction, preserving aspect ratio, unless
 If option [arg "-bg"] is true, a background is drawn in the canvas' background
 color.  Otherwise only objects are drawn.  Default is false.
 Option [arg "-fontmap"] gives a dictionary mapping from Tk font names to PDF font names.
+Option [arg "-textscale"] overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If [arg "-textscale"] is larger than 1, all text items are reduced in size by that factor.
 [para]
 Fonts:
 [para]

@@ -2,7 +2,7 @@
 #
 # $Id$
 #
-# The mytest page as this default look:
+# The mytest page has this default look:
 #
 # --------------------------
 # |       w=800 h=1000     |
@@ -52,6 +52,8 @@ proc mytest {args} {
     set debug 0
     set checkall 0
     set createfile 0
+    set returnvalues 0
+    set myTestReturnValues {}
     foreach arg $args {
         if {$isopt ne ""} {
             dict set opts $isopt $arg
@@ -62,6 +64,8 @@ proc mytest {args} {
             set createfile 1
         } elseif {[string match "-all" $arg]} {
             set checkall 1
+        } elseif {[string match "-return" $arg]} {
+            set returnvalues 1
         } elseif {[string match "-*" $arg]} {
             set isopt $arg
         } else {
@@ -87,7 +91,7 @@ proc mytest {args} {
         $pdf grestore
     }
     foreach cmd $cmds {
-        eval \$pdf $cmd
+        lappend myTestReturnValues [eval \$pdf $cmd]
     }
     set res [$pdf get]
     $pdf destroy
@@ -126,7 +130,25 @@ proc mytest {args} {
     regsub -all {\s+} $pattern " " pattern
 
     if {[string match $pattern $res]} {
-        return 1
+        if {$returnvalues} {
+            set result [list 1]
+            # Flatten and beautify
+            foreach rv $myTestReturnValues {
+                if {[string is list $rv] && [llength $rv] > 1} {
+                    foreach rv2 $rv {
+                        if {[string is double $rv2]} {
+                            set rv2 [pdf4tcl::Nf $rv2]
+                        }
+                        lappend result $rv2
+                    }
+                } else {
+                    lappend result $rv
+                }
+            }
+            return $result
+        } else {
+            return 1
+        }
     } else {
         return $res
     }

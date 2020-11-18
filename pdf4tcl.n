@@ -706,6 +706,7 @@ in the document's default unit\&.
 .TP
 \fIobjectName\fR \fBcanvas\fR \fIpath\fR ?\fIoption value\fR\&.\&.\&.?
 Draws the contents of the canvas widget \fIpath\fR on the current page\&.
+The return value is the bounding box in pdf page coordinates of the area covered\&.
 Option \fI-bbox\fR gives the area of the canvas to be drawn\&. Default is
 the entire contents, i\&.e\&. the result of $path bbox all\&.
 Options \fI-x\fR, \fI-y\fR, \fI-width\fR and \fI-height\fR defines
@@ -718,6 +719,7 @@ The area is always filled in one direction, preserving aspect ratio, unless
 If option \fI-bg\fR is true, a background is drawn in the canvas' background
 color\&.  Otherwise only objects are drawn\&.  Default is false\&.
 Option \fI-fontmap\fR gives a dictionary mapping from Tk font names to PDF font names\&.
+Option \fI-textscale\fR overrides the automatic downsizing made for tk::canvas text items that are deemed too large\&. If \fI-textscale\fR is larger than 1, all text items are reduced in size by that factor\&.
 .sp
 Fonts:
 .sp

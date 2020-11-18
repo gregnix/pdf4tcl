@@ -36,45 +36,45 @@ test canvas-1.1 {basic} -body {
     canvas .c
     .c create line 10 10 80 80
     .c create rectangle 20 20 50 60 -fill red -outline blue
-    mytest {canvas .c} {
+    mytest -return {canvas .c} {
         0 0 0 RG 0 0 0 rg 1 w 1 j 10 10 m 80 80 l S
         *
         0 0 1 RG 1 0 0 rg 1 w 20 20 30 40 re B
     }
-} -cleanup {destroy .c} -result 1
+} -cleanup {destroy .c} -result {1 0 0 700 700}
 
 test canvas-1.2 {basic} -body {
     canvas .c
     .c create line 10 10 80 80
     .c create rectangle 20 20 50 60 -fill red -outline blue
-    mytest -orient 1 {canvas .c -x 20 -y 20 -width 200 -height 200} {
+    mytest -return -orient 1 {canvas .c -x 20 -y 20 -width 200 -height 200} {
         0 0 0 RG 0 0 0 rg 1 w 1 j 10 10 m 80 80 l S
         *
         0 0 1 RG 1 0 0 rg 1 w 20 20 30 40 re B
     }
-} -cleanup {destroy .c} -result 1
+} -cleanup {destroy .c} -result {1 20 20 220 220}
 
 test canvas-1.3 {basic} -body {
     canvas .c
     .c create line 10 10 80 80
     .c create rectangle 20 20 50 60 -fill red -outline blue
-    mytest {canvas .c -x 20 -y 20 -width 200 -height 200} {
+    mytest -return {canvas .c -x 20 -y 20 -width 200 -height 200} {
         0 0 0 RG 0 0 0 rg 1 w 1 j 10 10 m 80 80 l S
         *
         0 0 1 RG 1 0 0 rg 1 w 20 20 30 40 re B
     }
-} -cleanup {destroy .c} -result 1
+} -cleanup {destroy .c} -result {1 20 20 220 220}
 
 test canvas-1.4 {basic} -body {
     canvas .c
     .c create line 10 10 80 80
     .c create rectangle 20 20 50 60 -fill red -outline blue
-    mytest {canvas .c -bbox {25 15 45 60}} {
+    mytest -return {canvas .c -bbox {25 15 45 60}} {
         0 0 0 RG 0 0 0 rg 1 w 1 j 10 10 m 80 80 l S
         *
         0 0 1 RG 1 0 0 rg 1 w 20 20 30 40 re B
     }
-} -cleanup {destroy .c} -result 1
+} -cleanup {destroy .c} -result {1 0 0 311.111 700}
 
 test canvas-2.1 {image} -body {
     canvas .c

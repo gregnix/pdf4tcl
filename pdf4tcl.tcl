@@ -1663,9 +1663,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         # Switch if landscape has been asked for
         if {$landscape} {
-            set tmp    $width
-            set width  $height
-            set height $tmp
+            Swap width height
         }
         set pdf(width)  $width
         set pdf(height) $height
@@ -1926,13 +1924,16 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     # Finish document
-    method finish {} {
+    method finish {{dryRun 0}} {
         if {$pdf(finished)} {
             return
         }
 
         if {$pdf(inPage)} {
             my endPage
+        }
+        if {$dryRun} {
+            set backupDryRun [array get pdf]
         }
         # Object 1 is the Root of the document
         my StoreXref 1
@@ -2109,6 +2110,13 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfout "$xref_pos\n"
         my Pdfout "%%EOF\n"
         my Flush
+
+        if {$dryRun} {
+            # Revert everything done by this call before returning the result.
+            set result $pdf(pdf)
+            array set pdf $backupDryRun
+            return $result
+        }
         set pdf(finished) true
     }
 
@@ -4924,6 +4932,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set height ""
         set bbox [$path bbox all]
         set bg 0
+        set textscale ""
         # A dict mapping from Tk font name to PDF font family name can be given
         set canvasFontMapping {}
         foreach {arg value} $args {
@@ -4931,6 +4940,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 "-width"  {set width  [pdf4tcl::getPoints $value $pdf(unit)]}
                 "-height" {set height [pdf4tcl::getPoints $value $pdf(unit)]}
                 "-sticky" {set sticky $value}
+                "-textscale" {set textscale $value}
                 "-y"      {my Trans 0 $value _ y}
                 "-x"      {my Trans $value 0 x _}
                 "-bbox"   {set bbox $value}
@@ -4999,6 +5009,12 @@ oo::define ::pdf4tcl::pdf4tcl {
             # Move down
             set yoffset [expr {$yoffset - ($height - $bbh * $yscale)}]
         }
+
+        # Resulting size, used for return value below
+        set rX [expr {$xoffset + $bbx1 * $xscale}]
+        set rY [expr {$yoffset - $bby1 * $yscale}]
+        set rHeight [* $bbh $yscale]
+        set rWidth  [* $bbw $xscale]
 
         # Canvas coordinate system starts in upper corner
         # Thus we need to flip the y axis
@@ -5071,6 +5087,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 my CanvasDoTkpathItem $path $id
             } else {
                 # Standard Tk Canvas
+                set opts(-textscale) $textscale
                 my CanvasDoItem $path $id [$path coords $id] opts
             }
 
@@ -5079,6 +5096,37 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         # Restore graphics state after the canvas
         my Pdfoutcmd "Q"
+        # Return bbox
+
+        # This is basically a reverse Trans
+        set tx [expr {$rX - $pdf(marginleft)}]
+        if {$pdf(orient)} {
+            set ty [expr {$pdf(height) - $rY}]
+            set ty [expr {$ty - $pdf(margintop)}]
+            set rHeight [- $rHeight]
+        } else {
+            set ty [expr {$rY - $pdf(marginbottom)}]
+        }
+        # Translate to current unit
+        set tx [expr {$tx / $pdf(unit)}]
+        set ty [expr {$ty / $pdf(unit)}]
+        set rWidth [expr {$rWidth / $pdf(unit)}]
+        set rHeight [expr {$rHeight / $pdf(unit)}]
+
+        # Bbox should be in order
+        if {$rWidth >= 0} {
+            set tx2 [+ $tx $rWidth]
+        } else {
+            set tx2 $tx
+            set tx [+ $tx $rWidth]
+        }
+        if {$rHeight < 0} {
+            set ty2 [- $ty $rHeight]
+        } else {
+            set ty2 $ty
+            set ty [- $ty $rHeight]
+        }
+        return [list $tx $ty $tx2 $ty2]
     }
 
     # Handle one TkoPath item
@@ -5214,7 +5262,9 @@ oo::define ::pdf4tcl::pdf4tcl {
                 set stroke [expr {$opts(-outline) ne ""}]
                 set filled [expr {$opts(-fill) ne ""}]
 
-                my DrawRect $x1 $y1 $w $h $stroke $filled
+                if {$stroke || $filled} {
+                    my DrawRect $x1 $y1 $w $h $stroke $filled
+                }
             }
             line {
                 # For a line, -fill means the stroke colour
@@ -5405,6 +5455,9 @@ oo::define ::pdf4tcl::pdf4tcl {
                 set yscale [expr {([llength $lines] * $fontsize) / \
                         ($y2 - $y1)}]
                 # Scale down if the font is too big
+                if {$opts(-textscale) ne ""} {
+                    set xscale $opts(-textscale)
+                }
                 if {$xscale > 1.001} {
                     my setFont [expr {$fontsize / $xscale}] "" 1
                     set fontsize $pdf(font_size)
@@ -6059,6 +6112,13 @@ oo::define ::pdf4tcl::pdf4tcl {
     #######################################################################
     # Helper functions
     #######################################################################
+
+    proc ::pdf4tcl::Swap {aName bName} {
+        upvar 1 $aName a $bName b
+        set tmp $a
+        set a   $b
+        set b   $tmp
+    }
 
     # helper function: mask parentheses and backslash
     proc ::pdf4tcl::CleanText {in fn} {

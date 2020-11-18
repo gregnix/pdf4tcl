@@ -1,4 +1,8 @@
 2020-11-18 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Canvas method returns bbox.
+	* Added -textscale to canvas method.
+
+2020-11-18 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Support tko::path for PDF generation. (Rene Zaumseil)
 
 2019-10-31 Peter Spjuth   <peter.spjuth@gmail.com>

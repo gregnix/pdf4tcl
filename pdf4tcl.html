@@ -1,4 +1,3 @@
-
 <!DOCTYPE html><html><head>
 <title>pdf4tcl - Pdf document generation</title>
 <style type="text/css"><!--
@@ -459,6 +458,7 @@ after removing margins.  The return value is a list of width and height,
 in the document's default unit.</p></dd>
 <dt><a name="31"><i class="arg">objectName</i> <b class="method">canvas</b> <i class="arg">path</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draws the contents of the canvas widget <i class="arg">path</i> on the current page.
+The return value is the bounding box in pdf page coordinates of the area covered.
 Option <i class="arg">-bbox</i> gives the area of the canvas to be drawn. Default is
 the entire contents, i.e. the result of $path bbox all.
 Options <i class="arg">-x</i>, <i class="arg">-y</i>, <i class="arg">-width</i> and <i class="arg">-height</i> defines
@@ -470,7 +470,8 @@ The area is always filled in one direction, preserving aspect ratio, unless
 <i class="arg">-sticky</i> is <i class="arg">nw</i>.
 If option <i class="arg">-bg</i> is true, a background is drawn in the canvas' background
 color.  Otherwise only objects are drawn.  Default is false.
-Option <i class="arg">-fontmap</i> gives a dictionary mapping from Tk font names to PDF font names.</p>
+Option <i class="arg">-fontmap</i> gives a dictionary mapping from Tk font names to PDF font names.
+Option <i class="arg">-textscale</i> overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If <i class="arg">-textscale</i> is larger than 1, all text items are reduced in size by that factor.</p>
 <p>Fonts:</p>
 <p>If no font mapping is given, fonts for text items are limited to PDF's
 builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which
