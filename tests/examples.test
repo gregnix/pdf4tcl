@@ -53,7 +53,7 @@ test examples-1.6 {example test6} -body {
 } -result {} -cleanup {catch {p1 destroy}}
 
 # Cleanup
-eval file delete [glob test*.pdf]
+eval file delete [glob -nocomplain test*.pdf]
 file delete tcl.jpg
 file delete gmarbles2.jpg
 ::tcltest::cleanupTests

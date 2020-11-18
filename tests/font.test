@@ -88,6 +88,11 @@ test font-4.3 {font, truetype} -constraints {FreeSans} -body {
     set t 0
     set e 0
     foreach file $files {
+        # A max per directory, to limit runtime
+        if {[incr tracking([file dirname $file])] > 5} {
+            continue
+        }
+        #puts "Trying $file"
         try {
             pdf4tcl::loadBaseTrueTypeFont BaseJunk$t $file
         } trap PDF4TCL _ {
@@ -98,6 +103,26 @@ test font-4.3 {font, truetype} -constraints {FreeSans} -body {
         incr t
     }
     expr {$t > 0}
+} -result 1
+
+test font-4.3b {font, truetype} -constraints FreeSans -body {
+    # This was a problem. Test it if it exists
+    set t 0
+    foreach file {
+        /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf
+    } {
+        if {![file exists $file]} { continue }
+        incr t
+        #puts "Trying $file"
+        try {
+            pdf4tcl::loadBaseTrueTypeFont BaseJunkBug$t $file
+        } trap PDF4TCL _ {
+            # Only catch errors from font parsing.
+            # Any runtime errors should be visible
+            incr e
+        }
+    }
+    return 1
 } -result 1
 
 test font-5.1 {font, type1} -constraints {a010013l} -body {

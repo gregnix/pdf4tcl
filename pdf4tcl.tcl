@@ -628,6 +628,9 @@ namespace eval pdf4tcl {
         }
 
         # loca - Index to location
+        if {![info exists ttftables(loca)]} {
+            throw "PDF4TCL" "font does not have \"loca\" part"
+        }
         set ttfpos [lindex $ttftables(loca) 1]
         incr numGlyphs
         if {$indexToLocFormat == 0} {
