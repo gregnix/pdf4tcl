@@ -1,4 +1,7 @@
 2020-11-18 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Bumped revision to 0.9.4
+
+2020-11-18 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Canvas method returns bbox.
 	* Added -textscale to canvas method.
 
