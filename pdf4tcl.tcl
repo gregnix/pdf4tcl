@@ -1437,7 +1437,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     constructor {args} {
         # Object should be able to find pdf4tcl help procedures
-	namespace path [list {*}[namespace path] ::pdf4tcl]
+        namespace path [list {*}[namespace path] ::pdf4tcl]
         set pdf(bookmarks) {}
         set pdf(forms) {}
 
@@ -1476,9 +1476,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         array set images {}
         array set files {}
         array set bitmaps {}
-	array set extgs {}
+        array set extgs {}
         array set patterns {}
-	array set grads {}
+        array set grads {}
         set pdf(objects) {}
         set pdf(compress) $options(-compress)
         set pdf(finished) false
@@ -2032,7 +2032,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 my Pdfout "/$key $oid 0 R\n"
             }
             my Pdfout ">>\n"
-	}
+        }
 
         my Pdfout ">>\nendobj\n\n" ;# Resources object
 
@@ -4596,10 +4596,10 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Add tkpath extended graphics state object
     method addTkpextgs {body {smoid {}}} {
         if {!$pdf(inPage)} { my startPage }
-	if {$smoid ne {}} {
-	    set id smask$smoid
-	    set extgs($id) $smoid
-	}
+        if {$smoid ne {}} {
+            set id smask$smoid
+            set extgs($id) $smoid
+        }
         set oid [my AddObject $body]
         set id extgs$oid
         set extgs($id) $oid
@@ -5046,6 +5046,12 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         #set enclosed [$path find enclosed $bbx1 $bby1 $bbx2 $bby2]
+        # ::canvas=Canvas, ::tkp::canvas=PathCanvas, ::tko::path=TkoPath
+        switch [winfo class $path] {
+            Canvas {set cls 1}
+            PathCanvas {set cls 2}
+            default {set cls 3}
+        }
         set overlapping [$path find overlapping $bbx1 $bby1 $bbx2 $bby2]
         foreach id $overlapping {
             CanvasGetOpts $path $id opts
@@ -5056,7 +5062,9 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfoutcmd "q"
 
             # Special handling for tkpath items
-            if {[$path type $id] in {pimage ptext pline polyline ppolygon prect circle ellipse path group}} {
+            if {$cls == 3} {
+                my CanvasDoTkoPathItem $path $id opts
+            } elseif {[$path type $id] in {pimage ptext pline polyline ppolygon prect circle ellipse path group}} {
                 my CanvasDoTkpathItem $path $id
             } else {
                 # Standard Tk Canvas
@@ -5068,6 +5076,89 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         # Restore graphics state after the canvas
         my Pdfoutcmd "Q"
+    }
+
+    # Handle one TkoPath item
+    method CanvasDoTkoPathItem {path id optsName} {
+        # Get the fully qualified name for callback to this object
+        set myCb [namespace which my]
+        switch [$path type $id] {
+            image {
+                my Pdfout [$path itempdf $id [list $myCb addTkpimgObj]]
+            }
+            text {
+                my setTkpfont \
+                        [$path itemcget $id -fontsize] \
+                        [$path itemcget $id -fontfamily] \
+                        [$path itemcget $id -fontweight] \
+                        [$path itemcget $id -fontslant]
+                my Pdfout \
+                        [$path itempdf $id \
+                                 [list $myCb addTkpextgs] \
+                                 [list $myCb getTkpptext $pdf(current_font)] \
+                                 $pdf(current_font)]
+            }
+            line - polyline - polygon - rect - circle - ellipse -
+            path - group {
+                my Pdfout [$path itempdf $id \
+                                      [list $myCb addTkpextgs] \
+                                      [list $myCb addTkpobj] \
+                                      [list $myCb addTkpgrad]]
+            }
+            window {
+                upvar 1 $optsName opts
+                catch {package require Img}
+                if {[catch {
+                    image create photo -format window -data $opts(-window)
+                } image]} {
+                    set image ""
+                }
+                if {$image eq ""} {
+                    # Get a size even if it is unmapped
+                    foreach width [list [winfo width $opts(-window)] \
+                                        $opts(-width) \
+                                        [winfo reqwidth $opts(-window)]] {
+                        if {$width > 1} break
+                    }
+                    foreach height [list [winfo height $opts(-window)] \
+                                         $opts(-height) \
+                                         [winfo reqheight $opts(-window)]] {
+                        if {$height > 1} break
+                    }
+                } else {
+                    set id [my addRawImage [$image data]]
+
+                    foreach {width height oid} $images($id) break
+                }
+                foreach {x1 y1} [$path coords $id] break
+                # Since the canvas coordinate system is upside
+                # down we must flip back to get the image right.
+                # We do this by adjusting y and y scale.
+                switch $opts(-anchor) {
+                    nw { set dx 0.0 ; set dy 1.0 }
+                    n  { set dx 0.5 ; set dy 1.0 }
+                    ne { set dx 1.0 ; set dy 1.0 }
+                    e  { set dx 1.0 ; set dy 0.5 }
+                    se { set dx 1.0 ; set dy 0.0 }
+                    s  { set dx 0.5 ; set dy 0.0 }
+                    sw { set dx 0.0 ; set dy 0.0 }
+                    w  { set dx 0.0 ; set dy 0.5 }
+                    default { set dx 0.5 ; set dy 0.5 }
+                }
+                set x [expr {$x1 - $width  * $dx}]
+                set y [expr {$y1 + $height * $dy}]
+
+                if {$image eq ""} {
+                    # Draw a black box
+                    my Pdfoutcmd $x [expr {$y - $height}] \
+                            $width $height "re"
+                    my Pdfoutcmd "f"
+                } else {
+                    my Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
+                    my Pdfout "/$id Do\n"
+                }
+            }
+        }
     }
 
     # Handle one tkpath item
