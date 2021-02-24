@@ -7,7 +7,13 @@ TCLSH = tclsh
 NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
 ESKIL    = eskil
 
-all: doc web
+all: doc web pdf4tcl.tcl
+
+# Build from source
+CATFILES = src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl src/main.tcl src/cat.tcl
+
+pdf4tcl.tcl: $(CATFILES)
+	cat $(CATFILES) > pdf4tcl.tcl
 
 # Documentation
 doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
@@ -15,7 +21,7 @@ doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
 pdf4tcl.html pdf4tcl.n : pdf4tcl.man mkdoc.tcl
 	./mkdoc.tcl
 
-checkdoc:
+checkdoc: pdf4tcl.tcl
 	@egrep 'method [a-z]' pdf4tcl.man | grep '\[call' | egrep -v 'method configure' | sed 's/[]["]/ /g' | sed 's/ arg / /g' | sed 's/  */ /g' | sed 's/call objectName/ /g' | sort > _docmeth
 	@egrep 'method [a-z]' pdf4tcl.tcl | sed 's/[{}]/ /g' | sed 's/  */ /g' | sort > _srcmeth
 	@$(ESKIL) -block _srcmeth _docmeth
@@ -49,7 +55,7 @@ example:
 #	tclsh tools/extract-metrics.tcl metrics.tcl
 
 # Tests
-test: cleancc
+test: cleancc pdf4tcl.tcl
 	$(TCLSH) tests/all.tcl $(TESTFLAGS)
 
 pdf4tcl_h.syntax : pdf4tcl.tcl pdf4tcl.syntax
@@ -85,7 +91,7 @@ cleancc:
 # Packaging/Releasing
 #----------------------------------------------------------------
 
-release: doc
+release: pdf4tcl.tcl doc
 	@\rm -f pdf4tcl.tar.gz
 	@ln -s pkg pdf4tcl$(VERSION)
 	@tar -zcvhf pdf4tcl.tar.gz --exclude=.svn pdf4tcl$(VERSION)
