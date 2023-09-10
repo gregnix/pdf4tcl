@@ -249,6 +249,17 @@ proc ::pdf4tcl::CanvasGetWrappedText {w item ulName} {
     set width [$w itemcget $item -width]
     set underline [$w itemcget $item -underline]
 
+    # 8.7 changes underline index (TIP 577)
+    # Empty string is the same as -1
+    if {$underline eq ""} {
+        set underline -1
+    }
+    if {![string is integer $underline]} {
+        # TODO: Support end-style index. Ignore for now.
+        # Can core help parse end-style index?
+        set underline -1
+    }
+
     # Simple non-wrapping case. Only divide on newlines.
     if {$width == 0} {
         set lines [split $text \n]

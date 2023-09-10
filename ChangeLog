@@ -1,3 +1,6 @@
+2023-09-11 Peter Spjuth   <peter.spjuth@gmail.com>
+	* Handle Tk canvas 8.7 underline gracefully. [#13]
+
 2020-11-18 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Bumped revision to 0.9.4
 

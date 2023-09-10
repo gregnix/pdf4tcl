@@ -141,6 +141,22 @@ test canvas-3.2 {text, font} -constraints {FreeSans} -body {
     mytest {canvas .c -fontmap {"Helvetica -10" MyArial}} "*\x00\x01\x02*"
 } -cleanup {destroy .c} -result 1
 
+test canvas-3.3 {text, underline} -body {
+    canvas .c
+    .c create rectangle 0 0 500 500 -outline black
+
+    set y 10
+    # Underline formats including 8.7 indexes
+    foreach ul {0 3 -1 "" end-1 end} {
+        .c create text 10 10 -text "Hello" -anchor nw \
+                -underline $ul
+        incr y 10
+    }
+
+    # TODO, actually test result. Now the test just checks for non-crash.
+    mytest {canvas .c -fontmap {TkDefaultFont {Helvetica 14}}} "*"
+} -cleanup {destroy .c} -result 1
+
 test canvas-4.1 {sticky} -body {
     # Wide canvas contents
     canvas .c
