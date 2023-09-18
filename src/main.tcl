@@ -3619,7 +3619,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
             window {
                 upvar 1 $optsName opts
-                catch {package require Img}
+                catch {package require img::window}
                 if {[catch {
                     image create photo -format window -data $opts(-window)
                 } image]} {
@@ -4140,7 +4140,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                 my Pdfout "/$id Do\n"
             }
             window {
-                catch {package require Img}
+                catch {package require img::window}
                 if {[catch {
                     image create photo -format window -data $opts(-window)
                 } image]} {
