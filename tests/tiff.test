@@ -38,7 +38,7 @@ test tiff-1.1 {tif} -constraints Tiff2 -body {
     set infile $examples/smile.png
     try {
         exec pngtopam $infile | pamdepth 2 \
-                | pamthreshold 2>@stderr | pamtotiff -g4 > $file1
+                | pamthreshold -quiet 2>@stderr | pamtotiff -g4 > $file1
 
         exec tiff2pdf $file1 > $outfile
 

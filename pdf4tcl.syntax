@@ -11,3 +11,5 @@
 ##nagelfar syntax tiff::isTIFF x
 ##nagelfar syntax tiff::getEntry x x
 
+# 8.7 feature used
+##nagelfar syntax lseq r 1 5

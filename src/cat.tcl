@@ -497,6 +497,7 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
     set currX 0.0
     set currY 0.0
     foreach line [split $pageStream \n] {
+        # Text Matrix
         if {[regexp { Tm\s*$} $line]} {
             lassign $line _ _ _ _ currX currY _
             continue

@@ -151,6 +151,10 @@ test font-5.2 {font, type1} -constraints {a010013l} -body {
 
 test font-6.1 {getFonts call} -body {
     lsort -dictionary [pdf4tcl::getFonts]
+} -match glob -result {*Courier * MyArial * ZapfDingbats*}
+# MyArial2 only show up with this constraint
+test font-6.1b {getFonts call} -constraints {a010013l} -body {
+    lsort -dictionary [pdf4tcl::getFonts]
 } -match glob -result {*Courier * MyArial * MyArial2 * ZapfDingbats*}
 
 ::tcltest::cleanupTests
