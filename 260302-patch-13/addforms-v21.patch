@@ -1,0 +1,1563 @@
+--- a/src/helpers.tcl	2026-02-16 05:33:47.000000000 +0000
++++ b/src/helpers.tcl	2026-02-16 05:33:47.000000000 +0000
+@@ -1,4 +1,18 @@
+ namespace eval pdf4tcl {
++    # AcroForm field flags (/Ff) - PDF Reference Table 8.70 ff.
++    variable Ff_READONLY       1       ;# Bit 1:  ReadOnly
++    variable Ff_REQUIRED       2       ;# Bit 2:  Required
++    variable Ff_NOEXPORT       4       ;# Bit 3:  NoExport
++    variable Ff_MULTILINE   4096       ;# Bit 13: Multiline (Tx)
++    variable Ff_PASSWORD    8192       ;# Bit 14: Password (Tx)
++    variable Ff_NOTOGGLEOFF 16384      ;# Bit 15: NoToggleToOff (Btn/Radio)
++    variable Ff_RADIO       32768      ;# Bit 16: Radio (Btn)
++    variable Ff_PUSHBUTTON  65536      ;# Bit 17: Pushbutton (Btn)
++    variable Ff_COMBO       131072     ;# Bit 18: Combo (Ch)
++    variable Ff_EDIT        262144     ;# Bit 19: Edit (Ch)
++    variable Ff_SORT        524288     ;# Bit 20: Sort (Ch)
++    variable Ff_MULTISELECT 2097152    ;# Bit 22: MultiSelect (Ch)
++
+     # The incoming RGB must contain three values in the range 0.0 to 1.0
+     # The return value is CMYK as a list of values in the range 0.0 to 1.0
+     proc rgb2Cmyk {RGB} {
+--- a/src/main.tcl	2026-02-16 05:33:47.000000000 +0000
++++ b/src/main.tcl	2026-02-16 05:33:47.000000000 +0000
+@@ -96,6 +96,8 @@
+         set pdf(objects) {}
+         set pdf(bookmarks) {}
+         set pdf(forms) {}
++        set pdf(radiogroups) {}
++        set pdf(needAppearances) 0
+         set pdf(compress) $options(-compress)
+         set pdf(finished) false
+         set pdf(inPage) false
+@@ -536,7 +538,7 @@
+             my Pdfout "/Outlines $bookmark_oid 0 R\n"
+         }
+         # Any forms?
+-        if {[llength $pdf(forms)] > 0} {
++        if {[llength $pdf(forms)] > 0 || [dict size $pdf(radiogroups)] > 0} {
+             set form_oid [my GetOid 1]
+             my Pdfout "/AcroForm $form_oid 0 R\n"
+         }
+@@ -652,12 +654,52 @@
+                 incr nbookmark
+             }
+         }
++        # Finalize radio button groups
++        # Each group becomes a parent field with /Kids pointing to buttons
++        dict for {groupName groupData} $pdf(radiogroups) {
++            set parentOid [dict get $groupData parentOid]
++            set kids [dict get $groupData kids]
++            set selectedValue [dict get $groupData selectedValue]
++            set groupReadonly [dict get $groupData readonly]
++            set groupRequired [dict get $groupData required]
++            my StoreXref $parentOid
++            my Pdfout "$parentOid 0 obj\n"
++            my Pdfout "<<\n"
++            my Pdfout "  /FT /Btn\n"
++            my Pdfout "  /T ($groupName)\n"
++            # Ff: NoToggleToOff + Radio
++            set ff [expr {$::pdf4tcl::Ff_NOTOGGLEOFF | $::pdf4tcl::Ff_RADIO}]
++            if {$groupReadonly} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
++            }
++            if {$groupRequired} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
++            }
++            my Pdfout "  /Ff $ff\n"
++            my Pdfout "  /Kids \["
++            foreach kid $kids {
++                my Pdfout "$kid 0 R "
++            }
++            my Pdfout "\]\n"
++            if {$selectedValue ne ""} {
++                my Pdfout "  /V /$selectedValue\n"
++            } else {
++                my Pdfout "  /V /Off\n"
++            }
++            my Pdfout ">>\n"
++            my Pdfout "endobj\n\n"
++            # Add parent to forms list (not the individual buttons)
++            lappend pdf(forms) "$parentOid 0 R"
++        }
+         # Any forms?
+         if {[llength $pdf(forms)] > 0} {
+             my StoreXref $form_oid
+             my Pdfout "$form_oid 0 obj\n"
+             my Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
+             my Pdfout "/DR 3 0 R\n"
++            if {$pdf(needAppearances)} {
++                my Pdfout "/NeedAppearances true\n"
++            }
+             my Pdfout ">>\nendobj\n\n"
+         }
+ 
+@@ -3182,9 +3224,198 @@
+     }
+ 
+     # Add an interactive form
+-    # Currently supports text and checkbutton
++    # Supports text, password, checkbutton (or checkbox), combobox,
++    # listbox, radiobutton, pushbutton and signature.
++    #######################################################################
++    # Form Appearance Stream Builders (private helpers for addForm)
++    #######################################################################
++
++    # Common Form XObject header string
++    method _FormXObjHeader {width height} {
++        set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
++        append obj "/Resources 3 0 R\n"
++        append obj "/Subtype /Form\n/Type /XObject\n"
++        return $obj
++    }
++
++    # Build checkbox appearance: returns {onid offid}
++    method _BuildCheckboxAP {width height onObj offObj} {
++        my SetupZaDbFont
++        set obj [my _FormXObjHeader $width $height]
++        # On-state appearance
++        if {$onObj ne ""} {
++            set onid [lindex $images($onObj) 2]
++        } else {
++            # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
++            set fs [expr {$height * 0.9}]
++            set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
++            set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
++            set cX [expr {($width-$charW)/2.0}]
++            set cY [expr {$height*0.05 + $baseL}]
++            set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
++            append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
++            append stream "\[(4)\]TJ ET EMC"
++            set body [MakeStream $obj $stream $pdf(compress)]
++            set onid [my AddObject $body]
++        }
++        # Off-state appearance (shared across all checkboxes)
++        if {$offObj ne ""} {
++            set offid [lindex $images($offObj) 2]
++        } else {
++            if {![info exists pdf(checkboxoffobj)]} {
++                set stream ""
++                set body [MakeStream $obj $stream $pdf(compress)]
++                set pdf(checkboxoffobj) [my AddObject $body]
++            }
++            set offid $pdf(checkboxoffobj)
++        }
++        return [list $onid $offid]
++    }
++
++    # Build text/password appearance: returns onid or ""
++    method _BuildTextAP {width height initValue isPassword} {
++        if {$initValue eq ""} {
++            return ""
++        }
++        set obj [my _FormXObjHeader $width $height]
++        set stream "/Tx BMC BT "
++        append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
++        append stream "2 1.1 Td "
++        if {$isPassword} {
++            set masked [string repeat "\u2022" [string length $initValue]]
++            append stream "([CleanText $masked $pdf(current_font)]) Tj "
++        } else {
++            append stream "([CleanText $initValue $pdf(current_font)]) Tj "
++        }
++        append stream "ET EMC"
++        set body [MakeStream $obj $stream $pdf(compress)]
++        return [my AddObject $body]
++    }
++
++    # Build combobox/listbox appearance: returns choiceApId
++    method _BuildChoiceAP {width height ftype initValue optionsList} {
++        set obj [my _FormXObjHeader $width $height]
++        set stream "/Tx BMC "
++        if {$ftype eq "combobox"} {
++            # Combobox: white background, border, dropdown arrow area
++            append stream "1 1 1 rg 0 0 [Nf $width] [Nf $height] re f "
++            append stream "0.5 0.5 0.5 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
++            # Dropdown button area on the right
++            set arrowW [expr {min(18.0, $width * 0.15)}]
++            set arrowX [expr {$width - $arrowW}]
++            append stream "0.9 0.9 0.9 rg [Nf $arrowX] 0 [Nf $arrowW] [Nf $height] re f "
++            append stream "0.5 0.5 0.5 RG [Nf $arrowX] 0 [Nf $arrowW] [Nf $height] re S "
++            # Small triangle indicator
++            set triCX [expr {$arrowX + $arrowW / 2.0}]
++            set triCY [expr {$height / 2.0}]
++            set triS [expr {min(4.0, $arrowW * 0.3)}]
++            append stream "0.3 0.3 0.3 rg "
++            append stream "[Nf [expr {$triCX - $triS}]] [Nf [expr {$triCY + $triS * 0.5}]] m "
++            append stream "[Nf [expr {$triCX + $triS}]] [Nf [expr {$triCY + $triS * 0.5}]] l "
++            append stream "[Nf $triCX] [Nf [expr {$triCY - $triS * 0.5}]] l f "
++        } else {
++            # Listbox: white background, border
++            append stream "1 1 1 rg 0 0 [Nf $width] [Nf $height] re f "
++            append stream "0.5 0.5 0.5 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
++        }
++        # Show init value or first option as text
++        set displayText ""
++        if {$initValue ne ""} {
++            set displayText $initValue
++        } elseif {[llength $optionsList] > 0} {
++            if {$ftype eq "listbox"} {
++                set displayText [lindex $optionsList 0]
++            }
++        }
++        if {$displayText ne ""} {
++            append stream "BT /$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
++            append stream "2 1.1 Td "
++            append stream "([CleanText $displayText $pdf(current_font)]) Tj "
++            append stream "ET "
++        }
++        append stream "EMC"
++        set body [MakeStream $obj $stream $pdf(compress)]
++        return [my AddObject $body]
++    }
++
++    # Build radiobutton appearance: returns {onid offid}
++    method _BuildRadioAP {width height} {
++        my SetupZaDbFont
++        set obj [my _FormXObjHeader $width $height]
++        # On state: filled circle (bullet char 108 in ZapfDingbats = ●)
++        set fs [expr {$height * 0.8}]
++        set cX [expr {($width - $fs * 0.52) / 2.0}]
++        set cY [expr {$height * 0.15}]
++        set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
++        append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
++        append stream "\[(l)\]TJ ET EMC"
++        set body [MakeStream $obj $stream $pdf(compress)]
++        set onid [my AddObject $body]
++        # Off state: empty (shared across all radio buttons)
++        if {![info exists pdf(radiobtnoffobj)]} {
++            set stream ""
++            set body [MakeStream $obj $stream $pdf(compress)]
++            set pdf(radiobtnoffobj) [my AddObject $body]
++        }
++        set offid $pdf(radiobtnoffobj)
++        return [list $onid $offid]
++    }
++
++    # Build pushbutton appearance: returns onid
++    method _BuildPushbuttonAP {width height caption} {
++        set obj [my _FormXObjHeader $width $height]
++        # Button background and border
++        set stream "0.85 0.85 0.85 rg 0 0 [Nf $width] [Nf $height] re f "
++        append stream "0.4 0.4 0.4 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
++        # Caption text centered
++        if {$caption ne ""} {
++            set fs [expr {min($pdf(font_size), $height * 0.6)}]
++            set cY [expr {($height - $fs) / 2.0 + $fs * 0.15}]
++            set strW [expr {[string length $caption] * $fs * 0.5}]
++            set cX [expr {($width - $strW) / 2.0}]
++            append stream "BT /$pdf(current_font) [Nf $fs] Tf 0 g "
++            append stream "[Nf $cX] [Nf $cY] Td "
++            append stream "([CleanText $caption $pdf(current_font)]) Tj "
++            append stream "ET "
++        }
++        set body [MakeStream $obj $stream $pdf(compress)]
++        return [my AddObject $body]
++    }
++
++    # Build signature appearance: returns onid
++    method _BuildSignatureAP {width height label} {
++        set obj [my _FormXObjHeader $width $height]
++        # Light gray fill + border
++        set stream "0.95 0.95 0.95 rg 0 0 [Nf $width] [Nf $height] re f "
++        append stream "0.6 0.6 0.6 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
++        # Dashed signature line at 25% height
++        set lineY [expr {$height * 0.25}]
++        set lx1 [expr {$width * 0.1}]
++        set lx2 [expr {$width * 0.9}]
++        append stream "0.4 0.4 0.4 RG 0.5 w \[3 2\] 0 d "
++        append stream "[Nf $lx1] [Nf $lineY] m [Nf $lx2] [Nf $lineY] l S "
++        append stream "\[\] 0 d "
++        # Label text above the line
++        set labelText $label
++        if {$labelText eq ""} {
++            set labelText "Signature"
++        }
++        set fs [expr {min(8.0, $height * 0.2)}]
++        set textY [expr {$lineY + $fs * 0.5}]
++        append stream "BT /$pdf(current_font) [Nf $fs] Tf 0.5 0.5 0.5 rg "
++        append stream "[Nf $lx1] [Nf $textY] Td "
++        append stream "([CleanText $labelText $pdf(current_font)]) Tj "
++        append stream "ET "
++        set body [MakeStream $obj $stream $pdf(compress)]
++        return [my AddObject $body]
++    }
++
+     method addForm {ftype x y width height args} {
+-        if {$ftype ni {text checkbutton}} {
++        # Allow "checkbox" as alias for "checkbutton"
++        if {$ftype eq "checkbox"} {
++            set ftype "checkbutton"
++        }
++        if {$ftype ni {text checkbutton combobox listbox password radiobutton pushbutton signature}} {
+             throw "PDF4TCL" "unknown form type $ftype"
+         }
+         set initValue ""
+@@ -3192,11 +3423,29 @@
+         set offObj ""
+         set idStr ""
+         set multiline 0
++        set optionsList {}
++        set editable 0
++        set sortopt 0
++        set multiselect 0
++        set groupName ""
++        set radioValue ""
++        set actionType ""
++        set actionValue ""
++        set caption ""
++        set readonly 0
++        set required 0
++        set label ""
+         if {$ftype eq "checkbutton"} {
+             set initValue 0
+         }
++        if {$ftype eq "radiobutton"} {
++            set initValue 0
++        }
+ 
+         # Handle options
++        if {[llength $args] % 2} {
++            throw "PDF4TCL" "options must be key-value pairs"
++        }
+         foreach {option value} $args {
+             switch -- $option {
+                 -init {
+@@ -3218,16 +3467,58 @@
+                     my CheckBoolean $option $value
+                     set multiline $value
+                 }
++                -options {
++                    set optionsList $value
++                }
++                -editable {
++                    my CheckBoolean $option $value
++                    set editable $value
++                }
++                -sort {
++                    my CheckBoolean $option $value
++                    set sortopt $value
++                }
++                -multiselect {
++                    my CheckBoolean $option $value
++                    set multiselect $value
++                }
++                -group {
++                    set groupName $value
++                }
++                -value {
++                    set radioValue $value
++                }
++                -action {
++                    set actionType $value
++                }
++                -url {
++                    set actionValue $value
++                }
++                -caption {
++                    set caption $value
++                }
++                -readonly {
++                    my CheckBoolean $option $value
++                    set readonly $value
++                }
++                -required {
++                    if {$ftype in {pushbutton signature}} {
++                        throw "PDF4TCL" "-required is not valid for $ftype"
++                    }
++                    my CheckBoolean $option $value
++                    set required $value
++                }
++                -label {
++                    if {$ftype ne "signature"} {
++                        throw "PDF4TCL" "-label is only valid for signature fields"
++                    }
++                    set label $value
++                }
+                 default {
+                     throw "PDF4TCL" "unknown option \"$option\""
+                 }
+             }
+         }
+-        # Unique id if none was given
+-        if {$idStr eq ""} {
+-            set idStr ${ftype}form[my NextOid]
+-        }
+-
+         # Check init value
+         if {$ftype eq "checkbutton"} {
+             if {![string is boolean -strict $initValue]} {
+@@ -3253,6 +3544,51 @@
+             }
+         }
+ 
++        # Check choice field options
++        if {$ftype in {combobox listbox}} {
++            if {[llength $optionsList] == 0} {
++                throw "PDF4TCL" "-options is required for $ftype"
++            }
++        }
++
++        # Check radiobutton requirements and default id
++        if {$ftype eq "radiobutton"} {
++            if {$groupName eq ""} {
++                throw "PDF4TCL" "-group is required for radiobutton"
++            }
++            if {$radioValue eq ""} {
++                throw "PDF4TCL" "-value is required for radiobutton"
++            }
++            # Group and value are used as PDF names — must be alphanumeric
++            my CheckWord -group $groupName
++            my CheckWord -value $radioValue
++            if {$idStr eq ""} {
++                set idStr "${groupName}_${radioValue}"
++            }
++        }
++
++        # Check pushbutton requirements
++        if {$ftype eq "pushbutton"} {
++            if {$actionType eq "" && $caption eq ""} {
++                throw "PDF4TCL" "-action or -caption is required for pushbutton"
++            }
++            if {$actionType in {url submit} && $actionValue eq ""} {
++                throw "PDF4TCL" "-url is required when -action is $actionType"
++            }
++        }
++
++        # Signature: default id
++        if {$ftype eq "signature"} {
++            if {$idStr eq ""} {
++                set idStr "Signature[my NextOid]"
++            }
++        }
++
++        # Generic auto-id for all other types
++        if {$idStr eq ""} {
++            set idStr ${ftype}form[my NextOid]
++        }
++
+         # recompute coordinates to current system
+         my Trans  $x $y x y
+         my TransR $width $height width height
+@@ -3266,56 +3602,22 @@
+             set y2 [expr {$y+$height}]
+         }
+ 
++
++        # Build appearance streams via helper methods
+         if {$ftype eq "checkbutton"} {
+-            # Note, the xobject will be scaled to fit in the form's Rect and
+-            # thus do not need to be the same size.
+-            my SetupZaDbFont
+-
+-            # Appearance streams for on and off state of check button.
+-            set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
+-            append obj "/Resources 3 0 R\n"
+-            append obj "/Subtype /Form\n/Type /XObject\n"
+-            if {$onObj ne ""} {
+-                set onid [lindex $images($onObj) 2]
+-            } else {
+-                # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
+-                set fs [expr {$height * 0.9}]
+-                set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
+-                set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
+-                set cX [expr {($width-$charW)/2.0}]
+-                set cY [expr {$height*0.05 + $baseL}]
+-                set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
+-                append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
+-                append stream "\[(4)\]TJ ET EMC"
+-                set body [MakeStream $obj $stream $pdf(compress)]
+-                set onid [my AddObject $body]
+-            }
+-            if {$offObj ne ""} {
+-                set offid [lindex $images($offObj) 2]
+-            } else {
+-                # Empty, for off
+-                if {![info exists pdf(checkboxoffobj)]} {
+-                    set stream ""
+-                    set body [MakeStream $obj $stream $pdf(compress)]
+-                    set pdf(checkboxoffobj) [my AddObject $body]
+-                }
+-                set offid $pdf(checkboxoffobj)
+-            }
+-        } else {
+-            if {$initValue ne ""} {
+-                # Appearance stream for init value of text
+-                set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
+-                append obj "/Resources 3 0 R\n"
+-                append obj "/Subtype /Form\n/Type /XObject\n"
+-                set stream "/Tx BMC BT "
+-                append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
+-                # TODO: correct placement?
+-                append stream "2 1.1 Td "
+-                append stream "([CleanText $initValue $pdf(current_font)]) Tj "
+-                append stream "ET EMC"
+-                set body [MakeStream $obj $stream $pdf(compress)]
+-                set onid [my AddObject $body]
+-            }
++            lassign [my _BuildCheckboxAP $width $height $onObj $offObj] onid offid
++        } elseif {$ftype in {text password}} {
++            set onid [my _BuildTextAP $width $height $initValue \
++                    [expr {$ftype eq "password"}]]
++        } elseif {$ftype in {combobox listbox}} {
++            set choiceApId [my _BuildChoiceAP $width $height $ftype \
++                    $initValue $optionsList]
++        } elseif {$ftype eq "radiobutton"} {
++            lassign [my _BuildRadioAP $width $height] onid offid
++        } elseif {$ftype eq "pushbutton"} {
++            set onid [my _BuildPushbuttonAP $width $height $caption]
++        } elseif {$ftype eq "signature"} {
++            set onid [my _BuildSignatureAP $width $height $label]
+         }
+ 
+         # Create annotation
+@@ -3325,15 +3627,27 @@
+         append andict "  /P $pdf(pageobjid) 0 R\n"
+         # Placement
+         append andict "  /Rect \[[Nf $x] [Nf $y] [Nf $x2] [Nf $y2]\]\n"
+-        if {$ftype eq "text"} {
+-            # Form type text
++        if {$ftype in {text password}} {
++            # Form type text or password
+             append andict "  /FT /Tx\n"
+             # Unique Identity
+             append andict "  /T ($idStr)\n"
+-            # Multi-line text form
++            # Flags
++            set ff 0
++            if {$readonly} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
++            }
+             if {$multiline} {
+-                # Set flag bit 13 to indicate multi line
+-                append andict "  /Ff 4096\n"
++                set ff [expr {$ff | $::pdf4tcl::Ff_MULTILINE}]
++            }
++            if {$ftype eq "password"} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_PASSWORD}]
++            }
++            if {$required} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
++            }
++            if {$ff != 0} {
++                append andict "  /Ff $ff\n"
+             }
+             # Appearance
+             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
+@@ -3345,11 +3659,143 @@
+                 # Appearance
+                 append andict "  /AP << /N $onid 0 R >>\n"
+             }
+-        } else {
+-            # Form type checkbutton (Ff flags are zero for checkbutton)
++        } elseif {$ftype in {combobox listbox}} {
++            # Form type choice (/Ch)
++            append andict "  /FT /Ch\n"
++            # Unique Identity
++            append andict "  /T ($idStr)\n"
++            # Flags
++            set ff 0
++            if {$readonly} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
++            }
++            if {$ftype eq "combobox"} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_COMBO}]
++            }
++            if {$editable} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_EDIT}]
++            }
++            if {$sortopt} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_SORT}]
++            }
++            if {$multiselect} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_MULTISELECT}]
++            }
++            if {$required} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
++            }
++            if {$ff != 0} {
++                append andict "  /Ff $ff\n"
++            }
++            # Options array
++            append andict "  /Opt \["
++            foreach opt $optionsList {
++                append andict "([CleanText $opt $pdf(current_font)]) "
++            }
++            append andict "\]\n"
++            # Appearance
++            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
++            # Selected value
++            if {$initValue ne ""} {
++                append andict "  /V ([CleanText $initValue $pdf(current_font)])\n"
++            }
++            # Appearance
++            if {[info exists choiceApId]} {
++                append andict "  /AP << /N $choiceApId 0 R >>\n"
++            }
++        } elseif {$ftype eq "radiobutton"} {
++            # Radio button child widget - belongs to a group parent
++            # Get or create the radio group
++            if {![dict exists $pdf(radiogroups) $groupName]} {
++                set parentOid [my GetOid 1]
++                dict set pdf(radiogroups) $groupName \
++                    [dict create parentOid $parentOid kids {} selectedValue "" readonly 0 required 0]
++            }
++            set parentOid [dict get $pdf(radiogroups) $groupName parentOid]
++            # If any button in the group is readonly, mark the group
++            if {$readonly} {
++                dict set pdf(radiogroups) $groupName readonly 1
++            }
++            if {$required} {
++                dict set pdf(radiogroups) $groupName required 1
++            }
++            # Reference to parent group field
++            append andict "  /Parent $parentOid 0 R\n"
++            # State: use radioValue as appearance state name
++            if {$initValue} {
++                append andict "  /AS /$radioValue\n"
++                # Mark this value as selected in the group
++                dict set pdf(radiogroups) $groupName selectedValue $radioValue
++            } else {
++                append andict "  /AS /Off\n"
++            }
++            # Appearance
++            append andict "  /AP << "
++            append andict "   /N << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
++            append andict "   /D << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
++            append andict "  >>\n"
++            # Highlight mode = Push
++            append andict "  /H /P\n"
++            # Border: circle appearance hint
++            append andict "  /MK << /BC \[0 0 0\] >>\n"
++        } elseif {$ftype eq "pushbutton"} {
++            # Push button with action
+             append andict "  /FT /Btn\n"
+             # Unique Identity
+             append andict "  /T ($idStr)\n"
++            # Ff: Pushbutton flag
++            set ff $::pdf4tcl::Ff_PUSHBUTTON
++            if {$readonly} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
++            }
++            append andict "  /Ff $ff\n"
++            # Appearance
++            if {[info exists onid]} {
++                append andict "  /AP << /N $onid 0 R >>\n"
++            }
++            # Caption in MK dict
++            if {$caption ne ""} {
++                append andict "  /MK << /CA ([CleanText $caption $pdf(current_font)]) >>\n"
++            }
++            # Action
++            if {$actionType eq "url"} {
++                append andict "  /A << /Type /Action /S /URI /URI [QuoteString $actionValue] >>\n"
++            } elseif {$actionType eq "reset"} {
++                append andict "  /A << /Type /Action /S /ResetForm >>\n"
++            } elseif {$actionType eq "submit"} {
++                append andict "  /A << /Type /Action /S /SubmitForm /F [QuoteString $actionValue] >>\n"
++            }
++            # Highlight mode
++            append andict "  /H /P\n"
++        } elseif {$ftype eq "signature"} {
++            # Signature field
++            append andict "  /FT /Sig\n"
++            # Unique Identity
++            append andict "  /T ($idStr)\n"
++            # Flags
++            if {$readonly} {
++                append andict "  /Ff $::pdf4tcl::Ff_READONLY\n"
++            }
++            # Appearance
++            if {[info exists onid]} {
++                append andict "  /AP << /N $onid 0 R >>\n"
++            }
++        } elseif {$ftype eq "checkbutton"} {
++            # Form type checkbutton
++            append andict "  /FT /Btn\n"
++            # Unique Identity
++            append andict "  /T ($idStr)\n"
++            # Flags
++            set ff 0
++            if {$readonly} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
++            }
++            if {$required} {
++                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
++            }
++            if {$ff != 0} {
++                append andict "  /Ff $ff\n"
++            }
+             # State
+             if {$initValue} {
+                 append andict "  /AS /Yes\n"
+@@ -3365,8 +3811,6 @@
+             append andict "  >>\n"
+             # Highlight mode = Push
+             append andict "  /H /P\n"
+-            # ??
+-            #append andict "  /MK << /CA (4) >>\n"
+         }
+         # Flag for print
+         append andict "  /F 4\n"
+@@ -3376,7 +3820,14 @@
+         # Insert annotation into current page
+         lappend pdf(annotations) "$anid 0 R"
+         # Insert form into document
+-        lappend pdf(forms) "$anid 0 R"
++        # Radio buttons go into the group's kids, not directly into forms
++        if {$ftype eq "radiobutton"} {
++            set kids [dict get $pdf(radiogroups) $groupName kids]
++            lappend kids $anid
++            dict set pdf(radiogroups) $groupName kids $kids
++        } else {
++            lappend pdf(forms) "$anid 0 R"
++        }
+     }
+ 
+     #######################################################################
+--- a/tests/init.tcl	2026-02-16 05:33:47.000000000 +0000
++++ b/tests/init.tcl	2026-02-16 05:33:47.000000000 +0000
+@@ -128,6 +128,11 @@
+ 
+     set pattern *[string trim $pattern]*
+     regsub -all {\s+} $pattern " " pattern
++    # After whitespace collapse every separator is a single space.
++    # A glob " * " needs space-wildcard-space which fails when two PDF
++    # tokens are directly adjacent (only one space between them).
++    # Replace " * " with "*" so that wildcards match zero-or-more tokens.
++    regsub -all { \* } $pattern {*} pattern
+ 
+     if {[string match $pattern $res]} {
+         if {$returnvalues} {
+--- /dev/null	2026-02-16 06:03:59.302592771 +0000
++++ b/tests/form-ext.test	2026-02-16 05:33:47.000000000 +0000
+@@ -0,0 +1,473 @@
++# Test form commands - extended form types                           -*-tcl-*-
++#
++# Tests for combobox, listbox, password, radiobutton and pushbutton.
++# Continues numbering from form.test (form-5.x .. form-9.x).
++
++source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
++
++# ---------------------------------------------------------------
++# 5. Combobox
++# ---------------------------------------------------------------
++
++test form-5.1 {addForm method, combobox errors, missing -options} -body {
++    mytest {addForm combobox 0 0 100 20} {
++    }
++} -returnCodes 1 -result "-options is required for combobox"
++
++test form-5.2 {addForm method, combobox errors, bad -editable} -body {
++    mytest {addForm combobox 0 0 100 20 -options {A B} -editable hej} {
++    }
++} -returnCodes 1 -result "option -editable must have a boolean value"
++
++test form-5.3 {addForm method, combobox errors, bad -sort} -body {
++    mytest {addForm combobox 0 0 100 20 -options {A B} -sort hej} {
++    }
++} -returnCodes 1 -result "option -sort must have a boolean value"
++
++test form-5.4 {addForm method, combobox basic} -body {
++    mytest -all {addForm combobox 0 0 100 20 -options {Red Green Blue}} {
++        /Subtype /Widget * /FT /Ch /T * /Ff 131072 * /DA
++    }
++} -result 1
++
++test form-5.5 {addForm method, combobox with id and init} -body {
++    mytest -all {addForm combobox 0 0 100 20 -id color -options {Red Green Blue} -init Green} {
++        /Subtype /Widget * /FT /Ch /T (color) /Ff 131072 * /V (Green)
++    }
++} -result 1
++
++test form-5.6 {addForm method, combobox editable} -body {
++    mytest -all {addForm combobox 0 0 100 20 -options {A B C} -editable 1} {
++        /Subtype /Widget * /FT /Ch * /Ff 393216
++    }
++} -result 1
++
++test form-5.7 {addForm method, combobox sorted} -body {
++    mytest -all {addForm combobox 0 0 100 20 -options {C A B} -sort 1} {
++        /Subtype /Widget * /FT /Ch * /Ff 655360
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 6. Listbox
++# ---------------------------------------------------------------
++
++test form-6.1 {addForm method, listbox errors, missing -options} -body {
++    mytest {addForm listbox 0 0 100 60} {
++    }
++} -returnCodes 1 -result "-options is required for listbox"
++
++test form-6.2 {addForm method, listbox errors, bad -multiselect} -body {
++    mytest {addForm listbox 0 0 100 60 -options {A B} -multiselect hej} {
++    }
++} -returnCodes 1 -result "option -multiselect must have a boolean value"
++
++test form-6.3 {addForm method, listbox basic} -body {
++    mytest -all {addForm listbox 0 0 100 60 -options {Alpha Beta Gamma}} {
++        /Subtype /Widget * /FT /Ch /T * /Opt *(Alpha)*(Gamma)* /DA
++    }
++} -result 1
++
++test form-6.4 {addForm method, listbox has no Combo flag} -body {
++    # Listbox should NOT have Ff 131072 (Combo bit)
++    set res [mytest -all {addForm listbox 0 0 100 60 -options {A B C}} {
++        /FT /Ch
++    }]
++    # If Ff is absent or zero, listbox is correct (no Combo flag)
++    expr {$res == 1}
++} -result 1
++
++test form-6.5 {addForm method, listbox with init} -body {
++    mytest -all {addForm listbox 0 0 100 60 -id fruit -options {Apple Banana Cherry} -init Banana} {
++        /Subtype /Widget * /FT /Ch /T (fruit) * /DA * /V (Banana)
++    }
++} -result 1
++
++test form-6.6 {addForm method, listbox multiselect} -body {
++    mytest -all {addForm listbox 0 0 100 60 -options {A B C} -multiselect 1} {
++        /Subtype /Widget * /FT /Ch * /Ff 2097152
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 7. Password
++# ---------------------------------------------------------------
++
++test form-7.1 {addForm method, password basic} -body {
++    mytest -all {addForm password 0 0 100 20} {
++        /Subtype /Widget * /FT /Tx /T * /Ff 8192 /DA
++    }
++} -result 1
++
++test form-7.2 {addForm method, password with id} -body {
++    mytest -all {addForm password 0 0 100 20 -id secret} {
++        /Subtype /Widget * /FT /Tx /T (secret) /Ff 8192 /DA
++    }
++} -result 1
++
++test form-7.3 {addForm method, password with init} -body {
++    mytest -all {addForm password 0 0 100 20 -id pin -init 1234} {
++        /Subtype /Widget * /FT /Tx /T (pin) /Ff 8192 /DA * /V (1234)
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 8. Radiobutton
++# ---------------------------------------------------------------
++
++test form-8.1 {addForm method, radiobutton errors, missing -group} -body {
++    mytest {addForm radiobutton 0 0 12 12 -value A} {
++    }
++} -returnCodes 1 -result "-group is required for radiobutton"
++
++test form-8.2 {addForm method, radiobutton errors, missing -value} -body {
++    mytest {addForm radiobutton 0 0 12 12 -group grp1} {
++    }
++} -returnCodes 1 -result "-value is required for radiobutton"
++
++test form-8.3 {addForm method, radiobutton basic} -body {
++    mytest -all \
++        {addForm radiobutton 0 0 12 12 -group color -value Red} \
++        {addForm radiobutton 20 0 12 12 -group color -value Blue} {
++        /Subtype /Widget * /Parent * /AS /Off * /N << /Red * /Off
++    }
++} -result 1
++
++test form-8.4 {addForm method, radiobutton with init} -body {
++    mytest -all \
++        {addForm radiobutton 0 0 12 12 -group size -value Small -init 1} \
++        {addForm radiobutton 20 0 12 12 -group size -value Large} {
++        /Subtype /Widget * /Parent * /AS /Small
++    }
++} -result 1
++
++test form-8.5 {addForm method, radiobutton group in AcroForm} -body {
++    mytest -all \
++        {addForm radiobutton 0 0 12 12 -group ship -value Normal} \
++        {addForm radiobutton 20 0 12 12 -group ship -value Express} {
++        /FT /Btn /T (ship) /Ff 49152 /Kids
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 9. Pushbutton
++# ---------------------------------------------------------------
++
++test form-9.1 {addForm method, pushbutton errors, missing caption/action} -body {
++    mytest {addForm pushbutton 0 0 80 20} {
++    }
++} -returnCodes 1 -result "-action or -caption is required for pushbutton"
++
++test form-9.2 {addForm method, pushbutton errors, url action without -url} -body {
++    mytest {addForm pushbutton 0 0 80 20 -caption Go -action url} {
++    }
++} -returnCodes 1 -result "-url is required when -action is url"
++
++test form-9.2b {addForm method, pushbutton errors, submit action without -url} -body {
++    mytest {addForm pushbutton 0 0 80 20 -caption Send -action submit} {
++    }
++} -returnCodes 1 -result "-url is required when -action is submit"
++
++test form-9.3 {addForm method, pushbutton with caption} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id btn1 -caption Submit} {
++        /Subtype /Widget * /FT /Btn /T (btn1) /Ff 65536 * /MK << /CA (Submit) >>
++    }
++} -result 1
++
++test form-9.4 {addForm method, pushbutton reset action} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id btnR -caption Reset -action reset} {
++        /Subtype /Widget * /FT /Btn * /Ff 65536 * /A << /Type /Action /S /ResetForm >>
++    }
++} -result 1
++
++test form-9.5 {addForm method, pushbutton url action} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id btnU -caption Go -action url -url "https://example.com"} {
++        /Subtype /Widget * /FT /Btn * /Ff 65536 * /A << /Type /Action /S /URI /URI (https://example.com) >>
++    }
++} -result 1
++
++test form-9.6 {addForm method, pushbutton submit action} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id btnS -caption Send -action submit -url "https://example.com/post"} {
++        /Subtype /Widget * /FT /Btn * /Ff 65536 * /A << /Type /Action /S /SubmitForm /F (https://example.com/post) >>
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 10. getForms for new types
++# ---------------------------------------------------------------
++
++test form-10.1 {getForms, combobox} -body {
++    mytest -file {addForm combobox 0 0 100 20 -id favColor -options {Red Green Blue} -init Red} {}
++    set res [pdf4tcl::getForms testdebug.pdf]
++    dict get $res favColor type
++} -cleanup {file delete testdebug.pdf} -result "/Ch"
++
++test form-10.2 {getForms, listbox} -body {
++    mytest -file {addForm listbox 0 0 100 60 -id myList -options {A B C}} {}
++    set res [pdf4tcl::getForms testdebug.pdf]
++    dict get $res myList type
++} -cleanup {file delete testdebug.pdf} -result "/Ch"
++
++test form-10.3 {getForms, password} -body {
++    mytest -file {addForm password 0 0 100 20 -id pw} {}
++    set res [pdf4tcl::getForms testdebug.pdf]
++    set ftype [dict get $res pw type]
++    set flags [dict get $res pw flags]
++    list $ftype $flags
++} -cleanup {file delete testdebug.pdf} -result "/Tx 8192"
++
++test form-10.4 {getForms, pushbutton} -body {
++    mytest -file {addForm pushbutton 0 0 80 20 -id btnTest -caption OK -action reset} {}
++    set res [pdf4tcl::getForms testdebug.pdf]
++    set ftype [dict get $res btnTest type]
++    set flags [dict get $res btnTest flags]
++    list $ftype $flags
++} -cleanup {file delete testdebug.pdf} -result "/Btn 65536"
++
++# ---------------------------------------------------------------
++# 11. Backward compatibility: text and checkbutton unchanged
++# ---------------------------------------------------------------
++
++test form-11.1 {addForm text still works} -body {
++    mytest -all {addForm text 0 0 10 10} {
++        /Subtype /Widget * /FT /Tx /T * /DA
++    }
++} -result 1
++
++test form-11.2 {addForm text multiline still works} -body {
++    mytest -all {addForm text 0 0 10 10 -multiline 1} {
++        /Subtype /Widget * /FT /Tx * /Ff 4096
++    }
++} -result 1
++
++test form-11.3 {addForm text with init still works} -body {
++    mytest -all {addForm text 0 0 10 10 -init Hello} {
++        /Subtype /Widget * /FT /Tx * /V (Hello)
++    }
++} -result 1
++
++test form-11.4 {addForm checkbutton still works} -body {
++    mytest -all {addForm checkbutton 0 0 10 10} {
++        /Subtype /Widget * /FT /Btn /T * /AS /Off
++    }
++} -result 1
++
++test form-11.5 {addForm checkbutton init true still works} -body {
++    mytest -all {addForm checkbutton 0 0 10 10 -init true} {
++        /Subtype /Widget * /FT /Btn /T * /AS /Yes
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 12. Signature
++# ---------------------------------------------------------------
++
++test form-12.1 {addForm method, signature basic} -body {
++    mytest -all {addForm signature 0 0 200 60} {
++        /Subtype /Widget * /FT /Sig /T *
++    }
++} -result 1
++
++test form-12.2 {addForm method, signature with id} -body {
++    mytest -all {addForm signature 0 0 200 60 -id sig1} {
++        /Subtype /Widget * /FT /Sig /T (sig1)
++    }
++} -result 1
++
++test form-12.3 {addForm method, signature with label} -body {
++    mytest -all {addForm signature 0 0 200 60 -id sig2 -label "Unterschrift Kunde"} {
++        /Subtype /Widget * /FT /Sig /T (sig2)
++    }
++} -result 1
++
++test form-12.4 {addForm method, signature readonly} -body {
++    mytest -all {addForm signature 0 0 200 60 -id sig3 -readonly 1} {
++        /Subtype /Widget * /FT /Sig * /Ff 1
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 13. ReadOnly flag
++# ---------------------------------------------------------------
++
++test form-13.1 {addForm method, text readonly} -body {
++    mytest -all {addForm text 0 0 100 20 -id ro1 -readonly 1} {
++        /Subtype /Widget * /FT /Tx * /Ff 1
++    }
++} -result 1
++
++test form-13.2 {addForm method, text readonly with init} -body {
++    mytest -all {addForm text 0 0 100 20 -id ro2 -init "Fixed" -readonly 1} {
++        /Subtype /Widget * /FT /Tx * /Ff 1 * /V (Fixed)
++    }
++} -result 1
++
++test form-13.3 {addForm method, text multiline readonly} -body {
++    mytest -all {addForm text 0 0 100 60 -id ro3 -multiline 1 -readonly 1} {
++        /Subtype /Widget * /FT /Tx * /Ff 4097
++    }
++} -result 1
++
++test form-13.4 {addForm method, password readonly} -body {
++    mytest -all {addForm password 0 0 100 20 -id ropw -readonly 1} {
++        /Subtype /Widget * /FT /Tx * /Ff 8193
++    }
++} -result 1
++
++test form-13.5 {addForm method, combobox readonly} -body {
++    mytest -all {addForm combobox 0 0 100 20 -options {A B} -readonly 1} {
++        /Subtype /Widget * /FT /Ch * /Ff 131073
++    }
++} -result 1
++
++test form-13.6 {addForm method, listbox readonly} -body {
++    mytest -all {addForm listbox 0 0 100 60 -options {A B} -readonly 1} {
++        /Subtype /Widget * /Ff 1
++    }
++} -result 1
++
++test form-13.7 {addForm method, checkbutton readonly} -body {
++    mytest -all {addForm checkbutton 0 0 10 10 -id rocb -init 1 -readonly 1} {
++        /Subtype /Widget * /FT /Btn*/T (rocb)*/Ff 1*/AS /Yes
++    }
++} -result 1
++
++test form-13.8 {addForm method, pushbutton readonly} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id robtn -caption "Locked" -readonly 1} {
++        /Subtype /Widget * /FT /Btn * /Ff 65537
++    }
++} -result 1
++
++test form-13.9 {addForm method, bad -readonly value} -body {
++    mytest {addForm text 0 0 100 20 -readonly hej} {
++    }
++} -returnCodes 1 -result "option -readonly must have a boolean value"
++
++# ---------------------------------------------------------------
++# 14. Checkbox alias for checkbutton
++# ---------------------------------------------------------------
++
++test form-14.1 {addForm method, checkbox alias basic} -body {
++    mytest -all {addForm checkbox 0 0 10 10 -id cba1} {
++        /Subtype /Widget * /FT /Btn*/T (cba1)*/AS /Off
++    }
++} -result 1
++
++test form-14.2 {addForm method, checkbox alias init true} -body {
++    mytest -all {addForm checkbox 0 0 10 10 -id cba2 -init true} {
++        /Subtype /Widget * /FT /Btn*/T (cba2)*/AS /Yes
++    }
++} -result 1
++
++test form-14.3 {addForm method, checkbox alias readonly} -body {
++    mytest -all {addForm checkbox 0 0 10 10 -id cba3 -readonly 1} {
++        /Subtype /Widget * /FT /Btn*/T (cba3)*/Ff 1*/AS /Off
++    }
++} -result 1
++
++
++# ---------------------------------------------------------------
++# 15. -required flag
++# ---------------------------------------------------------------
++
++test form-15.1 {addForm method, text required} -body {
++    mytest -all {addForm text 0 0 100 20 -id rq1 -required 1} {
++        /Subtype /Widget * /FT /Tx*/T (rq1)*/Ff 2
++    }
++} -result 1
++
++test form-15.2 {addForm method, text required + readonly} -body {
++    mytest -all {addForm text 0 0 100 20 -id rq2 -required 1 -readonly 1} {
++        /Subtype /Widget * /FT /Tx*/T (rq2)*/Ff 3
++    }
++} -result 1
++
++test form-15.3 {addForm method, checkbox required} -body {
++    mytest -all {addForm checkbox 0 0 10 10 -id rq3 -required 1} {
++        /Subtype /Widget * /FT /Btn*/T (rq3)*/Ff 2*/AS /Off
++    }
++} -result 1
++
++test form-15.4 {addForm method, -required rejected for pushbutton} -body {
++    mytest {addForm pushbutton 0 0 80 20 -caption X -action reset -required 1} {
++    }
++} -returnCodes 1 -result "-required is not valid for pushbutton"
++
++test form-15.5 {addForm method, -required rejected for signature} -body {
++    mytest {addForm signature 0 0 100 40 -required 1} {
++    }
++} -returnCodes 1 -result "-required is not valid for signature"
++
++# ---------------------------------------------------------------
++# 16. -label restriction to signature only
++# ---------------------------------------------------------------
++
++test form-16.1 {addForm method, -label accepted for signature} -body {
++    mytest -all {addForm signature 0 0 100 40 -id s1 -label "Sign here"} {
++        /Subtype /Widget * /FT /Sig*/T (s1)
++    }
++} -result 1
++
++test form-16.2 {addForm method, -label rejected for text} -body {
++    mytest {addForm text 0 0 100 20 -label "test"} {
++    }
++} -returnCodes 1 -result "-label is only valid for signature fields"
++
++# ---------------------------------------------------------------
++# 17. Auto-ID correctness
++# ---------------------------------------------------------------
++
++test form-17.1 {addForm method, signature auto-id format} -body {
++    mytest -all {addForm signature 0 0 100 40} {
++        /Subtype /Widget * /FT /Sig*/T (Signature*)
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 18. -group/-value validation (must be alphanumeric)
++# ---------------------------------------------------------------
++
++test form-18.1 {addForm method, radiobutton -group with space rejected} -body {
++    mytest {addForm radiobutton 0 0 12 12 -group "my group" -value A} {
++    }
++} -returnCodes 1 -result "option -group must be alphanumeric"
++
++test form-18.2 {addForm method, radiobutton -value with hyphen rejected} -body {
++    mytest {addForm radiobutton 0 0 12 12 -group grp -value "opt-1"} {
++    }
++} -returnCodes 1 -result "option -value must be alphanumeric"
++
++test form-18.3 {addForm method, radiobutton valid group/value accepted} -body {
++    mytest -all \
++        {addForm radiobutton 0 0 12 12 -group color -value Red} \
++        {addForm radiobutton 20 0 12 12 -group color -value Blue} {
++        /FT /Btn*/T (color)*/Kids
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 19. URL escaping in pushbutton actions
++# ---------------------------------------------------------------
++
++test form-19.1 {addForm method, pushbutton url with parens escaped} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id btnE -caption Go -action url -url "https://example.com/q=a(b)"} {
++        /A << /Type /Action /S /URI /URI *\(*\)*
++    }
++} -result 1
++
++test form-19.2 {addForm method, pushbutton submit url escaped} -body {
++    mytest -all {addForm pushbutton 0 0 80 20 -id btnS2 -caption Send -action submit -url "https://example.com/q=a(b)"} {
++        /A << /Type /Action /S /SubmitForm /F *\(*\)*
++    }
++} -result 1
++
++# ---------------------------------------------------------------
++# 20. Odd argument count
++# ---------------------------------------------------------------
++
++test form-20.1 {addForm method, odd argument count rejected} -body {
++    mytest {addForm text 0 0 100 20 -id} {
++    }
++} -returnCodes 1 -result "options must be key-value pairs"
++
++::tcltest::cleanupTests
+--- /dev/null	2026-02-16 06:03:59.302592771 +0000
++++ b/tests/diagnose.tcl	2026-02-16 05:33:47.000000000 +0000
+@@ -0,0 +1,82 @@
++#!/usr/bin/env tclsh
++# diagnose.tcl — Check which pdf4tcl is loaded and verify v2.1 features.
++# Run from the tests/ directory:  tclsh diagnose.tcl
++
++set tmp [file join [pwd] ..]
++set ::auto_path [concat [list $tmp] $::auto_path]
++package require pdf4tcl
++
++puts "=== pdf4tcl Diagnostic ==="
++puts "Package version: [package present pdf4tcl]"
++puts "Loaded from:     [package ifneeded pdf4tcl [package present pdf4tcl]]"
++puts "Working dir:     [pwd]"
++puts "Parent dir:      $tmp"
++puts ""
++
++# Check key files
++puts "=== Files ==="
++foreach f [list $tmp/pdf4tcl.tcl $tmp/pkgIndex.tcl] {
++    if {[file exists $f]} {
++        puts "  $f  ([file size $f] bytes)"
++    } else {
++        puts "  $f  MISSING!"
++    }
++}
++puts ""
++
++# Feature tests
++puts "=== Feature Tests ==="
++set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4 -orient 1]
++$pdf setFont 10 Helvetica
++$pdf startPage
++
++set pass 0
++set fail 0
++
++proc check {desc script} {
++    upvar pass pass fail fail
++    if {[catch {uplevel 1 $script} err]} {
++        puts "  FAIL: $desc — $err"
++        incr fail
++    } else {
++        puts "  OK:   $desc"
++        incr pass
++    }
++}
++
++check "-required on text" {
++    $pdf addForm text 10 10 100 18 -id diag_rq -required 1
++}
++check "-required rejected for pushbutton" {
++    set ok [catch {$pdf addForm pushbutton 10 40 80 20 -caption X -action reset -required 1} err]
++    if {!$ok || $err ne "-required is not valid for pushbutton"} {
++        error "expected rejection, got: $err"
++    }
++}
++check "-label on signature" {
++    $pdf addForm signature 10 70 100 40 -label "Sign here"
++}
++check "-label rejected for text" {
++    set ok [catch {$pdf addForm text 10 120 100 18 -label "test"} err]
++    if {!$ok || $err ne "-label is only valid for signature fields"} {
++        error "expected rejection, got: $err"
++    }
++}
++check "signature auto-id = Signature<N>" {
++    $pdf addForm signature 10 170 100 40
++    set data [$pdf get]
++    if {![regexp {/T \(Signature\d+\)} $data]} {
++        error "auto-id not Signature<N>, got: [regexp -inline {/T \([^)]+\)} $data]"
++    }
++}
++
++$pdf destroy
++
++puts ""
++puts "=== Result: $pass passed, $fail failed ==="
++if {$fail > 0} {
++    puts ""
++    puts "If features fail, you may have an older pdf4tcl in your auto_path."
++    puts "Check: package ifneeded pdf4tcl \[package present pdf4tcl\]"
++    puts "Make sure the v2.1 pdf4tcl.tcl is in the parent directory."
++}
+--- /dev/null	2026-02-16 06:03:59.302592771 +0000
++++ b/examples/test7.tcl	2026-02-16 05:33:47.000000000 +0000
+@@ -0,0 +1,268 @@
++#!/usr/bin/env tclsh
++
++set auto_path [linsert $auto_path 0 [pwd]/..]
++# puts stderr $auto_path
++package require pdf4tcl
++
++pdf4tcl::new p1 -orient 0 -compress false -paper a4
++
++# Page 1: All form types overview
++p1 startPage
++p1 setFont 16 "Helvetica-Bold"
++p1 text "Form Fields Overview" -x 50 -y 780
++
++p1 setFont 10 "Helvetica"
++
++# --- Text (existing) ---
++p1 text "Text:" -x 50 -y 740
++p1 rectangle 150 730 200 20
++p1 addForm text 150 730 200 20 -id name
++
++p1 text "Text with init:" -x 50 -y 710
++p1 rectangle 150 700 200 20
++p1 addForm text 150 700 200 20 -id city -init "Stockholm"
++
++p1 text "Multiline:" -x 50 -y 680
++p1 rectangle 150 620 200 80
++p1 addForm text 150 620 200 80 -id notes -multiline 1
++
++# --- Password (new) ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Password" -x 50 -y 590
++p1 setFont 10 "Helvetica"
++
++p1 text "Password:" -x 50 -y 570
++p1 rectangle 150 560 200 20
++p1 addForm password 150 560 200 20 -id pw
++
++p1 text "PIN (init):" -x 50 -y 540
++p1 rectangle 150 530 80 20
++p1 addForm password 150 530 80 20 -id pin -init "1234"
++
++# --- Checkbutton (existing) ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Checkbutton" -x 50 -y 500
++p1 setFont 10 "Helvetica"
++
++p1 rectangle 150 480 20 20
++p1 addForm checkbutton 150 480 20 20 -id cb1
++p1 text "Unchecked" -x 180 -y 490
++
++p1 rectangle 300 480 20 20
++p1 addForm checkbutton 300 480 20 20 -id cb2 -init 1
++p1 text "Checked" -x 330 -y 490
++
++# --- Combobox (new) ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Combobox" -x 50 -y 450
++p1 setFont 10 "Helvetica"
++
++p1 text "Color:" -x 50 -y 430
++p1 rectangle 150 420 150 20
++p1 addForm combobox 150 420 150 20 -id color \
++    -options {"Red" "Green" "Blue" "Yellow"} -init "Red"
++
++p1 text "Editable:" -x 50 -y 400
++p1 rectangle 150 390 200 20
++p1 addForm combobox 150 390 200 20 -id custom \
++    -options {"Option A" "Option B" "Option C"} -editable 1
++
++p1 text "Sorted:" -x 50 -y 370
++p1 rectangle 150 360 150 20
++p1 addForm combobox 150 360 150 20 -id sorted \
++    -options {"Cherry" "Apple" "Banana"} -sort 1
++
++# --- Listbox (new) ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Listbox" -x 50 -y 330
++p1 setFont 10 "Helvetica"
++
++p1 text "Single:" -x 50 -y 310
++p1 rectangle 150 250 150 80
++p1 addForm listbox 150 250 150 80 -id fruit \
++    -options {"Apple" "Banana" "Cherry" "Date" "Elderberry" "Fig"}
++
++p1 text "Multi:" -x 50 -y 220
++p1 rectangle 150 170 150 70
++p1 addForm listbox 150 170 150 70 -id multi \
++    -options {"Alpha" "Beta" "Gamma" "Delta" "Epsilon"} \
++    -multiselect 1
++
++# --- Radiobutton (new) ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Radiobutton" -x 50 -y 140
++p1 setFont 10 "Helvetica"
++
++p1 text "Size:" -x 50 -y 120
++p1 rectangle 150 108 14 14
++p1 addForm radiobutton 150 108 14 14 -group size -value Small -init 1
++p1 text "Small" -x 170 -y 118
++p1 rectangle 220 108 14 14
++p1 addForm radiobutton 220 108 14 14 -group size -value Medium
++p1 text "Medium" -x 240 -y 118
++p1 rectangle 300 108 14 14
++p1 addForm radiobutton 300 108 14 14 -group size -value Large
++p1 text "Large" -x 320 -y 118
++
++p1 text "Priority:" -x 50 -y 90
++p1 rectangle 150 78 14 14
++p1 addForm radiobutton 150 78 14 14 -group prio -value Low
++p1 text "Low" -x 170 -y 88
++p1 rectangle 220 78 14 14
++p1 addForm radiobutton 220 78 14 14 -group prio -value Normal -init 1
++p1 text "Normal" -x 240 -y 88
++p1 rectangle 300 78 14 14
++p1 addForm radiobutton 300 78 14 14 -group prio -value High
++p1 text "High" -x 320 -y 88
++
++# --- Pushbutton (new) ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Pushbutton" -x 50 -y 55
++p1 setFont 10 "Helvetica"
++
++p1 addForm pushbutton 150 30 80 22 -id btnReset \
++    -caption "Reset" -action reset
++p1 addForm pushbutton 240 30 100 22 -id btnURL \
++    -caption "Website" -action url -url "https://example.com"
++p1 addForm pushbutton 350 30 80 22 -id btnSubmit \
++    -caption "Submit" -action submit -url "https://example.com/post"
++
++# Page 1b: Signature and ReadOnly overview
++p1 startPage
++p1 setFont 16 "Helvetica-Bold"
++p1 text "Signature & ReadOnly Fields" -x 50 -y 780
++
++p1 setFont 10 "Helvetica"
++
++# --- Signature ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "Signature" -x 50 -y 740
++p1 setFont 10 "Helvetica"
++
++p1 text "Basic:" -x 50 -y 710
++p1 addForm signature 150 680 250 50 -id sigBasic
++
++p1 text "With label:" -x 50 -y 650
++p1 addForm signature 150 620 250 50 -id sigLabeled \
++    -label "Unterschrift Auftraggeber"
++
++p1 text "ReadOnly:" -x 50 -y 590
++p1 addForm signature 150 560 250 50 -id sigLocked -readonly 1
++
++# --- ReadOnly demo ---
++p1 setFont 12 "Helvetica-Bold"
++p1 text "ReadOnly Fields" -x 50 -y 530
++p1 setFont 10 "Helvetica"
++
++p1 text "Text (ro):" -x 50 -y 505
++p1 rectangle 150 495 200 20
++p1 addForm text 150 495 200 20 -id roText -init "Cannot edit" -readonly 1
++
++p1 text "Combo (ro):" -x 50 -y 475
++p1 addForm combobox 150 465 150 20 -id roCombo \
++    -options {"Fixed" "Locked"} -init "Fixed" -readonly 1
++
++p1 text "Checkbox (ro):" -x 50 -y 445
++p1 addForm checkbox 150 435 14 14 -id roCheck -init 1 -readonly 1
++p1 text "(checked, locked)" -x 170 -y 445
++
++# Page 2: Practical form example with signature and readonly
++p1 startPage
++p1 setFont 14 "Helvetica-Bold"
++p1 text "Registration Form" -x 50 -y 780
++
++p1 setStrokeColor 0 0 0
++p1 setLineWidth 0.5
++p1 line 50 770 545 770
++p1 setFont 10 "Helvetica"
++
++# Personal information
++p1 setFont 11 "Helvetica-Bold"
++p1 text "Personal Information" -x 50 -y 748
++
++p1 setFont 10 "Helvetica"
++p1 text "Title:" -x 70 -y 720
++p1 addForm combobox 160 710 120 20 -id title \
++    -options {"Mr" "Mrs" "Ms" "Dr" "Prof"}
++
++p1 text "First name:" -x 70 -y 690
++p1 rectangle 160 680 180 20
++p1 addForm text 160 680 180 20 -id firstname
++
++p1 text "Last name:" -x 70 -y 660
++p1 rectangle 160 650 180 20
++p1 addForm text 160 650 180 20 -id lastname
++
++p1 text "Password:" -x 70 -y 630
++p1 rectangle 160 620 180 20
++p1 addForm password 160 620 180 20 -id regpassword
++
++# Read-only fields (pre-filled, not editable)
++p1 setFont 11 "Helvetica-Bold"
++p1 text "Account Info (read-only)" -x 50 -y 590
++
++p1 setFont 10 "Helvetica"
++p1 text "Account #:" -x 70 -y 565
++p1 rectangle 160 555 180 20
++p1 addForm text 160 555 180 20 -id acctno -init "ACC-2026-0042" -readonly 1
++
++p1 text "Status:" -x 70 -y 535
++p1 addForm combobox 160 525 120 20 -id status \
++    -options {"Active" "Inactive" "Pending"} -init "Active" -readonly 1
++
++# Using "checkbox" alias
++p1 text "Verified:" -x 70 -y 505
++p1 addForm checkbox 160 498 14 14 -id verified -init 1 -readonly 1
++p1 text "Yes" -x 180 -y 505
++
++# Contact preference
++p1 setFont 11 "Helvetica-Bold"
++p1 text "Contact Preference" -x 50 -y 470
++
++p1 setFont 10 "Helvetica"
++p1 text "Preferred:" -x 70 -y 445
++p1 addForm radiobutton 160 435 12 12 -group contact -value Email -init 1
++p1 text "Email" -x 178 -y 445
++p1 addForm radiobutton 240 435 12 12 -group contact -value Phone
++p1 text "Phone" -x 258 -y 445
++p1 addForm radiobutton 320 435 12 12 -group contact -value Mail
++p1 text "Mail" -x 338 -y 445
++
++# Interests
++p1 setFont 11 "Helvetica-Bold"
++p1 text "Interests" -x 50 -y 410
++
++p1 setFont 10 "Helvetica"
++p1 text "Topics:" -x 70 -y 390
++p1 addForm listbox 160 320 200 90 -id interests \
++    -options {"Technology" "Science" "Art" "Music" "Sports" "Travel" "Food"} \
++    -multiselect 1
++
++# Agreement
++p1 addForm checkbutton 70 290 14 14 -id agree
++p1 text "I agree to the terms and conditions" -x 90 -y 300
++
++p1 addForm checkbutton 70 265 14 14 -id newsletter
++p1 text "Subscribe to newsletter" -x 90 -y 275
++
++# --- Signature (new) ---
++p1 setFont 11 "Helvetica-Bold"
++p1 text "Signature" -x 50 -y 235
++
++p1 setFont 10 "Helvetica"
++p1 text "Applicant:" -x 70 -y 212
++p1 addForm signature 160 180 250 50 -id sigApplicant \
++    -label "Sign here"
++
++p1 text "Date:" -x 70 -y 168
++p1 rectangle 160 158 120 20
++p1 addForm text 160 158 120 20 -id sigDate
++
++# Buttons
++p1 addForm pushbutton 160 120 100 24 -id regReset \
++    -caption "Clear Form" -action reset
++p1 addForm pushbutton 280 120 100 24 -id regSubmit \
++    -caption "Register" -action submit -url "https://example.com/register"
++
++p1 write -file test7.pdf
++p1 destroy

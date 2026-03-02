@@ -1,0 +1,473 @@
+# Test form commands - extended form types                           -*-tcl-*-
+#
+# Tests for combobox, listbox, password, radiobutton and pushbutton.
+# Continues numbering from form.test (form-5.x .. form-9.x).
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------
+# 5. Combobox
+# ---------------------------------------------------------------
+
+test form-5.1 {addForm method, combobox errors, missing -options} -body {
+    mytest {addForm combobox 0 0 100 20} {
+    }
+} -returnCodes 1 -result "-options is required for combobox"
+
+test form-5.2 {addForm method, combobox errors, bad -editable} -body {
+    mytest {addForm combobox 0 0 100 20 -options {A B} -editable hej} {
+    }
+} -returnCodes 1 -result "option -editable must have a boolean value"
+
+test form-5.3 {addForm method, combobox errors, bad -sort} -body {
+    mytest {addForm combobox 0 0 100 20 -options {A B} -sort hej} {
+    }
+} -returnCodes 1 -result "option -sort must have a boolean value"
+
+test form-5.4 {addForm method, combobox basic} -body {
+    mytest -all {addForm combobox 0 0 100 20 -options {Red Green Blue}} {
+        /Subtype /Widget * /FT /Ch /T * /Ff 131072 * /DA
+    }
+} -result 1
+
+test form-5.5 {addForm method, combobox with id and init} -body {
+    mytest -all {addForm combobox 0 0 100 20 -id color -options {Red Green Blue} -init Green} {
+        /Subtype /Widget * /FT /Ch /T (color) /Ff 131072 * /V (Green)
+    }
+} -result 1
+
+test form-5.6 {addForm method, combobox editable} -body {
+    mytest -all {addForm combobox 0 0 100 20 -options {A B C} -editable 1} {
+        /Subtype /Widget * /FT /Ch * /Ff 393216
+    }
+} -result 1
+
+test form-5.7 {addForm method, combobox sorted} -body {
+    mytest -all {addForm combobox 0 0 100 20 -options {C A B} -sort 1} {
+        /Subtype /Widget * /FT /Ch * /Ff 655360
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 6. Listbox
+# ---------------------------------------------------------------
+
+test form-6.1 {addForm method, listbox errors, missing -options} -body {
+    mytest {addForm listbox 0 0 100 60} {
+    }
+} -returnCodes 1 -result "-options is required for listbox"
+
+test form-6.2 {addForm method, listbox errors, bad -multiselect} -body {
+    mytest {addForm listbox 0 0 100 60 -options {A B} -multiselect hej} {
+    }
+} -returnCodes 1 -result "option -multiselect must have a boolean value"
+
+test form-6.3 {addForm method, listbox basic} -body {
+    mytest -all {addForm listbox 0 0 100 60 -options {Alpha Beta Gamma}} {
+        /Subtype /Widget * /FT /Ch /T * /Opt *(Alpha)*(Gamma)* /DA
+    }
+} -result 1
+
+test form-6.4 {addForm method, listbox has no Combo flag} -body {
+    # Listbox should NOT have Ff 131072 (Combo bit)
+    set res [mytest -all {addForm listbox 0 0 100 60 -options {A B C}} {
+        /FT /Ch
+    }]
+    # If Ff is absent or zero, listbox is correct (no Combo flag)
+    expr {$res == 1}
+} -result 1
+
+test form-6.5 {addForm method, listbox with init} -body {
+    mytest -all {addForm listbox 0 0 100 60 -id fruit -options {Apple Banana Cherry} -init Banana} {
+        /Subtype /Widget * /FT /Ch /T (fruit) * /DA * /V (Banana)
+    }
+} -result 1
+
+test form-6.6 {addForm method, listbox multiselect} -body {
+    mytest -all {addForm listbox 0 0 100 60 -options {A B C} -multiselect 1} {
+        /Subtype /Widget * /FT /Ch * /Ff 2097152
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 7. Password
+# ---------------------------------------------------------------
+
+test form-7.1 {addForm method, password basic} -body {
+    mytest -all {addForm password 0 0 100 20} {
+        /Subtype /Widget * /FT /Tx /T * /Ff 8192 /DA
+    }
+} -result 1
+
+test form-7.2 {addForm method, password with id} -body {
+    mytest -all {addForm password 0 0 100 20 -id secret} {
+        /Subtype /Widget * /FT /Tx /T (secret) /Ff 8192 /DA
+    }
+} -result 1
+
+test form-7.3 {addForm method, password with init} -body {
+    mytest -all {addForm password 0 0 100 20 -id pin -init 1234} {
+        /Subtype /Widget * /FT /Tx /T (pin) /Ff 8192 /DA * /V (1234)
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 8. Radiobutton
+# ---------------------------------------------------------------
+
+test form-8.1 {addForm method, radiobutton errors, missing -group} -body {
+    mytest {addForm radiobutton 0 0 12 12 -value A} {
+    }
+} -returnCodes 1 -result "-group is required for radiobutton"
+
+test form-8.2 {addForm method, radiobutton errors, missing -value} -body {
+    mytest {addForm radiobutton 0 0 12 12 -group grp1} {
+    }
+} -returnCodes 1 -result "-value is required for radiobutton"
+
+test form-8.3 {addForm method, radiobutton basic} -body {
+    mytest -all \
+        {addForm radiobutton 0 0 12 12 -group color -value Red} \
+        {addForm radiobutton 20 0 12 12 -group color -value Blue} {
+        /Subtype /Widget * /Parent * /AS /Off * /N << /Red * /Off
+    }
+} -result 1
+
+test form-8.4 {addForm method, radiobutton with init} -body {
+    mytest -all \
+        {addForm radiobutton 0 0 12 12 -group size -value Small -init 1} \
+        {addForm radiobutton 20 0 12 12 -group size -value Large} {
+        /Subtype /Widget * /Parent * /AS /Small
+    }
+} -result 1
+
+test form-8.5 {addForm method, radiobutton group in AcroForm} -body {
+    mytest -all \
+        {addForm radiobutton 0 0 12 12 -group ship -value Normal} \
+        {addForm radiobutton 20 0 12 12 -group ship -value Express} {
+        /FT /Btn /T (ship) /Ff 49152 /Kids
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 9. Pushbutton
+# ---------------------------------------------------------------
+
+test form-9.1 {addForm method, pushbutton errors, missing caption/action} -body {
+    mytest {addForm pushbutton 0 0 80 20} {
+    }
+} -returnCodes 1 -result "-action or -caption is required for pushbutton"
+
+test form-9.2 {addForm method, pushbutton errors, url action without -url} -body {
+    mytest {addForm pushbutton 0 0 80 20 -caption Go -action url} {
+    }
+} -returnCodes 1 -result "-url is required when -action is url"
+
+test form-9.2b {addForm method, pushbutton errors, submit action without -url} -body {
+    mytest {addForm pushbutton 0 0 80 20 -caption Send -action submit} {
+    }
+} -returnCodes 1 -result "-url is required when -action is submit"
+
+test form-9.3 {addForm method, pushbutton with caption} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id btn1 -caption Submit} {
+        /Subtype /Widget * /FT /Btn /T (btn1) /Ff 65536 * /MK << /CA (Submit) >>
+    }
+} -result 1
+
+test form-9.4 {addForm method, pushbutton reset action} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id btnR -caption Reset -action reset} {
+        /Subtype /Widget * /FT /Btn * /Ff 65536 * /A << /Type /Action /S /ResetForm >>
+    }
+} -result 1
+
+test form-9.5 {addForm method, pushbutton url action} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id btnU -caption Go -action url -url "https://example.com"} {
+        /Subtype /Widget * /FT /Btn * /Ff 65536 * /A << /Type /Action /S /URI /URI (https://example.com) >>
+    }
+} -result 1
+
+test form-9.6 {addForm method, pushbutton submit action} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id btnS -caption Send -action submit -url "https://example.com/post"} {
+        /Subtype /Widget * /FT /Btn * /Ff 65536 * /A << /Type /Action /S /SubmitForm /F (https://example.com/post) >>
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 10. getForms for new types
+# ---------------------------------------------------------------
+
+test form-10.1 {getForms, combobox} -body {
+    mytest -file {addForm combobox 0 0 100 20 -id favColor -options {Red Green Blue} -init Red} {}
+    set res [pdf4tcl::getForms testdebug.pdf]
+    dict get $res favColor type
+} -cleanup {file delete testdebug.pdf} -result "/Ch"
+
+test form-10.2 {getForms, listbox} -body {
+    mytest -file {addForm listbox 0 0 100 60 -id myList -options {A B C}} {}
+    set res [pdf4tcl::getForms testdebug.pdf]
+    dict get $res myList type
+} -cleanup {file delete testdebug.pdf} -result "/Ch"
+
+test form-10.3 {getForms, password} -body {
+    mytest -file {addForm password 0 0 100 20 -id pw} {}
+    set res [pdf4tcl::getForms testdebug.pdf]
+    set ftype [dict get $res pw type]
+    set flags [dict get $res pw flags]
+    list $ftype $flags
+} -cleanup {file delete testdebug.pdf} -result "/Tx 8192"
+
+test form-10.4 {getForms, pushbutton} -body {
+    mytest -file {addForm pushbutton 0 0 80 20 -id btnTest -caption OK -action reset} {}
+    set res [pdf4tcl::getForms testdebug.pdf]
+    set ftype [dict get $res btnTest type]
+    set flags [dict get $res btnTest flags]
+    list $ftype $flags
+} -cleanup {file delete testdebug.pdf} -result "/Btn 65536"
+
+# ---------------------------------------------------------------
+# 11. Backward compatibility: text and checkbutton unchanged
+# ---------------------------------------------------------------
+
+test form-11.1 {addForm text still works} -body {
+    mytest -all {addForm text 0 0 10 10} {
+        /Subtype /Widget * /FT /Tx /T * /DA
+    }
+} -result 1
+
+test form-11.2 {addForm text multiline still works} -body {
+    mytest -all {addForm text 0 0 10 10 -multiline 1} {
+        /Subtype /Widget * /FT /Tx * /Ff 4096
+    }
+} -result 1
+
+test form-11.3 {addForm text with init still works} -body {
+    mytest -all {addForm text 0 0 10 10 -init Hello} {
+        /Subtype /Widget * /FT /Tx * /V (Hello)
+    }
+} -result 1
+
+test form-11.4 {addForm checkbutton still works} -body {
+    mytest -all {addForm checkbutton 0 0 10 10} {
+        /Subtype /Widget * /FT /Btn /T * /AS /Off
+    }
+} -result 1
+
+test form-11.5 {addForm checkbutton init true still works} -body {
+    mytest -all {addForm checkbutton 0 0 10 10 -init true} {
+        /Subtype /Widget * /FT /Btn /T * /AS /Yes
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 12. Signature
+# ---------------------------------------------------------------
+
+test form-12.1 {addForm method, signature basic} -body {
+    mytest -all {addForm signature 0 0 200 60} {
+        /Subtype /Widget * /FT /Sig /T *
+    }
+} -result 1
+
+test form-12.2 {addForm method, signature with id} -body {
+    mytest -all {addForm signature 0 0 200 60 -id sig1} {
+        /Subtype /Widget * /FT /Sig /T (sig1)
+    }
+} -result 1
+
+test form-12.3 {addForm method, signature with label} -body {
+    mytest -all {addForm signature 0 0 200 60 -id sig2 -label "Unterschrift Kunde"} {
+        /Subtype /Widget * /FT /Sig /T (sig2)
+    }
+} -result 1
+
+test form-12.4 {addForm method, signature readonly} -body {
+    mytest -all {addForm signature 0 0 200 60 -id sig3 -readonly 1} {
+        /Subtype /Widget * /FT /Sig * /Ff 1
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 13. ReadOnly flag
+# ---------------------------------------------------------------
+
+test form-13.1 {addForm method, text readonly} -body {
+    mytest -all {addForm text 0 0 100 20 -id ro1 -readonly 1} {
+        /Subtype /Widget * /FT /Tx * /Ff 1
+    }
+} -result 1
+
+test form-13.2 {addForm method, text readonly with init} -body {
+    mytest -all {addForm text 0 0 100 20 -id ro2 -init "Fixed" -readonly 1} {
+        /Subtype /Widget * /FT /Tx * /Ff 1 * /V (Fixed)
+    }
+} -result 1
+
+test form-13.3 {addForm method, text multiline readonly} -body {
+    mytest -all {addForm text 0 0 100 60 -id ro3 -multiline 1 -readonly 1} {
+        /Subtype /Widget * /FT /Tx * /Ff 4097
+    }
+} -result 1
+
+test form-13.4 {addForm method, password readonly} -body {
+    mytest -all {addForm password 0 0 100 20 -id ropw -readonly 1} {
+        /Subtype /Widget * /FT /Tx * /Ff 8193
+    }
+} -result 1
+
+test form-13.5 {addForm method, combobox readonly} -body {
+    mytest -all {addForm combobox 0 0 100 20 -options {A B} -readonly 1} {
+        /Subtype /Widget * /FT /Ch * /Ff 131073
+    }
+} -result 1
+
+test form-13.6 {addForm method, listbox readonly} -body {
+    mytest -all {addForm listbox 0 0 100 60 -options {A B} -readonly 1} {
+        /Subtype /Widget * /Ff 1
+    }
+} -result 1
+
+test form-13.7 {addForm method, checkbutton readonly} -body {
+    mytest -all {addForm checkbutton 0 0 10 10 -id rocb -init 1 -readonly 1} {
+        /Subtype /Widget * /FT /Btn*/T (rocb)*/Ff 1*/AS /Yes
+    }
+} -result 1
+
+test form-13.8 {addForm method, pushbutton readonly} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id robtn -caption "Locked" -readonly 1} {
+        /Subtype /Widget * /FT /Btn * /Ff 65537
+    }
+} -result 1
+
+test form-13.9 {addForm method, bad -readonly value} -body {
+    mytest {addForm text 0 0 100 20 -readonly hej} {
+    }
+} -returnCodes 1 -result "option -readonly must have a boolean value"
+
+# ---------------------------------------------------------------
+# 14. Checkbox alias for checkbutton
+# ---------------------------------------------------------------
+
+test form-14.1 {addForm method, checkbox alias basic} -body {
+    mytest -all {addForm checkbox 0 0 10 10 -id cba1} {
+        /Subtype /Widget * /FT /Btn*/T (cba1)*/AS /Off
+    }
+} -result 1
+
+test form-14.2 {addForm method, checkbox alias init true} -body {
+    mytest -all {addForm checkbox 0 0 10 10 -id cba2 -init true} {
+        /Subtype /Widget * /FT /Btn*/T (cba2)*/AS /Yes
+    }
+} -result 1
+
+test form-14.3 {addForm method, checkbox alias readonly} -body {
+    mytest -all {addForm checkbox 0 0 10 10 -id cba3 -readonly 1} {
+        /Subtype /Widget * /FT /Btn*/T (cba3)*/Ff 1*/AS /Off
+    }
+} -result 1
+
+
+# ---------------------------------------------------------------
+# 15. -required flag
+# ---------------------------------------------------------------
+
+test form-15.1 {addForm method, text required} -body {
+    mytest -all {addForm text 0 0 100 20 -id rq1 -required 1} {
+        /Subtype /Widget * /FT /Tx*/T (rq1)*/Ff 2
+    }
+} -result 1
+
+test form-15.2 {addForm method, text required + readonly} -body {
+    mytest -all {addForm text 0 0 100 20 -id rq2 -required 1 -readonly 1} {
+        /Subtype /Widget * /FT /Tx*/T (rq2)*/Ff 3
+    }
+} -result 1
+
+test form-15.3 {addForm method, checkbox required} -body {
+    mytest -all {addForm checkbox 0 0 10 10 -id rq3 -required 1} {
+        /Subtype /Widget * /FT /Btn*/T (rq3)*/Ff 2*/AS /Off
+    }
+} -result 1
+
+test form-15.4 {addForm method, -required rejected for pushbutton} -body {
+    mytest {addForm pushbutton 0 0 80 20 -caption X -action reset -required 1} {
+    }
+} -returnCodes 1 -result "-required is not valid for pushbutton"
+
+test form-15.5 {addForm method, -required rejected for signature} -body {
+    mytest {addForm signature 0 0 100 40 -required 1} {
+    }
+} -returnCodes 1 -result "-required is not valid for signature"
+
+# ---------------------------------------------------------------
+# 16. -label restriction to signature only
+# ---------------------------------------------------------------
+
+test form-16.1 {addForm method, -label accepted for signature} -body {
+    mytest -all {addForm signature 0 0 100 40 -id s1 -label "Sign here"} {
+        /Subtype /Widget * /FT /Sig*/T (s1)
+    }
+} -result 1
+
+test form-16.2 {addForm method, -label rejected for text} -body {
+    mytest {addForm text 0 0 100 20 -label "test"} {
+    }
+} -returnCodes 1 -result "-label is only valid for signature fields"
+
+# ---------------------------------------------------------------
+# 17. Auto-ID correctness
+# ---------------------------------------------------------------
+
+test form-17.1 {addForm method, signature auto-id format} -body {
+    mytest -all {addForm signature 0 0 100 40} {
+        /Subtype /Widget * /FT /Sig*/T (Signature*)
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 18. -group/-value validation (must be alphanumeric)
+# ---------------------------------------------------------------
+
+test form-18.1 {addForm method, radiobutton -group with space rejected} -body {
+    mytest {addForm radiobutton 0 0 12 12 -group "my group" -value A} {
+    }
+} -returnCodes 1 -result "option -group must be alphanumeric"
+
+test form-18.2 {addForm method, radiobutton -value with hyphen rejected} -body {
+    mytest {addForm radiobutton 0 0 12 12 -group grp -value "opt-1"} {
+    }
+} -returnCodes 1 -result "option -value must be alphanumeric"
+
+test form-18.3 {addForm method, radiobutton valid group/value accepted} -body {
+    mytest -all \
+        {addForm radiobutton 0 0 12 12 -group color -value Red} \
+        {addForm radiobutton 20 0 12 12 -group color -value Blue} {
+        /FT /Btn*/T (color)*/Kids
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 19. URL escaping in pushbutton actions
+# ---------------------------------------------------------------
+
+test form-19.1 {addForm method, pushbutton url with parens escaped} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id btnE -caption Go -action url -url "https://example.com/q=a(b)"} {
+        /A << /Type /Action /S /URI /URI *\(*\)*
+    }
+} -result 1
+
+test form-19.2 {addForm method, pushbutton submit url escaped} -body {
+    mytest -all {addForm pushbutton 0 0 80 20 -id btnS2 -caption Send -action submit -url "https://example.com/q=a(b)"} {
+        /A << /Type /Action /S /SubmitForm /F *\(*\)*
+    }
+} -result 1
+
+# ---------------------------------------------------------------
+# 20. Odd argument count
+# ---------------------------------------------------------------
+
+test form-20.1 {addForm method, odd argument count rejected} -body {
+    mytest {addForm text 0 0 100 20 -id} {
+    }
+} -returnCodes 1 -result "options must be key-value pairs"
+
+::tcltest::cleanupTests

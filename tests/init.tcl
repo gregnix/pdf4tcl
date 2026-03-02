@@ -128,6 +128,11 @@ proc mytest {args} {
 
     set pattern *[string trim $pattern]*
     regsub -all {\s+} $pattern " " pattern
+    # After whitespace collapse every separator is a single space.
+    # A glob " * " needs space-wildcard-space which fails when two PDF
+    # tokens are directly adjacent (only one space between them).
+    # Replace " * " with "*" so that wildcards match zero-or-more tokens.
+    regsub -all { \* } $pattern {*} pattern
 
     if {[string match $pattern $res]} {
         if {$returnvalues} {

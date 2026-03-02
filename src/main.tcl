@@ -96,6 +96,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(objects) {}
         set pdf(bookmarks) {}
         set pdf(forms) {}
+        set pdf(radiogroups) {}
+        set pdf(needAppearances) 0
         set pdf(compress) $options(-compress)
         set pdf(finished) false
         set pdf(inPage) false
@@ -536,7 +538,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "/Outlines $bookmark_oid 0 R\n"
         }
         # Any forms?
-        if {[llength $pdf(forms)] > 0} {
+        if {[llength $pdf(forms)] > 0 || [dict size $pdf(radiogroups)] > 0} {
             set form_oid [my GetOid 1]
             my Pdfout "/AcroForm $form_oid 0 R\n"
         }
@@ -652,12 +654,52 @@ oo::define ::pdf4tcl::pdf4tcl {
                 incr nbookmark
             }
         }
+        # Finalize radio button groups
+        # Each group becomes a parent field with /Kids pointing to buttons
+        dict for {groupName groupData} $pdf(radiogroups) {
+            set parentOid [dict get $groupData parentOid]
+            set kids [dict get $groupData kids]
+            set selectedValue [dict get $groupData selectedValue]
+            set groupReadonly [dict get $groupData readonly]
+            set groupRequired [dict get $groupData required]
+            my StoreXref $parentOid
+            my Pdfout "$parentOid 0 obj\n"
+            my Pdfout "<<\n"
+            my Pdfout "  /FT /Btn\n"
+            my Pdfout "  /T ($groupName)\n"
+            # Ff: NoToggleToOff + Radio
+            set ff [expr {$::pdf4tcl::Ff_NOTOGGLEOFF | $::pdf4tcl::Ff_RADIO}]
+            if {$groupReadonly} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
+            }
+            if {$groupRequired} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
+            }
+            my Pdfout "  /Ff $ff\n"
+            my Pdfout "  /Kids \["
+            foreach kid $kids {
+                my Pdfout "$kid 0 R "
+            }
+            my Pdfout "\]\n"
+            if {$selectedValue ne ""} {
+                my Pdfout "  /V /$selectedValue\n"
+            } else {
+                my Pdfout "  /V /Off\n"
+            }
+            my Pdfout ">>\n"
+            my Pdfout "endobj\n\n"
+            # Add parent to forms list (not the individual buttons)
+            lappend pdf(forms) "$parentOid 0 R"
+        }
         # Any forms?
         if {[llength $pdf(forms)] > 0} {
             my StoreXref $form_oid
             my Pdfout "$form_oid 0 obj\n"
             my Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
             my Pdfout "/DR 3 0 R\n"
+            if {$pdf(needAppearances)} {
+                my Pdfout "/NeedAppearances true\n"
+            }
             my Pdfout ">>\nendobj\n\n"
         }
 
@@ -3182,9 +3224,198 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     # Add an interactive form
-    # Currently supports text and checkbutton
+    # Supports text, password, checkbutton (or checkbox), combobox,
+    # listbox, radiobutton, pushbutton and signature.
+    #######################################################################
+    # Form Appearance Stream Builders (private helpers for addForm)
+    #######################################################################
+
+    # Common Form XObject header string
+    method _FormXObjHeader {width height} {
+        set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
+        append obj "/Resources 3 0 R\n"
+        append obj "/Subtype /Form\n/Type /XObject\n"
+        return $obj
+    }
+
+    # Build checkbox appearance: returns {onid offid}
+    method _BuildCheckboxAP {width height onObj offObj} {
+        my SetupZaDbFont
+        set obj [my _FormXObjHeader $width $height]
+        # On-state appearance
+        if {$onObj ne ""} {
+            set onid [lindex $images($onObj) 2]
+        } else {
+            # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
+            set fs [expr {$height * 0.9}]
+            set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
+            set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
+            set cX [expr {($width-$charW)/2.0}]
+            set cY [expr {$height*0.05 + $baseL}]
+            set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
+            append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
+            append stream "\[(4)\]TJ ET EMC"
+            set body [MakeStream $obj $stream $pdf(compress)]
+            set onid [my AddObject $body]
+        }
+        # Off-state appearance (shared across all checkboxes)
+        if {$offObj ne ""} {
+            set offid [lindex $images($offObj) 2]
+        } else {
+            if {![info exists pdf(checkboxoffobj)]} {
+                set stream ""
+                set body [MakeStream $obj $stream $pdf(compress)]
+                set pdf(checkboxoffobj) [my AddObject $body]
+            }
+            set offid $pdf(checkboxoffobj)
+        }
+        return [list $onid $offid]
+    }
+
+    # Build text/password appearance: returns onid or ""
+    method _BuildTextAP {width height initValue isPassword} {
+        if {$initValue eq ""} {
+            return ""
+        }
+        set obj [my _FormXObjHeader $width $height]
+        set stream "/Tx BMC BT "
+        append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
+        append stream "2 1.1 Td "
+        if {$isPassword} {
+            set masked [string repeat "\u2022" [string length $initValue]]
+            append stream "([CleanText $masked $pdf(current_font)]) Tj "
+        } else {
+            append stream "([CleanText $initValue $pdf(current_font)]) Tj "
+        }
+        append stream "ET EMC"
+        set body [MakeStream $obj $stream $pdf(compress)]
+        return [my AddObject $body]
+    }
+
+    # Build combobox/listbox appearance: returns choiceApId
+    method _BuildChoiceAP {width height ftype initValue optionsList} {
+        set obj [my _FormXObjHeader $width $height]
+        set stream "/Tx BMC "
+        if {$ftype eq "combobox"} {
+            # Combobox: white background, border, dropdown arrow area
+            append stream "1 1 1 rg 0 0 [Nf $width] [Nf $height] re f "
+            append stream "0.5 0.5 0.5 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
+            # Dropdown button area on the right
+            set arrowW [expr {min(18.0, $width * 0.15)}]
+            set arrowX [expr {$width - $arrowW}]
+            append stream "0.9 0.9 0.9 rg [Nf $arrowX] 0 [Nf $arrowW] [Nf $height] re f "
+            append stream "0.5 0.5 0.5 RG [Nf $arrowX] 0 [Nf $arrowW] [Nf $height] re S "
+            # Small triangle indicator
+            set triCX [expr {$arrowX + $arrowW / 2.0}]
+            set triCY [expr {$height / 2.0}]
+            set triS [expr {min(4.0, $arrowW * 0.3)}]
+            append stream "0.3 0.3 0.3 rg "
+            append stream "[Nf [expr {$triCX - $triS}]] [Nf [expr {$triCY + $triS * 0.5}]] m "
+            append stream "[Nf [expr {$triCX + $triS}]] [Nf [expr {$triCY + $triS * 0.5}]] l "
+            append stream "[Nf $triCX] [Nf [expr {$triCY - $triS * 0.5}]] l f "
+        } else {
+            # Listbox: white background, border
+            append stream "1 1 1 rg 0 0 [Nf $width] [Nf $height] re f "
+            append stream "0.5 0.5 0.5 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
+        }
+        # Show init value or first option as text
+        set displayText ""
+        if {$initValue ne ""} {
+            set displayText $initValue
+        } elseif {[llength $optionsList] > 0} {
+            if {$ftype eq "listbox"} {
+                set displayText [lindex $optionsList 0]
+            }
+        }
+        if {$displayText ne ""} {
+            append stream "BT /$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
+            append stream "2 1.1 Td "
+            append stream "([CleanText $displayText $pdf(current_font)]) Tj "
+            append stream "ET "
+        }
+        append stream "EMC"
+        set body [MakeStream $obj $stream $pdf(compress)]
+        return [my AddObject $body]
+    }
+
+    # Build radiobutton appearance: returns {onid offid}
+    method _BuildRadioAP {width height} {
+        my SetupZaDbFont
+        set obj [my _FormXObjHeader $width $height]
+        # On state: filled circle (bullet char 108 in ZapfDingbats = ●)
+        set fs [expr {$height * 0.8}]
+        set cX [expr {($width - $fs * 0.52) / 2.0}]
+        set cY [expr {$height * 0.15}]
+        set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
+        append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
+        append stream "\[(l)\]TJ ET EMC"
+        set body [MakeStream $obj $stream $pdf(compress)]
+        set onid [my AddObject $body]
+        # Off state: empty (shared across all radio buttons)
+        if {![info exists pdf(radiobtnoffobj)]} {
+            set stream ""
+            set body [MakeStream $obj $stream $pdf(compress)]
+            set pdf(radiobtnoffobj) [my AddObject $body]
+        }
+        set offid $pdf(radiobtnoffobj)
+        return [list $onid $offid]
+    }
+
+    # Build pushbutton appearance: returns onid
+    method _BuildPushbuttonAP {width height caption} {
+        set obj [my _FormXObjHeader $width $height]
+        # Button background and border
+        set stream "0.85 0.85 0.85 rg 0 0 [Nf $width] [Nf $height] re f "
+        append stream "0.4 0.4 0.4 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
+        # Caption text centered
+        if {$caption ne ""} {
+            set fs [expr {min($pdf(font_size), $height * 0.6)}]
+            set cY [expr {($height - $fs) / 2.0 + $fs * 0.15}]
+            set strW [expr {[string length $caption] * $fs * 0.5}]
+            set cX [expr {($width - $strW) / 2.0}]
+            append stream "BT /$pdf(current_font) [Nf $fs] Tf 0 g "
+            append stream "[Nf $cX] [Nf $cY] Td "
+            append stream "([CleanText $caption $pdf(current_font)]) Tj "
+            append stream "ET "
+        }
+        set body [MakeStream $obj $stream $pdf(compress)]
+        return [my AddObject $body]
+    }
+
+    # Build signature appearance: returns onid
+    method _BuildSignatureAP {width height label} {
+        set obj [my _FormXObjHeader $width $height]
+        # Light gray fill + border
+        set stream "0.95 0.95 0.95 rg 0 0 [Nf $width] [Nf $height] re f "
+        append stream "0.6 0.6 0.6 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
+        # Dashed signature line at 25% height
+        set lineY [expr {$height * 0.25}]
+        set lx1 [expr {$width * 0.1}]
+        set lx2 [expr {$width * 0.9}]
+        append stream "0.4 0.4 0.4 RG 0.5 w \[3 2\] 0 d "
+        append stream "[Nf $lx1] [Nf $lineY] m [Nf $lx2] [Nf $lineY] l S "
+        append stream "\[\] 0 d "
+        # Label text above the line
+        set labelText $label
+        if {$labelText eq ""} {
+            set labelText "Signature"
+        }
+        set fs [expr {min(8.0, $height * 0.2)}]
+        set textY [expr {$lineY + $fs * 0.5}]
+        append stream "BT /$pdf(current_font) [Nf $fs] Tf 0.5 0.5 0.5 rg "
+        append stream "[Nf $lx1] [Nf $textY] Td "
+        append stream "([CleanText $labelText $pdf(current_font)]) Tj "
+        append stream "ET "
+        set body [MakeStream $obj $stream $pdf(compress)]
+        return [my AddObject $body]
+    }
+
     method addForm {ftype x y width height args} {
-        if {$ftype ni {text checkbutton}} {
+        # Allow "checkbox" as alias for "checkbutton"
+        if {$ftype eq "checkbox"} {
+            set ftype "checkbutton"
+        }
+        if {$ftype ni {text checkbutton combobox listbox password radiobutton pushbutton signature}} {
             throw "PDF4TCL" "unknown form type $ftype"
         }
         set initValue ""
@@ -3192,11 +3423,29 @@ oo::define ::pdf4tcl::pdf4tcl {
         set offObj ""
         set idStr ""
         set multiline 0
+        set optionsList {}
+        set editable 0
+        set sortopt 0
+        set multiselect 0
+        set groupName ""
+        set radioValue ""
+        set actionType ""
+        set actionValue ""
+        set caption ""
+        set readonly 0
+        set required 0
+        set label ""
         if {$ftype eq "checkbutton"} {
+            set initValue 0
+        }
+        if {$ftype eq "radiobutton"} {
             set initValue 0
         }
 
         # Handle options
+        if {[llength $args] % 2} {
+            throw "PDF4TCL" "options must be key-value pairs"
+        }
         foreach {option value} $args {
             switch -- $option {
                 -init {
@@ -3218,16 +3467,58 @@ oo::define ::pdf4tcl::pdf4tcl {
                     my CheckBoolean $option $value
                     set multiline $value
                 }
+                -options {
+                    set optionsList $value
+                }
+                -editable {
+                    my CheckBoolean $option $value
+                    set editable $value
+                }
+                -sort {
+                    my CheckBoolean $option $value
+                    set sortopt $value
+                }
+                -multiselect {
+                    my CheckBoolean $option $value
+                    set multiselect $value
+                }
+                -group {
+                    set groupName $value
+                }
+                -value {
+                    set radioValue $value
+                }
+                -action {
+                    set actionType $value
+                }
+                -url {
+                    set actionValue $value
+                }
+                -caption {
+                    set caption $value
+                }
+                -readonly {
+                    my CheckBoolean $option $value
+                    set readonly $value
+                }
+                -required {
+                    if {$ftype in {pushbutton signature}} {
+                        throw "PDF4TCL" "-required is not valid for $ftype"
+                    }
+                    my CheckBoolean $option $value
+                    set required $value
+                }
+                -label {
+                    if {$ftype ne "signature"} {
+                        throw "PDF4TCL" "-label is only valid for signature fields"
+                    }
+                    set label $value
+                }
                 default {
                     throw "PDF4TCL" "unknown option \"$option\""
                 }
             }
         }
-        # Unique id if none was given
-        if {$idStr eq ""} {
-            set idStr ${ftype}form[my NextOid]
-        }
-
         # Check init value
         if {$ftype eq "checkbutton"} {
             if {![string is boolean -strict $initValue]} {
@@ -3253,6 +3544,51 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
 
+        # Check choice field options
+        if {$ftype in {combobox listbox}} {
+            if {[llength $optionsList] == 0} {
+                throw "PDF4TCL" "-options is required for $ftype"
+            }
+        }
+
+        # Check radiobutton requirements and default id
+        if {$ftype eq "radiobutton"} {
+            if {$groupName eq ""} {
+                throw "PDF4TCL" "-group is required for radiobutton"
+            }
+            if {$radioValue eq ""} {
+                throw "PDF4TCL" "-value is required for radiobutton"
+            }
+            # Group and value are used as PDF names — must be alphanumeric
+            my CheckWord -group $groupName
+            my CheckWord -value $radioValue
+            if {$idStr eq ""} {
+                set idStr "${groupName}_${radioValue}"
+            }
+        }
+
+        # Check pushbutton requirements
+        if {$ftype eq "pushbutton"} {
+            if {$actionType eq "" && $caption eq ""} {
+                throw "PDF4TCL" "-action or -caption is required for pushbutton"
+            }
+            if {$actionType in {url submit} && $actionValue eq ""} {
+                throw "PDF4TCL" "-url is required when -action is $actionType"
+            }
+        }
+
+        # Signature: default id
+        if {$ftype eq "signature"} {
+            if {$idStr eq ""} {
+                set idStr "Signature[my NextOid]"
+            }
+        }
+
+        # Generic auto-id for all other types
+        if {$idStr eq ""} {
+            set idStr ${ftype}form[my NextOid]
+        }
+
         # recompute coordinates to current system
         my Trans  $x $y x y
         my TransR $width $height width height
@@ -3266,56 +3602,22 @@ oo::define ::pdf4tcl::pdf4tcl {
             set y2 [expr {$y+$height}]
         }
 
-        if {$ftype eq "checkbutton"} {
-            # Note, the xobject will be scaled to fit in the form's Rect and
-            # thus do not need to be the same size.
-            my SetupZaDbFont
 
-            # Appearance streams for on and off state of check button.
-            set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
-            append obj "/Resources 3 0 R\n"
-            append obj "/Subtype /Form\n/Type /XObject\n"
-            if {$onObj ne ""} {
-                set onid [lindex $images($onObj) 2]
-            } else {
-                # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
-                set fs [expr {$height * 0.9}]
-                set charW [expr {0.846 * $fs}] ;# Char width 846 for checkmark
-                set baseL [expr {0.143 * $fs}] ;# Baseline 143 for Zapf
-                set cX [expr {($width-$charW)/2.0}]
-                set cY [expr {$height*0.05 + $baseL}]
-                set stream "/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb [Nf $fs] Tf "
-                append stream "1 0 0 1 [Nf $cX] [Nf $cY] Tm "
-                append stream "\[(4)\]TJ ET EMC"
-                set body [MakeStream $obj $stream $pdf(compress)]
-                set onid [my AddObject $body]
-            }
-            if {$offObj ne ""} {
-                set offid [lindex $images($offObj) 2]
-            } else {
-                # Empty, for off
-                if {![info exists pdf(checkboxoffobj)]} {
-                    set stream ""
-                    set body [MakeStream $obj $stream $pdf(compress)]
-                    set pdf(checkboxoffobj) [my AddObject $body]
-                }
-                set offid $pdf(checkboxoffobj)
-            }
-        } else {
-            if {$initValue ne ""} {
-                # Appearance stream for init value of text
-                set obj "<< /BBox \[ 0 0 [Nf $width] [Nf $height]\] \n"
-                append obj "/Resources 3 0 R\n"
-                append obj "/Subtype /Form\n/Type /XObject\n"
-                set stream "/Tx BMC BT "
-                append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
-                # TODO: correct placement?
-                append stream "2 1.1 Td "
-                append stream "([CleanText $initValue $pdf(current_font)]) Tj "
-                append stream "ET EMC"
-                set body [MakeStream $obj $stream $pdf(compress)]
-                set onid [my AddObject $body]
-            }
+        # Build appearance streams via helper methods
+        if {$ftype eq "checkbutton"} {
+            lassign [my _BuildCheckboxAP $width $height $onObj $offObj] onid offid
+        } elseif {$ftype in {text password}} {
+            set onid [my _BuildTextAP $width $height $initValue \
+                    [expr {$ftype eq "password"}]]
+        } elseif {$ftype in {combobox listbox}} {
+            set choiceApId [my _BuildChoiceAP $width $height $ftype \
+                    $initValue $optionsList]
+        } elseif {$ftype eq "radiobutton"} {
+            lassign [my _BuildRadioAP $width $height] onid offid
+        } elseif {$ftype eq "pushbutton"} {
+            set onid [my _BuildPushbuttonAP $width $height $caption]
+        } elseif {$ftype eq "signature"} {
+            set onid [my _BuildSignatureAP $width $height $label]
         }
 
         # Create annotation
@@ -3325,15 +3627,27 @@ oo::define ::pdf4tcl::pdf4tcl {
         append andict "  /P $pdf(pageobjid) 0 R\n"
         # Placement
         append andict "  /Rect \[[Nf $x] [Nf $y] [Nf $x2] [Nf $y2]\]\n"
-        if {$ftype eq "text"} {
-            # Form type text
+        if {$ftype in {text password}} {
+            # Form type text or password
             append andict "  /FT /Tx\n"
             # Unique Identity
             append andict "  /T ($idStr)\n"
-            # Multi-line text form
+            # Flags
+            set ff 0
+            if {$readonly} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
+            }
             if {$multiline} {
-                # Set flag bit 13 to indicate multi line
-                append andict "  /Ff 4096\n"
+                set ff [expr {$ff | $::pdf4tcl::Ff_MULTILINE}]
+            }
+            if {$ftype eq "password"} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_PASSWORD}]
+            }
+            if {$required} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
+            }
+            if {$ff != 0} {
+                append andict "  /Ff $ff\n"
             }
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
@@ -3345,11 +3659,143 @@ oo::define ::pdf4tcl::pdf4tcl {
                 # Appearance
                 append andict "  /AP << /N $onid 0 R >>\n"
             }
-        } else {
-            # Form type checkbutton (Ff flags are zero for checkbutton)
+        } elseif {$ftype in {combobox listbox}} {
+            # Form type choice (/Ch)
+            append andict "  /FT /Ch\n"
+            # Unique Identity
+            append andict "  /T ($idStr)\n"
+            # Flags
+            set ff 0
+            if {$readonly} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
+            }
+            if {$ftype eq "combobox"} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_COMBO}]
+            }
+            if {$editable} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_EDIT}]
+            }
+            if {$sortopt} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_SORT}]
+            }
+            if {$multiselect} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_MULTISELECT}]
+            }
+            if {$required} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
+            }
+            if {$ff != 0} {
+                append andict "  /Ff $ff\n"
+            }
+            # Options array
+            append andict "  /Opt \["
+            foreach opt $optionsList {
+                append andict "([CleanText $opt $pdf(current_font)]) "
+            }
+            append andict "\]\n"
+            # Appearance
+            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
+            # Selected value
+            if {$initValue ne ""} {
+                append andict "  /V ([CleanText $initValue $pdf(current_font)])\n"
+            }
+            # Appearance
+            if {[info exists choiceApId]} {
+                append andict "  /AP << /N $choiceApId 0 R >>\n"
+            }
+        } elseif {$ftype eq "radiobutton"} {
+            # Radio button child widget - belongs to a group parent
+            # Get or create the radio group
+            if {![dict exists $pdf(radiogroups) $groupName]} {
+                set parentOid [my GetOid 1]
+                dict set pdf(radiogroups) $groupName \
+                    [dict create parentOid $parentOid kids {} selectedValue "" readonly 0 required 0]
+            }
+            set parentOid [dict get $pdf(radiogroups) $groupName parentOid]
+            # If any button in the group is readonly, mark the group
+            if {$readonly} {
+                dict set pdf(radiogroups) $groupName readonly 1
+            }
+            if {$required} {
+                dict set pdf(radiogroups) $groupName required 1
+            }
+            # Reference to parent group field
+            append andict "  /Parent $parentOid 0 R\n"
+            # State: use radioValue as appearance state name
+            if {$initValue} {
+                append andict "  /AS /$radioValue\n"
+                # Mark this value as selected in the group
+                dict set pdf(radiogroups) $groupName selectedValue $radioValue
+            } else {
+                append andict "  /AS /Off\n"
+            }
+            # Appearance
+            append andict "  /AP << "
+            append andict "   /N << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
+            append andict "   /D << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
+            append andict "  >>\n"
+            # Highlight mode = Push
+            append andict "  /H /P\n"
+            # Border: circle appearance hint
+            append andict "  /MK << /BC \[0 0 0\] >>\n"
+        } elseif {$ftype eq "pushbutton"} {
+            # Push button with action
             append andict "  /FT /Btn\n"
             # Unique Identity
             append andict "  /T ($idStr)\n"
+            # Ff: Pushbutton flag
+            set ff $::pdf4tcl::Ff_PUSHBUTTON
+            if {$readonly} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
+            }
+            append andict "  /Ff $ff\n"
+            # Appearance
+            if {[info exists onid]} {
+                append andict "  /AP << /N $onid 0 R >>\n"
+            }
+            # Caption in MK dict
+            if {$caption ne ""} {
+                append andict "  /MK << /CA ([CleanText $caption $pdf(current_font)]) >>\n"
+            }
+            # Action
+            if {$actionType eq "url"} {
+                append andict "  /A << /Type /Action /S /URI /URI [QuoteString $actionValue] >>\n"
+            } elseif {$actionType eq "reset"} {
+                append andict "  /A << /Type /Action /S /ResetForm >>\n"
+            } elseif {$actionType eq "submit"} {
+                append andict "  /A << /Type /Action /S /SubmitForm /F [QuoteString $actionValue] >>\n"
+            }
+            # Highlight mode
+            append andict "  /H /P\n"
+        } elseif {$ftype eq "signature"} {
+            # Signature field
+            append andict "  /FT /Sig\n"
+            # Unique Identity
+            append andict "  /T ($idStr)\n"
+            # Flags
+            if {$readonly} {
+                append andict "  /Ff $::pdf4tcl::Ff_READONLY\n"
+            }
+            # Appearance
+            if {[info exists onid]} {
+                append andict "  /AP << /N $onid 0 R >>\n"
+            }
+        } elseif {$ftype eq "checkbutton"} {
+            # Form type checkbutton
+            append andict "  /FT /Btn\n"
+            # Unique Identity
+            append andict "  /T ($idStr)\n"
+            # Flags
+            set ff 0
+            if {$readonly} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
+            }
+            if {$required} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
+            }
+            if {$ff != 0} {
+                append andict "  /Ff $ff\n"
+            }
             # State
             if {$initValue} {
                 append andict "  /AS /Yes\n"
@@ -3365,8 +3811,6 @@ oo::define ::pdf4tcl::pdf4tcl {
             append andict "  >>\n"
             # Highlight mode = Push
             append andict "  /H /P\n"
-            # ??
-            #append andict "  /MK << /CA (4) >>\n"
         }
         # Flag for print
         append andict "  /F 4\n"
@@ -3376,7 +3820,14 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
         # Insert form into document
-        lappend pdf(forms) "$anid 0 R"
+        # Radio buttons go into the group's kids, not directly into forms
+        if {$ftype eq "radiobutton"} {
+            set kids [dict get $pdf(radiogroups) $groupName kids]
+            lappend kids $anid
+            dict set pdf(radiogroups) $groupName kids $kids
+        } else {
+            lappend pdf(forms) "$anid 0 R"
+        }
     }
 
     #######################################################################

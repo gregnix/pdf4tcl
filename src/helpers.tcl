@@ -1,4 +1,18 @@
 namespace eval pdf4tcl {
+    # AcroForm field flags (/Ff) - PDF Reference Table 8.70 ff.
+    variable Ff_READONLY       1       ;# Bit 1:  ReadOnly
+    variable Ff_REQUIRED       2       ;# Bit 2:  Required
+    variable Ff_NOEXPORT       4       ;# Bit 3:  NoExport
+    variable Ff_MULTILINE   4096       ;# Bit 13: Multiline (Tx)
+    variable Ff_PASSWORD    8192       ;# Bit 14: Password (Tx)
+    variable Ff_NOTOGGLEOFF 16384      ;# Bit 15: NoToggleToOff (Btn/Radio)
+    variable Ff_RADIO       32768      ;# Bit 16: Radio (Btn)
+    variable Ff_PUSHBUTTON  65536      ;# Bit 17: Pushbutton (Btn)
+    variable Ff_COMBO       131072     ;# Bit 18: Combo (Ch)
+    variable Ff_EDIT        262144     ;# Bit 19: Edit (Ch)
+    variable Ff_SORT        524288     ;# Bit 20: Sort (Ch)
+    variable Ff_MULTISELECT 2097152    ;# Bit 22: MultiSelect (Ch)
+
     # The incoming RGB must contain three values in the range 0.0 to 1.0
     # The return value is CMYK as a list of values in the range 0.0 to 1.0
     proc rgb2Cmyk {RGB} {
