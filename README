@@ -1,5 +1,3 @@
-fork 
-https://sourceforge.net/projects/pdf4tcl/ 
-0.9.4
-
-0.9.4.1
+Release 0.8.4 will be the last to support Tcl 8.4/8.5, and the last
+to require Snit.
+The next release will require TclOO and other 8.6 features.
