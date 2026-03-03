@@ -25,9 +25,9 @@
 +[list_begin options]
 +[opt_def -id [arg string]]
 +Unique field ID (alphanumeric). If omitted, one is generated
-+automatically: [arg ${type}form${n}] for most types,
-+[arg ${group}_${value}] for radiobuttons,
-+[arg Signature${n}] for signatures.
++automatically: [arg {${type}form${n}}] for most types,
++[arg {${group}_${value}}] for radiobuttons,
++[arg {Signature${n}}] for signatures.
 +
 +[opt_def -init [arg value]]
 +Initial value. For [arg text]/[arg password] a string,

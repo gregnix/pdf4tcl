@@ -1,4 +1,6 @@
 <!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pdf4tcl - Pdf document generation</title>
 <style type="text/css"><!--
     HTML {
@@ -443,11 +445,86 @@ This will do <b class="method">endPage</b> and <b class="method">finish</b> if n
 If the <b class="option">-file</b> option was given at object creation, an empty file
 is created.</p></dd>
 <dt><a name="29"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
-<dd><p>Add an interactive form at the given position and size. Supported types are <i class="arg">text</i> and <i class="arg">checkbutton</i>.
-Option <i class="arg">-init</i> gives an initial value for the form.
-Option <i class="arg">-id</i> gives the form an ID that must be unique within a document. If not given, one will be generated.
-For a text, option <i class="arg">-multiline</i> enables multi line editing.
-For a checkbutton, options <i class="arg">-on</i> and <i class="arg">-off</i> can be given an xobject (created with <b class="method">startXObject</b>) to control its appearance.</p></dd>
+<dd><p>Add an interactive form field at the given position and size.
+Coordinates are in the document's current unit.
+Supported types are <i class="arg">text</i>, <i class="arg">password</i>, <i class="arg">checkbutton</i>
+(alias <i class="arg">checkbox</i>), <i class="arg">combobox</i>, <i class="arg">listbox</i>,
+<i class="arg">radiobutton</i>, <i class="arg">pushbutton</i>, and <i class="arg">signature</i>.</p>
+<dl class="doctools_definitions">
+<dt><em>Common options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-id</b> <i class="arg">string</i></dt>
+<dd><p>Unique field ID (alphanumeric). If omitted, one is generated
+automatically: <i class="arg">${type}form${n}</i> for most types,
+<i class="arg">${group}_${value}</i> for radiobuttons,
+<i class="arg">Signature${n}</i> for signatures.</p></dd>
+<dt><b class="option">-init</b> <i class="arg">value</i></dt>
+<dd><p>Initial value. For <i class="arg">text</i>/<i class="arg">password</i> a string,
+for <i class="arg">checkbutton</i> a boolean, for <i class="arg">combobox</i>/<i class="arg">listbox</i>
+an item from <i class="arg">-options</i>, for <i class="arg">radiobutton</i> a boolean
+selecting this button.</p></dd>
+<dt><b class="option">-readonly</b> <i class="arg">boolean</i></dt>
+<dd><p>If true, the field is read-only (PDF Ff bit 1). Default <b class="const">0</b>.</p></dd>
+<dt><b class="option">-required</b> <i class="arg">boolean</i></dt>
+<dd><p>If true, the field is marked as required (PDF Ff bit 2). Default <b class="const">0</b>.
+Not valid for <i class="arg">pushbutton</i> or <i class="arg">signature</i>.</p></dd>
+</dl></dd>
+<dt><em>Text / Password options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-multiline</b> <i class="arg">boolean</i></dt>
+<dd><p>Enable multi-line editing (text only). Default <b class="const">0</b>.</p></dd>
+</dl></dd>
+<dt><em>Checkbutton options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-on</b> <i class="arg">xobjectId</i></dt>
+<dd><p>Custom appearance XObject for the checked state.
+Created with <b class="method">startXObject</b>.</p></dd>
+<dt><b class="option">-off</b> <i class="arg">xobjectId</i></dt>
+<dd><p>Custom appearance XObject for the unchecked state.</p></dd>
+</dl></dd>
+<dt><em>Combobox / Listbox options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-options</b> <i class="arg">list</i></dt>
+<dd><p>List of selectable items. Required for <i class="arg">combobox</i> and <i class="arg">listbox</i>.</p></dd>
+<dt><b class="option">-editable</b> <i class="arg">boolean</i></dt>
+<dd><p>Allow typing custom values (combobox only). Default <b class="const">0</b>.</p></dd>
+<dt><b class="option">-sort</b> <i class="arg">boolean</i></dt>
+<dd><p>Sort the option list. Default <b class="const">0</b>.</p></dd>
+<dt><b class="option">-multiselect</b> <i class="arg">boolean</i></dt>
+<dd><p>Allow selecting multiple items (listbox only). Default <b class="const">0</b>.</p></dd>
+</dl></dd>
+<dt><em>Radiobutton options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-group</b> <i class="arg">string</i></dt>
+<dd><p>Group name (required, alphanumeric). All buttons sharing the same
+group name form a mutually exclusive set.</p></dd>
+<dt><b class="option">-value</b> <i class="arg">string</i></dt>
+<dd><p>Value for this button (required, alphanumeric). Used as the
+PDF appearance state name.</p></dd>
+</dl></dd>
+<dt><em>Pushbutton options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-action</b> <i class="arg">type</i></dt>
+<dd><p>Action type: <b class="const">reset</b> (clear all fields), <b class="const">url</b> (open URL),
+or <b class="const">submit</b> (submit form data to URL).</p></dd>
+<dt><b class="option">-url</b> <i class="arg">string</i></dt>
+<dd><p>Target URL. Required when <i class="arg">-action</i> is <b class="const">url</b> or <b class="const">submit</b>.</p></dd>
+<dt><b class="option">-caption</b> <i class="arg">string</i></dt>
+<dd><p>Button label text. Either <i class="arg">-action</i> or <i class="arg">-caption</i> (or both)
+must be given.</p></dd>
+</dl></dd>
+<dt><em>Signature options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-label</b> <i class="arg">string</i></dt>
+<dd><p>Placeholder text displayed on the signature line.
+Default <b class="const">Signature</b>. Only valid for <i class="arg">signature</i> fields.</p></dd>
+</dl></dd>
+</dl>
+<p>All fields generate their own appearance streams; the
+<b class="const">NeedAppearances</b> flag is never set, ensuring compatibility
+with digital signature workflows.
+Radiobutton groups are finalized at document write time as a
+parent field with <b class="const">/Kids</b> entries.</p></dd>
 </dl>
 </div>
 <div id="subsection4" class="doctools_subsection"><h3><a name="subsection4">OBJECT METHODS, PAGE</a></h3>

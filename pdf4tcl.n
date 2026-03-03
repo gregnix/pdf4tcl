@@ -3,7 +3,7 @@
 '\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.1 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -275,9 +275,9 @@ Database Class:	\\fB\\$3\\fR
 .SH NAME
 pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
-package require \fBTcl  8\&.6\fR
+package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl  ?0\&.9\&.4?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.1?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -691,11 +691,111 @@ If the \fB-file\fR option was given at object creation, an empty file
 is created\&.
 .TP
 \fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
-Add an interactive form at the given position and size\&. Supported types are \fItext\fR and \fIcheckbutton\fR\&.
-Option \fI-init\fR gives an initial value for the form\&.
-Option \fI-id\fR gives the form an ID that must be unique within a document\&. If not given, one will be generated\&.
-For a text, option \fI-multiline\fR enables multi line editing\&.
-For a checkbutton, options \fI-on\fR and \fI-off\fR can be given an xobject (created with \fBstartXObject\fR) to control its appearance\&.
+Add an interactive form field at the given position and size\&.
+Coordinates are in the document's current unit\&.
+Supported types are \fItext\fR, \fIpassword\fR, \fIcheckbutton\fR
+(alias \fIcheckbox\fR), \fIcombobox\fR, \fIlistbox\fR,
+\fIradiobutton\fR, \fIpushbutton\fR, and \fIsignature\fR\&.
+.RS
+.TP
+\fICommon options\fR
+.RS
+.TP
+\fB-id\fR \fIstring\fR
+Unique field ID (alphanumeric)\&. If omitted, one is generated
+automatically: \fI${type}form${n}\fR for most types,
+\fI${group}_${value}\fR for radiobuttons,
+\fISignature${n}\fR for signatures\&.
+.TP
+\fB-init\fR \fIvalue\fR
+Initial value\&. For \fItext\fR/\fIpassword\fR a string,
+for \fIcheckbutton\fR a boolean, for \fIcombobox\fR/\fIlistbox\fR
+an item from \fI-options\fR, for \fIradiobutton\fR a boolean
+selecting this button\&.
+.TP
+\fB-readonly\fR \fIboolean\fR
+If true, the field is read-only (PDF Ff bit 1)\&. Default \fB0\fR\&.
+.TP
+\fB-required\fR \fIboolean\fR
+If true, the field is marked as required (PDF Ff bit 2)\&. Default \fB0\fR\&.
+Not valid for \fIpushbutton\fR or \fIsignature\fR\&.
+.RE
+.TP
+\fIText / Password options\fR
+.RS
+.TP
+\fB-multiline\fR \fIboolean\fR
+Enable multi-line editing (text only)\&. Default \fB0\fR\&.
+.RE
+.TP
+\fICheckbutton options\fR
+.RS
+.TP
+\fB-on\fR \fIxobjectId\fR
+Custom appearance XObject for the checked state\&.
+Created with \fBstartXObject\fR\&.
+.TP
+\fB-off\fR \fIxobjectId\fR
+Custom appearance XObject for the unchecked state\&.
+.RE
+.TP
+\fICombobox / Listbox options\fR
+.RS
+.TP
+\fB-options\fR \fIlist\fR
+List of selectable items\&. Required for \fIcombobox\fR and \fIlistbox\fR\&.
+.TP
+\fB-editable\fR \fIboolean\fR
+Allow typing custom values (combobox only)\&. Default \fB0\fR\&.
+.TP
+\fB-sort\fR \fIboolean\fR
+Sort the option list\&. Default \fB0\fR\&.
+.TP
+\fB-multiselect\fR \fIboolean\fR
+Allow selecting multiple items (listbox only)\&. Default \fB0\fR\&.
+.RE
+.TP
+\fIRadiobutton options\fR
+.RS
+.TP
+\fB-group\fR \fIstring\fR
+Group name (required, alphanumeric)\&. All buttons sharing the same
+group name form a mutually exclusive set\&.
+.TP
+\fB-value\fR \fIstring\fR
+Value for this button (required, alphanumeric)\&. Used as the
+PDF appearance state name\&.
+.RE
+.TP
+\fIPushbutton options\fR
+.RS
+.TP
+\fB-action\fR \fItype\fR
+Action type: \fBreset\fR (clear all fields), \fBurl\fR (open URL),
+or \fBsubmit\fR (submit form data to URL)\&.
+.TP
+\fB-url\fR \fIstring\fR
+Target URL\&. Required when \fI-action\fR is \fBurl\fR or \fBsubmit\fR\&.
+.TP
+\fB-caption\fR \fIstring\fR
+Button label text\&. Either \fI-action\fR or \fI-caption\fR (or both)
+must be given\&.
+.RE
+.TP
+\fISignature options\fR
+.RS
+.TP
+\fB-label\fR \fIstring\fR
+Placeholder text displayed on the signature line\&.
+Default \fBSignature\fR\&. Only valid for \fIsignature\fR fields\&.
+.RE
+.RE
+.IP
+All fields generate their own appearance streams; the
+\fBNeedAppearances\fR flag is never set, ensuring compatibility
+with digital signature workflows\&.
+Radiobutton groups are finalized at document write time as a
+parent field with \fB/Kids\fR entries\&.
 .PP
 .SS "OBJECT METHODS, PAGE"
 .TP
