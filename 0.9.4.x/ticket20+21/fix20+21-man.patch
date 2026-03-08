@@ -1,0 +1,13 @@
+--- /home/claude/fork-1103/pdf4tcl/pdf4tcl.man	2026-03-08 08:09:56.000000000 +0000
++++ /home/claude/fork-1212/pdf4tcl/pdf4tcl.man	2026-03-08 11:13:39.665272154 +0000
+@@ -487,7 +487,9 @@
+ 
+ This method sets metadata fields for this document.  Supported field options are
+  [arg -author], [arg -creator], [arg -keywords], [arg -producer], [arg -subject],
+-  [arg -title], [arg -creationdate] and [arg -format].
++  [arg -title] and [arg -creationdate].
++ Multiple keywords should be passed as a comma-separated string,
++ e.g. [arg {-keywords "tcl,pdf,document"}].
+ 
+ [call [arg objectName] [method bookmarkAdd] [opt [arg "option value"]...]]
+ 

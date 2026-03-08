@@ -1,5 +1,7 @@
 2026-03-08 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.2
+	* Fix ticket #20: removed -format from metadata docs (not in code, not in PDF spec).
+	* Fix ticket #21: documented -keywords as comma-separated string.
 	* Fix ticket #22: metadata and bookmarkAdd crash when no font is set.
 	  CleanText requires a current font; replaced with QuoteString for
 	  metadata dictionary strings and bookmark titles (font-independent).

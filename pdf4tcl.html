@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.1 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.2 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -135,7 +135,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.1?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.2?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -566,7 +566,9 @@ the canvas is drawn.</p></dd>
 <dt><a name="32"><i class="arg">objectName</i> <b class="method">metadata</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>This method sets metadata fields for this document.  Supported field options are
  <i class="arg">-author</i>, <i class="arg">-creator</i>, <i class="arg">-keywords</i>, <i class="arg">-producer</i>, <i class="arg">-subject</i>,
-  <i class="arg">-title</i>, <i class="arg">-creationdate</i> and <i class="arg">-format</i>.</p></dd>
+  <i class="arg">-title</i> and <i class="arg">-creationdate</i>.
+ Multiple keywords should be passed as a comma-separated string,
+ e.g. <i class="arg">-keywords &quot;tcl,pdf,document&quot;</i>.</p></dd>
 <dt><a name="33"><i class="arg">objectName</i> <b class="method">bookmarkAdd</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add a bookmark on the current page.</p>
 <dl class="doctools_options">
