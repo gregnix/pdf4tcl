@@ -866,6 +866,11 @@ namespace eval pdf4tcl {
         variable BFA
         variable Fonts
 
+        if {[llength $subset] > 256} {
+            throw "PDF4TCL" "createFontSpecEnc: subset must not exceed 256 codepoints\
+                (got [llength $subset])"
+        }
+
         if {$BFA($bfname,FontType) eq "TTF"} {
             # Create TTF subset here:
             MakeTTFSubset $bfname $fontname $subset

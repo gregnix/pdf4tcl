@@ -1,0 +1,109 @@
+--- tests/page.test	2026-03-08 12:12:30.000000000 +0000
++++ tests/page.test	2026-03-08 11:40:57.184814762 +0000
+@@ -357,3 +357,106 @@
+     $pdf destroy
+     expr {$err eq "" || ![string match "*FontsAttrs*" $err]}
+ } -result 1
++
++# Tests for ticket #15: hyperlinkAdd
++# A Link annotation with URI action.
++
++test page-7.1 {hyperlinkAdd basic - no border} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/Subtype /Link} $res
++} -result 1
++
++test page-7.2 {hyperlinkAdd - URI in action} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/S /URI.*https://example\.com} $res
++} -result 1
++
++test page-7.3 {hyperlinkAdd - no border by default} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/Border \[0 0 0\]} $res
++} -result 1
++
++test page-7.4 {hyperlinkAdd - with border} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" \
++        -borderwidth 2 -bordercolor {0 0 1}
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/Border \[0 0 2\]} $res
++} -result 1
++
++test page-7.5 {hyperlinkAdd - border color} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" \
++        -borderwidth 1 -bordercolor {0 0 1}
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/C \[0 0 1\]} $res
++} -result 1
++
++test page-7.6 {hyperlinkAdd - dashed border} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" \
++        -borderwidth 1 -borderdash {3 2}
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/Border \[0 0 1 \[3 2\]\]} $res
++} -result 1
++
++test page-7.7 {hyperlinkAdd - highlight option} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" -highlight O
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/H /O} $res
++} -result 1
++
++test page-7.8 {hyperlinkAdd - invalid highlight} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    catch {$pdf hyperlinkAdd 10 10 100 20 "https://example.com" -highlight X} err
++    $pdf destroy
++    string match "*invalid -highlight*" $err
++} -result 1
++
++test page-7.9 {hyperlinkAdd - unknown option} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    catch {$pdf hyperlinkAdd 10 10 100 20 "https://example.com" -foo bar} err
++    $pdf destroy
++    string match "*unknown option*" $err
++} -result 1
++
++test page-7.10 {hyperlinkAdd - annotation registered in page} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
++    set res [$pdf get]
++    $pdf destroy
++    regexp {/Annots \[} $res
++} -result 1
++
++test page-7.11 {hyperlinkAdd - special chars in URL quoted} -body {
++    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
++    $pdf startPage
++    $pdf hyperlinkAdd 10 10 100 20 "https://example.com/path?a=1&b=2"
++    set res [$pdf get]
++    $pdf destroy
++    regexp {https://example\.com/path\?a=1&b=2} $res
++} -result 1

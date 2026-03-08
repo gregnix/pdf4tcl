@@ -1,12 +1,12 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.2]
+[manpage_begin pdf4tcl n 0.9.4.4]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.2]]
+[require pdf4tcl [opt 0.9.4.4]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -319,13 +319,22 @@ This method returns the generated pdf.
 This will do [method endPage] and [method finish] if needed.
 If the [option -file] option was given at object creation, nothing is returned.
 
-[call [arg objectName] [method write] [opt [arg "-file filename"]]]
+[call [arg objectName] [method write] [opt [arg "-file filename"]] [opt [arg "-dryrun bool"]]]
 
 This method writes the generated pdf to the given [arg "filename"].
 If no [arg "filename"] is given, it is written to stdout.
 This will do [method endPage] and [method finish] if needed.
 If the [option -file] option was given at object creation, an empty file
 is created.
+
+[list_begin options]
+[opt_def -file [arg filename]]
+Write PDF to the given file.
+[opt_def -dryrun [arg bool]]
+If true, return the PDF data as a string without writing to a file and without
+modifying the document state. Useful for previewing or testing the output.
+Default is false.
+[list_end]
 
 
 [call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
@@ -486,10 +495,13 @@ the canvas is drawn.
 [call [arg objectName] [method metadata] [opt [arg "option value"]...]]
 
 This method sets metadata fields for this document.  Supported field options are
- [arg -author], [arg -creator], [arg -keywords], [arg -producer], [arg -subject],
-  [arg -title] and [arg -creationdate].
- Multiple keywords should be passed as a comma-separated string,
- e.g. [arg {-keywords "tcl,pdf,document"}].
+[arg -author], [arg -creator], [arg -keywords], [arg -producer], [arg -subject],
+[arg -title], [arg -creationdate] and [arg -moddate].
+Multiple keywords should be passed as a comma-separated string,
+e.g. [arg {-keywords "tcl,pdf,document"}].
+For [arg -creationdate] and [arg -moddate] a [const {clock seconds}] value is expected.
+A value of [const 0] uses the current date and time.
+Unknown option names cause an error.
 
 [call [arg objectName] [method bookmarkAdd] [opt [arg "option value"]...]]
 
@@ -537,6 +549,135 @@ set fid [$pdfobject embedFile "data.txt" -contents "This should be stored in the
 $pdfobject attachFile 0 0 100 100 $fid "This is the description"
 }]
 
+[call [arg objectName] [method hyperlinkAdd] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [arg "url"] [opt [arg "option value"]...]]
+
+This method adds a URI hyperlink annotation to the current page. The clickable
+area is defined by [arg "x"], [arg "y"], [arg "width"] and [arg "height"]. The
+[arg "url"] argument must be a valid URI string (e.g. [const "https://www.example.com"]).
+By default the annotation has no visible border.
+
+[list_begin options]
+
+[opt_def -borderwidth [arg n]]
+Width of the annotation border in points. Use [const 0] for an invisible border
+(default: [const 0]).
+
+[opt_def -bordercolor [arg color]]
+Color of the annotation border. Accepts any color format supported by pdf4tcl
+(default: [const "{0 0 1}"], blue).
+
+[opt_def -borderradius [arg n]]
+Corner radius of the annotation border in points (default: [const 0]).
+
+[opt_def -borderdash [arg "on off"]]
+Dash pattern of the border as a list of two numbers [arg on] and [arg off] in
+points. An empty list produces a solid border (default: [const {}]).
+
+[opt_def -highlight [arg mode]]
+Visual effect when the user clicks the annotation. Valid values are [const N]
+(None), [const I] (Invert, default), [const O] (Outline), and [const P] (Push).
+
+[list_end]
+
+[example {
+# Invisible link
+$pdfobject hyperlinkAdd 50 100 200 20 "https://sourceforge.net/p/pdf4tcl"
+
+# Link with visible blue border
+$pdfobject hyperlinkAdd 50 130 200 20 "https://github.com/gregnix/pdf4tcl" \
+    -borderwidth 1 -bordercolor {0 0 1}
+
+# Dashed border, rounded corners
+$pdfobject hyperlinkAdd 50 160 200 20 "https://www.tcl.tk" \
+    -borderwidth 1 -bordercolor {0 0.6 0} -borderdash {5 3} -borderradius 4
+}]
+
+[call [arg objectName] [method viewerPreferences] [opt [arg "option value"]...]]
+
+Set viewer preference flags in the PDF catalog. These control how a PDF viewer
+displays the document when it is opened. Options can be combined freely.
+
+[list_begin options]
+
+[opt_def -pagelayout [arg layout]]
+Set the page layout on open. Valid values: [const SinglePage], [const OneColumn],
+[const TwoColumnLeft], [const TwoColumnRight], [const TwoPageLeft], [const TwoPageRight].
+
+[opt_def -pagemode [arg mode]]
+Set the page mode on open. Valid values: [const UseNone], [const UseOutlines],
+[const UseThumbs], [const FullScreen], [const UseOC], [const UseAttachments].
+
+[opt_def -hidetoolbar [arg bool]]
+Hide the viewer toolbar when the document is open (default false).
+
+[opt_def -hidemenubar [arg bool]]
+Hide the viewer menu bar (default false).
+
+[opt_def -hidewindowui [arg bool]]
+Hide viewer interface elements (default false).
+
+[opt_def -fitwindow [arg bool]]
+Resize the document window to fit the first page (default false).
+
+[opt_def -centerwindow [arg bool]]
+Center the document window on the screen (default false).
+
+[opt_def -displaydoctitle [arg bool]]
+Display the document title from metadata instead of the file name (default false).
+
+[opt_def -nonfullscreenpagemode [arg mode]]
+Page mode when leaving full-screen mode. Valid values: [const UseNone],
+[const UseOutlines], [const UseThumbs], [const UseOC].
+
+[opt_def -direction [arg dir]]
+Reading order. Valid values: [const L2R] (default) or [const R2L] (right-to-left).
+
+[opt_def -printscaling [arg scale]]
+Default print scaling. Valid values: [const AppDefault] or [const None].
+
+[opt_def -duplex [arg mode]]
+Paper handling when printing. Valid values: [const None], [const Simplex],
+[const DuplexFlipShortEdge], [const DuplexFlipLongEdge].
+
+[list_end]
+
+[example {
+$pdfobject viewerPreferences -pagemode FullScreen -hidetoolbar 1
+$pdfobject viewerPreferences -pagelayout TwoColumnLeft -direction L2R
+}]
+
+[call [arg objectName] [method pageLabel] [arg "pageIndex"] [opt [arg "option value"]...]]
+
+Define a page label range starting at the given zero-based [arg pageIndex].
+PDF page labels allow viewers to display custom page numbers (e.g. roman numerals
+for a preface, decimal numbers for the main body). Multiple ranges can be defined.
+
+[list_begin options]
+
+[opt_def -style [arg style]]
+Numbering style. Valid values: [const D] (decimal: 1 2 3), [const r] (roman lowercase: i ii iii),
+[const R] (roman uppercase: I II III), [const a] (alpha lowercase: a b c),
+[const A] (alpha uppercase: A B C), or empty string (prefix only, no number).
+
+[opt_def -prefix [arg string]]
+Label prefix prepended to each page number (e.g. [const "App-"] produces App-1, App-2...).
+
+[opt_def -start [arg integer]]
+Start value for the numbering in this range. Must be a positive integer. Default is 1.
+
+[list_end]
+
+[example {
+# Preface pages: i, ii, iii...
+$pdfobject pageLabel 0 -style r
+
+# Main body pages: 1, 2, 3...
+$pdfobject pageLabel 4 -style D -start 1
+
+# Appendix with prefix
+$pdfobject pageLabel 20 -style A -prefix "App-"
+}]
+
 [list_end]
 
 [subsection {OBJECT METHODS, TEXT}]
@@ -582,7 +723,13 @@ the spacing is 1.
 
 [call [arg objectName] [method getLineSpacing]]
 
-Get the current default line spacing.
+Get the current default line spacing factor (a dimensionless multiplier).
+
+[call [arg objectName] [method getLineHeight]]
+
+Get the actual vertical distance advanced by [method newLine] in the document's
+current unit. This is [arg font_size] times the line spacing factor. Use this to
+calculate bounding boxes around multi-line text blocks. Requires a font to be set.
 
 [call [arg objectName] [method text] [arg "str"] [opt [arg "option value"]...]]
 
@@ -595,11 +742,13 @@ setFont.
       [opt_def -yangle "[arg degrees]   (default 0) - Apply x or y shear to the text."]
       [opt_def -x "[arg x]   (default 0)"]
       [opt_def -y "[arg y]   (default 0) - Allow the text to be positioned without setTextPosition."]
-      [opt_def -bg "[arg bool]   (default 0)"]
-      [opt_def -background "[arg bool]   (default 0)"]
-      [opt_def -fill "[arg bool]   (default 0) "]
-         Any of [option -bg], [option -background] or [option -fill] cause the text to be drawn 
-         on a background whose color is set by setBgColor.
+      [opt_def -bg "[arg bool|color]   (default 0)"]
+      [opt_def -background "[arg bool|color]"]
+      [opt_def -fill "[arg bool|color]"]
+         Any of [option -bg], [option -background] or [option -fill] cause the text to be drawn
+         on a filled background. If a boolean true is given, the background color is taken from
+         [method setBgColor]. Alternatively, a color value in any format accepted by pdf4tcl
+         can be given directly (e.g. [const "{1 0 0}"] for red). All three options are aliases.
    [list_end]
 
 
@@ -710,6 +859,8 @@ calls to [method putImage]. Supported formats are PNG, JPEG and TIFF.
 Explicitly select an id for the image. The [arg "id"] must be unique within the document.
 
 [opt_def -type [arg name]]
+Override automatic type detection based on file extension.
+Valid values are [const png], [const jpg] (or [const jpeg]), [const tif] (or [const tiff]).
 Set the image type.  This can usually be deduced from the file name, this
 option helps when that is not possible.  This can be either "png", "jpeg",
 or "tiff".

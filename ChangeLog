@@ -1,4 +1,30 @@
 2026-03-08 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.4
+	* Fix ticket #14: createFontSpecEnc now raises an error if the subset
+	  exceeds 256 codepoints (prevents invalid PDF generation). [#14]
+	* Fix ticket #18: new method getLineHeight returns the actual vertical
+	  line advance (font_size * lineSpacing) in the document's current unit.
+	  5 new tests in tests/page.test (page-11.1 to page-11.5). [#18]
+	* Fix ticket #19: metadata now supports -moddate option; new method
+	  viewerPreferences sets /ViewerPreferences, /PageLayout, /PageMode
+	  in the PDF catalog. 8 new tests (page-9.1 to page-9.8). [#19]
+	* Fix ticket #23: new method pageLabel defines PDF /PageLabels ranges
+	  (styles D/r/R/a/A, -prefix, -start). 10 new tests (page-10.1 to
+	  page-10.10). [#23]
+	* Manpage fixes: text -bg/-background/-fill accept color values (not
+	  only bool); write -dryrun documented; metadata -creationdate value 0
+	  documented; addImage -type valid values listed.
+	* New Manpage entries: getLineHeight, viewerPreferences, pageLabel.
+
+2026-03-08 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.3
+	* Add ticket #15: hyperlinkAdd method for URI link annotations.
+	  hyperlinkAdd x y width height url ?options?
+	  Options: -borderwidth, -bordercolor, -borderradius,
+	           -borderdash, -highlight.
+	  11 new tests in tests/page.test (page-7.1 to page-7.11).
+
+2026-03-08 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.2
 	* Fix ticket #20: removed -format from metadata docs (not in code, not in PDF spec).
 	* Fix ticket #21: documented -keywords as comma-separated string.

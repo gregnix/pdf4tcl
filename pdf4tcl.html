@@ -1,6 +1,4 @@
 <!DOCTYPE html><html><head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pdf4tcl - Pdf document generation</title>
 <style type="text/css"><!--
     HTML {
@@ -100,7 +98,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.2 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.4 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -135,7 +133,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.2?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.4?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -165,7 +163,7 @@
 <li><a href="#25"><i class="arg">objectName</i> <b class="method">endXObject</b></a></li>
 <li><a href="#26"><i class="arg">objectName</i> <b class="method">finish</b></a></li>
 <li><a href="#27"><i class="arg">objectName</i> <b class="method">get</b></a></li>
-<li><a href="#28"><i class="arg">objectName</i> <b class="method">write</b> <span class="opt">?<i class="arg">-file filename</i>?</span></a></li>
+<li><a href="#28"><i class="arg">objectName</i> <b class="method">write</b> <span class="opt">?<i class="arg">-file filename</i>?</span> <span class="opt">?<i class="arg">-dryrun bool</i>?</span></a></li>
 <li><a href="#29"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
 <li><a href="#30"><i class="arg">objectName</i> <b class="method">getDrawableArea</b></a></li>
 <li><a href="#31"><i class="arg">objectName</i> <b class="method">canvas</b> <i class="arg">path</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -173,45 +171,49 @@
 <li><a href="#33"><i class="arg">objectName</i> <b class="method">bookmarkAdd</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
 <li><a href="#34"><i class="arg">objectName</i> <b class="method">embedFile</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
 <li><a href="#35"><i class="arg">objectName</i> <b class="method">attachFile</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">fid</i> <i class="arg">description</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#36"><i class="arg">objectName</i> <b class="method">setFont</b> <i class="arg">size</i> <span class="opt">?<i class="arg">fontname</i>?</span></a></li>
-<li><a href="#37"><i class="arg">objectName</i> <b class="method">getStringWidth</b> <i class="arg">str</i></a></li>
-<li><a href="#38"><i class="arg">objectName</i> <b class="method">getCharWidth</b> <i class="arg">char</i></a></li>
-<li><a href="#39"><i class="arg">objectName</i> <b class="method">setTextPosition</b> <i class="arg">x</i> <i class="arg">y</i></a></li>
-<li><a href="#40"><i class="arg">objectName</i> <b class="method">moveTextPosition</b> <i class="arg">dx</i> <i class="arg">dy</i></a></li>
-<li><a href="#41"><i class="arg">objectName</i> <b class="method">getTextPosition</b></a></li>
-<li><a href="#42"><i class="arg">objectName</i> <b class="method">newLine</b> <span class="opt">?<i class="arg">spacing</i>?</span></a></li>
-<li><a href="#43"><i class="arg">objectName</i> <b class="method">setLineSpacing</b> <i class="arg">spacing</i></a></li>
-<li><a href="#44"><i class="arg">objectName</i> <b class="method">getLineSpacing</b></a></li>
-<li><a href="#45"><i class="arg">objectName</i> <b class="method">text</b> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#46"><i class="arg">objectName</i> <b class="method">drawTextBox</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#47"><i class="arg">objectName</i> <b class="method">getFontMetric</b> <i class="arg">metric</i></a></li>
-<li><a href="#48"><i class="arg">objectName</i> <b class="method">putImage</b> <i class="arg">id</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#49"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#50"><i class="arg">objectName</i> <b class="method">addImage</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#51"><i class="arg">objectName</i> <b class="method">addRawImage</b> <i class="arg">data</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#52"><i class="arg">objectName</i> <b class="method">getImageHeight</b> <i class="arg">id</i></a></li>
-<li><a href="#53"><i class="arg">objectName</i> <b class="method">getImageSize</b> <i class="arg">id</i></a></li>
-<li><a href="#54"><i class="arg">objectName</i> <b class="method">getImageWidth</b> <i class="arg">id</i></a></li>
-<li><a href="#55"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></li>
-<li><a href="#56"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></li>
-<li><a href="#57"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></li>
-<li><a href="#58"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></li>
-<li><a href="#59"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></li>
-<li><a href="#60"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></li>
-<li><a href="#61"><i class="arg">objectName</i> <b class="method">setLineWidth</b> <i class="arg">width</i></a></li>
-<li><a href="#62"><i class="arg">objectName</i> <b class="method">setLineDash</b> <span class="opt">?<i class="arg">on off</i>...?</span> <span class="opt">?<i class="arg">offset</i>?</span></a></li>
-<li><a href="#63"><i class="arg">objectName</i> <b class="method">setLineStyle</b> <i class="arg">width</i> <i class="arg">args</i></a></li>
-<li><a href="#64"><i class="arg">objectName</i> <b class="method">line</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i></a></li>
-<li><a href="#65"><i class="arg">objectName</i> <b class="method">curve</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">x3</i> <i class="arg">y3</i> <span class="opt">?<i class="arg">x4 y4</i>?</span></a></li>
-<li><a href="#66"><i class="arg">objectName</i> <b class="method">polygon</b> <span class="opt">?<i class="arg">x y</i>...?</span> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#67"><i class="arg">objectName</i> <b class="method">circle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radius</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#68"><i class="arg">objectName</i> <b class="method">oval</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#69"><i class="arg">objectName</i> <b class="method">arc</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <i class="arg">phi</i> <i class="arg">extend</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#70"><i class="arg">objectName</i> <b class="method">arrow</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">size</i> <span class="opt">?<i class="arg">angle</i>?</span></a></li>
-<li><a href="#71"><i class="arg">objectName</i> <b class="method">rectangle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
-<li><a href="#72"><i class="arg">objectName</i> <b class="method">clip</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></li>
-<li><a href="#73"><i class="arg">objectName</i> <b class="method">gsave</b></a></li>
-<li><a href="#74"><i class="arg">objectName</i> <b class="method">grestore</b></a></li>
+<li><a href="#36"><i class="arg">objectName</i> <b class="method">hyperlinkAdd</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">url</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#37"><i class="arg">objectName</i> <b class="method">viewerPreferences</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#38"><i class="arg">objectName</i> <b class="method">pageLabel</b> <i class="arg">pageIndex</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#39"><i class="arg">objectName</i> <b class="method">setFont</b> <i class="arg">size</i> <span class="opt">?<i class="arg">fontname</i>?</span></a></li>
+<li><a href="#40"><i class="arg">objectName</i> <b class="method">getStringWidth</b> <i class="arg">str</i></a></li>
+<li><a href="#41"><i class="arg">objectName</i> <b class="method">getCharWidth</b> <i class="arg">char</i></a></li>
+<li><a href="#42"><i class="arg">objectName</i> <b class="method">setTextPosition</b> <i class="arg">x</i> <i class="arg">y</i></a></li>
+<li><a href="#43"><i class="arg">objectName</i> <b class="method">moveTextPosition</b> <i class="arg">dx</i> <i class="arg">dy</i></a></li>
+<li><a href="#44"><i class="arg">objectName</i> <b class="method">getTextPosition</b></a></li>
+<li><a href="#45"><i class="arg">objectName</i> <b class="method">newLine</b> <span class="opt">?<i class="arg">spacing</i>?</span></a></li>
+<li><a href="#46"><i class="arg">objectName</i> <b class="method">setLineSpacing</b> <i class="arg">spacing</i></a></li>
+<li><a href="#47"><i class="arg">objectName</i> <b class="method">getLineSpacing</b></a></li>
+<li><a href="#48"><i class="arg">objectName</i> <b class="method">getLineHeight</b></a></li>
+<li><a href="#49"><i class="arg">objectName</i> <b class="method">text</b> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#50"><i class="arg">objectName</i> <b class="method">drawTextBox</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#51"><i class="arg">objectName</i> <b class="method">getFontMetric</b> <i class="arg">metric</i></a></li>
+<li><a href="#52"><i class="arg">objectName</i> <b class="method">putImage</b> <i class="arg">id</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#53"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#54"><i class="arg">objectName</i> <b class="method">addImage</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#55"><i class="arg">objectName</i> <b class="method">addRawImage</b> <i class="arg">data</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#56"><i class="arg">objectName</i> <b class="method">getImageHeight</b> <i class="arg">id</i></a></li>
+<li><a href="#57"><i class="arg">objectName</i> <b class="method">getImageSize</b> <i class="arg">id</i></a></li>
+<li><a href="#58"><i class="arg">objectName</i> <b class="method">getImageWidth</b> <i class="arg">id</i></a></li>
+<li><a href="#59"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></li>
+<li><a href="#60"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></li>
+<li><a href="#61"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></li>
+<li><a href="#62"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></li>
+<li><a href="#63"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></li>
+<li><a href="#64"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></li>
+<li><a href="#65"><i class="arg">objectName</i> <b class="method">setLineWidth</b> <i class="arg">width</i></a></li>
+<li><a href="#66"><i class="arg">objectName</i> <b class="method">setLineDash</b> <span class="opt">?<i class="arg">on off</i>...?</span> <span class="opt">?<i class="arg">offset</i>?</span></a></li>
+<li><a href="#67"><i class="arg">objectName</i> <b class="method">setLineStyle</b> <i class="arg">width</i> <i class="arg">args</i></a></li>
+<li><a href="#68"><i class="arg">objectName</i> <b class="method">line</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i></a></li>
+<li><a href="#69"><i class="arg">objectName</i> <b class="method">curve</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">x3</i> <i class="arg">y3</i> <span class="opt">?<i class="arg">x4 y4</i>?</span></a></li>
+<li><a href="#70"><i class="arg">objectName</i> <b class="method">polygon</b> <span class="opt">?<i class="arg">x y</i>...?</span> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#71"><i class="arg">objectName</i> <b class="method">circle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radius</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#72"><i class="arg">objectName</i> <b class="method">oval</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#73"><i class="arg">objectName</i> <b class="method">arc</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <i class="arg">phi</i> <i class="arg">extend</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#74"><i class="arg">objectName</i> <b class="method">arrow</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">size</i> <span class="opt">?<i class="arg">angle</i>?</span></a></li>
+<li><a href="#75"><i class="arg">objectName</i> <b class="method">rectangle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
+<li><a href="#76"><i class="arg">objectName</i> <b class="method">clip</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></li>
+<li><a href="#77"><i class="arg">objectName</i> <b class="method">gsave</b></a></li>
+<li><a href="#78"><i class="arg">objectName</i> <b class="method">grestore</b></a></li>
 </ul>
 </div>
 </div>
@@ -438,12 +440,20 @@ the output file will be finished and closed.</p></dd>
 <dd><p>This method returns the generated pdf.
 This will do <b class="method">endPage</b> and <b class="method">finish</b> if needed.
 If the <b class="option">-file</b> option was given at object creation, nothing is returned.</p></dd>
-<dt><a name="28"><i class="arg">objectName</i> <b class="method">write</b> <span class="opt">?<i class="arg">-file filename</i>?</span></a></dt>
+<dt><a name="28"><i class="arg">objectName</i> <b class="method">write</b> <span class="opt">?<i class="arg">-file filename</i>?</span> <span class="opt">?<i class="arg">-dryrun bool</i>?</span></a></dt>
 <dd><p>This method writes the generated pdf to the given <i class="arg">filename</i>.
 If no <i class="arg">filename</i> is given, it is written to stdout.
 This will do <b class="method">endPage</b> and <b class="method">finish</b> if needed.
 If the <b class="option">-file</b> option was given at object creation, an empty file
-is created.</p></dd>
+is created.</p>
+<dl class="doctools_options">
+<dt><b class="option">-file</b> <i class="arg">filename</i></dt>
+<dd><p>Write PDF to the given file.</p></dd>
+<dt><b class="option">-dryrun</b> <i class="arg">bool</i></dt>
+<dd><p>If true, return the PDF data as a string without writing to a file and without
+modifying the document state. Useful for previewing or testing the output.
+Default is false.</p></dd>
+</dl></dd>
 <dt><a name="29"><i class="arg">objectName</i> <b class="method">addForm</b> <i class="arg">type</i> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add an interactive form field at the given position and size.
 Coordinates are in the document's current unit.
@@ -565,10 +575,13 @@ in Tk to control the font mapping in detail.</p>
 the canvas is drawn.</p></dd>
 <dt><a name="32"><i class="arg">objectName</i> <b class="method">metadata</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>This method sets metadata fields for this document.  Supported field options are
- <i class="arg">-author</i>, <i class="arg">-creator</i>, <i class="arg">-keywords</i>, <i class="arg">-producer</i>, <i class="arg">-subject</i>,
-  <i class="arg">-title</i> and <i class="arg">-creationdate</i>.
- Multiple keywords should be passed as a comma-separated string,
- e.g. <i class="arg">-keywords &quot;tcl,pdf,document&quot;</i>.</p></dd>
+<i class="arg">-author</i>, <i class="arg">-creator</i>, <i class="arg">-keywords</i>, <i class="arg">-producer</i>, <i class="arg">-subject</i>,
+<i class="arg">-title</i>, <i class="arg">-creationdate</i> and <i class="arg">-moddate</i>.
+Multiple keywords should be passed as a comma-separated string,
+e.g. <i class="arg">-keywords &quot;tcl,pdf,document&quot;</i>.
+For <i class="arg">-creationdate</i> and <i class="arg">-moddate</i> a <b class="const">clock seconds</b> value is expected.
+A value of <b class="const">0</b> uses the current date and time.
+Unknown option names cause an error.</p></dd>
 <dt><a name="33"><i class="arg">objectName</i> <b class="method">bookmarkAdd</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add a bookmark on the current page.</p>
 <dl class="doctools_options">
@@ -598,34 +611,129 @@ set fid [$pdfobject embedFile &quot;data.txt&quot; -contents &quot;This should b
 $pdfobject attachFile 0 0 100 100 $fid &quot;This is the description&quot;
 </pre>
 </dd>
+<dt><a name="36"><i class="arg">objectName</i> <b class="method">hyperlinkAdd</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">url</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dd><p>This method adds a URI hyperlink annotation to the current page. The clickable
+area is defined by <i class="arg">x</i>, <i class="arg">y</i>, <i class="arg">width</i> and <i class="arg">height</i>. The
+<i class="arg">url</i> argument must be a valid URI string (e.g. <b class="const">https://www.example.com</b>).
+By default the annotation has no visible border.</p>
+<dl class="doctools_options">
+<dt><b class="option">-borderwidth</b> <i class="arg">n</i></dt>
+<dd><p>Width of the annotation border in points. Use <b class="const">0</b> for an invisible border
+(default: <b class="const">0</b>).</p></dd>
+<dt><b class="option">-bordercolor</b> <i class="arg">color</i></dt>
+<dd><p>Color of the annotation border. Accepts any color format supported by pdf4tcl
+(default: <b class="const">{0 0 1}</b>, blue).</p></dd>
+<dt><b class="option">-borderradius</b> <i class="arg">n</i></dt>
+<dd><p>Corner radius of the annotation border in points (default: <b class="const">0</b>).</p></dd>
+<dt><b class="option">-borderdash</b> <i class="arg">on off</i></dt>
+<dd><p>Dash pattern of the border as a list of two numbers <i class="arg">on</i> and <i class="arg">off</i> in
+points. An empty list produces a solid border (default: <b class="const"></b>).</p></dd>
+<dt><b class="option">-highlight</b> <i class="arg">mode</i></dt>
+<dd><p>Visual effect when the user clicks the annotation. Valid values are <b class="const">N</b>
+(None), <b class="const">I</b> (Invert, default), <b class="const">O</b> (Outline), and <b class="const">P</b> (Push).</p></dd>
+</dl>
+<pre class="doctools_example">
+# Invisible link
+$pdfobject hyperlinkAdd 50 100 200 20 &quot;https://sourceforge.net/p/pdf4tcl&quot;
+# Link with visible blue border
+$pdfobject hyperlinkAdd 50 130 200 20 &quot;https://github.com/gregnix/pdf4tcl&quot;  -borderwidth 1 -bordercolor {0 0 1}
+# Dashed border, rounded corners
+$pdfobject hyperlinkAdd 50 160 200 20 &quot;https://www.tcl.tk&quot;  -borderwidth 1 -bordercolor {0 0.6 0} -borderdash {5 3} -borderradius 4
+</pre>
+</dd>
+<dt><a name="37"><i class="arg">objectName</i> <b class="method">viewerPreferences</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dd><p>Set viewer preference flags in the PDF catalog. These control how a PDF viewer
+displays the document when it is opened. Options can be combined freely.</p>
+<dl class="doctools_options">
+<dt><b class="option">-pagelayout</b> <i class="arg">layout</i></dt>
+<dd><p>Set the page layout on open. Valid values: <b class="const">SinglePage</b>, <b class="const">OneColumn</b>,
+<b class="const">TwoColumnLeft</b>, <b class="const">TwoColumnRight</b>, <b class="const">TwoPageLeft</b>, <b class="const">TwoPageRight</b>.</p></dd>
+<dt><b class="option">-pagemode</b> <i class="arg">mode</i></dt>
+<dd><p>Set the page mode on open. Valid values: <b class="const">UseNone</b>, <b class="const">UseOutlines</b>,
+<b class="const">UseThumbs</b>, <b class="const">FullScreen</b>, <b class="const">UseOC</b>, <b class="const">UseAttachments</b>.</p></dd>
+<dt><b class="option">-hidetoolbar</b> <i class="arg">bool</i></dt>
+<dd><p>Hide the viewer toolbar when the document is open (default false).</p></dd>
+<dt><b class="option">-hidemenubar</b> <i class="arg">bool</i></dt>
+<dd><p>Hide the viewer menu bar (default false).</p></dd>
+<dt><b class="option">-hidewindowui</b> <i class="arg">bool</i></dt>
+<dd><p>Hide viewer interface elements (default false).</p></dd>
+<dt><b class="option">-fitwindow</b> <i class="arg">bool</i></dt>
+<dd><p>Resize the document window to fit the first page (default false).</p></dd>
+<dt><b class="option">-centerwindow</b> <i class="arg">bool</i></dt>
+<dd><p>Center the document window on the screen (default false).</p></dd>
+<dt><b class="option">-displaydoctitle</b> <i class="arg">bool</i></dt>
+<dd><p>Display the document title from metadata instead of the file name (default false).</p></dd>
+<dt><b class="option">-nonfullscreenpagemode</b> <i class="arg">mode</i></dt>
+<dd><p>Page mode when leaving full-screen mode. Valid values: <b class="const">UseNone</b>,
+<b class="const">UseOutlines</b>, <b class="const">UseThumbs</b>, <b class="const">UseOC</b>.</p></dd>
+<dt><b class="option">-direction</b> <i class="arg">dir</i></dt>
+<dd><p>Reading order. Valid values: <b class="const">L2R</b> (default) or <b class="const">R2L</b> (right-to-left).</p></dd>
+<dt><b class="option">-printscaling</b> <i class="arg">scale</i></dt>
+<dd><p>Default print scaling. Valid values: <b class="const">AppDefault</b> or <b class="const">None</b>.</p></dd>
+<dt><b class="option">-duplex</b> <i class="arg">mode</i></dt>
+<dd><p>Paper handling when printing. Valid values: <b class="const">None</b>, <b class="const">Simplex</b>,
+<b class="const">DuplexFlipShortEdge</b>, <b class="const">DuplexFlipLongEdge</b>.</p></dd>
+</dl>
+<pre class="doctools_example">
+$pdfobject viewerPreferences -pagemode FullScreen -hidetoolbar 1
+$pdfobject viewerPreferences -pagelayout TwoColumnLeft -direction L2R
+</pre>
+</dd>
+<dt><a name="38"><i class="arg">objectName</i> <b class="method">pageLabel</b> <i class="arg">pageIndex</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dd><p>Define a page label range starting at the given zero-based <i class="arg">pageIndex</i>.
+PDF page labels allow viewers to display custom page numbers (e.g. roman numerals
+for a preface, decimal numbers for the main body). Multiple ranges can be defined.</p>
+<dl class="doctools_options">
+<dt><b class="option">-style</b> <i class="arg">style</i></dt>
+<dd><p>Numbering style. Valid values: <b class="const">D</b> (decimal: 1 2 3), <b class="const">r</b> (roman lowercase: i ii iii),
+<b class="const">R</b> (roman uppercase: I II III), <b class="const">a</b> (alpha lowercase: a b c),
+<b class="const">A</b> (alpha uppercase: A B C), or empty string (prefix only, no number).</p></dd>
+<dt><b class="option">-prefix</b> <i class="arg">string</i></dt>
+<dd><p>Label prefix prepended to each page number (e.g. <b class="const">App-</b> produces App-1, App-2...).</p></dd>
+<dt><b class="option">-start</b> <i class="arg">integer</i></dt>
+<dd><p>Start value for the numbering in this range. Must be a positive integer. Default is 1.</p></dd>
+</dl>
+<pre class="doctools_example">
+# Preface pages: i, ii, iii...
+$pdfobject pageLabel 0 -style r
+# Main body pages: 1, 2, 3...
+$pdfobject pageLabel 4 -style D -start 1
+# Appendix with prefix
+$pdfobject pageLabel 20 -style A -prefix &quot;App-&quot;
+</pre>
+</dd>
 </dl>
 </div>
 <div id="subsection5" class="doctools_subsection"><h3><a name="subsection5">OBJECT METHODS, TEXT</a></h3>
 <dl class="doctools_definitions">
-<dt><a name="36"><i class="arg">objectName</i> <b class="method">setFont</b> <i class="arg">size</i> <span class="opt">?<i class="arg">fontname</i>?</span></a></dt>
+<dt><a name="39"><i class="arg">objectName</i> <b class="method">setFont</b> <i class="arg">size</i> <span class="opt">?<i class="arg">fontname</i>?</span></a></dt>
 <dd><p>This method sets the font used by text drawing routines. If <i class="arg">fontname</i>
 is not provided, the previously set <i class="arg">fontname</i> is kept.</p></dd>
-<dt><a name="37"><i class="arg">objectName</i> <b class="method">getStringWidth</b> <i class="arg">str</i></a></dt>
+<dt><a name="40"><i class="arg">objectName</i> <b class="method">getStringWidth</b> <i class="arg">str</i></a></dt>
 <dd><p>This method returns the width of a string under the current font.</p></dd>
-<dt><a name="38"><i class="arg">objectName</i> <b class="method">getCharWidth</b> <i class="arg">char</i></a></dt>
+<dt><a name="41"><i class="arg">objectName</i> <b class="method">getCharWidth</b> <i class="arg">char</i></a></dt>
 <dd><p>This method returns the width of a character under the current font.</p></dd>
-<dt><a name="39"><i class="arg">objectName</i> <b class="method">setTextPosition</b> <i class="arg">x</i> <i class="arg">y</i></a></dt>
+<dt><a name="42"><i class="arg">objectName</i> <b class="method">setTextPosition</b> <i class="arg">x</i> <i class="arg">y</i></a></dt>
 <dd><p>Set coordinate for next text command.</p></dd>
-<dt><a name="40"><i class="arg">objectName</i> <b class="method">moveTextPosition</b> <i class="arg">dx</i> <i class="arg">dy</i></a></dt>
+<dt><a name="43"><i class="arg">objectName</i> <b class="method">moveTextPosition</b> <i class="arg">dx</i> <i class="arg">dy</i></a></dt>
 <dd><p>Increment position by <i class="arg">dx</i>, <i class="arg">dy</i> for the next text command.</p></dd>
-<dt><a name="41"><i class="arg">objectName</i> <b class="method">getTextPosition</b></a></dt>
+<dt><a name="44"><i class="arg">objectName</i> <b class="method">getTextPosition</b></a></dt>
 <dd><p>This method returns the current text coordinate.</p></dd>
-<dt><a name="42"><i class="arg">objectName</i> <b class="method">newLine</b> <span class="opt">?<i class="arg">spacing</i>?</span></a></dt>
+<dt><a name="45"><i class="arg">objectName</i> <b class="method">newLine</b> <span class="opt">?<i class="arg">spacing</i>?</span></a></dt>
 <dd><p>Moves text coordinate down and resets x to where the latest
 <b class="method">setTextPosition</b> was. The number of lines to move down can
 be set by <i class="arg">spacing</i>. This may be any real number, including negative,
 and defaults to the value set by <b class="method">setLineSpacing</b>.</p></dd>
-<dt><a name="43"><i class="arg">objectName</i> <b class="method">setLineSpacing</b> <i class="arg">spacing</i></a></dt>
+<dt><a name="46"><i class="arg">objectName</i> <b class="method">setLineSpacing</b> <i class="arg">spacing</i></a></dt>
 <dd><p>Set the default line spacing used be e.g. <b class="method">newLine</b>.  Initially
 the spacing is 1.</p></dd>
-<dt><a name="44"><i class="arg">objectName</i> <b class="method">getLineSpacing</b></a></dt>
-<dd><p>Get the current default line spacing.</p></dd>
-<dt><a name="45"><i class="arg">objectName</i> <b class="method">text</b> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="47"><i class="arg">objectName</i> <b class="method">getLineSpacing</b></a></dt>
+<dd><p>Get the current default line spacing factor (a dimensionless multiplier).</p></dd>
+<dt><a name="48"><i class="arg">objectName</i> <b class="method">getLineHeight</b></a></dt>
+<dd><p>Get the actual vertical distance advanced by <b class="method">newLine</b> in the document's
+current unit. This is <i class="arg">font_size</i> times the line spacing factor. Use this to
+calculate bounding boxes around multi-line text blocks. Requires a font to be set.</p></dd>
+<dt><a name="49"><i class="arg">objectName</i> <b class="method">text</b> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw text at the position defined by setTextPosition using the font defined by 
 setFont.</p>
 <dl class="doctools_options">
@@ -642,15 +750,17 @@ setFont.</p>
 <dd></dd>
 <dt><b class="option">-y</b> <i class="arg">y</i>   (default 0) - Allow the text to be positioned without setTextPosition.</dt>
 <dd></dd>
-<dt><b class="option">-bg</b> <i class="arg">bool</i>   (default 0)</dt>
+<dt><b class="option">-bg</b> <i class="arg">bool|color</i>   (default 0)</dt>
 <dd></dd>
-<dt><b class="option">-background</b> <i class="arg">bool</i>   (default 0)</dt>
+<dt><b class="option">-background</b> <i class="arg">bool|color</i></dt>
 <dd></dd>
-<dt><b class="option">-fill</b> <i class="arg">bool</i>   (default 0) </dt>
-<dd><p>Any of <b class="option">-bg</b>, <b class="option">-background</b> or <b class="option">-fill</b> cause the text to be drawn 
-         on a background whose color is set by setBgColor.</p></dd>
+<dt><b class="option">-fill</b> <i class="arg">bool|color</i></dt>
+<dd><p>Any of <b class="option">-bg</b>, <b class="option">-background</b> or <b class="option">-fill</b> cause the text to be drawn
+         on a filled background. If a boolean true is given, the background color is taken from
+         <b class="method">setBgColor</b>. Alternatively, a color value in any format accepted by pdf4tcl
+         can be given directly (e.g. <b class="const">{1 0 0}</b> for red). All three options are aliases.</p></dd>
 </dl></dd>
-<dt><a name="46"><i class="arg">objectName</i> <b class="method">drawTextBox</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="50"><i class="arg">objectName</i> <b class="method">drawTextBox</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw the text string <i class="arg">str</i> wrapping at blanks and tabs so that it fits within the box defined
 by <i class="arg">x</i>, <i class="arg">y</i>, <i class="arg">width</i> and <i class="arg">height</i>. An embedded newline in <i class="arg">str</i> causes
 a new line in the output. If <i class="arg">str</i> is too long to fit in the specified box, it is truncated and the unused remainder is returned.</p>
@@ -665,7 +775,7 @@ a new line in the output. If <i class="arg">str</i> is too long to fit in the sp
          value and <b class="option">-linesvar</b> gives information of what would happen
          with the given text.</p></dd>
 </dl></dd>
-<dt><a name="47"><i class="arg">objectName</i> <b class="method">getFontMetric</b> <i class="arg">metric</i></a></dt>
+<dt><a name="51"><i class="arg">objectName</i> <b class="method">getFontMetric</b> <i class="arg">metric</i></a></dt>
 <dd><p>Get information about current font. The available <i class="arg">metric</i>s are
 <b class="option">ascend</b>, <b class="option">descend</b>, <b class="option">fixed</b>, <b class="option">bboxb</b>,
 <b class="option">bboxt</b> and <b class="option">height</b>.</p>
@@ -692,7 +802,7 @@ To use unsupported formats, use Tk and the Img
 package to load and dump images to raw format which can be fed to
 <b class="method">putRawImage</b> and <b class="method">addRawImage</b>.</p>
 <dl class="doctools_definitions">
-<dt><a name="48"><i class="arg">objectName</i> <b class="method">putImage</b> <i class="arg">id</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="52"><i class="arg">objectName</i> <b class="method">putImage</b> <i class="arg">id</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Put an image on the current page. The image must have been added previously by
 <b class="method">addImage</b> or <b class="method">addRawImage</b>. The <i class="arg">id</i> is the one returned
 from the add command.</p>
@@ -712,7 +822,7 @@ the height is selected to preserve the aspect ratio of the image.</p></dd>
 If <i class="arg">height</i> is set but not <i class="arg">width</i>, the width is selected to
 preserve the aspect ratio of the image.</p></dd>
 </dl></dd>
-<dt><a name="49"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="53"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Put an image on the current page. Works like <b class="method">putImage</b> except that the raw image data is given directly.</p>
 <dl class="doctools_options">
 <dt><b class="option">-compress</b> <i class="arg">boolean</i></dt>
@@ -725,18 +835,20 @@ Default value is the document's <b class="option">-compress</b> setting.</p></dd
   mypdf putRawImage $imgdata 60 20 -height 40
 </pre>
 </dd>
-<dt><a name="50"><i class="arg">objectName</i> <b class="method">addImage</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="54"><i class="arg">objectName</i> <b class="method">addImage</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add an image to the document. Returns an id that can be used in subsequent
 calls to <b class="method">putImage</b>. Supported formats are PNG, JPEG and TIFF.</p>
 <dl class="doctools_options">
 <dt><b class="option">-id</b> <i class="arg">id</i></dt>
 <dd><p>Explicitly select an id for the image. The <i class="arg">id</i> must be unique within the document.</p></dd>
 <dt><b class="option">-type</b> <i class="arg">name</i></dt>
-<dd><p>Set the image type.  This can usually be deduced from the file name, this
+<dd><p>Override automatic type detection based on file extension.
+Valid values are <b class="const">png</b>, <b class="const">jpg</b> (or <b class="const">jpeg</b>), <b class="const">tif</b> (or <b class="const">tiff</b>).
+Set the image type.  This can usually be deduced from the file name, this
 option helps when that is not possible.  This can be either &quot;png&quot;, &quot;jpeg&quot;,
 or &quot;tiff&quot;.</p></dd>
 </dl></dd>
-<dt><a name="51"><i class="arg">objectName</i> <b class="method">addRawImage</b> <i class="arg">data</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="55"><i class="arg">objectName</i> <b class="method">addRawImage</b> <i class="arg">data</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add an image to the document. Works like <b class="method">addImage</b> except that the raw image data is given directly.</p>
 <dl class="doctools_options">
 <dt><b class="option">-compress</b> <i class="arg">boolean</i></dt>
@@ -750,12 +862,12 @@ Default value is the document's <b class="option">-compress</b> setting.</p></dd
   mypdf putImage $id 20 60 -width 100
 </pre>
 </dd>
-<dt><a name="52"><i class="arg">objectName</i> <b class="method">getImageHeight</b> <i class="arg">id</i></a></dt>
+<dt><a name="56"><i class="arg">objectName</i> <b class="method">getImageHeight</b> <i class="arg">id</i></a></dt>
 <dd><p>This method returns the height of the image identified by <i class="arg">id</i>.</p></dd>
-<dt><a name="53"><i class="arg">objectName</i> <b class="method">getImageSize</b> <i class="arg">id</i></a></dt>
+<dt><a name="57"><i class="arg">objectName</i> <b class="method">getImageSize</b> <i class="arg">id</i></a></dt>
 <dd><p>This method returns the size of the image identified by <i class="arg">id</i>.  The
 return value is a list of width and height.</p></dd>
-<dt><a name="54"><i class="arg">objectName</i> <b class="method">getImageWidth</b> <i class="arg">id</i></a></dt>
+<dt><a name="58"><i class="arg">objectName</i> <b class="method">getImageWidth</b> <i class="arg">id</i></a></dt>
 <dd><p>This method returns the width of the image identified by <i class="arg">id</i>.</p></dd>
 </dl>
 </div>
@@ -765,27 +877,27 @@ of values in the range 0.0 to 1.0. Second, in the format #XXXXXX where
 the Xes are two hexadecimal digits per color value.  Third, if Tk is available,
 any color accepted by winfo rgb is accepted.</p>
 <dl class="doctools_definitions">
-<dt><a name="55"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></dt>
+<dt><a name="59"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></dt>
 <dd><p>Sets the background color for text operations where -bg is true.</p></dd>
-<dt><a name="56"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></dt>
+<dt><a name="60"><i class="arg">objectName</i> <b class="method">setBgColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></dt>
 <dd><p>Alternative calling form, to set color in CMYK color space.</p></dd>
-<dt><a name="57"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></dt>
+<dt><a name="61"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></dt>
 <dd><p>Sets the fill color for graphics operations, and the foreground color for
 text operations.</p></dd>
-<dt><a name="58"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></dt>
+<dt><a name="62"><i class="arg">objectName</i> <b class="method">setFillColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></dt>
 <dd><p>Alternative calling form, to set color in CMYK color space.</p></dd>
-<dt><a name="59"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></dt>
+<dt><a name="63"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">red</i> <i class="arg">green</i> <i class="arg">blue</i></a></dt>
 <dd><p>Sets the stroke color for graphics operations.</p></dd>
-<dt><a name="60"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></dt>
+<dt><a name="64"><i class="arg">objectName</i> <b class="method">setStrokeColor</b> <i class="arg">c</i> <i class="arg">m</i> <i class="arg">y</i> <i class="arg">k</i></a></dt>
 <dd><p>Alternative calling form, to set color in CMYK color space.</p></dd>
 </dl>
 </div>
 <div id="subsection8" class="doctools_subsection"><h3><a name="subsection8">OBJECT METHODS, GRAPHICS</a></h3>
 <dl class="doctools_definitions">
-<dt><a name="61"><i class="arg">objectName</i> <b class="method">setLineWidth</b> <i class="arg">width</i></a></dt>
+<dt><a name="65"><i class="arg">objectName</i> <b class="method">setLineWidth</b> <i class="arg">width</i></a></dt>
 <dd><p>Sets the width for subsequent line drawing.
    Line width must be a non-negative number.</p></dd>
-<dt><a name="62"><i class="arg">objectName</i> <b class="method">setLineDash</b> <span class="opt">?<i class="arg">on off</i>...?</span> <span class="opt">?<i class="arg">offset</i>?</span></a></dt>
+<dt><a name="66"><i class="arg">objectName</i> <b class="method">setLineDash</b> <span class="opt">?<i class="arg">on off</i>...?</span> <span class="opt">?<i class="arg">offset</i>?</span></a></dt>
 <dd><p>Sets the dash pattern for subsequent line drawing.
    Offset and any elements in the dash pattern must be non-negative numbers.
    <em>on off</em> is a series of pairs of numbers which define a 
@@ -795,7 +907,7 @@ text operations.</p></dd>
    An optional last argument sets the dash offset, which defaults to 0.
    Calling <b class="method">setLineDash</b> with no arguments resets the dash pattern
    to a solid line.</p></dd>
-<dt><a name="63"><i class="arg">objectName</i> <b class="method">setLineStyle</b> <i class="arg">width</i> <i class="arg">args</i></a></dt>
+<dt><a name="67"><i class="arg">objectName</i> <b class="method">setLineStyle</b> <i class="arg">width</i> <i class="arg">args</i></a></dt>
 <dd><p>Sets the width and dash pattern for subsequent line drawing.
    Line width and any elements in the dash pattern must be non-negative numbers.
    <em>args</em> is a series of numbers (not a tcl list) which define a 
@@ -804,15 +916,15 @@ text operations.</p></dd>
    been used, the pattern is re-started from the beginning. 
    This method do not support offsetting the pattern, see <b class="method">setLineDash</b>
    for a more complete method.</p></dd>
-<dt><a name="64"><i class="arg">objectName</i> <b class="method">line</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i></a></dt>
+<dt><a name="68"><i class="arg">objectName</i> <b class="method">line</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i></a></dt>
 <dd><p>Draws a line from <em>x1,</em> <em>y1</em> to <em>x2,</em> <em>y2</em></p></dd>
-<dt><a name="65"><i class="arg">objectName</i> <b class="method">curve</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">x3</i> <i class="arg">y3</i> <span class="opt">?<i class="arg">x4 y4</i>?</span></a></dt>
+<dt><a name="69"><i class="arg">objectName</i> <b class="method">curve</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">x3</i> <i class="arg">y3</i> <span class="opt">?<i class="arg">x4 y4</i>?</span></a></dt>
 <dd><p>If <em>x4,</em> <em>y4</em> are present, draws a cubic bezier from <em>x1,</em>
    <em>y1</em> to <em>x4,</em> <em>y4</em> with control points <em>x2,</em> <em>y2</em> and
    <em>x3,</em> <em>y3</em>. Otherwise draws a quadratic bezier from <em>x1,</em>
    <em>y1</em> to <em>x3,</em> <em>y3</em>, with control point <em>x2,</em>
    <em>y2</em></p></dd>
-<dt><a name="66"><i class="arg">objectName</i> <b class="method">polygon</b> <span class="opt">?<i class="arg">x y</i>...?</span> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="70"><i class="arg">objectName</i> <b class="method">polygon</b> <span class="opt">?<i class="arg">x y</i>...?</span> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw a polygon. There must be at least 3 points.
    The polygon is closed back to the first coordinate unless <i class="arg">-closed</i> is false in which case a poly-line is drawn.</p>
 <dl class="doctools_options">
@@ -824,7 +936,7 @@ text operations.</p></dd>
 <dt><b class="option">-closed</b> <i class="arg">bool</i>   (default 1)</dt>
 <dd><p>Close polygon.</p></dd>
 </dl></dd>
-<dt><a name="67"><i class="arg">objectName</i> <b class="method">circle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radius</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="71"><i class="arg">objectName</i> <b class="method">circle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radius</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw a circle at the given center coordinates.</p>
 <dl class="doctools_options">
       
@@ -833,7 +945,7 @@ text operations.</p></dd>
 <dt><b class="option">-stroke</b> <i class="arg">bool</i>   (default 1)</dt>
 <dd><p>Draw an outline of the circle.</p></dd>
 </dl></dd>
-<dt><a name="68"><i class="arg">objectName</i> <b class="method">oval</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="72"><i class="arg">objectName</i> <b class="method">oval</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw an oval at the given center coordinates.</p>
 <dl class="doctools_options">
       
@@ -842,7 +954,7 @@ text operations.</p></dd>
 <dt><b class="option">-stroke</b> <i class="arg">bool</i>   (default 1)</dt>
 <dd><p>Draw an outline of the oval.</p></dd>
 </dl></dd>
-<dt><a name="69"><i class="arg">objectName</i> <b class="method">arc</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <i class="arg">phi</i> <i class="arg">extend</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="73"><i class="arg">objectName</i> <b class="method">arc</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">radiusx</i> <i class="arg">radiusy</i> <i class="arg">phi</i> <i class="arg">extend</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw an arc, following the given oval. The arc starts at angle <i class="arg">phi</i>, given in degrees starting in the &quot;east&quot; direction, counting counter clockwise. The arc extends <i class="arg">extend</i> degrees.</p>
 <dl class="doctools_options">
       
@@ -853,9 +965,9 @@ text operations.</p></dd>
 <dt><b class="option">-style</b> <i class="arg">arc|pieslice|chord</i>   (default <i class="arg">arc</i>)</dt>
 <dd><p>Defines the style of the arc. An <i class="arg">arc</i> draws the perimeter of the arc and is never filled. A <i class="arg">pieslice</i> closes the arc with lines to the center of the oval. A <i class="arg">chord</i> closes the arc directly.</p></dd>
 </dl></dd>
-<dt><a name="70"><i class="arg">objectName</i> <b class="method">arrow</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">size</i> <span class="opt">?<i class="arg">angle</i>?</span></a></dt>
+<dt><a name="74"><i class="arg">objectName</i> <b class="method">arrow</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <i class="arg">size</i> <span class="opt">?<i class="arg">angle</i>?</span></a></dt>
 <dd><p>Draw an arrow. Default <i class="arg">angle</i> is 20 degrees.</p></dd>
-<dt><a name="71"><i class="arg">objectName</i> <b class="method">rectangle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
+<dt><a name="75"><i class="arg">objectName</i> <b class="method">rectangle</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw a rectangle.</p>
 <dl class="doctools_options">
       
@@ -864,13 +976,13 @@ text operations.</p></dd>
 <dt><b class="option">-stroke</b> <i class="arg">bool</i>   (default 1)</dt>
 <dd><p>Draw an outline of the rectangle.</p></dd>
 </dl></dd>
-<dt><a name="72"><i class="arg">objectName</i> <b class="method">clip</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></dt>
+<dt><a name="76"><i class="arg">objectName</i> <b class="method">clip</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i></a></dt>
 <dd><p>Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.</p></dd>
-<dt><a name="73"><i class="arg">objectName</i> <b class="method">gsave</b></a></dt>
+<dt><a name="77"><i class="arg">objectName</i> <b class="method">gsave</b></a></dt>
 <dd><p>Save graphic/text context. (I.e. insert a raw PDF &quot;q&quot; command).
 This saves the settings of at least these calls: <b class="method">clip</b>, <b class="method">setBgColor</b>, <b class="method">setFillColor</b>, <b class="method">setStrokeColor</b>, <b class="method">setLineStyle</b>, <b class="method">setLineWidth</b>, <b class="method">setLineDash</b>, <b class="method">setFont</b>, and <b class="method">setLineSpacing</b>.
    Each call to <b class="method">gsave</b> should be followed by a later call to <b class="method">grestore</b> in the same page.</p></dd>
-<dt><a name="74"><i class="arg">objectName</i> <b class="method">grestore</b></a></dt>
+<dt><a name="78"><i class="arg">objectName</i> <b class="method">grestore</b></a></dt>
 <dd><p>Restore graphic/text context. (I.e. insert a raw PDF &quot;Q&quot; command).</p></dd>
 </dl>
 </div>

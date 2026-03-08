@@ -1,0 +1,80 @@
+--- src/main.tcl	2026-03-08 12:12:30.000000000 +0000
++++ src/main.tcl	2026-03-08 11:41:10.052814825 +0000
+@@ -3223,6 +3223,77 @@
+         lappend pdf(annotations) "$anid 0 R"
+     }
+ 
++    # Add a hyperlink annotation (URI link). [SF ticket #15]
++    # hyperlinkAdd x y width height url ?options?
++    #
++    # x y width height  -- clickable bounding box in current units
++    # url               -- destination URI
++    #
++    # Options:
++    #   -borderwidth  n       border line width in points, 0 = no border (default: 0)
++    #   -bordercolor  color   border color, any pdf4tcl color  (default: {0 0 1})
++    #   -borderradius n       corner radius in points          (default: 0)
++    #   -borderdash   {on off} dash pattern, {} = solid        (default: {})
++    #   -highlight    N|I|O|P click effect: None/Invert/Outline/Push (default: I)
++    method hyperlinkAdd {x y width height url args} {
++        # Defaults
++        set borderwidth  0
++        set bordercolor  {0 0 1}
++        set borderradius 0
++        set borderdash   {}
++        set highlight    I
++
++        foreach {option value} $args {
++            switch -- $option {
++                -borderwidth  { set borderwidth  $value }
++                -bordercolor  { set bordercolor  $value }
++                -borderradius { set borderradius $value }
++                -borderdash   { set borderdash   $value }
++                -highlight {
++                    if {$value ni {N I O P}} {
++                        throw "PDF4TCL" \
++                            "invalid -highlight \"$value\": must be N, I, O or P"
++                    }
++                    set highlight $value
++                }
++                default {
++                    throw "PDF4TCL" "unknown option \"$option\""
++                }
++            }
++        }
++
++        # Transform to page coordinate system
++        my Trans  $x $y x y
++        my TransR $width $height width height
++        set x2 [expr {$x + $width}]
++        set y2 [expr {$y + $height}]
++
++        # /Border [cornerradius cornerradius linewidth ?dasharray?]
++        # borderwidth 0 => suppress default browser-style border
++        if {$borderwidth == 0} {
++            set border "\[0 0 0\]"
++        } elseif {[llength $borderdash] == 2} {
++            set border "\[$borderradius $borderradius $borderwidth \[[lindex $borderdash 0] [lindex $borderdash 1]\]\]"
++        } else {
++            set border "\[$borderradius $borderradius $borderwidth\]"
++        }
++
++        # Build annotation dictionary
++        set andict "<< /Type /Annot\n"
++        append andict "  /Subtype /Link\n"
++        append andict "  /Rect \[[Nf $x] [Nf $y] [Nf $x2] [Nf $y2]\]\n"
++        append andict "  /Border $border\n"
++        if {$borderwidth > 0} {
++            set rgb [my GetColor $bordercolor]
++            append andict "  /C \[[join $rgb { }]\]\n"
++        }
++        append andict "  /H /$highlight\n"
++        append andict "  /A << /Type /Action /S /URI /URI [QuoteString $url] >>\n"
++        append andict ">>\n"
++
++        lappend pdf(annotations) "[my AddObject $andict] 0 R"
++    }
++
+     # Add an interactive form
+     # Supports text, password, checkbutton (or checkbox), combobox,
+     # listbox, radiobutton, pushbutton and signature.
