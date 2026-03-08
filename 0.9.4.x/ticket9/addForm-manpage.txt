@@ -1,8 +1,9 @@
-# addForm manpage section — replaces lines 330-336 in pdf4tcl.man
+# addForm manpage section -- replaces the existing addForm paragraph in pdf4tcl.man
 # (from "[call [arg objectName] [method addForm]..." to the blank line
 #  before "[list_end]")
 #
-# To apply: replace the old addForm paragraph in pdf4tcl.man with this text.
+# The patch addforms-manpage.patch applies this automatically.
+# To apply manually: replace the old 5-line addForm paragraph with this text.
 
 [call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
 
@@ -19,9 +20,9 @@ Supported types are [arg text], [arg password], [arg checkbutton]
 [list_begin options]
 [opt_def -id [arg string]]
 Unique field ID (alphanumeric). If omitted, one is generated
-automatically: [arg ${type}form${n}] for most types,
-[arg ${group}_${value}] for radiobuttons,
-[arg Signature${n}] for signatures.
+automatically: [arg {${type}form${n}}] for most types,
+[arg {${group}_${value}}] for radiobuttons,
+[arg {Signature${n}}] for signatures.
 
 [opt_def -init [arg value]]
 Initial value. For [arg text]/[arg password] a string,
@@ -96,15 +97,17 @@ must be given.
 [def "[emph {Signature options}]"]
 [list_begin options]
 [opt_def -label [arg string]]
-Placeholder text displayed on the signature line.
-Default [const Signature]. Only valid for [arg signature] fields.
+Placeholder text displayed above the signature line.
+If omitted, defaults to [const Signature].
+Only valid for [arg signature] fields.
 [list_end]
 
 [list_end]
 
-[emph "Notes:"]
 All fields generate their own appearance streams; the
 [const NeedAppearances] flag is never set, ensuring compatibility
 with digital signature workflows.
 Radiobutton groups are finalized at document write time as a
-parent field with [const /Kids] entries.
+parent field with [const /Kids] entries per the PDF specification.
+The [method getForms] method returns data for all field types
+including the new ones added in this patch.

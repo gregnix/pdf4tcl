@@ -1,6 +1,6 @@
 These files need to be changed when bumping revisions:
 
-pdf4tcl.tcl (package provide)
+src/prologue.tcl (package provide)
 tests/init.tcl (package require)
 pkgIndex.tcl (package ifneeded)
 Makefile (VERSION)
@@ -23,7 +23,8 @@ make check
 make example
 
 Review and commit:
-eskil -review / git commit
+git diff / git commit
+git push origin master
 
 
 
@@ -32,7 +33,13 @@ To do when doing a release:
 All clean above? Revision bumped?
 
 make release
+
+For the fork (GitHub):
+git tag v0.9.4.x
+git push origin master
+git push origin --tags
+
+For upstream (SourceForge, if patch is accepted):
 make upload
 make webt
-
 Go to sourceforge and mark uploaded file as latest release for all platforms.
