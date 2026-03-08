@@ -98,6 +98,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(forms) {}
         set pdf(radiogroups) {}
         set pdf(needAppearances) 0
+        set pdf(cidfonts) {}
         set pdf(viewer) {}
         set pdf(pagelabels) {}
         set pdf(compress) $options(-compress)
@@ -744,6 +745,11 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout ">>\nendobj\n\n"
         }
 
+        # Write deferred CID font objects (collect all used glyphs first)
+        foreach {fontname oid} $pdf(cidfonts) {
+            my WriteCIDFontObjects $fontname $oid
+        }
+
         # Create the PDF document information dictionary.
         if {[array exists metadata]} {
             set metadata_oid [my GetOid]
@@ -1300,6 +1306,12 @@ oo::define ::pdf4tcl::pdf4tcl {
                 append body "/Widths \[$Widths\]\n"
                 append body "/Type /Font\n"
                 append body ">>"
+            } elseif {$fonttype eq "CID"} {
+                # CID font: defer object writing until finish().
+                # Reserve an OID now; WriteCIDFontObjects writes at finish() time.
+                set oid [my GetOid 1]
+                set fonts($fontname) $oid
+                lappend pdf(cidfonts) $fontname $oid
             } else {
                 # Add type1 font objects:
                 set BFN $::pdf4tcl::FontsAttrs($fontname,basefontname)
@@ -1357,10 +1369,138 @@ oo::define ::pdf4tcl::pdf4tcl {
                 append body "/BaseEncoding /WinAnsiEncoding\n"
                 append body "/Differences \[$diffs\]\n>>\n>>"
             }
-            set oid [my AddObject $body]
-            set fonts($fontname) $oid
+            if {$fonttype ne "CID"} {
+                set oid [my AddObject $body]
+                set fonts($fontname) $oid
+            }
         }
         set pdf(font_set) true
+    }
+
+    # Write PDF objects for a CID (Type0) font at finish() time.
+    # Called once per CID font after all text has been rendered.
+    method WriteCIDFontObjects {fontname oid} {
+        variable ::pdf4tcl::BFA
+        variable ::pdf4tcl::BFP
+        variable ::pdf4tcl::FontsAttrs
+
+        set BFN $FontsAttrs($fontname,basefontname)
+        set usedUnicode $FontsAttrs($fontname,usedUnicode)
+
+        # Build W array: collect unique GlyphIDs and their widths
+        set glyphWidths {}  ;# dict GlyphID -> width in 1/1000ths
+        dict for {ucode glyph} $usedUnicode {
+            if {![dict exists $glyphWidths $glyph]} {
+                set metrics [lindex $BFA($BFN,hmetrics) $glyph]
+                if {$metrics ne ""} {
+                    set aw [lindex $metrics 0]
+                    set w [expr {int(round($aw * 1000.0 / $BFA($BFN,unitsPerEm)))}]
+                } else {
+                    set w [expr {int(round($BFA($BFN,defaultWidth) * 1000.0))}]
+                }
+                dict set glyphWidths $glyph $w
+            }
+        }
+
+        # 1. Font binary data (full original TTF)
+        set rawttf $BFP($BFN,rawttf)
+        set lc [string length $rawttf]
+        set dictv "<<\n/Length1 $lc"
+        set fsbody [MakeStream $dictv $rawttf $pdf(compress)]
+        set fsoid [my GetOid]
+        my Pdfout "$fsoid 0 obj\n$fsbody\nendobj\n\n"
+
+        # 2. Font descriptor
+        set body "<<\n/Type /FontDescriptor\n"
+        append body "/FontName /$BFN\n"
+        append body "/Flags $BFA($BFN,flags)\n"
+        set fbbox {}
+        foreach n $BFA($BFN,bbox) {lappend fbbox [Nf $n]}
+        append body "/FontBBox \[$fbbox\]\n"
+        append body "/ItalicAngle [Nf $BFA($BFN,ItalicAngle)]\n"
+        append body "/Ascent [Nf $BFA($BFN,ascend)]\n"
+        append body "/Descent [Nf $BFA($BFN,descend)]\n"
+        append body "/CapHeight [Nf $BFA($BFN,CapHeight)]\n"
+        append body "/StemV [Nf $BFA($BFN,stemV)]\n"
+        append body "/FontFile2 $fsoid 0 R\n"
+        append body ">>"
+        set fdoid [my GetOid]
+        my Pdfout "$fdoid 0 obj\n$body\nendobj\n\n"
+
+        # 3. ToUnicode CMap
+        set cmaplines "/CIDInit /ProcSet findresource begin\n"
+        append cmaplines "12 dict begin\n"
+        append cmaplines "begincmap\n"
+        append cmaplines "/CIDSystemInfo\n"
+        append cmaplines "<< /Registry (Adobe)\n"
+        append cmaplines "   /Ordering (UCS)\n"
+        append cmaplines "   /Supplement 0\n"
+        append cmaplines ">> def\n"
+        append cmaplines "/CMapName /Adobe-Identity-UCS def\n"
+        append cmaplines "/CMapType 2 def\n"
+        append cmaplines "1 begincodespacerange\n"
+        append cmaplines "<0000> <FFFF>\n"
+        append cmaplines "endcodespacerange\n"
+        set pairs [dict size $usedUnicode]
+        if {$pairs > 0} {
+            # PDF spec: max 100 entries per beginbfchar block.
+            # Sort by GlyphID ascending (expected by most validators).
+            # usedUnicode: Unicode -> GlyphID; invert to sort by GlyphID.
+            set byGlyph {}
+            dict for {ucode glyph} $usedUnicode {
+                lappend byGlyph [list $glyph $ucode]
+            }
+            set byGlyph [lsort -integer -index 0 $byGlyph]
+            set i 0
+            while {$i < $pairs} {
+                set chunk [lrange $byGlyph $i [expr {$i + 99}]]
+                set n [llength $chunk]
+                append cmaplines "$n beginbfchar\n"
+                foreach entry $chunk {
+                    lassign $entry glyph ucode
+                    append cmaplines [format "<%04X> <%04X>\n" $glyph $ucode]
+                }
+                append cmaplines "endbfchar\n"
+                incr i 100
+            }
+        }
+        append cmaplines "endcmap\n"
+        append cmaplines "CMapName currentdict /CMap defineresource pop\n"
+        append cmaplines "end\nend\n"
+        set ucbody [MakeStream "<<" $cmaplines $pdf(compress)]
+        set ucoid [my GetOid]
+        my Pdfout "$ucoid 0 obj\n$ucbody\nendobj\n\n"
+
+        # 4. W array (per-glyph widths)
+        set warray ""
+        dict for {glyph w} $glyphWidths {
+            append warray "$glyph \[$w\] "
+        }
+
+        # 5. CIDFont (CIDFontType2) descendant
+        set body "<<\n/Type /Font\n"
+        append body "/Subtype /CIDFontType2\n"
+        append body "/BaseFont /$BFN\n"
+        append body "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>\n"
+        append body "/FontDescriptor $fdoid 0 R\n"
+        if {$warray ne ""} {
+            append body "/W \[$warray\]\n"
+        }
+        append body "/CIDToGIDMap /Identity\n"
+        append body ">>"
+        set cidoid [my GetOid]
+        my Pdfout "$cidoid 0 obj\n$body\nendobj\n\n"
+
+        # 6. Type0 font (top-level) - write with the pre-reserved OID
+        set body "<<\n/Type /Font\n"
+        append body "/Subtype /Type0\n"
+        append body "/BaseFont /$BFN\n"
+        append body "/Encoding /Identity-H\n"
+        append body "/DescendantFonts \[$cidoid 0 R\]\n"
+        append body "/ToUnicode $ucoid 0 R\n"
+        append body ">>"
+        my StoreXref $oid
+        my Pdfout "$oid 0 obj\n$body\nendobj\n\n"
     }
 
     # Get metrics from current font.
@@ -1658,7 +1798,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             my SetTextPosition $x $y
         }
 
-        my Pdfout "([CleanText $str $pdf(current_font)]) Tj\n"
+        my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
         set pdf(xpos) [expr {$x + $strWidth}]
         return $strWidth
     }
@@ -1677,7 +1817,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         my BeginTextObj
         my SetTextPosition $x $y
-        my Pdfout "([CleanText $str $pdf(current_font)]) Tj\n"
+        my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
     }
 
     method drawTextBox {x y width height txt args} {
@@ -3536,9 +3676,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         append stream "2 1.1 Td "
         if {$isPassword} {
             set masked [string repeat "\u2022" [string length $initValue]]
-            append stream "([CleanText $masked $pdf(current_font)]) Tj "
+            append stream "[PdfText $masked $pdf(current_font)] Tj "
         } else {
-            append stream "([CleanText $initValue $pdf(current_font)]) Tj "
+            append stream "[PdfText $initValue $pdf(current_font)] Tj "
         }
         append stream "ET EMC"
         set body [MakeStream $obj $stream $pdf(compress)]
@@ -3583,7 +3723,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {$displayText ne ""} {
             append stream "BT /$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
             append stream "2 1.1 Td "
-            append stream "([CleanText $displayText $pdf(current_font)]) Tj "
+            append stream "[PdfText $displayText $pdf(current_font)] Tj "
             append stream "ET "
         }
         append stream "EMC"
@@ -3628,7 +3768,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             set cX [expr {($width - $strW) / 2.0}]
             append stream "BT /$pdf(current_font) [Nf $fs] Tf 0 g "
             append stream "[Nf $cX] [Nf $cY] Td "
-            append stream "([CleanText $caption $pdf(current_font)]) Tj "
+            append stream "[PdfText $caption $pdf(current_font)] Tj "
             append stream "ET "
         }
         set body [MakeStream $obj $stream $pdf(compress)]
@@ -3657,7 +3797,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set textY [expr {$lineY + $fs * 0.5}]
         append stream "BT /$pdf(current_font) [Nf $fs] Tf 0.5 0.5 0.5 rg "
         append stream "[Nf $lx1] [Nf $textY] Td "
-        append stream "([CleanText $labelText $pdf(current_font)]) Tj "
+        append stream "[PdfText $labelText $pdf(current_font)] Tj "
         append stream "ET "
         set body [MakeStream $obj $stream $pdf(compress)]
         return [my AddObject $body]
@@ -3908,7 +4048,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             append andict "  /Q 0\n"
             # Value
             if {$initValue ne ""} {
-                append andict "  /V ([CleanText $initValue $pdf(current_font)])\n"
+                append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
                 # Appearance
                 append andict "  /AP << /N $onid 0 R >>\n"
             }
@@ -3943,14 +4083,14 @@ oo::define ::pdf4tcl::pdf4tcl {
             # Options array
             append andict "  /Opt \["
             foreach opt $optionsList {
-                append andict "([CleanText $opt $pdf(current_font)]) "
+                append andict "[PdfText $opt $pdf(current_font)] "
             }
             append andict "\]\n"
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
             # Selected value
             if {$initValue ne ""} {
-                append andict "  /V ([CleanText $initValue $pdf(current_font)])\n"
+                append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
             }
             # Appearance
             if {[info exists choiceApId]} {
@@ -4008,7 +4148,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
             # Caption in MK dict
             if {$caption ne ""} {
-                append andict "  /MK << /CA ([CleanText $caption $pdf(current_font)]) >>\n"
+                append andict "  /MK << /CA [PdfText $caption $pdf(current_font)] >>\n"
             }
             # Action
             if {$actionType eq "url"} {
@@ -4705,7 +4845,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                         my Pdfoutcmd 1 0 0 -1 $x0 $y "Tm"
                     }
 
-                    my Pdfout "([CleanText $line $pdf(current_font)]) Tj\n"
+                    my Pdfout "[PdfText $line $pdf(current_font)] Tj\n"
 
                     if {$underline != -1} {
                         if {[lindex $underline 0] eq $lineNo} {

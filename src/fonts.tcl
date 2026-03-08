@@ -20,18 +20,22 @@ namespace eval pdf4tcl {
     # ===== Procs for TrueType fonts processing =====
 
     proc createBaseTrueTypeFont {basefontname ttf_data {validate 0}} {
+        variable BFP
         variable ttfname $basefontname
         variable ttfdata $ttf_data
+        set BFP($basefontname,rawttf) $ttf_data
         InitBaseTTF $validate
     }
 
     proc loadBaseTrueTypeFont {basefontname filename {validate 0}} {
+        variable BFP
         variable ttfname $basefontname
         variable ttfdata
         set fd [open $filename]
         fconfigure $fd -translation binary
         set ttfdata [read $fd]
         close $fd
+        set BFP($basefontname,rawttf) $ttfdata
         InitBaseTTF $validate
     }
 
@@ -833,10 +837,16 @@ namespace eval pdf4tcl {
         variable Fonts
 
         set subset [list]
-        for {set f 0} {$f<256} {incr f} {lappend codes $f}
-        set uchars [encoding convertfrom $enc_name [binary format cu* $codes]]
-        foreach unichar [split $uchars {}]  {
-            lappend subset [scan $unichar %c]
+        for {set f 0} {$f < 256} {incr f} {
+            # Convert byte-by-byte: Tcl 9.0 is strict and rejects
+            # undefined bytes (e.g. 0x81 in cp1252) when converting
+            # a full 256-byte block at once.
+            if {[catch {
+                set unichar [encoding convertfrom $enc_name [binary format cu $f]]
+                lappend subset [scan $unichar %c]
+            }]} {
+                lappend subset 0  ;# undefined byte -> .notdef
+            }
         }
 
         if {$BFA($bfname,FontType) eq "TTF"} {
@@ -901,10 +911,17 @@ namespace eval pdf4tcl {
         variable BFA
 
         # get WinAnsiEncoding unicodes:
-        for {set f 0} {$f < 256} {incr f} {lappend bcodes $f}
-        set bchars [encoding convertfrom cp1252 [binary format cu* $bcodes]]
-        foreach unichar [split $bchars {}]  {
-            lappend bset [scan $unichar %c]
+        # Byte-for-byte conversion with catch for Tcl 9.0 strict UTF-8 mode.
+        # CP1252 bytes 0x81 0x8D 0x8F 0x90 0x9D are undefined -- they raise
+        # an error in Tcl 9.0; map them to 0 (.notdef) instead.
+        set bset [list]
+        for {set f 0} {$f < 256} {incr f} {
+            if {[catch {
+                set unichar [encoding convertfrom cp1252 [binary format cu $f]]
+                lappend bset [scan $unichar %c]
+            }]} {
+                lappend bset 0
+            }
         }
 
         set f 0
@@ -1076,9 +1093,49 @@ namespace eval pdf4tcl {
     }
 
     # Get the width of a character. "ch" must be exactly one char long.
+    # Create a CID (Unicode/CJK) font spec for a previously loaded TTF base font.
+    # Embeds the full font with Identity-H encoding; no 256-char limit.
+    proc createFontSpecCID {bfname fontname} {
+        variable FontsAttrs
+        variable BFA
+        variable Fonts
+
+        if {![info exists BFA($bfname,FontType)]} {
+            throw "PDF4TCL" "createFontSpecCID: base font '$bfname' not loaded (use loadBaseTrueTypeFont first)"
+        }
+        if {$BFA($bfname,FontType) ne "TTF"} {
+            throw "PDF4TCL" "createFontSpecCID: only TTF base fonts are supported (got $BFA($bfname,FontType))"
+        }
+
+        set FontsAttrs($fontname,type)         CID
+        set FontsAttrs($fontname,basefontname) $bfname
+        # usedUnicode: dict mapping Unicode codepoint (int) -> GlyphID
+        set FontsAttrs($fontname,usedUnicode)  {}
+        lappend Fonts $fontname
+    }
+
     proc GetCharWidth {font ch} {
         if {$ch eq "\n"} {
             return 0.0
+        }
+        # CID fonts: use charToGlyph + hmetrics for width lookup
+        if {[info exists ::pdf4tcl::FontsAttrs($font,type)] &&
+            $::pdf4tcl::FontsAttrs($font,type) eq "CID"} {
+            scan $ch %c n
+            set BFN $::pdf4tcl::FontsAttrs($font,basefontname)
+            set res 0.0
+            if {[dict exists $::pdf4tcl::BFA($BFN,charToGlyph) $n]} {
+                set glyph [dict get $::pdf4tcl::BFA($BFN,charToGlyph) $n]
+                set metrics [lindex $::pdf4tcl::BFA($BFN,hmetrics) $glyph]
+                if {$metrics ne ""} {
+                    set aw [lindex $metrics 0]
+                    set res [expr {$aw * 1000.0 / $::pdf4tcl::BFA($BFN,unitsPerEm) * 0.001}]
+                }
+            } else {
+                # Glyph nicht im Font vorhanden -- .notdef (Breite 0)
+                set res 0.0
+            }
+            return $res
         }
         # This can't fail since ch is always 1 char long
         scan $ch %c n

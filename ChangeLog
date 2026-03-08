@@ -1,4 +1,25 @@
 2026-03-08 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.5
+	* Feature ticket #16: new proc createFontSpecCID enables Unicode/CJK
+	  support via CIDFontType2 (Identity-H encoding). Supports any script
+	  covered by the TTF font (Latin Extended, Greek, Cyrillic, CJK, etc.)
+	  without the 256-codepoint limit of createFontSpecEnc. [#16]
+	* New proc CIDEncodeText: encodes Unicode strings as PDF hex strings
+	  <GGGG...> using original GlyphIDs. Tracks used glyphs for W array.
+	* New proc PdfText: unified text encoder routing to CIDEncodeText or
+	  CleanText depending on font type. Replaces inline ([CleanText...])
+	  at all ~13 text-rendering sites in main.tcl.
+	* SetupFont: new "CID" branch defers font object writing to finish().
+	  Font OID is reserved at SetupFont time; WriteCIDFontObjects writes
+	  Type0 + CIDFontType2 + FontDescriptor + ToUnicode CMap at finish().
+	* GetCharWidth: CID-aware: uses charToGlyph + hmetrics for widths.
+	  getStringWidth and text-wrapping work correctly for CID fonts.
+	* loadBaseTrueTypeFont / createBaseTrueTypeFont: now preserve the raw
+	  TTF binary in BFP($bfname,rawttf) for CID embedding.
+	* 26 new tests in tests/cidfont.test.
+	* New demo: 0.9.4.x/demo/demo-cidfont.tcl.
+
+2026-03-08 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.4
 	* Fix ticket #14: createFontSpecEnc now raises an error if the subset
 	  exceeds 256 codepoints (prevents invalid PDF generation). [#14]

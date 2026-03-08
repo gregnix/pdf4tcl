@@ -350,6 +350,40 @@ proc ::pdf4tcl::Swap {aName bName} {
     set b   $tmp
 }
 
+# Encode a Unicode string for a CID font (Identity-H).
+# Returns a PDF hex string <GGGG...> using original GlyphIDs.
+# Records used Unicode codepoints in FontsAttrs($fn,usedUnicode).
+proc ::pdf4tcl::CIDEncodeText {in fn} {
+    variable ::pdf4tcl::FontsAttrs
+    variable ::pdf4tcl::BFA
+    set BFN $FontsAttrs($fn,basefontname)
+    set hex ""
+    foreach ch [split $in {}] {
+        scan $ch %c n
+        if {[dict exists $BFA($BFN,charToGlyph) $n]} {
+            set glyph [dict get $BFA($BFN,charToGlyph) $n]
+            # Record real glyphs only. GlyphID 0 (.notdef) has no
+            # Unicode mapping -- must not appear in ToUnicode CMap.
+            dict set FontsAttrs($fn,usedUnicode) $n $glyph
+        } else {
+            set glyph 0  ;# render as .notdef box, no CMap entry
+        }
+        append hex [format %04X $glyph]
+    }
+    return "<$hex>"
+}
+
+# Unified text encoder: routes to CIDEncodeText or CleanText.
+# Returns a complete PDF text object string (incl. delimiters).
+proc ::pdf4tcl::PdfText {in fn} {
+    variable ::pdf4tcl::FontsAttrs
+    if {[info exists FontsAttrs($fn,type)] && $FontsAttrs($fn,type) eq "CID"} {
+        return [CIDEncodeText $in $fn]
+    } else {
+        return "([CleanText $in $fn])"
+    }
+}
+
 # helper function: mask parentheses and backslash
 proc ::pdf4tcl::CleanText {in fn} {
     variable ::pdf4tcl::FontsAttrs

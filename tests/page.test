@@ -109,7 +109,7 @@ test page-2.2 {misc page handling, with file} -body {
     apa finish
     apa destroy
 
-    set ch [open $f]
+    set ch [open $f rb]
     set data [read $ch]
     close $ch
     removeFile writable.tmp

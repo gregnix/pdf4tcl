@@ -1,12 +1,12 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.4]
+[manpage_begin pdf4tcl n 0.9.4.5]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.4]]
+[require pdf4tcl [opt 0.9.4.5]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -152,6 +152,30 @@ mypdf setFont 16 MyArial
 set txt "sin\u00B2\u03B2 + cos\u00B2\u03B2 = 1"
 mypdf text $txt -x 50 -y 100
 mypdf write -file specenc.pdf
+mypdf destroy
+}]
+
+[call [cmd ::pdf4tcl::createFontSpecCID] [arg "basefontname"] [arg "fontname"]]
+
+This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encoding)
+from a previously loaded TrueType base font. Unlike [cmd createFont] and [cmd createFontSpecEnc],
+which are limited to 256 characters per font instance, a CID font supports any Unicode
+character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic,
+CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.
+
+[example {
+pdf4tcl::loadBaseTrueTypeFont DejaVuSans "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+pdf4tcl::createFontSpecCID DejaVuSans myCIDFont
+
+pdf4tcl::new mypdf -paper a4
+mypdf startPage
+mypdf setFont 14 myCIDFont
+mypdf text "Latin: Hello World" -x 50 -y 750
+mypdf text "Extended: \u00e4\u00f6\u00fc\u00df" -x 50 -y 720
+mypdf text "Greek: \u0391\u03b2\u03b3\u03b4" -x 50 -y 690
+mypdf text "Cyrillic: \u041f\u0440\u0438\u0432\u0435\u0442" -x 50 -y 660
+mypdf endPage
+mypdf write -file unicode.pdf
 mypdf destroy
 }]
 

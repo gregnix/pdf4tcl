@@ -2,7 +2,7 @@
 #
 # $Id$
 
-package require Tcl 8.4
+package require Tcl 8.4-
 package require tcltest 2.2
 namespace import tcltest::*
 eval configure $argv -testdir [list [file dir [info script]]]

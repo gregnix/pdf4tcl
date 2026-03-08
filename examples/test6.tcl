@@ -16,9 +16,9 @@ p1 bookmarkAdd -title "Bookmark 1.1" -level 1
 #set bboxt [p1 getFontMetric bboxt]
 #set dh [expr {$bboxb - $bboxt}]
 #set sp [expr {$dh / 12.0}]
-#p1 text "FilljXYÅÄÖQ" -fill "1.0 0.0 0.0"
+#p1 text "FilljXYÃ…Ã„Ã–Q" -fill "1.0 0.0 0.0"
 #p1 newLine $sp
-#p1 text " iilljXYÅÄ" -fill "0.0 1.0 0.0"
+#p1 text " iilljXYÃ…Ã„" -fill "0.0 1.0 0.0"
 
 set xobj1 [p1 startXObject -margin 100 -paper {1000 1000}]
 p1 line 0 0 800 800

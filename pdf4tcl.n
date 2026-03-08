@@ -3,7 +3,7 @@
 '\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.4 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.5 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -275,9 +275,9 @@ Database Class:	\\fB\\$3\\fR
 .SH NAME
 pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
-package require \fBTcl  8\&.6\fR
+package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl  ?0\&.9\&.4\&.4?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.5?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -298,6 +298,8 @@ package require \fBpdf4tcl  ?0\&.9\&.4\&.4?\fR
 \fB::pdf4tcl::createFont\fR \fIbasefontname\fR \fIfontname\fR \fIencoding_name\fR
 .sp
 \fB::pdf4tcl::createFontSpecEnc\fR \fIbasefontname\fR \fIfontname\fR \fIsubset\fR
+.sp
+\fB::pdf4tcl::createFontSpecCID\fR \fIbasefontname\fR \fIfontname\fR
 .sp
 \fB::pdf4tcl::getFonts\fR
 .sp
@@ -554,6 +556,31 @@ mypdf setFont 16 MyArial
 set txt "sin\\u00B2\\u03B2 + cos\\u00B2\\u03B2 = 1"
 mypdf text $txt -x 50 -y 100
 mypdf write -file specenc\&.pdf
+mypdf destroy
+
+.CE
+.TP
+\fB::pdf4tcl::createFontSpecCID\fR \fIbasefontname\fR \fIfontname\fR
+This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encoding)
+from a previously loaded TrueType base font\&. Unlike \fBcreateFont\fR and \fBcreateFontSpecEnc\fR,
+which are limited to 256 characters per font instance, a CID font supports any Unicode
+character covered by the underlying TTF file\&. This includes Latin Extended, Greek, Cyrillic,
+CJK ideographs, and other scripts\&. The full TTF binary is embedded in the PDF\&.
+.CS
+
+
+pdf4tcl::loadBaseTrueTypeFont DejaVuSans "/usr/share/fonts/truetype/dejavu/DejaVuSans\&.ttf"
+pdf4tcl::createFontSpecCID DejaVuSans myCIDFont
+
+pdf4tcl::new mypdf -paper a4
+mypdf startPage
+mypdf setFont 14 myCIDFont
+mypdf text "Latin: Hello World" -x 50 -y 750
+mypdf text "Extended: \\u00e4\\u00f6\\u00fc\\u00df" -x 50 -y 720
+mypdf text "Greek: \\u0391\\u03b2\\u03b3\\u03b4" -x 50 -y 690
+mypdf text "Cyrillic: \\u041f\\u0440\\u0438\\u0432\\u0435\\u0442" -x 50 -y 660
+mypdf endPage
+mypdf write -file unicode\&.pdf
 mypdf destroy
 
 .CE
