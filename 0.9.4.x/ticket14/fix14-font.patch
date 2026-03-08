@@ -1,0 +1,32 @@
+--- tests/font.test
++++ tests/font.test
+@@ -158,3 +158,29 @@
+ } -match glob -result {*Courier * MyArial * MyArial2 * ZapfDingbats*}
+ 
+ ::tcltest::cleanupTests
++
++# ===========================================================================
++# font-7.x  createFontSpecEnc -- max 256 codepoints check (Ticket #14)
++# ===========================================================================
++
++test font-7.1 {createFontSpecEnc: 256 codepoints accepted} -constraints FreeSans -body {
++    set subset {}
++    for {set i 0x41} {$i < 0x41+256} {incr i} { lappend subset $i }
++    # Should not throw
++    catch {pdf4tcl::createFontSpecEnc FreeSans TestEnc256 $subset} err
++    # Accept either success (empty err) or a different error (not max-codepoint)
++    expr {![string match "*must not exceed 256*" $err]}
++} -result 1
++
++test font-7.2 {createFontSpecEnc: 257 codepoints throws error} -constraints FreeSans -body {
++    set subset {}
++    for {set i 0x41} {$i < 0x41+257} {incr i} { lappend subset $i }
++    catch {pdf4tcl::createFontSpecEnc FreeSans TestEncTooMany $subset} err
++    string match "*must not exceed 256*" $err
++} -result 1
++
++test font-7.3 {createFontSpecEnc: empty subset allowed} -constraints FreeSans -body {
++    catch {pdf4tcl::createFontSpecEnc FreeSans TestEncEmpty {}} err
++    expr {![string match "*must not exceed 256*" $err]}
++} -result 1
++

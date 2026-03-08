@@ -1,0 +1,16 @@
+--- src/main.tcl
++++ src/main.tcl
+@@ -1358,6 +1533,13 @@
+         return $pdf(line_spacing)
+     }
+ 
++    # Return the actual line height in the document's unit.
++    # This is the Y distance advanced by newLine: font_size * lineSpacingFactor.
++    # font_size is stored in points; divide by pdf(unit) to get document units.
++    method getLineHeight {} {
++        return [expr {$pdf(font_size) * $pdf(line_spacing) / $pdf(unit)}]
++    }
++
+     # Draw a text string
+     # Returns the width of the drawn string.
+     method text {str args} {
