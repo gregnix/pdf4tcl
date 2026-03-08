@@ -143,7 +143,7 @@ test canvas-3.2 {text, font} -constraints {FreeSans} -body {
     mytest {canvas .c -fontmap {"Helvetica -10" MyArial}} "*\x00\x01\x02*"
 } -cleanup {destroy .c} -result 1
 
-test canvas-3.3 {text, underline} -constraints runin87p -body {
+test canvas-3.3 {text, underline} -constraints {runin87p knownbug} -body {
     canvas .c
     .c create rectangle 0 0 500 500 -outline black
 

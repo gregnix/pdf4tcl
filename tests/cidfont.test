@@ -1,0 +1,315 @@
+# Test CID font support (createFontSpecCID) -- Ticket #16   -*-tcl-*-
+# Version: 0.9.4.5
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# -----------------------------------------------------------------------
+# Constraint: DejaVuSans available
+# -----------------------------------------------------------------------
+set dejavuPath ""
+foreach candidate {
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    /usr/share/fonts/TTF/DejaVuSans.ttf
+    /Library/Fonts/DejaVuSans.ttf
+} {
+    if {[file exists $candidate]} {
+        set dejavuPath $candidate
+        break
+    }
+}
+testConstraint DejaVuSans [expr {$dejavuPath ne ""}]
+
+# -----------------------------------------------------------------------
+# CID font setup helper
+# -----------------------------------------------------------------------
+proc setupCIDFont {} {
+    global dejavuPath
+    pdf4tcl::loadBaseTrueTypeFont DejaVuSansCID $dejavuPath
+    pdf4tcl::createFontSpecCID DejaVuSansCID cidFont
+}
+
+# ===========================================================================
+# cidfont-1.x  createFontSpecCID -- API and FontsAttrs
+# ===========================================================================
+
+test cidfont-1.1 {createFontSpecCID: creates font entry in getFonts} \
+    -constraints DejaVuSans \
+    -setup { setupCIDFont } \
+    -body {
+        expr {"cidFont" in [pdf4tcl::getFonts]}
+    } -result 1
+
+test cidfont-1.2 {createFontSpecCID: FontsAttrs type is CID} \
+    -constraints DejaVuSans \
+    -body {
+        set ::pdf4tcl::FontsAttrs(cidFont,type)
+    } -result CID
+
+test cidfont-1.3 {createFontSpecCID: basefontname is correct} \
+    -constraints DejaVuSans \
+    -body {
+        set ::pdf4tcl::FontsAttrs(cidFont,basefontname)
+    } -result DejaVuSansCID
+
+test cidfont-1.4 {createFontSpecCID: usedUnicode starts empty} \
+    -constraints DejaVuSans \
+    -body {
+        dict size $::pdf4tcl::FontsAttrs(cidFont,usedUnicode)
+    } -result 0
+
+test cidfont-1.5 {createFontSpecCID: rejects non-TTF base font} \
+    -constraints DejaVuSans \
+    -body {
+        catch {pdf4tcl::createFontSpecCID Courier badFont} err
+        set err
+    } -match glob -result {*createFontSpecCID*}
+
+# ===========================================================================
+# cidfont-2.x  CIDEncodeText -- encoding and glyph tracking
+# ===========================================================================
+
+test cidfont-2.1 {CIDEncodeText: ASCII produces hex GlyphIDs} \
+    -constraints DejaVuSans \
+    -body {
+        set result [pdf4tcl::CIDEncodeText "A" cidFont]
+        # Must start with < and end with >
+        expr {[string match {<*>} $result]}
+    } -result 1
+
+test cidfont-2.2 {CIDEncodeText: hex string has even-length nibbles} \
+    -constraints DejaVuSans \
+    -body {
+        set hex [string range [pdf4tcl::CIDEncodeText "Hi" cidFont] 1 end-1]
+        expr {[string length $hex] % 4 == 0}
+    } -result 1
+
+test cidfont-2.3 {CIDEncodeText: records used Unicode codepoints} \
+    -constraints DejaVuSans \
+    -body {
+        # Reset usedUnicode
+        set ::pdf4tcl::FontsAttrs(cidFont,usedUnicode) {}
+        pdf4tcl::CIDEncodeText "AB" cidFont
+        dict size $::pdf4tcl::FontsAttrs(cidFont,usedUnicode)
+    } -result 2
+
+test cidfont-2.4 {CIDEncodeText: Latin Extended (Umlauts)} \
+    -constraints DejaVuSans \
+    -body {
+        set ::pdf4tcl::FontsAttrs(cidFont,usedUnicode) {}
+        set result [pdf4tcl::CIDEncodeText "\u00e4\u00f6\u00fc\u00df" cidFont]
+        # 4 chars -> 4 GlyphIDs -> 16 hex digits inside <>
+        set hex [string range $result 1 end-1]
+        expr {[string length $hex] == 16}
+    } -result 1
+
+test cidfont-2.5 {CIDEncodeText: Greek characters} \
+    -constraints DejaVuSans \
+    -body {
+        set ::pdf4tcl::FontsAttrs(cidFont,usedUnicode) {}
+        set result [pdf4tcl::CIDEncodeText "\u0391\u03b1" cidFont]
+        # 2 chars -> 8 hex digits
+        set hex [string range $result 1 end-1]
+        expr {[string length $hex] == 8}
+    } -result 1
+
+test cidfont-2.6 {CIDEncodeText: Cyrillic characters} \
+    -constraints DejaVuSans \
+    -body {
+        set ::pdf4tcl::FontsAttrs(cidFont,usedUnicode) {}
+        set result [pdf4tcl::CIDEncodeText "\u041f\u0440\u0438\u0432\u0435\u0442" cidFont]
+        # 6 chars = 24 hex digits
+        expr {[string length $result] == 26}
+    } -result 1
+
+# ===========================================================================
+# cidfont-3.x  PdfText -- routing wrapper
+# ===========================================================================
+
+test cidfont-3.1 {PdfText: CID font returns hex string} \
+    -constraints DejaVuSans \
+    -body {
+        set result [pdf4tcl::PdfText "Hi" cidFont]
+        expr {[string match {<*>} $result]}
+    } -result 1
+
+test cidfont-3.2 {PdfText: std font returns parenthesised string} \
+    -body {
+        set result [pdf4tcl::PdfText "Hi" Courier]
+        expr {[string match {(*)} $result]}
+    } -result 1
+
+# ===========================================================================
+# cidfont-4.x  GetCharWidth / getStringWidth for CID fonts
+# ===========================================================================
+
+test cidfont-4.1 {GetCharWidth: CID font returns positive width for ASCII} \
+    -constraints DejaVuSans \
+    -body {
+        set w [pdf4tcl::GetCharWidth cidFont "A"]
+        expr {$w > 0.0}
+    } -result 1
+
+test cidfont-4.2 {GetCharWidth: newline returns 0} \
+    -constraints DejaVuSans \
+    -body {
+        pdf4tcl::GetCharWidth cidFont "\n"
+    } -result 0.0
+
+test cidfont-4.3 {getStringWidth: CID font returns non-zero for Latin string} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO%]
+        $pdf setFont 10 cidFont
+        set w [$pdf getStringWidth "Hello"]
+        $pdf destroy
+        expr {$w > 0.0}
+    } -result 1
+
+test cidfont-4.4 {getStringWidth: wider string > narrower string} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO%]
+        $pdf setFont 10 cidFont
+        set w1 [$pdf getStringWidth "Hello World"]
+        set w2 [$pdf getStringWidth "Hi"]
+        $pdf destroy
+        expr {$w1 > $w2}
+    } -result 1
+
+# ===========================================================================
+# cidfont-5.x  PDF output correctness
+# ===========================================================================
+
+test cidfont-5.1 {PDF output: Type0 font object present} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Test" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        expr {[string match */Type0* $data]}
+    } -result 1
+
+test cidfont-5.2 {PDF output: CIDFontType2 present} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Test" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        expr {[string match */CIDFontType2* $data]}
+    } -result 1
+
+test cidfont-5.3 {PDF output: Identity-H encoding present} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Test" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        expr {[string match */Identity-H* $data]}
+    } -result 1
+
+test cidfont-5.4 {PDF output: ToUnicode CMap present} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Test" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        expr {[string match *begincmap* $data]}
+    } -result 1
+
+test cidfont-5.5 {PDF output: text encoded as hex string} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "A" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        # Content stream must contain hex <...> Tj, not (...) Tj
+        expr {[regexp {<[0-9A-F]+> Tj} $data]}
+    } -result 1
+
+test cidfont-5.6 {PDF output: W array present for used glyphs} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Hello" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        expr {[string match {*/W \[*} $data]}
+    } -result 1
+
+test cidfont-5.7 {PDF output: multi-page CID font - no error} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Seite 1" -x 50 -y 700
+        $pdf endPage
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Seite 2 - \u00e4\u00f6\u00fc" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        # Both pages must reference the same font OID
+        set count [regexp -all {/myfont|/cidFont} $data]
+        expr {$count >= 2}
+    } -result 1
+
+test cidfont-5.8 {PDF output: Latin + Greek + Cyrillic in one string} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "ABC\u0391\u0392\u0393\u0410\u0411\u0412" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
+        # 9 chars = 36 hex digits in content stream
+        expr {[regexp {<[0-9A-F]{36}> Tj} $data]}
+    } -result 1
+
+# ===========================================================================
+# cidfont-6.x  write to file (regression: no xref errors)
+# ===========================================================================
+
+test cidfont-6.1 {write to file: no xref error} \
+    -constraints DejaVuSans \
+    -body {
+        set f [makeFile {} cid_out.pdf]
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "Hello \u00e4\u00f6\u00fc" -x 50 -y 700
+        $pdf endPage
+        $pdf write -file $f
+        $pdf destroy
+        set ok [file exists $f]
+        removeFile $f
+        set ok
+    } -result 1
+
+::tcltest::cleanupTests

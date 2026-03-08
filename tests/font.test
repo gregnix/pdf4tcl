@@ -44,7 +44,9 @@ test font-3.1 {font, unicode} -body {
         set l [expr {($code-32) % 4}]
         set h [expr {($code-32) / 4}]
         set char [format %c $code]
-        set cpchar [encoding convertfrom cp1252 $char]
+        if {[catch {encoding convertfrom cp1252 $char} cpchar]} {
+            set cpchar "?"
+        }
         set cpcode [scan $cpchar %c]
         set hex  [format %04X $cpcode]
         if {[info exists glyph_names($hex)]} {

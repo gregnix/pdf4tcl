@@ -15,11 +15,11 @@ p1 setFillColor 0.3 0.6 0.9
 p1 rectangle 400 40 166 166 -filled 1
 p1 setFillColor 0 0 0
 p1 setFont 12 "Helvetica"
-p1 text "linksbündig" -x 100 -y 200
-p1 text "rechtsbündig \xAC" -x 100 -y 214 -align right
+p1 text "linksbÃ¼ndig" -x 100 -y 200
+p1 text "rechtsbÃ¼ndig \xAC" -x 100 -y 214 -align right
 p1 text "zentriert" -x 100 -y 228 -align center
 p1 setFont 8 "Times-Roman"
-p1 text "Dies ist ein etwas längerer Satz in einer kleineren Schriftart." \
+p1 text "Dies ist ein etwas lÃ¤ngerer Satz in einer kleineren Schriftart." \
         -x 100 -y 242
 p1 setFont 12 "Courier-Bold"
 for {set w 0} {$w<360} {incr w 15} {
@@ -35,7 +35,7 @@ p1 drawTextBox 350 290 220 100 "Dieser Abschnitt sollte im Blocksatz gesetzt sei
 p1 setFillColor 0.8 0.8 0.8
 p1 rectangle 348 408 224 54 -filled 1
 p1 setFillColor 0 0 0
-p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbündige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls möglich." -align right
+p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbÃ¼ndige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls mÃ¶glich." -align right
 p1 addImage tcl.jpg -id 1
 p1 putImage 1 20 20 -height 75
 p1 setFillColor 1.0 0 0
@@ -54,11 +54,11 @@ p1 setStrokeColor 0 0 0
 p1 setFillColor 0.3 0.6 0.9
 p1 rectangle 400 40 166 166 -filled 1
 p1 setFillColor 0 0 0
-p1 text "linksbündig" -x 100 -y 200
-p1 text "rechtsbündig \xAC" -align right -x 100 -y 214
+p1 text "linksbÃ¼ndig" -x 100 -y 200
+p1 text "rechtsbÃ¼ndig \xAC" -align right -x 100 -y 214
 p1 text "zentriert" -align center -x 100 -y 228
 p1 setFont 8 "Times-Roman"
-p1 text "Dies ist ein etwas längerer Satz in einer kleineren Schriftart." \
+p1 text "Dies ist ein etwas lÃ¤ngerer Satz in einer kleineren Schriftart." \
         -x 100 -y 242
 p1 setFont 12 "Courier-Bold"
 for {set w 0} {$w<360} {incr w 15} {
@@ -74,7 +74,7 @@ p1 drawTextBox 350 290 220 100 "Dieser Abschnitt sollte im Blocksatz gesetzt sei
 p1 setFillColor 0.8 0.8 0.8
 p1 rectangle 348 408 224 54 -filled 1
 p1 setFillColor 0 0 0
-p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbündige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls möglich." -align right
+p1 drawTextBox 350 410 220 50 "Eine links- oder rechtsbÃ¼ndige und auch eine zentrierte Ausrichtung in der Textbox sind ebenfalls mÃ¶glich." -align right
 p1 putImage 1 20 20 -height 75
 p1 setFillColor 1.0 0 0
 p1 setStrokeColor 0 0 1
