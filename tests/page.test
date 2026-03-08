@@ -304,3 +304,56 @@ test page-6.7 {bookmarks} -body {
 } -returnCodes 1 -match glob -result {*unknown option "-mooo"}
 
 ::tcltest::cleanupTests
+
+# Tests for ticket #22: metadata without setFont should not crash
+# The fix replaces CleanText (font-dependent) with QuoteString for
+# metadata and bookmark title strings.
+
+test page-5.9 {metadata without setFont - no crash} -body {
+    # No setFont call -- must not throw "Can't read FontsAttrs"
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf metadata -author "Test"
+    $pdf startPage
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Author \(Test\)} $res
+} -result 1
+
+test page-5.10 {metadata without setFont - title} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf metadata -title "My Title"
+    $pdf startPage
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Title \(My Title\)} $res
+} -result 1
+
+test page-5.11 {metadata special chars without setFont} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf metadata -subject "Hello (World)"
+    $pdf startPage
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Subject \(Hello \\\(World\\\)\)} $res
+} -result 1
+
+test page-5.12 {metadata image-only PDF - no setFont ever} -body {
+    # Reproduces the exact scenario from ticket #22
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf metadata -creationdate 0
+    $pdf metadata -author "Ticket22"
+    $pdf startPage
+    catch {set res [$pdf get]} err
+    $pdf destroy
+    # Must not error with "Can't read FontsAttrs"
+    expr {$err eq "" || ![string match "*FontsAttrs*" $err]}
+} -result 1
+
+test page-6.8 {bookmarkAdd title without prior setFont} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf bookmarkAdd -title "Chapter 1"
+    catch {set res [$pdf get]} err
+    $pdf destroy
+    expr {$err eq "" || ![string match "*FontsAttrs*" $err]}
+} -result 1

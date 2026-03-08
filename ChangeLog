@@ -1,4 +1,11 @@
 2026-03-08 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.2
+	* Fix ticket #22: metadata and bookmarkAdd crash when no font is set.
+	  CleanText requires a current font; replaced with QuoteString for
+	  metadata dictionary strings and bookmark titles (font-independent).
+	  5 new tests in tests/page.test (page-5.9 to page-5.12, page-6.8).
+
+2026-03-08 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.1
 	* Extended addForm method to support 8 field types:
 	  text, password, checkbutton (alias checkbox), combobox,
@@ -153,7 +160,8 @@
 2012-08-28 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Patch from Christian Gollwitzer:
 	* Added attachFile method.
-	* Fix a bug in string quoting, which causes Adobe Reader to misinterpret chars at special positions in the encoding (\r,\b...)
+	* Fix a bug in string quoting, which causes Adobe Reader to misinterpret chars at special positions in the encoding (
+,...)
 	* Add an interpretation for angled text on the canvas (8.6)
 	* Fix a bug with the underline position on canvas
 
@@ -398,4 +406,3 @@
 2004-10-25  Frank Richter  <frichter@truckle.in-chemnitz.de>
 
 	* initial version
-
