@@ -3,7 +3,7 @@
 '\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.2 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.4 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -275,9 +275,9 @@ Database Class:	\\fB\\$3\\fR
 .SH NAME
 pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
-package require \fBTcl 8\&.6\fR
+package require \fBTcl  8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.2?\fR
+package require \fBpdf4tcl  ?0\&.9\&.4\&.4?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -333,7 +333,7 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.2?\fR
 .sp
 \fIobjectName\fR \fBget\fR
 .sp
-\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR?
+\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR? ?\fI-dryrun bool\fR?
 .sp
 \fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -348,6 +348,12 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.2?\fR
 \fIobjectName\fR \fBembedFile\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBattachFile\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIfid\fR \fIdescription\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBviewerPreferences\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBpageLabel\fR \fIpageIndex\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBsetFont\fR \fIsize\fR ?\fIfontname\fR?
 .sp
@@ -366,6 +372,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.2?\fR
 \fIobjectName\fR \fBsetLineSpacing\fR \fIspacing\fR
 .sp
 \fIobjectName\fR \fBgetLineSpacing\fR
+.sp
+\fIobjectName\fR \fBgetLineHeight\fR
 .sp
 \fIobjectName\fR \fBtext\fR \fIstr\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -683,12 +691,22 @@ This method returns the generated pdf\&.
 This will do \fBendPage\fR and \fBfinish\fR if needed\&.
 If the \fB-file\fR option was given at object creation, nothing is returned\&.
 .TP
-\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR?
+\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR? ?\fI-dryrun bool\fR?
 This method writes the generated pdf to the given \fIfilename\fR\&.
 If no \fIfilename\fR is given, it is written to stdout\&.
 This will do \fBendPage\fR and \fBfinish\fR if needed\&.
 If the \fB-file\fR option was given at object creation, an empty file
 is created\&.
+.RS
+.TP
+\fB-file\fR \fIfilename\fR
+Write PDF to the given file\&.
+.TP
+\fB-dryrun\fR \fIbool\fR
+If true, return the PDF data as a string without writing to a file and without
+modifying the document state\&. Useful for previewing or testing the output\&.
+Default is false\&.
+.RE
 .TP
 \fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 Add an interactive form field at the given position and size\&.
@@ -845,9 +863,12 @@ the canvas is drawn\&.
 \fIobjectName\fR \fBmetadata\fR ?\fIoption value\fR\&.\&.\&.?
 This method sets metadata fields for this document\&.  Supported field options are
 \fI-author\fR, \fI-creator\fR, \fI-keywords\fR, \fI-producer\fR, \fI-subject\fR,
-\fI-title\fR and \fI-creationdate\fR\&.
+\fI-title\fR, \fI-creationdate\fR and \fI-moddate\fR\&.
 Multiple keywords should be passed as a comma-separated string,
 e\&.g\&. \fI-keywords "tcl,pdf,document"\fR\&.
+For \fI-creationdate\fR and \fI-moddate\fR a \fBclock seconds\fR value is expected\&.
+A value of \fB0\fR uses the current date and time\&.
+Unknown option names cause an error\&.
 .TP
 \fIobjectName\fR \fBbookmarkAdd\fR ?\fIoption value\fR\&.\&.\&.?
 Add a bookmark on the current page\&.
@@ -888,6 +909,130 @@ set fid [$pdfobject embedFile "data\&.txt" -contents "This should be stored in t
 $pdfobject attachFile 0 0 100 100 $fid "This is the description"
 
 .CE
+.TP
+\fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
+This method adds a URI hyperlink annotation to the current page\&. The clickable
+area is defined by \fIx\fR, \fIy\fR, \fIwidth\fR and \fIheight\fR\&. The
+\fIurl\fR argument must be a valid URI string (e\&.g\&. \fBhttps://www\&.example\&.com\fR)\&.
+By default the annotation has no visible border\&.
+.RS
+.TP
+\fB-borderwidth\fR \fIn\fR
+Width of the annotation border in points\&. Use \fB0\fR for an invisible border
+(default: \fB0\fR)\&.
+.TP
+\fB-bordercolor\fR \fIcolor\fR
+Color of the annotation border\&. Accepts any color format supported by pdf4tcl
+(default: \fB{0 0 1}\fR, blue)\&.
+.TP
+\fB-borderradius\fR \fIn\fR
+Corner radius of the annotation border in points (default: \fB0\fR)\&.
+.TP
+\fB-borderdash\fR \fIon off\fR
+Dash pattern of the border as a list of two numbers \fIon\fR and \fIoff\fR in
+points\&. An empty list produces a solid border (default: \fB\fR)\&.
+.TP
+\fB-highlight\fR \fImode\fR
+Visual effect when the user clicks the annotation\&. Valid values are \fBN\fR
+(None), \fBI\fR (Invert, default), \fBO\fR (Outline), and \fBP\fR (Push)\&.
+.RE
+.CS
+
+
+# Invisible link
+$pdfobject hyperlinkAdd 50 100 200 20 "https://sourceforge\&.net/p/pdf4tcl"
+
+# Link with visible blue border
+$pdfobject hyperlinkAdd 50 130 200 20 "https://github\&.com/gregnix/pdf4tcl"  -borderwidth 1 -bordercolor {0 0 1}
+
+# Dashed border, rounded corners
+$pdfobject hyperlinkAdd 50 160 200 20 "https://www\&.tcl\&.tk"  -borderwidth 1 -bordercolor {0 0\&.6 0} -borderdash {5 3} -borderradius 4
+
+.CE
+.TP
+\fIobjectName\fR \fBviewerPreferences\fR ?\fIoption value\fR\&.\&.\&.?
+Set viewer preference flags in the PDF catalog\&. These control how a PDF viewer
+displays the document when it is opened\&. Options can be combined freely\&.
+.RS
+.TP
+\fB-pagelayout\fR \fIlayout\fR
+Set the page layout on open\&. Valid values: \fBSinglePage\fR, \fBOneColumn\fR,
+\fBTwoColumnLeft\fR, \fBTwoColumnRight\fR, \fBTwoPageLeft\fR, \fBTwoPageRight\fR\&.
+.TP
+\fB-pagemode\fR \fImode\fR
+Set the page mode on open\&. Valid values: \fBUseNone\fR, \fBUseOutlines\fR,
+\fBUseThumbs\fR, \fBFullScreen\fR, \fBUseOC\fR, \fBUseAttachments\fR\&.
+.TP
+\fB-hidetoolbar\fR \fIbool\fR
+Hide the viewer toolbar when the document is open (default false)\&.
+.TP
+\fB-hidemenubar\fR \fIbool\fR
+Hide the viewer menu bar (default false)\&.
+.TP
+\fB-hidewindowui\fR \fIbool\fR
+Hide viewer interface elements (default false)\&.
+.TP
+\fB-fitwindow\fR \fIbool\fR
+Resize the document window to fit the first page (default false)\&.
+.TP
+\fB-centerwindow\fR \fIbool\fR
+Center the document window on the screen (default false)\&.
+.TP
+\fB-displaydoctitle\fR \fIbool\fR
+Display the document title from metadata instead of the file name (default false)\&.
+.TP
+\fB-nonfullscreenpagemode\fR \fImode\fR
+Page mode when leaving full-screen mode\&. Valid values: \fBUseNone\fR,
+\fBUseOutlines\fR, \fBUseThumbs\fR, \fBUseOC\fR\&.
+.TP
+\fB-direction\fR \fIdir\fR
+Reading order\&. Valid values: \fBL2R\fR (default) or \fBR2L\fR (right-to-left)\&.
+.TP
+\fB-printscaling\fR \fIscale\fR
+Default print scaling\&. Valid values: \fBAppDefault\fR or \fBNone\fR\&.
+.TP
+\fB-duplex\fR \fImode\fR
+Paper handling when printing\&. Valid values: \fBNone\fR, \fBSimplex\fR,
+\fBDuplexFlipShortEdge\fR, \fBDuplexFlipLongEdge\fR\&.
+.RE
+.CS
+
+
+$pdfobject viewerPreferences -pagemode FullScreen -hidetoolbar 1
+$pdfobject viewerPreferences -pagelayout TwoColumnLeft -direction L2R
+
+.CE
+.TP
+\fIobjectName\fR \fBpageLabel\fR \fIpageIndex\fR ?\fIoption value\fR\&.\&.\&.?
+Define a page label range starting at the given zero-based \fIpageIndex\fR\&.
+PDF page labels allow viewers to display custom page numbers (e\&.g\&. roman numerals
+for a preface, decimal numbers for the main body)\&. Multiple ranges can be defined\&.
+.RS
+.TP
+\fB-style\fR \fIstyle\fR
+Numbering style\&. Valid values: \fBD\fR (decimal: 1 2 3), \fBr\fR (roman lowercase: i ii iii),
+\fBR\fR (roman uppercase: I II III), \fBa\fR (alpha lowercase: a b c),
+\fBA\fR (alpha uppercase: A B C), or empty string (prefix only, no number)\&.
+.TP
+\fB-prefix\fR \fIstring\fR
+Label prefix prepended to each page number (e\&.g\&. \fBApp-\fR produces App-1, App-2\&.\&.\&.)\&.
+.TP
+\fB-start\fR \fIinteger\fR
+Start value for the numbering in this range\&. Must be a positive integer\&. Default is 1\&.
+.RE
+.CS
+
+
+# Preface pages: i, ii, iii\&.\&.\&.
+$pdfobject pageLabel 0 -style r
+
+# Main body pages: 1, 2, 3\&.\&.\&.
+$pdfobject pageLabel 4 -style D -start 1
+
+# Appendix with prefix
+$pdfobject pageLabel 20 -style A -prefix "App-"
+
+.CE
 .PP
 .SS "OBJECT METHODS, TEXT"
 .TP
@@ -921,7 +1066,12 @@ Set the default line spacing used be e\&.g\&. \fBnewLine\fR\&.  Initially
 the spacing is 1\&.
 .TP
 \fIobjectName\fR \fBgetLineSpacing\fR
-Get the current default line spacing\&.
+Get the current default line spacing factor (a dimensionless multiplier)\&.
+.TP
+\fIobjectName\fR \fBgetLineHeight\fR
+Get the actual vertical distance advanced by \fBnewLine\fR in the document's
+current unit\&. This is \fIfont_size\fR times the line spacing factor\&. Use this to
+calculate bounding boxes around multi-line text blocks\&. Requires a font to be set\&.
 .TP
 \fIobjectName\fR \fBtext\fR \fIstr\fR ?\fIoption value\fR\&.\&.\&.?
 Draw text at the position defined by setTextPosition using the font defined by
@@ -940,13 +1090,15 @@ setFont\&.
 .TP
 \fB-y\fR \fIy\fR   (default 0) - Allow the text to be positioned without setTextPosition\&.
 .TP
-\fB-bg\fR \fIbool\fR   (default 0)
+\fB-bg\fR \fIbool|color\fR   (default 0)
 .TP
-\fB-background\fR \fIbool\fR   (default 0)
+\fB-background\fR \fIbool|color\fR
 .TP
-\fB-fill\fR \fIbool\fR   (default 0)
+\fB-fill\fR \fIbool|color\fR
 Any of \fB-bg\fR, \fB-background\fR or \fB-fill\fR cause the text to be drawn
-on a background whose color is set by setBgColor\&.
+on a filled background\&. If a boolean true is given, the background color is taken from
+\fBsetBgColor\fR\&. Alternatively, a color value in any format accepted by pdf4tcl
+can be given directly (e\&.g\&. \fB{1 0 0}\fR for red)\&. All three options are aliases\&.
 .RE
 .TP
 \fIobjectName\fR \fBdrawTextBox\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIstr\fR ?\fIoption value\fR\&.\&.\&.?
@@ -1050,6 +1202,8 @@ calls to \fBputImage\fR\&. Supported formats are PNG, JPEG and TIFF\&.
 Explicitly select an id for the image\&. The \fIid\fR must be unique within the document\&.
 .TP
 \fB-type\fR \fIname\fR
+Override automatic type detection based on file extension\&.
+Valid values are \fBpng\fR, \fBjpg\fR (or \fBjpeg\fR), \fBtif\fR (or \fBtiff\fR)\&.
 Set the image type\&.  This can usually be deduced from the file name, this
 option helps when that is not possible\&.  This can be either "png", "jpeg",
 or "tiff"\&.

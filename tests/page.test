@@ -357,3 +357,305 @@ test page-6.8 {bookmarkAdd title without prior setFont} -body {
     $pdf destroy
     expr {$err eq "" || ![string match "*FontsAttrs*" $err]}
 } -result 1
+
+# Tests for ticket #15: hyperlinkAdd
+# A Link annotation with URI action.
+
+test page-7.1 {hyperlinkAdd basic - no border} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Subtype /Link} $res
+} -result 1
+
+test page-7.2 {hyperlinkAdd - URI in action} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/S /URI.*https://example\.com} $res
+} -result 1
+
+test page-7.3 {hyperlinkAdd - no border by default} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Border \[0 0 0\]} $res
+} -result 1
+
+test page-7.4 {hyperlinkAdd - with border} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" \
+        -borderwidth 2 -bordercolor {0 0 1}
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Border \[0 0 2\]} $res
+} -result 1
+
+test page-7.5 {hyperlinkAdd - border color} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" \
+        -borderwidth 1 -bordercolor {0 0 1}
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/C \[0 0 1\]} $res
+} -result 1
+
+test page-7.6 {hyperlinkAdd - dashed border} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" \
+        -borderwidth 1 -borderdash {3 2}
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Border \[0 0 1 \[3 2\]\]} $res
+} -result 1
+
+test page-7.7 {hyperlinkAdd - highlight option} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com" -highlight O
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/H /O} $res
+} -result 1
+
+test page-7.8 {hyperlinkAdd - invalid highlight} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    catch {$pdf hyperlinkAdd 10 10 100 20 "https://example.com" -highlight X} err
+    $pdf destroy
+    string match "*invalid -highlight*" $err
+} -result 1
+
+test page-7.9 {hyperlinkAdd - unknown option} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    catch {$pdf hyperlinkAdd 10 10 100 20 "https://example.com" -foo bar} err
+    $pdf destroy
+    string match "*unknown option*" $err
+} -result 1
+
+test page-7.10 {hyperlinkAdd - annotation registered in page} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com"
+    set res [$pdf get]
+    $pdf destroy
+    regexp {/Annots \[} $res
+} -result 1
+
+test page-7.11 {hyperlinkAdd - special chars in URL quoted} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $pdf startPage
+    $pdf hyperlinkAdd 10 10 100 20 "https://example.com/path?a=1&b=2"
+    set res [$pdf get]
+    $pdf destroy
+    regexp {https://example\.com/path\?a=1&b=2} $res
+} -result 1
+
+# ===========================================================================
+# page-8.x  metadata -moddate (Ticket #19)
+# ===========================================================================
+
+test page-8.1 {metadata -moddate: timestamp stored as ModDate} -body {
+    mytest -all {
+        metadata -moddate 0
+    } {ModDate}
+} -result 1
+
+test page-8.2 {metadata -moddate: format D:YYYYMMDDHHmmss} -body {
+    set ts [clock scan "2024-01-15 12:00:00" -format "%Y-%m-%d %H:%M:%S" -gmt 1]
+    mytest -all [list metadata -moddate $ts] {D:2024}
+} -result 1
+
+test page-8.3 {metadata unknown option throws error} -body {
+    catch {
+        mytest { metadata -badoption foo } {}
+    } err
+    string match "*unknown metadata option*" $err
+} -result 1
+
+# ===========================================================================
+# page-9.x  viewerPreferences (Ticket #19)
+# ===========================================================================
+
+test page-9.1 {viewerPreferences -hidetoolbar true -> HideToolbar in catalog} -body {
+    mytest -all {
+        viewerPreferences -hidetoolbar 1
+    } {HideToolbar}
+} -result 1
+
+test page-9.2 {viewerPreferences -pagelayout SinglePage -> PageLayout} -body {
+    mytest -all {
+        viewerPreferences -pagelayout SinglePage
+    } {PageLayout /SinglePage}
+} -result 1
+
+test page-9.3 {viewerPreferences -pagemode FullScreen -> PageMode} -body {
+    mytest -all {
+        viewerPreferences -pagemode FullScreen
+    } {PageMode /FullScreen}
+} -result 1
+
+test page-9.4 {viewerPreferences -duplex DuplexFlipLongEdge} -body {
+    mytest -all {
+        viewerPreferences -duplex DuplexFlipLongEdge
+    } {Duplex /DuplexFlipLongEdge}
+} -result 1
+
+test page-9.5 {viewerPreferences -direction R2L} -body {
+    mytest -all {
+        viewerPreferences -direction R2L
+    } {Direction /R2L}
+} -result 1
+
+test page-9.6 {viewerPreferences invalid -pagelayout throws error} -body {
+    catch {
+        mytest { viewerPreferences -pagelayout Bogus } {}
+    } err
+    string match "*-pagelayout*" $err
+} -result 1
+
+test page-9.7 {viewerPreferences invalid -pagemode throws error} -body {
+    catch {
+        mytest { viewerPreferences -pagemode Bogus } {}
+    } err
+    string match "*-pagemode*" $err
+} -result 1
+
+test page-9.8 {viewerPreferences unknown option throws error} -body {
+    catch {
+        mytest { viewerPreferences -unknownoption 1 } {}
+    } err
+    string match "*unknown viewerPreferences*" $err
+} -result 1
+
+# ===========================================================================
+# page-10.x  pageLabel (Ticket #23)
+# ===========================================================================
+
+test page-10.1 {pageLabel basic - decimal style} -body {
+    mytest -all {
+        pageLabel 0 -style D
+    } {PageLabels}
+} -result 1
+
+test page-10.2 {pageLabel roman lowercase} -body {
+    mytest -all {
+        pageLabel 0 -style r
+    } {/S /r}
+} -result 1
+
+test page-10.3 {pageLabel roman uppercase} -body {
+    mytest -all {
+        pageLabel 0 -style R
+    } {/S /R}
+} -result 1
+
+test page-10.4 {pageLabel alpha uppercase} -body {
+    mytest -all {
+        pageLabel 0 -style A
+    } {/S /A}
+} -result 1
+
+test page-10.5 {pageLabel with prefix} -body {
+    mytest -all {
+        pageLabel 0 -prefix App-
+    } {/P}
+} -result 1
+
+test page-10.6 {pageLabel with custom start} -body {
+    mytest -all {
+        pageLabel 0 -style D -start 5
+    } {/St 5}
+} -result 1
+
+test page-10.7 {pageLabel multiple ranges} -body {
+    mytest -all         {pageLabel 0 -style r}         {pageLabel 4 -style D -start 1}         {PageLabels * /S /r * /S /D}
+} -result 1
+
+test page-10.8 {pageLabel invalid pageIndex throws error} -body {
+    catch {
+        mytest { pageLabel -1 -style D } {}
+    } err
+    string match "*pageIndex*" $err
+} -result 1
+
+test page-10.9 {pageLabel invalid -start throws error} -body {
+    catch {
+        mytest { pageLabel 0 -start 0 } {}
+    } err
+    string match "*-start*" $err
+} -result 1
+
+test page-10.10 {pageLabel invalid -style throws error} -body {
+    catch {
+        mytest { pageLabel 0 -style Z } {}
+    } err
+    string match "*-style*" $err
+} -result 1
+
+# ===========================================================================
+# page-11.x  getLineHeight (Ticket #18)
+# ===========================================================================
+
+test page-11.1 {getLineHeight basic - points unit, spacing 1.0} -body {
+    pdf4tcl::new p -paper a4 -compress 0
+    p startPage
+    p setFont 10 Helvetica
+    set h [p getLineHeight]
+    p destroy
+    expr {abs($h - 10.0) < 0.001}
+} -result 1
+
+test page-11.2 {getLineHeight with spacing 1.5} -body {
+    pdf4tcl::new p -paper a4 -compress 0
+    p startPage
+    p setFont 10 Helvetica
+    p setLineSpacing 1.5
+    set h [p getLineHeight]
+    p destroy
+    expr {abs($h - 15.0) < 0.001}
+} -result 1
+
+test page-11.3 {getLineHeight spacing 2.0} -body {
+    pdf4tcl::new p -paper a4 -compress 0
+    p startPage
+    p setFont 9 Helvetica
+    p setLineSpacing 2.0
+    set h [p getLineHeight]
+    p destroy
+    expr {abs($h - 18.0) < 0.001}
+} -result 1
+
+test page-11.4 {getLineHeight in mm document unit} -body {
+    pdf4tcl::new p -paper a4 -compress 0 -unit mm
+    p startPage
+    p setFont 10 Helvetica
+    set h [p getLineHeight]
+    p destroy
+    expr {abs($h - 10.0) < 0.001}
+} -result 1
+
+test page-11.5 {getLineHeight matches newLine vertical advance} -body {
+    pdf4tcl::new p -paper a4 -compress 0
+    p startPage
+    p setFont 12 Helvetica
+    p setTextPosition 100 100
+    set pos1 [p getTextPosition]
+    p newLine
+    set pos2 [p getTextPosition]
+    set advance [expr {abs([lindex $pos1 1] - [lindex $pos2 1])}]
+    set h [p getLineHeight]
+    p destroy
+    expr {abs($advance - $h) < 0.01}
+} -result 1
+
