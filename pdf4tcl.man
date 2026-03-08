@@ -1,12 +1,12 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.1]
+[manpage_begin pdf4tcl n 0.9.4.2]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.1]]
+[require pdf4tcl [opt 0.9.4.2]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -487,7 +487,9 @@ the canvas is drawn.
 
 This method sets metadata fields for this document.  Supported field options are
  [arg -author], [arg -creator], [arg -keywords], [arg -producer], [arg -subject],
-  [arg -title], [arg -creationdate] and [arg -format].
+  [arg -title] and [arg -creationdate].
+ Multiple keywords should be passed as a comma-separated string,
+ e.g. [arg {-keywords "tcl,pdf,document"}].
 
 [call [arg objectName] [method bookmarkAdd] [opt [arg "option value"]...]]
 

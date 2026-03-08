@@ -3,7 +3,7 @@
 '\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.1 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.2 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -277,7 +277,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.1?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.2?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -845,7 +845,9 @@ the canvas is drawn\&.
 \fIobjectName\fR \fBmetadata\fR ?\fIoption value\fR\&.\&.\&.?
 This method sets metadata fields for this document\&.  Supported field options are
 \fI-author\fR, \fI-creator\fR, \fI-keywords\fR, \fI-producer\fR, \fI-subject\fR,
-\fI-title\fR, \fI-creationdate\fR and \fI-format\fR\&.
+\fI-title\fR and \fI-creationdate\fR\&.
+Multiple keywords should be passed as a comma-separated string,
+e\&.g\&. \fI-keywords "tcl,pdf,document"\fR\&.
 .TP
 \fIobjectName\fR \fBbookmarkAdd\fR ?\fIoption value\fR\&.\&.\&.?
 Add a bookmark on the current page\&.
