@@ -1,0 +1,20 @@
+--- fork-1103/pdf4tcl/src/main.tcl	2026-03-08 08:09:56.000000000 +0000
++++ fork-fix22/src/main.tcl	2026-03-08 10:27:04.619937919 +0000
+@@ -709,7 +709,7 @@
+             my StoreXref $metadata_oid
+             my Pdfout "$metadata_oid 0 obj\n<<\n"
+             foreach {name value} [array get metadata] {
+-                my Pdfout "/$name ([CleanText $value $pdf(current_font)])\n"
++                my Pdfout "/$name [QuoteString $value]\n"
+             }
+             my Pdfout ">>\nendobj\n\n"
+         }
+@@ -889,7 +889,7 @@
+         }
+ 
+         my Pdfout "$oid 0 obj\n"
+-        my Pdfout "<<\n/Title ([CleanText $title $pdf(current_font)])\n"
++        my Pdfout "<<\n/Title [QuoteString $title]\n"
+         my Pdfout "/Parent $parent 0 R\n"
+         if {$previous != {}} {my Pdfout "/Prev $previous 0 R\n"}
+         if {$next     != {}} {my Pdfout "/Next $next 0 R\n"}
