@@ -1,0 +1,1182 @@
+%PDF-1.4
+%åäö
+5 0 obj
+<<
+/Length 6 0 R
+>>
+stream
+/Helvetica-Bold 14 Tf
+0 Tr
+14 TL
+BT
+1 0 0 1 42.52 799.48 Tm
+(pdf4tcl Forms Demo) Tj
+/Helvetica 7 Tf
+0 Tr
+7 TL
+0.4 0.4 0.4 rg
+1 0 0 1 42.52 782.48 Tm
+(Font:Helvetica/10 Label:Helvetica/10 Margin:15/15/15/15mm) Tj
+0 0 0 rg
+0.3 0.3 0.3 RG
+ET
+1 w
+42.52 772.48 m
+552.76 772.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+BT
+1 0 0 1 42.52 760.48 Tm
+(Text Fields) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 747.48 m
+552.76 747.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica 10 Tf
+0 Tr
+10 TL
+BT
+1 0 0 1 42.52 738.48 Tm
+(Simple:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 713.48 Tm
+(Init Value:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 688.48 Tm
+(Multiline:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 643.48 Tm
+(Readonly:) Tj
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+1 0 0 1 42.52 615.48 Tm
+(Password Fields) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 602.48 m
+552.76 602.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica 10 Tf
+0 Tr
+10 TL
+BT
+1 0 0 1 42.52 593.48 Tm
+(Password:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 568.48 Tm
+(With Init:) Tj
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+1 0 0 1 42.52 540.48 Tm
+(Checkbox Fields) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 527.48 m
+552.76 527.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica 10 Tf
+0 Tr
+10 TL
+BT
+1 0 0 1 130.52 519.48 Tm
+(Unchecked) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 230.52 519.48 Tm
+(Checked) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 330.52 519.48 Tm
+(Readonly) Tj
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+1 0 0 1 42.52 496.48 Tm
+(Combobox / Listbox Fields) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 483.48 m
+552.76 483.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica 10 Tf
+0 Tr
+10 TL
+BT
+1 0 0 1 42.52 474.48 Tm
+(Standard:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 449.48 Tm
+(Editable:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 424.48 Tm
+(Sorted:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 399.48 Tm
+(Readonly:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 307.64 474.48 Tm
+(Single:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 307.64 421.48 Tm
+(Multi:) Tj
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+1 0 0 1 42.52 365.48 Tm
+(Radiobutton Fields) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 352.48 m
+552.76 352.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica 10 Tf
+0 Tr
+10 TL
+BT
+1 0 0 1 42.52 343.48 Tm
+(Size:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 127.52 344.48 Tm
+(Small) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 207.52 344.48 Tm
+(Medium) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 287.52 344.48 Tm
+(Large) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 42.52 326.48 Tm
+(Shipping:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 127.52 327.48 Tm
+(Normal) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 217.52 327.48 Tm
+(Express) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+1 0 0 1 307.52 327.48 Tm
+(Pickup) Tj
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+1 0 0 1 42.52 306.48 Tm
+(Pushbutton Fields) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 293.48 m
+552.76 293.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica-Bold 11 Tf
+0 Tr
+11 TL
+0.15 0.3 0.5 rg
+BT
+1 0 0 1 42.52 252.48 Tm
+(Signature Field) Tj
+0 0 0 rg
+0.15 0.3 0.5 RG
+ET
+0.4 w
+42.52 239.48 m
+552.76 239.48 l
+S
+0 0 0 RG
+0.5 w
+/Helvetica 10 Tf
+0 Tr
+10 TL
+/Helvetica 10 Tf
+0 Tr
+10 TL
+BT
+1 0 0 1 42.52 230.48 Tm
+(Signature:) Tj
+/Helvetica 7 Tf
+0 Tr
+7 TL
+0.5 0.5 0.5 rg
+1 0 0 1 42.52 36.63 Tm
+(Created: 2026-03-03 06:05 | Fields: 25 | pdf4tcl 0.9.4.1) Tj
+0 0 0 rg
+
+ET
+
+endstream
+endobj
+
+6 0 obj
+3483
+endobj
+
+4 0 obj
+<</Type /Page
+/Parent 2 0 R
+/Resources 3 0 R
+/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>
+/MediaBox [0 0 595 842]
+/Contents [5 0 R]
+/Annots [9 0 R
+11 0 R
+12 0 R
+14 0 R
+15 0 R
+17 0 R
+21 0 R
+23 0 R
+25 0 R
+27 0 R
+29 0 R
+31 0 R
+33 0 R
+35 0 R
+37 0 R
+41 0 R
+43 0 R
+45 0 R
+48 0 R
+50 0 R
+52 0 R
+54 0 R
+56 0 R
+58 0 R
+60 0 R]
+>>
+endobj
+
+7 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/Name /Helvetica-Bold
+/BaseFont /Helvetica-Bold
+>>
+endobj
+8 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/Name /Helvetica
+/BaseFont /Helvetica
+>>
+endobj
+9 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 722.48 312.52 742.48]
+  /FT /Tx
+  /T (txt_simple)
+  /DA (/Helvetica 10 Tf 0 g)
+  /Q 0
+  /F 4
+>>
+
+endobj
+10 0 obj
+<< /BBox [ 0 0 200 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 63
+>>
+stream
+/Tx BMC BT /Helvetica 10 Tf 0 g 2 1.1 Td (Pre-filled) Tj ET EMC
+endstream
+endobj
+11 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 697.48 312.52 717.48]
+  /FT /Tx
+  /T (txt_init)
+  /DA (/Helvetica 10 Tf 0 g)
+  /Q 0
+  /V (Pre-filled)
+  /AP << /N 10 0 R >>
+  /F 4
+>>
+
+endobj
+12 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 652.48 312.52 692.48]
+  /FT /Tx
+  /T (txt_multi)
+  /Ff 4096
+  /DA (/Helvetica 10 Tf 0 g)
+  /Q 0
+  /F 4
+>>
+
+endobj
+13 0 obj
+<< /BBox [ 0 0 200 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 65
+>>
+stream
+/Tx BMC BT /Helvetica 10 Tf 0 g 2 1.1 Td (Not editable) Tj ET EMC
+endstream
+endobj
+14 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 627.48 312.52 647.48]
+  /FT /Tx
+  /T (txt_ro)
+  /Ff 1
+  /DA (/Helvetica 10 Tf 0 g)
+  /Q 0
+  /V (Not editable)
+  /AP << /N 13 0 R >>
+  /F 4
+>>
+
+endobj
+15 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 577.48 312.52 597.48]
+  /FT /Tx
+  /T (pw_empty)
+  /Ff 8192
+  /DA (/Helvetica 10 Tf 0 g)
+  /Q 0
+  /F 4
+>>
+
+endobj
+16 0 obj
+<< /BBox [ 0 0 200 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 59
+>>
+stream
+/Tx BMC BT /Helvetica 10 Tf 0 g 2 1.1 Td (••••••) Tj ET EMC
+endstream
+endobj
+17 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 552.48 312.52 572.48]
+  /FT /Tx
+  /T (pw_init)
+  /Ff 8192
+  /DA (/Helvetica 10 Tf 0 g)
+  /Q 0
+  /V (secret)
+  /AP << /N 16 0 R >>
+  /F 4
+>>
+
+endobj
+18 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/Name /ZaDb
+/BaseFont /ZapfDingbats
+>>
+endobj
+19 0 obj
+<< /BBox [ 0 0 14 14] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 87
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 12.6 Tf 1 0 0 1 1.67 2.502 Tm [(4)]TJ ET EMC
+endstream
+endobj
+20 0 obj
+<< /BBox [ 0 0 14 14] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 0
+>>
+stream
+
+endstream
+endobj
+21 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 508.48 126.52 522.48]
+  /FT /Btn
+  /T (cb_off)
+  /AS /Off
+  /V /Off
+  /AP <<    /N << /Yes 19 0 R /Off 20 0 R >>
+   /D << /Yes 19 0 R /Off 20 0 R >>
+  >>
+  /H /P
+  /F 4
+>>
+
+endobj
+22 0 obj
+<< /BBox [ 0 0 14 14] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 87
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 12.6 Tf 1 0 0 1 1.67 2.502 Tm [(4)]TJ ET EMC
+endstream
+endobj
+23 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [212.52 508.48 226.52 522.48]
+  /FT /Btn
+  /T (cb_on)
+  /AS /Yes
+  /V /Yes
+  /AP <<    /N << /Yes 22 0 R /Off 20 0 R >>
+   /D << /Yes 22 0 R /Off 20 0 R >>
+  >>
+  /H /P
+  /F 4
+>>
+
+endobj
+24 0 obj
+<< /BBox [ 0 0 14 14] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 87
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 12.6 Tf 1 0 0 1 1.67 2.502 Tm [(4)]TJ ET EMC
+endstream
+endobj
+25 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [312.52 508.48 326.52 522.48]
+  /FT /Btn
+  /T (cb_ro)
+  /Ff 1
+  /AS /Yes
+  /V /Yes
+  /AP <<    /N << /Yes 24 0 R /Off 20 0 R >>
+   /D << /Yes 24 0 R /Off 20 0 R >>
+  >>
+  /H /P
+  /F 4
+>>
+
+endobj
+26 0 obj
+<< /BBox [ 0 0 175.12 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 246
+>>
+stream
+/Tx BMC 1 1 1 rg 0 0 175.12 20 re f 0.5 0.5 0.5 RG 0.5 w 0 0 175.12 20 re S 0.9 0.9 0.9 rg 157.12 0 18 20 re f 0.5 0.5 0.5 RG 157.12 0 18 20 re S 0.3 0.3 0.3 rg 162.12 12 m 170.12 12 l 166.12 8 l f BT /Helvetica 10 Tf 0 g 2 1.1 Td (Red) Tj ET EMC
+endstream
+endobj
+27 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 458.48 287.64 478.48]
+  /FT /Ch
+  /T (cmb_std)
+  /Ff 131072
+  /Opt [(Red) (Green) (Blue) (Yellow) (White) ]
+  /DA (/Helvetica 10 Tf 0 g)
+  /V (Red)
+  /AP << /N 26 0 R >>
+  /F 4
+>>
+
+endobj
+28 0 obj
+<< /BBox [ 0 0 175.12 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 201
+>>
+stream
+/Tx BMC 1 1 1 rg 0 0 175.12 20 re f 0.5 0.5 0.5 RG 0.5 w 0 0 175.12 20 re S 0.9 0.9 0.9 rg 157.12 0 18 20 re f 0.5 0.5 0.5 RG 157.12 0 18 20 re S 0.3 0.3 0.3 rg 162.12 12 m 170.12 12 l 166.12 8 l f EMC
+endstream
+endobj
+29 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 433.48 287.64 453.48]
+  /FT /Ch
+  /T (cmb_edit)
+  /Ff 393216
+  /Opt [(Option A) (Option B) (Option C) ]
+  /DA (/Helvetica 10 Tf 0 g)
+  /AP << /N 28 0 R >>
+  /F 4
+>>
+
+endobj
+30 0 obj
+<< /BBox [ 0 0 175.12 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 201
+>>
+stream
+/Tx BMC 1 1 1 rg 0 0 175.12 20 re f 0.5 0.5 0.5 RG 0.5 w 0 0 175.12 20 re S 0.9 0.9 0.9 rg 157.12 0 18 20 re f 0.5 0.5 0.5 RG 157.12 0 18 20 re S 0.3 0.3 0.3 rg 162.12 12 m 170.12 12 l 166.12 8 l f EMC
+endstream
+endobj
+31 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 408.48 287.64 428.48]
+  /FT /Ch
+  /T (cmb_sort)
+  /Ff 655360
+  /Opt [(Cherry) (Apple) (Banana) (Date) ]
+  /DA (/Helvetica 10 Tf 0 g)
+  /AP << /N 30 0 R >>
+  /F 4
+>>
+
+endobj
+32 0 obj
+<< /BBox [ 0 0 175.12 20] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 248
+>>
+stream
+/Tx BMC 1 1 1 rg 0 0 175.12 20 re f 0.5 0.5 0.5 RG 0.5 w 0 0 175.12 20 re S 0.9 0.9 0.9 rg 157.12 0 18 20 re f 0.5 0.5 0.5 RG 157.12 0 18 20 re S 0.3 0.3 0.3 rg 162.12 12 m 170.12 12 l 166.12 8 l f BT /Helvetica 10 Tf 0 g 2 1.1 Td (Fixed) Tj ET EMC
+endstream
+endobj
+33 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 383.48 287.64 403.48]
+  /FT /Ch
+  /T (cmb_ro)
+  /Ff 131073
+  /Opt [(Fixed) (Locked) ]
+  /DA (/Helvetica 10 Tf 0 g)
+  /V (Fixed)
+  /AP << /N 32 0 R >>
+  /F 4
+>>
+
+endobj
+34 0 obj
+<< /BBox [ 0 0 195.12 48] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 126
+>>
+stream
+/Tx BMC 1 1 1 rg 0 0 195.12 48 re f 0.5 0.5 0.5 RG 0.5 w 0 0 195.12 48 re S BT /Helvetica 10 Tf 0 g 2 1.1 Td (Apple) Tj ET EMC
+endstream
+endobj
+35 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [357.64 430.48 552.76 478.48]
+  /FT /Ch
+  /T (lb_single)
+  /Opt [(Apple) (Pear) (Cherry) (Plum) (Grape) ]
+  /DA (/Helvetica 10 Tf 0 g)
+  /AP << /N 34 0 R >>
+  /F 4
+>>
+
+endobj
+36 0 obj
+<< /BBox [ 0 0 195.12 48] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 126
+>>
+stream
+/Tx BMC 1 1 1 rg 0 0 195.12 48 re f 0.5 0.5 0.5 RG 0.5 w 0 0 195.12 48 re S BT /Helvetica 10 Tf 0 g 2 1.1 Td (Alpha) Tj ET EMC
+endstream
+endobj
+37 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [357.64 377.48 552.76 425.48]
+  /FT /Ch
+  /T (lb_multi)
+  /Ff 2097152
+  /Opt [(Alpha) (Beta) (Gamma) (Delta) (Epsilon) ]
+  /DA (/Helvetica 10 Tf 0 g)
+  /AP << /N 36 0 R >>
+  /F 4
+>>
+
+endobj
+38 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 85
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 9.6 Tf 1 0 0 1 3.504 1.8 Tm [(l)]TJ ET EMC
+endstream
+endobj
+39 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 0
+>>
+stream
+
+endstream
+endobj
+41 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 335.48 124.52 347.48]
+  /Parent 40 0 R
+  /AS /Off
+  /AP <<    /N << /Small 38 0 R /Off 39 0 R >>
+   /D << /Small 38 0 R /Off 39 0 R >>
+  >>
+  /H /P
+  /MK << /BC [0 0 0] >>
+  /F 4
+>>
+
+endobj
+42 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 85
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 9.6 Tf 1 0 0 1 3.504 1.8 Tm [(l)]TJ ET EMC
+endstream
+endobj
+43 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [192.52 335.48 204.52 347.48]
+  /Parent 40 0 R
+  /AS /Medium
+  /AP <<    /N << /Medium 42 0 R /Off 39 0 R >>
+   /D << /Medium 42 0 R /Off 39 0 R >>
+  >>
+  /H /P
+  /MK << /BC [0 0 0] >>
+  /F 4
+>>
+
+endobj
+44 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 85
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 9.6 Tf 1 0 0 1 3.504 1.8 Tm [(l)]TJ ET EMC
+endstream
+endobj
+45 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [272.52 335.48 284.52 347.48]
+  /Parent 40 0 R
+  /AS /Off
+  /AP <<    /N << /Large 44 0 R /Off 39 0 R >>
+   /D << /Large 44 0 R /Off 39 0 R >>
+  >>
+  /H /P
+  /MK << /BC [0 0 0] >>
+  /F 4
+>>
+
+endobj
+46 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 85
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 9.6 Tf 1 0 0 1 3.504 1.8 Tm [(l)]TJ ET EMC
+endstream
+endobj
+48 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 318.48 124.52 330.48]
+  /Parent 47 0 R
+  /AS /Off
+  /AP <<    /N << /Normal 46 0 R /Off 39 0 R >>
+   /D << /Normal 46 0 R /Off 39 0 R >>
+  >>
+  /H /P
+  /MK << /BC [0 0 0] >>
+  /F 4
+>>
+
+endobj
+49 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 85
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 9.6 Tf 1 0 0 1 3.504 1.8 Tm [(l)]TJ ET EMC
+endstream
+endobj
+50 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [202.52 318.48 214.52 330.48]
+  /Parent 47 0 R
+  /AS /Off
+  /AP <<    /N << /Express 49 0 R /Off 39 0 R >>
+   /D << /Express 49 0 R /Off 39 0 R >>
+  >>
+  /H /P
+  /MK << /BC [0 0 0] >>
+  /F 4
+>>
+
+endobj
+51 0 obj
+<< /BBox [ 0 0 12 12] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 85
+>>
+stream
+/Tx BMC BT 0 Tc 0 Tw 100 Tz 0 g 0 Tr /ZaDb 9.6 Tf 1 0 0 1 3.504 1.8 Tm [(l)]TJ ET EMC
+endstream
+endobj
+52 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [292.52 318.48 304.52 330.48]
+  /Parent 47 0 R
+  /AS /Off
+  /AP <<    /N << /Pickup 51 0 R /Off 39 0 R >>
+   /D << /Pickup 51 0 R /Off 39 0 R >>
+  >>
+  /H /P
+  /MK << /BC [0 0 0] >>
+  /F 4
+>>
+
+endobj
+53 0 obj
+<< /BBox [ 0 0 100 24] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 121
+>>
+stream
+0.85 0.85 0.85 rg 0 0 100 24 re f 0.4 0.4 0.4 RG 0.5 w 0 0 100 24 re S BT /Helvetica 10 Tf 0 g 37.5 8.5 Td (Clear) Tj ET 
+endstream
+endobj
+54 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 264.48 212.52 288.48]
+  /FT /Btn
+  /T (btn_reset)
+  /Ff 65536
+  /AP << /N 53 0 R >>
+  /MK << /CA (Clear) >>
+  /A << /Type /Action /S /ResetForm >>
+  /H /P
+  /F 4
+>>
+
+endobj
+55 0 obj
+<< /BBox [ 0 0 100 24] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 123
+>>
+stream
+0.85 0.85 0.85 rg 0 0 100 24 re f 0.4 0.4 0.4 RG 0.5 w 0 0 100 24 re S BT /Helvetica 10 Tf 0 g 32.5 8.5 Td (Website) Tj ET 
+endstream
+endobj
+56 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [222.52 264.48 322.52 288.48]
+  /FT /Btn
+  /T (btn_url)
+  /Ff 65536
+  /AP << /N 55 0 R >>
+  /MK << /CA (Website) >>
+  /A << /Type /Action /S /URI /URI (https://example.com) >>
+  /H /P
+  /F 4
+>>
+
+endobj
+57 0 obj
+<< /BBox [ 0 0 100 24] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 120
+>>
+stream
+0.85 0.85 0.85 rg 0 0 100 24 re f 0.4 0.4 0.4 RG 0.5 w 0 0 100 24 re S BT /Helvetica 10 Tf 0 g 35 8.5 Td (Submit) Tj ET 
+endstream
+endobj
+58 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [332.52 264.48 432.52 288.48]
+  /FT /Btn
+  /T (btn_submit)
+  /Ff 65536
+  /AP << /N 57 0 R >>
+  /MK << /CA (Submit) >>
+  /A << /Type /Action /S /SubmitForm /F (https://example.com/submit) >>
+  /H /P
+  /F 4
+>>
+
+endobj
+59 0 obj
+<< /BBox [ 0 0 120 40] 
+/Resources 3 0 R
+/Subtype /Form
+/Type /XObject
+
+/Length 189
+>>
+stream
+0.95 0.95 0.95 rg 0 0 120 40 re f 0.6 0.6 0.6 RG 0.5 w 0 0 120 40 re S 0.4 0.4 0.4 RG 0.5 w [3 2] 0 d 12 10 m 108 10 l S [] 0 d BT /Helvetica 8 Tf 0.5 0.5 0.5 rg 12 14 Td (Sign here) Tj ET 
+endstream
+endobj
+60 0 obj
+<<
+  /Subtype /Widget
+  /P 4 0 R
+  /Rect [112.52 194.48 232.52 234.48]
+  /FT /Sig
+  /T (sig_main)
+  /AP << /N 59 0 R >>
+  /F 4
+>>
+
+endobj
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/AcroForm 61 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [4 0 R ]
+>>
+endobj
+
+3 0 obj
+<<
+/ProcSet[/PDF /Text /ImageC]
+/Font <<
+/ZaDb 18 0 R
+/Helvetica 8 0 R
+/Helvetica-Bold 7 0 R
+>>
+>>
+endobj
+
+40 0 obj
+<<
+  /FT /Btn
+  /T (rb_size)
+  /Ff 49152
+  /Kids [41 0 R 43 0 R 45 0 R ]
+  /V /Medium
+>>
+endobj
+
+47 0 obj
+<<
+  /FT /Btn
+  /T (rb_ship)
+  /Ff 49152
+  /Kids [48 0 R 50 0 R 52 0 R ]
+  /V /Off
+>>
+endobj
+
+61 0 obj
+<<
+/Fields [9 0 R
+11 0 R
+12 0 R
+14 0 R
+15 0 R
+17 0 R
+21 0 R
+23 0 R
+25 0 R
+27 0 R
+29 0 R
+31 0 R
+33 0 R
+35 0 R
+37 0 R
+54 0 R
+56 0 R
+58 0 R
+60 0 R
+40 0 R
+47 0 R]
+/DR 3 0 R
+>>
+endobj
+
+xref
+0 62
+0000000000 65535 f 
+0000015434 00000 n 
+0000015501 00000 n 
+0000015560 00000 n 
+0000003571 00000 n 
+0000000014 00000 n 
+0000003550 00000 n 
+0000003922 00000 n 
+0000004046 00000 n 
+0000004160 00000 n 
+0000004321 00000 n 
+0000004504 00000 n 
+0000004704 00000 n 
+0000004876 00000 n 
+0000005061 00000 n 
+0000005269 00000 n 
+0000005440 00000 n 
+0000005619 00000 n 
+0000005825 00000 n 
+0000005911 00000 n 
+0000006117 00000 n 
+0000006235 00000 n 
+0000006473 00000 n 
+0000006679 00000 n 
+0000006916 00000 n 
+0000007122 00000 n 
+0000007367 00000 n 
+0000007737 00000 n 
+0000007983 00000 n 
+0000008308 00000 n 
+0000008539 00000 n 
+0000008864 00000 n 
+0000009095 00000 n 
+0000009467 00000 n 
+0000009693 00000 n 
+0000009943 00000 n 
+0000010168 00000 n 
+0000010418 00000 n 
+0000010658 00000 n 
+0000010862 00000 n 
+0000015675 00000 n 
+0000010980 00000 n 
+0000011228 00000 n 
+0000011432 00000 n 
+0000011685 00000 n 
+0000011889 00000 n 
+0000012137 00000 n 
+0000015781 00000 n 
+0000012341 00000 n 
+0000012591 00000 n 
+0000012795 00000 n 
+0000013047 00000 n 
+0000013251 00000 n 
+0000013501 00000 n 
+0000013743 00000 n 
+0000013974 00000 n 
+0000014218 00000 n 
+0000014470 00000 n 
+0000014711 00000 n 
+0000014977 00000 n 
+0000015287 00000 n 
+0000015884 00000 n 
+trailer
+<<
+/Size 62
+/Root 1 0 R
+>>
+
+startxref
+16073
+%%EOF
