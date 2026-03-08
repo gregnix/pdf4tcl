@@ -1,12 +1,26 @@
-Ticket #23 -- Support for PDF page labels (/PageLabels)
+Ticket #23 -- pageLabel: custom page numbering
+==============================================
 
-New method: pageLabel pageIndex ?-style D|r|R|a|A|{}? ?-prefix str? ?-start int?
+Fix in: src/main.tcl
+Tests:  tests/page.test (page-11.x)
 
-Defines page label ranges in the PDF catalog. pageIndex is 0-based.
-Styles: D=decimal, r=roman lowercase, R=roman uppercase, a=alpha lower, A=alpha upper
-Multiple ranges can be defined by calling pageLabel multiple times.
+Problem:
+  No way to set custom page labels (e.g. i ii iii for front matter,
+  1 2 3 for body, A-1 A-2 for appendix).
 
-File: src/main.tcl
-Apply patch:
-    patch -p1 < fix23-main.patch
-    make
+Fix:
+  New method pageLabel:
+    $pdf pageLabel pageIndex ?-style D|r|R|a|A? ?-start N? ?-prefix str?
+
+  Writes /PageLabels into the PDF catalog.
+
+Note: fix19-23-main.patch also contains ticket #19 (viewerPreferences).
+
+Files:
+  fix19-23-main.patch -- patch for src/main.tcl (tickets 19+23 combined)
+
+Apply:
+  patch -p0 < fix19-23-main.patch
+  patch -p0 < ../ticket18/fix18-19-23-page.patch
+
+Source: https://github.com/gregnix/pdf4tcl

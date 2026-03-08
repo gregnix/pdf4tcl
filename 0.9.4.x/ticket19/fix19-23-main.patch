@@ -1,0 +1,207 @@
+--- src/main.tcl
++++ src/main.tcl
+@@ -98,6 +98,8 @@
+         set pdf(forms) {}
+         set pdf(radiogroups) {}
+         set pdf(needAppearances) 0
++        set pdf(viewer) {}
++        set pdf(pagelabels) {}
+         set pdf(compress) $options(-compress)
+         set pdf(finished) false
+         set pdf(inPage) false
+@@ -542,6 +544,45 @@
+             set form_oid [my GetOid 1]
+             my Pdfout "/AcroForm $form_oid 0 R\n"
+         }
++        # ViewerPreferences (boolean and name entries, excluding PageLayout/PageMode)
++        set vpKeys {}
++        foreach k [array names pdf viewer,*] {
++            set shortk [string range $k 7 end]
++            if {$shortk ni {PageLayout PageMode}} {
++                lappend vpKeys $shortk
++            }
++        }
++        if {[llength $vpKeys] > 0} {
++            my Pdfout "/ViewerPreferences <<\n"
++            foreach shortk $vpKeys {
++                set val $pdf(viewer,$shortk)
++                if {[string is boolean -strict $val]} {
++                    my Pdfout "/$shortk [expr {$val ? {true} : {false}}]\n"
++                } else {
++                    my Pdfout "/$shortk /$val\n"
++                }
++            }
++            my Pdfout ">>\n"
++        }
++        # PageLayout / PageMode (top-level catalog entries)
++        if {[info exists pdf(viewer,PageLayout)]} {
++            my Pdfout "/PageLayout /$pdf(viewer,PageLayout)\n"
++        }
++        if {[info exists pdf(viewer,PageMode)]} {
++            my Pdfout "/PageMode /$pdf(viewer,PageMode)\n"
++        }
++        # PageLabels
++        if {[llength $pdf(pagelabels)] > 0} {
++            my Pdfout "/PageLabels << /Nums \[\n"
++            foreach {pageIdx labelDict} $pdf(pagelabels) {
++                my Pdfout "$pageIdx << "
++                foreach {k v} $labelDict {
++                    my Pdfout "/$k $v "
++                }
++                my Pdfout ">>\n"
++            }
++            my Pdfout "\] >>\n"
++        }
+         my Pdfout ">>\n"
+         my Pdfout "endobj\n\n"
+ 
+@@ -944,13 +985,147 @@
+                         set c [clock format $value -format {D:%Y%m%d%H%M%S%z} -gmt 0]
+                         set metadata(CreationDate) [string range $c 0 end-2]
+                     }
++                    -moddate {
++                        if {$value == 0} {
++                            set value [clock seconds]
++                        }
++                        set c [clock format $value -format {D:%Y%m%d%H%M%S%z} -gmt 0]
++                        set metadata(ModDate) [string range $c 0 end-2]
++                    }
++                    default {
++                        throw "PDF4TCL" "unknown metadata option \"$option\""
++                    }
+                 }
+             }
+         }
+     }
+ 
+-    #######################################################################
+-    # Text Handling
++    # Set viewer preferences in the PDF catalog.
++    # Options control how the PDF viewer displays the document.
++    method viewerPreferences {args} {
++        # Valid boolean viewer preferences
++        set boolPrefs {
++            HideToolbar HideMenubar HideWindowUI FitWindow
++            CenterWindow DisplayDocTitle PickTrayByPDFSize
++        }
++        # Valid single-value (name) preferences
++        set namePrefs {
++            NonFullScreenPageMode
++            Direction
++            PrintScaling
++            Duplex
++            ViewArea
++            ViewClip
++            PrintArea
++            PrintClip
++        }
++        set validPageLayout {SinglePage OneColumn TwoColumnLeft TwoColumnRight
++                             TwoPageLeft TwoPageRight}
++        set validPageMode  {UseNone UseOutlines UseThumbs FullScreen
++                            UseOC UseAttachments}
++        set validNonFull   {UseNone UseOutlines UseThumbs UseOC}
++        set validDirection {L2R R2L}
++        set validPrintScaling {None AppDefault}
++        set validDuplex    {None Simplex DuplexFlipShortEdge DuplexFlipLongEdge}
++
++        foreach {option value} $args {
++            switch -- $option {
++                -pagelayout {
++                    if {$value ni $validPageLayout} {
++                        throw "PDF4TCL" \
++                            "-pagelayout must be one of: [join $validPageLayout {, }]"
++                    }
++                    set pdf(viewer,PageLayout) $value
++                }
++                -pagemode {
++                    if {$value ni $validPageMode} {
++                        throw "PDF4TCL" \
++                            "-pagemode must be one of: [join $validPageMode {, }]"
++                    }
++                    set pdf(viewer,PageMode) $value
++                }
++                -hidetoolbar    { set pdf(viewer,HideToolbar)   [expr {!!$value}] }
++                -hidemenubar    { set pdf(viewer,HideMenubar)   [expr {!!$value}] }
++                -hidewindowui   { set pdf(viewer,HideWindowUI)  [expr {!!$value}] }
++                -fitwindow      { set pdf(viewer,FitWindow)     [expr {!!$value}] }
++                -centerwindow   { set pdf(viewer,CenterWindow)  [expr {!!$value}] }
++                -displaydoctitle { set pdf(viewer,DisplayDocTitle) [expr {!!$value}] }
++                -nonfullscreenpagemode {
++                    if {$value ni $validNonFull} {
++                        throw "PDF4TCL" \
++                            "-nonfullscreenpagemode must be one of: [join $validNonFull {, }]"
++                    }
++                    set pdf(viewer,NonFullScreenPageMode) $value
++                }
++                -direction {
++                    if {$value ni $validDirection} {
++                        throw "PDF4TCL" "-direction must be L2R or R2L"
++                    }
++                    set pdf(viewer,Direction) $value
++                }
++                -printscaling {
++                    if {$value ni $validPrintScaling} {
++                        throw "PDF4TCL" "-printscaling must be None or AppDefault"
++                    }
++                    set pdf(viewer,PrintScaling) $value
++                }
++                -duplex {
++                    if {$value ni $validDuplex} {
++                        throw "PDF4TCL" \
++                            "-duplex must be one of: [join $validDuplex {, }]"
++                    }
++                    set pdf(viewer,Duplex) $value
++                }
++                default {
++                    throw "PDF4TCL" "unknown viewerPreferences option \"$option\""
++                }
++            }
++        }
++    }
++
++    # Add a page label range starting at the given page index (0-based).
++    # PDF /PageLabels lets viewers show custom page numbers (e.g. i, ii, A-1).
++    #
++    # pageLabel pageIndex ?option value ...?
++    #
++    # Options:
++    #   -style   D|r|R|a|A|""    Numbering style (decimal/roman/alpha/none)
++    #   -prefix  string          Label prefix (e.g. "App-")
++    #   -start   integer         Start value (default 1)
++    #
++    # Styles: D=1 2 3, r=i ii iii, R=I II III, a=a b c, A=A B C, ""=prefix only
++    method pageLabel {pageIndex args} {
++        if {![string is integer -strict $pageIndex] || $pageIndex < 0} {
++            throw "PDF4TCL" "pageLabel: pageIndex must be a non-negative integer"
++        }
++        set labelDict {}
++        foreach {option value} $args {
++            switch -- $option {
++                -style {
++                    if {$value ni {D r R a A {}}} {
++                        throw "PDF4TCL" \
++                            "-style must be one of: D r R a A or empty string"
++                    }
++                    if {$value ne {}} {
++                        lappend labelDict S /$value
++                    }
++                }
++                -prefix {
++                    lappend labelDict P [QuoteString $value]
++                }
++                -start {
++                    if {![string is integer -strict $value] || $value < 1} {
++                        throw "PDF4TCL" "pageLabel: -start must be a positive integer"
++                    }
++                    lappend labelDict St $value
++                }
++                default {
++                    throw "PDF4TCL" "unknown pageLabel option \"$option\""
++                }
++            }
++        }
++        lappend pdf(pagelabels) $pageIndex $labelDict
++    }
+     #######################################################################
+ 
+     # Set current font

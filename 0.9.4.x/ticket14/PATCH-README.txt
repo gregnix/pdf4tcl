@@ -1,11 +1,23 @@
-Ticket #14 -- createFontSpecEnc: check for maximum 256 codepoints
+Ticket #14 -- createFontSpecEnc: enforce 256-codepoint limit
+=============================================================
 
-File: src/fonts.tcl
-Change: Add length check at start of createFontSpecEnc proc.
-        Raises "createFontSpecEnc: subset must not exceed 256 codepoints" error
-        if more than 256 codepoints are passed.
+Fix in: src/fonts.tcl
+Tests:  tests/font.test (font-7.x)
 
-Apply patch:
-    patch -p1 < fix14-fonts.patch
-    cat src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl \
-        src/main.tcl src/cat.tcl > pdf4tcl.tcl
+Problem:
+  createFontSpecEnc accepted subsets larger than 256 codepoints
+  which silently produced invalid PDFs.
+
+Fix:
+  Added a guard at the start of createFontSpecEnc:
+    throw "PDF4TCL" "createFontSpecEnc: subset must not exceed 256 codepoints (got N)"
+
+Files:
+  fix14-fonts.patch  -- patch for src/fonts.tcl
+  fix14-font.patch   -- patch for tests/font.test
+
+Apply:
+  patch -p0 < fix14-fonts.patch
+  patch -p0 < fix14-font.patch
+
+Source: https://github.com/gregnix/pdf4tcl
