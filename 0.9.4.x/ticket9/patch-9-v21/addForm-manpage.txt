@@ -1,0 +1,113 @@
+# addForm manpage section -- replaces the existing addForm paragraph in pdf4tcl.man
+# (from "[call [arg objectName] [method addForm]..." to the blank line
+#  before "[list_end]")
+#
+# The patch addforms-manpage.patch applies this automatically.
+# To apply manually: replace the old 5-line addForm paragraph with this text.
+
+[call [arg objectName] [method addForm] [arg "type"] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+
+Add an interactive form field at the given position and size.
+Coordinates are in the document's current unit.
+
+Supported types are [arg text], [arg password], [arg checkbutton]
+(alias [arg checkbox]), [arg combobox], [arg listbox],
+[arg radiobutton], [arg pushbutton], and [arg signature].
+
+[list_begin definitions]
+
+[def "[emph {Common options}]"]
+[list_begin options]
+[opt_def -id [arg string]]
+Unique field ID (alphanumeric). If omitted, one is generated
+automatically: [arg {${type}form${n}}] for most types,
+[arg {${group}_${value}}] for radiobuttons,
+[arg {Signature${n}}] for signatures.
+
+[opt_def -init [arg value]]
+Initial value. For [arg text]/[arg password] a string,
+for [arg checkbutton] a boolean, for [arg combobox]/[arg listbox]
+an item from [arg -options], for [arg radiobutton] a boolean
+selecting this button.
+
+[opt_def -readonly [arg boolean]]
+If true, the field is read-only (PDF Ff bit 1). Default [const 0].
+
+[opt_def -required [arg boolean]]
+If true, the field is marked as required (PDF Ff bit 2). Default [const 0].
+Not valid for [arg pushbutton] or [arg signature].
+[list_end]
+
+[def "[emph {Text / Password options}]"]
+[list_begin options]
+[opt_def -multiline [arg boolean]]
+Enable multi-line editing (text only). Default [const 0].
+[list_end]
+
+[def "[emph {Checkbutton options}]"]
+[list_begin options]
+[opt_def -on [arg xobjectId]]
+Custom appearance XObject for the checked state.
+Created with [method startXObject].
+
+[opt_def -off [arg xobjectId]]
+Custom appearance XObject for the unchecked state.
+[list_end]
+
+[def "[emph {Combobox / Listbox options}]"]
+[list_begin options]
+[opt_def -options [arg list]]
+List of selectable items. Required for [arg combobox] and [arg listbox].
+
+[opt_def -editable [arg boolean]]
+Allow typing custom values (combobox only). Default [const 0].
+
+[opt_def -sort [arg boolean]]
+Sort the option list. Default [const 0].
+
+[opt_def -multiselect [arg boolean]]
+Allow selecting multiple items (listbox only). Default [const 0].
+[list_end]
+
+[def "[emph {Radiobutton options}]"]
+[list_begin options]
+[opt_def -group [arg string]]
+Group name (required, alphanumeric). All buttons sharing the same
+group name form a mutually exclusive set.
+
+[opt_def -value [arg string]]
+Value for this button (required, alphanumeric). Used as the
+PDF appearance state name.
+[list_end]
+
+[def "[emph {Pushbutton options}]"]
+[list_begin options]
+[opt_def -action [arg type]]
+Action type: [const reset] (clear all fields), [const url] (open URL),
+or [const submit] (submit form data to URL).
+
+[opt_def -url [arg string]]
+Target URL. Required when [arg -action] is [const url] or [const submit].
+
+[opt_def -caption [arg string]]
+Button label text. Either [arg -action] or [arg -caption] (or both)
+must be given.
+[list_end]
+
+[def "[emph {Signature options}]"]
+[list_begin options]
+[opt_def -label [arg string]]
+Placeholder text displayed above the signature line.
+If omitted, defaults to [const Signature].
+Only valid for [arg signature] fields.
+[list_end]
+
+[list_end]
+
+All fields generate their own appearance streams; the
+[const NeedAppearances] flag is never set, ensuring compatibility
+with digital signature workflows.
+Radiobutton groups are finalized at document write time as a
+parent field with [const /Kids] entries per the PDF specification.
+The [method getForms] method returns data for all field types
+including the new ones added in this patch.

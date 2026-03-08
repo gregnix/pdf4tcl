@@ -1,3 +1,22 @@
+2026-03-08 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.1
+	* Extended addForm method to support 8 field types:
+	  text, password, checkbutton (alias checkbox), combobox,
+	  listbox, radiobutton, pushbutton, signature. [SF #9]
+	* New addForm options: -readonly, -required, -options,
+	  -editable, -sort, -multiselect, -group, -value,
+	  -action, -url, -caption, -label.
+	* Added Ff field flag constants to src/helpers.tcl.
+	* Radiobutton groups finalized at finish() as parent /Kids hierarchy.
+	* NeedAppearances never set (preserves digital signature support).
+	* Added 67 tests in tests/form-ext.test (form-5.x to form-12.x).
+	* Added tests/diagnose.tcl for version verification.
+	* Added examples/test7.tcl demo for all 8 field types.
+	* Fixed mytest glob pattern bug in tests/init.tcl.
+	* Added patch submission files in 260302-patch-9/ for SF ticket #9.
+	* Added German documentation in 0.9.4.x/doc/de/.
+	* Added demo scripts in 0.9.4.x/demo/.
+
 2023-09-11 Peter Spjuth   <peter.spjuth@gmail.com>
 	* Handle Tk canvas 8.7 underline gracefully. [#13]
 
