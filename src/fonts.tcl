@@ -573,13 +573,20 @@ namespace eval pdf4tcl {
         append cmap "1 begincodespacerange\n"
         append cmap "<00> <[format %02X [expr {$len-1}]]>\n"
         append cmap "endcodespacerange\n"
-        append cmap "$len beginbfchar\n"
+        # PDF spec §9.10.3: max 100 entries per beginbfchar block.
         set f 0
-        foreach uchar $subset {
-            append cmap [format "<%02X> <%04X>\n" $f [ConvertToUTF16BE $uchar]]
-            incr f
+        set remaining $len
+        while {$remaining > 0} {
+            set n [expr {$remaining > 100 ? 100 : $remaining}]
+            append cmap "$n beginbfchar\n"
+            for {set i 0} {$i < $n} {incr i} {
+                set uchar [lindex $subset $f]
+                append cmap [format "<%02X> <%04X>\n" $f [ConvertToUTF16BE $uchar]]
+                incr f
+            }
+            append cmap "endbfchar\n"
+            incr remaining -100
         }
-        append cmap "endbfchar\n"
         append cmap "endcmap\n"
         append cmap "CMapName currentdict /CMap defineresource pop\n"
         append cmap "end\n"

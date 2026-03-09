@@ -151,4 +151,34 @@ test util-6.3 {getCharWidth: ASCII chars still return their own width} -body {
     expr {$wA != $wQ && $wA > 0}
 } -result 1
 
+
+# Ticket #24: MakeToUnicodeCMap must not exceed 100 entries per beginbfchar block
+test util-7.1 {CMap: no beginbfchar block exceeds 100 entries} -body {
+    set enc {}
+    for {set i 0} {$i < 256} {incr i} { lappend enc [expr {0x20 + ($i % 95)}] }
+    set cmap [pdf4tcl::MakeToUnicodeCMap testfont256 $enc]
+    set bad 0
+    foreach line [split $cmap \n] {
+        if {[regexp {^(\d+) beginbfchar} $line -> n] && $n > 100} {
+            set bad $n
+        }
+    }
+    set bad
+} -result 0
+
+test util-7.2 {CMap: 256-entry encoding produces 3 beginbfchar blocks} -body {
+    set enc {}
+    for {set i 0} {$i < 256} {incr i} { lappend enc [expr {0x20 + ($i % 95)}] }
+    set cmap [pdf4tcl::MakeToUnicodeCMap testfont256 $enc]
+    llength [regexp -all -inline {beginbfchar} $cmap]
+} -result 3
+
+test util-7.3 {CMap: subset <= 100 uses exactly one beginbfchar block} -body {
+    set enc {}
+    for {set i 0} {$i < 50} {incr i} { lappend enc [expr {0x41 + $i}] }
+    set cmap [pdf4tcl::MakeToUnicodeCMap testfont50 $enc]
+    llength [regexp -all -inline {beginbfchar} $cmap]
+} -result 1
+
 ::tcltest::cleanupTests
+
