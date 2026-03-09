@@ -115,4 +115,40 @@ test util-5.3 {getStringWidth method, with unit} -body {
     set res2
 } -result {0.694 0.524 0.185}
 
+# util-6.x  GetCharWidth fallback for unmappable chars (Ticket #17)
+# Chars outside WinAnsi encoding are rendered as "?" by CleanText.
+# GetCharWidth must return the width of "?" (0x3F) for such chars
+# so that getStringWidth and -align right produce correct results.
+
+test util-6.1 {getCharWidth: unmappable char returns width of "?"} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 9 Helvetica
+    set wQ  [$pdf getCharWidth ?]
+    set wCJK [$pdf getCharWidth \u8f93]
+    $pdf destroy
+    expr {$wQ == $wCJK}
+} -result 1
+
+test util-6.2 {getStringWidth: CJK string equals same-length "?" string} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 9 Helvetica
+    set wCJK [$pdf getStringWidth \u8f93\u5165\u9519\u8bef:]
+    set wQ   [$pdf getStringWidth ????:]
+    $pdf destroy
+    expr {$wCJK == $wQ}
+} -result 1
+
+test util-6.3 {getCharWidth: ASCII chars still return their own width} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 9 Helvetica
+    set wA [$pdf getCharWidth A]
+    set wQ [$pdf getCharWidth ?]
+    $pdf destroy
+    # "A" (width ~500) and "?" (width ~278) differ in Helvetica
+    expr {$wA != $wQ && $wA > 0}
+} -result 1
+
 ::tcltest::cleanupTests

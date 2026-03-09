@@ -1,0 +1,20 @@
+diff --git a/src/fonts.tcl b/src/fonts.tcl
+index b2f0dba..5c5b10d 100644
+--- a/src/fonts.tcl
++++ b/src/fonts.tcl
+@@ -1142,7 +1142,14 @@ namespace eval pdf4tcl {
+ 
+         set BFN $::pdf4tcl::FontsAttrs($font,basefontname)
+         set res 0.0
+-        catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}
++        if {![catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}]} {
++            # Codepoint known in font.
++        } else {
++            # Codepoint not in font encoding -- CleanText will substitute "?".
++            # Use the width of "?" (0x3F) so that getStringWidth and -align
++            # right/center produce correct results even for unmappable chars.
++            catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) 63]}
++        }
+         set res [expr {$res * 0.001}]
+         return $res
+     }

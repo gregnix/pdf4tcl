@@ -756,7 +756,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             my StoreXref $metadata_oid
             my Pdfout "$metadata_oid 0 obj\n<<\n"
             foreach {name value} [array get metadata] {
-                my Pdfout "/$name [QuoteString $value]\n"
+                my Pdfout "/$name [SafeQuoteString $value]\n"
             }
             my Pdfout ">>\nendobj\n\n"
         }
@@ -936,7 +936,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         my Pdfout "$oid 0 obj\n"
-        my Pdfout "<<\n/Title [QuoteString $title]\n"
+        my Pdfout "<<\n/Title [SafeQuoteString $title]\n"
         my Pdfout "/Parent $parent 0 R\n"
         if {$previous != {}} {my Pdfout "/Prev $previous 0 R\n"}
         if {$next     != {}} {my Pdfout "/Next $next 0 R\n"}

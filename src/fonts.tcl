@@ -1132,8 +1132,14 @@ namespace eval pdf4tcl {
                     set res [expr {$aw * 1000.0 / $::pdf4tcl::BFA($BFN,unitsPerEm) * 0.001}]
                 }
             } else {
-                # Glyph nicht im Font vorhanden -- .notdef (Breite 0)
-                set res 0.0
+                # Glyph not in font -- render as .notdef (GlyphID 0).
+                # Use the actual .notdef advance width from hmetrics[0]
+                # so that getStringWidth is accurate for missing glyphs.
+                set metrics [lindex $::pdf4tcl::BFA($BFN,hmetrics) 0]
+                if {$metrics ne ""} {
+                    set aw [lindex $metrics 0]
+                    set res [expr {$aw * 1000.0 / $::pdf4tcl::BFA($BFN,unitsPerEm) * 0.001}]
+                }
             }
             return $res
         }
@@ -1142,7 +1148,14 @@ namespace eval pdf4tcl {
 
         set BFN $::pdf4tcl::FontsAttrs($font,basefontname)
         set res 0.0
-        catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}
+        if {![catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}]} {
+            # Codepoint known in font.
+        } else {
+            # Codepoint not in font encoding -- CleanText will substitute "?".
+            # Use the width of "?" (0x3F) so that getStringWidth and -align
+            # right/center produce correct results even for unmappable chars.
+            catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) 63]}
+        }
         set res [expr {$res * 0.001}]
         return $res
     }

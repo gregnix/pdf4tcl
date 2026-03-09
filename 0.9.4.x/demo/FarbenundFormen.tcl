@@ -1,5 +1,19 @@
 #!/usr/bin/env tclsh
-package require pdf4tcl 0.9
+set demodir  [file dirname [file normalize [info script]]]
+set reporoot [file normalize [file join $demodir ../..]]
+set auto_path [linsert $auto_path 0 $reporoot]
+
+package require pdf4tcl
+
+# Resolve exact file and version of loaded pdf4tcl
+set pkgfile [lindex [package ifneeded pdf4tcl [package require pdf4tcl]] end]
+set pkgver  [package require pdf4tcl]
+
+set outfile [file join $demodir farbenundFormen.pdf]
+
+puts "Written: $outfile"
+puts "Package: pdf4tcl $pkgver"
+puts "File:    $pkgfile"
 
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
 $pdf startPage
@@ -24,7 +38,6 @@ $pdf setFont 12 Helvetica
 $pdf text "Text auf grauem Hintergrund" -x 60 -y 120
 
 $pdf endPage
-$pdf write -file farben-demo.pdf
+$pdf write -file $outfile
 $pdf destroy
 
-Sp

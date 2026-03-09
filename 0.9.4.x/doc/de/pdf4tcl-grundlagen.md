@@ -134,8 +134,9 @@ $pdf endPage
 
 ### Empfehlung
 
-`-orient true` immer explizit setzen. Der Code wird dadurch
-selbstdokumentierend und unabhaengig von moeglichen Default-Aenderungen.
+`-orient` immer explizit setzen. Der Default-Wert ist `1` (orient true),
+aber das ist nicht offensichtlich. Code der den Default annimmt, kann
+sich bei Versionswechseln falsch verhalten.
 
 ```tcl
 # RICHTIG - immer explizit
@@ -143,6 +144,51 @@ set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
 
 # FALSCH - abhaengig vom Default
 set pdf [::pdf4tcl::new %AUTO% -paper a4]
+```
+
+### drawTextBox und orient
+
+Das `y`-Argument von `drawTextBox` haengt vom orient-Modus ab:
+
+- Mit `-orient true`: `y` ist die **Oberkante** der Box (Text fuellt nach unten)
+- Mit `-orient false`: `y` ist die **Unterkante** der Box (Text fuellt nach oben)
+
+```tcl
+# orient true (empfohlen): y = Oberkante
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
+$pdf startPage
+$pdf setFont 11 Helvetica
+$pdf text "Ueberschrift" -x 50 -y 100
+$pdf drawTextBox 50 120 400 60 "Dieser Text beginnt bei y=120." -align left
+
+# orient false: y = Unterkante -- Box fuellt von y aufwaerts bis y+height
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient false]
+$pdf startPage
+$pdf setFont 11 Helvetica
+$pdf text "Ueberschrift" -x 50 -y 700
+# Oberkante = 680, Unterkante = 620, Hoehe 60
+$pdf drawTextBox 50 620 400 60 "Text zwischen 620 und 680." -align left
+```
+
+Faustregel: mit `-orient false` und festen y-Werten immer ausreichend
+Abstand zwischen Beschriftung und Box-y einplanen.
+
+### setFont und -unit
+
+`setFont size fontname` interpretiert `size` in der konfigurierten
+Einheit, nicht immer in Punkten:
+
+```tcl
+# -unit mm: setFont 9 = 9mm = ca. 25.5pt -- viel zu gross!
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true -unit mm]
+$pdf setFont 9 Helvetica     ;# FALSCH: 9mm Schrift
+
+# Korrekt 1: explizit Punkte angeben
+$pdf setFont 9p Helvetica    ;# RICHTIG: 9pt
+
+# Korrekt 2: kein -unit, alles in Punkten
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
+$pdf setFont 9 Helvetica     ;# RICHTIG: 9pt
 ```
 
 ## Einheiten
