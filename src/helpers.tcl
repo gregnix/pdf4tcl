@@ -409,3 +409,12 @@ proc ::pdf4tcl::QuoteString {string} {
         \n "\\n" \r "\\r" \t "\\t" \b "\\b" \f "\\f" ( "\\(" ) "\\)" \\ "\\\\"
     } $string])
 }
+
+# SafeQuoteString: like QuoteString but strips codepoints > U+00FF first.
+# PDF literal strings written via QuoteString go into the binary PDF stream.
+# Tcl 9.0 rejects codepoints > 0xFF on a binary-translation channel (EILSEQ).
+# Use for bookmark titles and document metadata.
+proc ::pdf4tcl::SafeQuoteString {string} {
+    set safe [regsub -all {[^\x00-\xFF]} $string {?}]
+    return [QuoteString $safe]
+}

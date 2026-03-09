@@ -21,6 +21,11 @@ set pkgver  [package require pdf4tcl]
 
 set outfile [file join $demodir demo-all-output.pdf]
 
+#puts "Written: $outfile"
+#puts "Package: pdf4tcl $pkgver"
+#puts "File:    $pkgfile"
+
+
 # ------------------------------------------------------------------
 # Helper: draw a section header band
 proc sectionHeader {p title y {color {0.15 0.35 0.65}}} {
@@ -48,7 +53,7 @@ pdf4tcl::new p -orient 1 -compress 0 -paper a4
 
 p metadata \
     -title    "pdf4tcl Feature Overview" \
-    -author   "Gregor (gregnix@github)" \
+    -author   "pdf4tcl fork" \
     -subject  "Demonstration of all pdf4tcl capabilities" \
     -keywords "tcl,pdf,pdf4tcl,demo" \
     -creator  "demo-all.tcl" \
@@ -482,7 +487,7 @@ set y [sectionHeader p "10. Metadata (set at document creation)" $y]
 p setFont 10 Helvetica
 foreach {field value} {
     Title    "pdf4tcl Feature Overview"
-    Author   "Gregor (gregnix@github)"
+    Author   "pdf4tcl fork"
     Subject  "Demonstration of all pdf4tcl capabilities"
     Keywords "tcl,pdf,pdf4tcl,demo"
     Creator  "demo-all.tcl"

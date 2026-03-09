@@ -1,5 +1,22 @@
-2026-03-08 Gregor  <gregnix@github>
-	* Bumped revision to 0.9.4.5
+2026-03-08 pdf4tcl fork contributor
+	* Bumped revision to 0.9.4.6
+	* Fix ticket #17: -align right/center incorrect when string contains
+	  chars outside WinAnsi encoding. GetCharWidth returned 0.0 for
+	  unmappable codepoints; now falls back to width of "?" (0x3F) to
+	  match what CleanText actually renders. [#17]
+	* util.test: new tests util-6.1..6.3 for GetCharWidth fallback.
+	* demo: demo-all.tcl -- add pageLabel example (ticket #23).
+	* Fix: SafeQuoteString -- new proc in helpers.tcl strips codepoints
+	  > U+00FF before writing to binary PDF channel. Fixes Tcl 9.0 EILSEQ
+	  in bookmarkAdd and metadata when titles contain en-dash etc.
+	  BookmarkObject and metadata output now use SafeQuoteString.
+	* Fix: GetCharWidth (CID): missing glyphs now return actual .notdef
+	  advance width from hmetrics[0] instead of 0.0. Consistent with
+	  WinAnsi fix from ticket #17.
+	* cidfont.test: new tests cidfont-7.x (drawTextBox), cidfont-8.x
+	  (CID .notdef width), cidfont-9.x (SafeQuoteString bookmark/metadata).
+
+
 	* Feature ticket #16: new proc createFontSpecCID enables Unicode/CJK
 	  support via CIDFontType2 (Identity-H encoding). Supports any script
 	  covered by the TTF font (Latin Extended, Greek, Cyrillic, CJK, etc.)
@@ -19,7 +36,7 @@
 	* 26 new tests in tests/cidfont.test.
 	* New demo: 0.9.4.x/demo/demo-cidfont.tcl.
 
-2026-03-08 Gregor  <gregnix@github>
+2026-03-08 pdf4tcl fork contributor
 	* Bumped revision to 0.9.4.4
 	* Fix ticket #14: createFontSpecEnc now raises an error if the subset
 	  exceeds 256 codepoints (prevents invalid PDF generation). [#14]
@@ -37,7 +54,7 @@
 	  documented; addImage -type valid values listed.
 	* New Manpage entries: getLineHeight, viewerPreferences, pageLabel.
 
-2026-03-08 Gregor  <gregnix@github>
+2026-03-08 pdf4tcl fork contributor
 	* Bumped revision to 0.9.4.3
 	* Add ticket #15: hyperlinkAdd method for URI link annotations.
 	  hyperlinkAdd x y width height url ?options?
@@ -45,7 +62,7 @@
 	           -borderdash, -highlight.
 	  11 new tests in tests/page.test (page-7.1 to page-7.11).
 
-2026-03-08 Gregor  <gregnix@github>
+2026-03-08 pdf4tcl fork contributor
 	* Bumped revision to 0.9.4.2
 	* Fix ticket #20: removed -format from metadata docs (not in code, not in PDF spec).
 	* Fix ticket #21: documented -keywords as comma-separated string.
@@ -54,7 +71,7 @@
 	  metadata dictionary strings and bookmark titles (font-independent).
 	  5 new tests in tests/page.test (page-5.9 to page-5.12, page-6.8).
 
-2026-03-08 Gregor  <gregnix@github>
+2026-03-08 pdf4tcl fork contributor
 	* Bumped revision to 0.9.4.1
 	* Extended addForm method to support 8 field types:
 	  text, password, checkbutton (alias checkbox), combobox,

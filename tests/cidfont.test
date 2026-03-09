@@ -313,3 +313,107 @@ test cidfont-6.1 {write to file: no xref error} \
     } -result 1
 
 ::tcltest::cleanupTests
+
+# ===========================================================================
+# cidfont-7.x  drawTextBox with CID font
+# ===========================================================================
+
+test cidfont-7.1 {drawTextBox: CID font no error} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 11 cidFont
+        $pdf drawTextBox 50 100 400 200 \
+            "Latin: \u00e4\u00f6\u00fc  Greek: \u03b1\u03b2\u03b3" \
+            -align left
+        $pdf destroy
+        set ok 1
+    } -result 1
+
+test cidfont-7.2 {drawTextBox: CID font returns page count} \
+    -constraints DejaVuSans \
+    -body {
+        set f [makeFile {} cid_box.pdf]
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 11 cidFont
+        $pdf drawTextBox 50 100 400 600 \
+            "Line one\nLine two\nLine three" -align left
+        $pdf endPage
+        $pdf write -file $f
+        $pdf destroy
+        set ok [file exists $f]
+        removeFile $f
+        set ok
+    } -result 1
+
+# ===========================================================================
+# cidfont-8.x  GetCharWidth: .notdef fallback for missing glyphs (CID)
+# ===========================================================================
+
+test cidfont-8.1 {GetCharWidth: missing glyph returns .notdef width, not 0} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        # U+FFFF is not a valid Unicode character -- not in any font
+        set w [$pdf getCharWidth \uFFFD]
+        $pdf destroy
+        expr {$w > 0}
+    } -result 1
+
+test cidfont-8.2 {getStringWidth: missing glyphs > known narrow glyphs} \
+    -constraints DejaVuSans \
+    -body {
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        # Period is narrow; .notdef box should be wider
+        set wDot  [$pdf getStringWidth "...."]
+        set wMiss [$pdf getStringWidth "\uFFFD\uFFFD\uFFFD\uFFFD"]
+        $pdf destroy
+        expr {$wMiss > $wDot}
+    } -result 1
+
+# ===========================================================================
+# cidfont-9.x  SafeQuoteString: bookmark title with chars > U+00FF
+# ===========================================================================
+
+test cidfont-9.1 {bookmarkAdd: title with en-dash does not throw} \
+    -constraints DejaVuSans \
+    -body {
+        set f [makeFile {} cid_bm.pdf]
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 11 cidFont
+        $pdf text "test" -x 50 -y 700
+        # U+2013 en dash in bookmark title
+        $pdf bookmarkAdd -title "Section \u2013 One"
+        $pdf endPage
+        $pdf write -file $f
+        $pdf destroy
+        set ok [file exists $f]
+        removeFile $f
+        set ok
+    } -result 1
+
+test cidfont-9.2 {metadata: title with en-dash does not throw} \
+    -constraints DejaVuSans \
+    -body {
+        set f [makeFile {} cid_meta.pdf]
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 11 cidFont
+        $pdf text "test" -x 50 -y 700
+        $pdf endPage
+        $pdf metadata -title "pdf4tcl \u2013 Test"
+        $pdf write -file $f
+        $pdf destroy
+        set ok [file exists $f]
+        removeFile $f
+        set ok
+    } -result 1
+
+::tcltest::cleanupTests
