@@ -1438,6 +1438,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         append cmaplines ">> def\n"
         append cmaplines "/CMapName /Adobe-Identity-UCS def\n"
         append cmaplines "/CMapType 2 def\n"
+        # codespacerange: GlyphIDs are 16-bit (Identity-H encoding).
+        # Unicode destination values reach up to U+10FFFF (SMP).
         append cmaplines "1 begincodespacerange\n"
         append cmaplines "<0000> <FFFF>\n"
         append cmaplines "endcodespacerange\n"
@@ -1458,7 +1460,18 @@ oo::define ::pdf4tcl::pdf4tcl {
                 append cmaplines "$n beginbfchar\n"
                 foreach entry $chunk {
                     lassign $entry glyph ucode
-                    append cmaplines [format "<%04X> <%04X>\n" $glyph $ucode]
+                    # PDF ToUnicode CMap: BMP codepoints as <XXXX>,
+                    # SMP codepoints (U+10000..U+10FFFF) as UTF-16BE
+                    # surrogate pair <XXXXXXXX> (PDF spec §9.10.3).
+                    if {$ucode <= 0xFFFF} {
+                        set ucstr [format "%04X" $ucode]
+                    } else {
+                        set u   [expr {$ucode - 0x10000}]
+                        set hi  [expr {0xD800 | ($u >> 10)}]
+                        set lo  [expr {0xDC00 | ($u & 0x3FF)}]
+                        set ucstr [format "%04X%04X" $hi $lo]
+                    }
+                    append cmaplines [format "<%04X> <%s>\n" $glyph $ucstr]
                 }
                 append cmaplines "endbfchar\n"
                 incr i 100

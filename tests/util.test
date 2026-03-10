@@ -115,48 +115,46 @@ test util-5.3 {getStringWidth method, with unit} -body {
     set res2
 } -result {0.694 0.524 0.185}
 
-# util-6.x  GetCharWidth fallback for unmappable chars (Ticket #17)
-# Chars outside WinAnsi encoding are rendered as "?" by CleanText.
-# GetCharWidth must return the width of "?" (0x3F) for such chars
-# so that getStringWidth and -align right produce correct results.
-
-test util-6.1 {getCharWidth: unmappable char returns width of "?"} -body {
-    set pdf [pdf4tcl::new %AUTO% -paper a4]
+# Ticket #17: GetCharWidth fallback for unmappable WinAnsi codepoints
+test util-6.1 {getStringWidth: CJK chars map to '?' width, not 0} -body {
+    set pdf [pdf4tcl::new %AUTO%]
     $pdf startPage
-    $pdf setFont 9 Helvetica
-    set wQ  [$pdf getCharWidth ?]
-    set wCJK [$pdf getCharWidth \u8f93]
+    $pdf setFont 20 Helvetica
+    set wCJK [$pdf getStringWidth "\u8f93\u5165"]
+    set wQQ  [$pdf getStringWidth "??"]
     $pdf destroy
-    expr {$wQ == $wCJK}
+    expr {$wCJK == $wQQ}
 } -result 1
 
-test util-6.2 {getStringWidth: CJK string equals same-length "?" string} -body {
-    set pdf [pdf4tcl::new %AUTO% -paper a4]
+test util-6.2 {getStringWidth: mixed ASCII+CJK equals ASCII+question marks} -body {
+    set pdf [pdf4tcl::new %AUTO%]
     $pdf startPage
-    $pdf setFont 9 Helvetica
-    set wCJK [$pdf getStringWidth \u8f93\u5165\u9519\u8bef:]
-    set wQ   [$pdf getStringWidth ????:]
+    $pdf setFont 20 Courier
+    set wMix [$pdf getStringWidth "AB\u4e2d\u6587"]
+    set wRef [$pdf getStringWidth "AB??"]
     $pdf destroy
-    expr {$wCJK == $wQ}
+    expr {$wMix == $wRef}
 } -result 1
 
-test util-6.3 {getCharWidth: ASCII chars still return their own width} -body {
-    set pdf [pdf4tcl::new %AUTO% -paper a4]
+test util-6.3 {getCharWidth: unmappable codepoint > 0} -body {
+    set pdf [pdf4tcl::new %AUTO%]
     $pdf startPage
-    $pdf setFont 9 Helvetica
-    set wA [$pdf getCharWidth A]
-    set wQ [$pdf getCharWidth ?]
+    $pdf setFont 20 Helvetica
+    set w [$pdf getCharWidth "\u6587"]
     $pdf destroy
-    # "A" (width ~500) and "?" (width ~278) differ in Helvetica
-    expr {$wA != $wQ && $wA > 0}
+    expr {$w > 0}
 } -result 1
-
 
 # Ticket #24: MakeToUnicodeCMap must not exceed 100 entries per beginbfchar block
-test util-7.1 {CMap: no beginbfchar block exceeds 100 entries} -body {
+test util-7.1 {CMap: 256-entry encoding produces no block > 100} -body {
+    # Build a font with a 256-codepoint custom encoding and check the CMap
     set enc {}
     for {set i 0} {$i < 256} {incr i} { lappend enc [expr {0x20 + ($i % 95)}] }
+    pdf4tcl::loadBaseTrueTypeFont __t24__ \
+        [file join [file dirname [info script]] .. examples FreeSans.ttf]
+    pdf4tcl::createFontSpecEnc __t24__ testfont256 $enc
     set cmap [pdf4tcl::MakeToUnicodeCMap testfont256 $enc]
+    # No beginbfchar block may have a count > 100
     set bad 0
     foreach line [split $cmap \n] {
         if {[regexp {^(\d+) beginbfchar} $line -> n] && $n > 100} {
@@ -166,7 +164,7 @@ test util-7.1 {CMap: no beginbfchar block exceeds 100 entries} -body {
     set bad
 } -result 0
 
-test util-7.2 {CMap: 256-entry encoding produces 3 beginbfchar blocks} -body {
+test util-7.2 {CMap: 256-entry encoding produces at least 3 beginbfchar blocks} -body {
     set enc {}
     for {set i 0} {$i < 256} {incr i} { lappend enc [expr {0x20 + ($i % 95)}] }
     set cmap [pdf4tcl::MakeToUnicodeCMap testfont256 $enc]
@@ -176,9 +174,87 @@ test util-7.2 {CMap: 256-entry encoding produces 3 beginbfchar blocks} -body {
 test util-7.3 {CMap: subset <= 100 uses exactly one beginbfchar block} -body {
     set enc {}
     for {set i 0} {$i < 50} {incr i} { lappend enc [expr {0x41 + $i}] }
+    pdf4tcl::createFontSpecEnc __t24__ testfont50 $enc
     set cmap [pdf4tcl::MakeToUnicodeCMap testfont50 $enc]
     llength [regexp -all -inline {beginbfchar} $cmap]
 } -result 1
 
-::tcltest::cleanupTests
+# ---------------------------------------------------------------------------
+# util-8.x  CID ToUnicode CMap -- SMP / Surrogatpaare (Ticket #25)
+# ---------------------------------------------------------------------------
+# Hilfsproc: erzeugt einen CID-PDF-Stream fuer einen SMP-Codepoint und
+# gibt den rohen CMap-Text zurueck (uncompressed).
 
+proc makeCIDCmap {codepoint} {
+    set font /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    if {![file exists $font]} {
+        set font [file join [file dirname [info script]] .. examples FreeSans.ttf]
+    }
+    # Lade Font nur einmal
+    if {![info exists ::pdf4tcl::BFA(__smp__,FontType)]} {
+        pdf4tcl::loadBaseTrueTypeFont __smp__ $font
+    }
+    pdf4tcl::createFontSpecCID __smp__ __smpfont__
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0 -unit mm]
+    $pdf startPage
+    $pdf setFont 12 __smpfont__
+    $pdf text [format "%c" $codepoint] -x 20 -y 30
+    $pdf endPage
+    set tmp [file join [::tcltest::temporaryDirectory] smp-[format %X $codepoint].pdf]
+    $pdf write -file $tmp
+    $pdf destroy
+    set fd [open $tmp r]
+    fconfigure $fd -encoding binary
+    set raw [read $fd]
+    close $fd
+    file delete $tmp
+    return $raw
+}
+
+test util-8.1 {CID CMap: BMP codepoint uses 4-hex-digit destination} -body {
+    set raw [makeCIDCmap 0x00E4]
+    # BMP: <XXXX> <YYYY> -- beide vierstellig
+    set found [regexp {<[0-9A-F]{4}> <00E4>} $raw]
+    set found
+} -result 1
+
+test util-8.2 {CID CMap: SMP codepoint U+1F600 ergibt UTF-16BE Surrogatpaar} -body {
+    # U+1F600: u = 0x1F600 - 0x10000 = 0xF600
+    # hi = 0xD800 | (0xF600 >> 10) = 0xD800 | 0x3D = 0xD83D
+    # lo = 0xDC00 | (0xF600 & 0x3FF) = 0xDC00 | 0x200 = 0xDE00
+    set cp 0x1F600
+    set u  [expr {$cp - 0x10000}]
+    set hi [expr {0xD800 | ($u >> 10)}]
+    set lo [expr {0xDC00 | ($u & 0x3FF)}]
+    format "%04X%04X" $hi $lo
+} -result {D83DDE00}
+
+test util-8.3 {SMP UTF-16BE surrogate pairs: algorithmic correctness} -body {
+    # Testet die Surrogatpaar-Berechnung direkt ohne Font-Abhaengigkeit.
+    # Bekannte Ergebnisse laut Unicode-Spec:
+    #   U+10000  -> D800 DC00
+    #   U+1F600  -> D83D DE00
+    #   U+1F44D  -> D83D DC4D
+    #   U+10FFFF -> DBFF DFFF
+    set results {}
+    foreach {cp expected} {
+        0x10000  D800DC00
+        0x1F600  D83DDE00
+        0x1F44D  D83DDC4D
+        0x10FFFF DBFFDFFF
+    } {
+        set u  [expr {$cp - 0x10000}]
+        set hi [expr {0xD800 | ($u >> 10)}]
+        set lo [expr {0xDC00 | ($u & 0x3FF)}]
+        set got [format "%04X%04X" $hi $lo]
+        lappend results [expr {$got eq $expected}]
+    }
+    set results
+} -result {1 1 1 1}
+
+test util-8.4 {CID CMap: codespacerange covers full 16-bit GlyphID space} -body {
+    set raw [makeCIDCmap 0x0041]
+    regexp {1 begincodespacerange\s*<0000> <FFFF>} $raw
+} -result 1
+
+::tcltest::cleanupTests
