@@ -59,6 +59,24 @@ namespace eval pdf4tcl {
             set BFA($ttfname,subfontNameX) ""
         }
 
+        # Detect color/bitmap-only fonts -- not supported by pdf4tcl.
+        # Check before ExtractInfo since these fonts may lack required
+        # outline tables (loca, glyf) causing confusing errors later.
+        # CBDT/CBLC: color bitmap glyphs (NotoColorEmoji)
+        # sbix:      Apple bitmap glyphs (macOS system emoji)
+        # COLR/CPAL: layered color vector glyphs (Segoe UI Emoji)
+        foreach bitmapTable {CBDT CBLC sbix COLR} {
+            if {[info exists ttftables($bitmapTable)]} {
+                unset -nocomplain ttfdata
+                unset -nocomplain ttftables
+                throw "PDF4TCL" \
+                    "TTF: color/bitmap font detected (table '$bitmapTable'\
+                     in font '$ttfname'). Only outline fonts are supported.\
+                     Use NotoEmoji-Regular.ttf (vector outlines) instead of\
+                     NotoColorEmoji.ttf."
+            }
+        }
+
         ExtractInfo
 
         unset -nocomplain ttfdata
@@ -1141,7 +1159,7 @@ namespace eval pdf4tcl {
             } else {
                 # Glyph not in font -- render as .notdef (GlyphID 0).
                 # Use the actual .notdef advance width from hmetrics[0]
-                # so that getStringWidth is accurate for missing glyphs.
+                # so getStringWidth is consistent with what the viewer shows.
                 set metrics [lindex $::pdf4tcl::BFA($BFN,hmetrics) 0]
                 if {$metrics ne ""} {
                     set aw [lindex $metrics 0]
@@ -1155,12 +1173,10 @@ namespace eval pdf4tcl {
 
         set BFN $::pdf4tcl::FontsAttrs($font,basefontname)
         set res 0.0
-        if {![catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}]} {
-            # Codepoint known in font.
-        } else {
-            # Codepoint not in font encoding -- CleanText will substitute "?".
-            # Use the width of "?" (0x3F) so that getStringWidth and -align
-            # right/center produce correct results even for unmappable chars.
+        catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}
+        # Ticket #17: unmappable codepoint (res still 0.0) -- fall back to
+        # width of '?' (codepoint 63) which is what CleanText actually renders.
+        if {$res == 0.0 && $n != 32} {
             catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) 63]}
         }
         set res [expr {$res * 0.001}]

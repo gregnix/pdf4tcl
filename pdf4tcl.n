@@ -2,8 +2,9 @@
 '\" Generated from file 'pdf4tcl\&.man' by tcllib/doctools with format 'nroff'
 '\" Copyright (c) 2007-2016 Peter Spjuth
 '\" Copyright (c) 2009 Yaroslav Schekin
+'\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.5 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.7 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -277,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.5?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.7?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -500,7 +501,25 @@ as points\&.
 This call loads a TTF font from file to be used by any pdf4tcl objects\&.
 The \fIbasefontname\fR is used to reference this font\&.
 To use this base font in documents, a font with some encoding must be
-created from it using \fBcreateFont\fR or \fBcreateFontSpecEnc\fR\&.
+created from it using \fBcreateFont\fR, \fBcreateFontSpecEnc\fR, or
+\fBcreateFontSpecCID\fR\&.
+.sp
+Only TrueType outline fonts (TTF) are supported\&. The following font types
+are detected and rejected with a descriptive error:
+.RS
+.IP \(bu
+Color bitmap fonts with CBDT/CBLC tables (e\&.g\&. "\fINotoColorEmoji\&.ttf\fR")
+.IP \(bu
+Apple bitmap fonts with sbix table (macOS system emoji)
+.IP \(bu
+Layered color vector fonts with COLR/CPAL tables (e\&.g\&. Segoe UI Emoji on Windows)
+.IP \(bu
+OpenType fonts with PostScript outlines (OTTO magic, CFF-based)
+.RE
+.sp
+For emoji and symbol coverage, use a vector outline font such as
+"\fINotoEmoji-Regular\&.ttf\fR" (\fIhttps://fonts\&.google\&.com/noto/specimen/Noto+Emoji\fR)
+or "\fISymbola\&.ttf\fR" (\fIhttps://dn-works\&.com/ufas/\fR)\&.
 .TP
 \fB::pdf4tcl::createBaseTrueTypeFont\fR \fIbasefontname\fR \fIttf_data\fR
 This call creates a base font from TTF binary data\&.
@@ -566,6 +585,13 @@ from a previously loaded TrueType base font\&. Unlike \fBcreateFont\fR and \fBcr
 which are limited to 256 characters per font instance, a CID font supports any Unicode
 character covered by the underlying TTF file\&. This includes Latin Extended, Greek, Cyrillic,
 CJK ideographs, and other scripts\&. The full TTF binary is embedded in the PDF\&.
+.sp
+Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
+supported\&. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
+as required by the PDF specification (ISO 32000, §9\&.10\&.3)\&.
+This enables correct text extraction and copy-paste from PDF viewers for characters
+such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100),
+or emoji from vector outline fonts (U+1F300 and above)\&.
 .CS
 
 
@@ -1486,5 +1512,6 @@ document, pdf
 .nf
 Copyright (c) 2007-2016 Peter Spjuth
 Copyright (c) 2009 Yaroslav Schekin
+Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 
 .fi

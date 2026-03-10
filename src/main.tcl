@@ -164,9 +164,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Start on pdfout
         my Pdfout "%PDF-1.4\n"
         set pdf(version) 1.4
-        # Add some chars >= 0x80 as recommended by the PDF standard
-        # to make it easy to detect that this is not an ASCII file.
-        my Pdfout "%\xE5\xE4\xF6\n"
+        # PDF spec §7.5.2: comment with ≥4 bytes > 0x7F marks file as binary.
+        # PDF/A also requires this. Use 4 high bytes.
+        my Pdfout "%\xE5\xE4\xF6\xE7\n"
     }
 
     # This is only for internal testing
@@ -772,6 +772,22 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         # Document trailer
+        # /ID is required by PDF spec (ISO 32000 §7.5.5) and PDF/A.
+        # Computed deterministically from the document content so that
+        # identical input always produces identical output (reproducible builds).
+        # Simple 128-bit hash: two 64-bit accumulators over the PDF bytes.
+        set _h1 0x811C9DC5
+        set _h2 0xCBF29CE4
+        binary scan $pdf(pdf) "Iu*" _words
+        foreach _w $_words {
+            set _h1 [expr {(($_h1 ^ $_w) * 0x01000193) & 0xFFFFFFFF}]
+            set _h2 [expr {(($_h2 + $_w) * 0x00010DCD) & 0xFFFFFFFF}]
+        }
+        set _h3 [expr {$_h1 ^ ([string length $pdf(pdf)] & 0xFFFFFFFF)}]
+        set _h4 [expr {$_h2 ^ ($pdf(out_pos) & 0xFFFFFFFF)}]
+        set idHash [format "%08X%08X%08X%08X" $_h1 $_h2 $_h3 $_h4]
+        unset _h1 _h2 _h3 _h4 _words
+
         my Pdfout "trailer\n"
         my Pdfout "<<\n"
         my Pdfout "/Size [my NextOid]\n"
@@ -779,6 +795,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {[info exists metadata_oid]} {
             my Pdfout "/Info $metadata_oid 0 R\n"
         }
+        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
         my Pdfout ">>\n"
         my Pdfout "\nstartxref\n"
         my Pdfout "$xref_pos\n"
@@ -3540,8 +3557,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         set fsid $files($fid)
 
         # Create annotation
+        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 §6.5.3)
         set andict "<< /Type /Annot\n"
         append andict "  /Subtype /FileAttachment\n"
+        append andict "  /F 4\n"
         append andict "  /FS $fsid 0 R\n"
         append andict "  /Contents [QuoteString $description]\n"
         if {[info exists images($icon)]} {
@@ -3614,9 +3633,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         # Build annotation dictionary
+        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 requirement)
         set andict "<< /Type /Annot\n"
         append andict "  /Subtype /Link\n"
         append andict "  /Rect \[[Nf $x] [Nf $y] [Nf $x2] [Nf $y2]\]\n"
+        append andict "  /F 4\n"
         append andict "  /Border $border\n"
         if {$borderwidth > 0} {
             set rgb [my GetColor $bordercolor]
