@@ -1,6 +1,6 @@
 #!/usr/bin/env tclsh
 
-set auto_path [linsert $auto_path 0 [pwd]/..]
+set auto_path [linsert $auto_path 0 [file join [file dirname [info script]] ..]]
 # puts stderr $auto_path
 package require pdf4tcl
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env tclsh
 
-lappend auto_path [pwd]/../..
+#lappend auto_path [file join [file dirname [info script]] ..]
+set auto_path [linsert $auto_path 0 [file normalize [file join [file dirname [info script]] ..]]]
 package require pdf4tcl
 
 pdf4tcl::new p1 -compress false -paper a4
