@@ -95,12 +95,12 @@
 </head>
 <!-- Generated from file 'pdf4tcl.man' by tcllib/doctools with format 'html'
    -->
-<!-- Copyright &amp;copy; 2007-2016 Peter Spjuth   -- Copyright &amp;copy; 2009 Yaroslav Schekin
+<!-- Copyright &amp;copy; 2007-2016 Peter Spjuth   -- Copyright &amp;copy; 2009 Yaroslav Schekin   -- Copyright &amp;copy; 2024-2026 gregnix (fork 0.9.4.x)
    -->
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.5 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.7 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -135,7 +135,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.5?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.7?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -280,7 +280,19 @@ as points.</p></dd>
 <dd><p>This call loads a TTF font from file to be used by any pdf4tcl objects.
 The <i class="arg">basefontname</i> is used to reference this font.
 To use this base font in documents, a font with some encoding must be
-created from it using <b class="cmd">createFont</b> or <b class="cmd">createFontSpecEnc</b>.</p></dd>
+created from it using <b class="cmd">createFont</b>, <b class="cmd">createFontSpecEnc</b>, or
+<b class="cmd">createFontSpecCID</b>.</p>
+<p>Only TrueType outline fonts (TTF) are supported. The following font types
+are detected and rejected with a descriptive error:</p>
+<ul class="doctools_itemized">
+<li><p>Color bitmap fonts with CBDT/CBLC tables (e.g. &quot;<b class="file">NotoColorEmoji.ttf</b>&quot;)</p></li>
+<li><p>Apple bitmap fonts with sbix table (macOS system emoji)</p></li>
+<li><p>Layered color vector fonts with COLR/CPAL tables (e.g. Segoe UI Emoji on Windows)</p></li>
+<li><p>OpenType fonts with PostScript outlines (OTTO magic, CFF-based)</p></li>
+</ul>
+<p>For emoji and symbol coverage, use a vector outline font such as
+&quot;<b class="file">NotoEmoji-Regular.ttf</b>&quot; (<a href="https://fonts.google.com/noto/specimen/Noto+Emoji">https://fonts.google.com/noto/specimen/Noto+Emoji</a>)
+or &quot;<b class="file">Symbola.ttf</b>&quot; (<a href="https://dn-works.com/ufas/">https://dn-works.com/ufas/</a>).</p></dd>
 <dt><a name="6"><b class="cmd">::pdf4tcl::createBaseTrueTypeFont</b> <i class="arg">basefontname</i> <i class="arg">ttf_data</i></a></dt>
 <dd><p>This call creates a base font from TTF binary data.</p></dd>
 <dt><a name="7"><b class="cmd">::pdf4tcl::loadBaseType1Font</b> <i class="arg">basefontname</i> <i class="arg">AFM_file_name</i> <i class="arg">PFB_file_name</i></a></dt>
@@ -336,6 +348,12 @@ from a previously loaded TrueType base font. Unlike <b class="cmd">createFont</b
 which are limited to 256 characters per font instance, a CID font supports any Unicode
 character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic,
 CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.</p>
+<p>Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
+supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
+as required by the PDF specification (ISO 32000, &sect;9.10.3).
+This enables correct text extraction and copy-paste from PDF viewers for characters
+such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100),
+or emoji from vector outline fonts (U+1F300 and above).</p>
 <pre class="doctools_example">
 pdf4tcl::loadBaseTrueTypeFont DejaVuSans &quot;/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf&quot;
 pdf4tcl::createFontSpecCID DejaVuSans myCIDFont
@@ -1083,6 +1101,7 @@ Allowed values are multiples of 90.</p>
 </div>
 <div id="copyright" class="doctools_section"><h2><a name="copyright">Copyright</a></h2>
 <p>Copyright &copy; 2007-2016 Peter Spjuth<br>
-Copyright &copy; 2009 Yaroslav Schekin</p>
+Copyright &copy; 2009 Yaroslav Schekin<br>
+Copyright &copy; 2024-2026 gregnix (fork 0.9.4.x)</p>
 </div>
 </div></body></html>

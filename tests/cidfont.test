@@ -20,6 +20,25 @@ foreach candidate {
 testConstraint DejaVuSans [expr {$dejavuPath ne ""}]
 
 # -----------------------------------------------------------------------
+# Constraint: a plain outline TTF for bitmap-detection tests
+# -----------------------------------------------------------------------
+set freeSans ""
+foreach candidate {
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    /usr/share/fonts/truetype/freefont/FreeSans.ttf
+    /usr/share/fonts/TTF/DejaVuSans.ttf
+} {
+    if {[file exists $candidate]} { set freeSans $candidate; break }
+}
+
+# -----------------------------------------------------------------------
+# Constraint: NotoColorEmoji (CBDT bitmap font) available
+# -----------------------------------------------------------------------
+testConstraint notoColorEmoji \
+    [file exists /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf]
+
+
+# -----------------------------------------------------------------------
 # CID font setup helper
 # -----------------------------------------------------------------------
 proc setupCIDFont {} {
@@ -312,108 +331,108 @@ test cidfont-6.1 {write to file: no xref error} \
         set ok
     } -result 1
 
-::tcltest::cleanupTests
 
-# ===========================================================================
-# cidfont-7.x  drawTextBox with CID font
-# ===========================================================================
+# Ticket 0.9.4.6: drawTextBox with CID font
+test cidfont-7.1 {drawTextBox: CID font no error} -body {
+    set f [makeFile {} cidfont7.pdf]
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $pdf startPage
+    pdf4tcl::loadBaseTrueTypeFont __cid7__ \
+        [file join [file dirname [info script]] .. examples FreeSans.ttf]
+    pdf4tcl::createFontSpecCID __cid7__ cidSans7
+    $pdf setFont 11 cidSans7
+    set err ""
+    catch {$pdf drawTextBox 50 50 400 60 "Unicode: \u03b1\u03b2\u03b3" -align left} err
+    $pdf endPage
+    $pdf write -file $f
+    $pdf destroy
+    removeFile $f
+    expr {$err eq ""}
+} -result 1
 
-test cidfont-7.1 {drawTextBox: CID font no error} \
-    -constraints DejaVuSans \
+test cidfont-7.2 {drawTextBox: CID font does not error} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $pdf startPage
+    pdf4tcl::createFontSpecCID __cid7__ cidSans7b
+    $pdf setFont 11 cidSans7b
+    set rc [catch {
+        $pdf drawTextBox 50 50 400 200 "Line 1\nLine 2\nLine 3" -align left
+    } err]
+    $pdf endPage
+    $pdf destroy
+    set rc
+} -result 0
+
+# CID .notdef advance width (0.9.4.6)
+test cidfont-8.1 {GetCharWidth: missing glyph returns .notdef width, not 0} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $pdf startPage
+    pdf4tcl::createFontSpecCID __cid7__ cidSans8
+    $pdf setFont 12 cidSans8
+    # Private Use Area char unlikely in FreeSans
+    set w [$pdf getCharWidth "\uE001"]
+    $pdf destroy
+    # .notdef width must be > 0
+    expr {$w > 0}
+} -result 1
+
+test cidfont-8.2 {getStringWidth: missing glyphs > known narrow glyphs} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $pdf startPage
+    pdf4tcl::createFontSpecCID __cid7__ cidSans8b
+    $pdf setFont 12 cidSans8b
+    set wMiss [$pdf getStringWidth "\uE001\uE002\uE003\uE004"]
+    set wDot  [$pdf getStringWidth "...."]
+    $pdf destroy
+    expr {$wMiss > $wDot}
+} -result 1
+
+# SafeQuoteString: Tcl 9.0 EILSEQ fix (0.9.4.6)
+test cidfont-9.1 {bookmarkAdd: title with en-dash does not throw} -body {
+    set f [makeFile {} cidfont9a.pdf]
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    set err ""
+    set rc [catch {$pdf bookmarkAdd -title "Chapter 1 \u2013 Introduction"}]
+    $pdf endPage
+    $pdf write -file $f
+    $pdf destroy
+    removeFile $f
+    set rc
+} -result 0
+
+test cidfont-9.2 {metadata: title with en-dash does not throw} -body {
+    set f [makeFile {} cidfont9b.pdf]
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Test" -x 50 -y 50
+    set err ""
+    set rc [catch {$pdf metadata -title "Report 2026 \u2013 Summary"}]
+    $pdf endPage
+    $pdf write -file $f
+    $pdf destroy
+    removeFile $f
+    set rc
+} -result 0
+
+# ---------------------------------------------------------------------------
+# cidfont-10.x  CBDT/CBLC color bitmap font detection
+# ---------------------------------------------------------------------------
+test cidfont-10.1 {loadBaseTrueTypeFont: outline TTF loads without error} -body {
+    set rc [catch {pdf4tcl::loadBaseTrueTypeFont __cbdt_ok__ $::freeSans}]
+    set rc
+} -result 0
+
+test cidfont-10.2 {loadBaseTrueTypeFont: CBDT font throws descriptive error} \
+    -constraints {notoColorEmoji} \
     -body {
-        set pdf [pdf4tcl::new %AUTO% -compress 0]
-        $pdf startPage
-        $pdf setFont 11 cidFont
-        $pdf drawTextBox 50 100 400 200 \
-            "Latin: \u00e4\u00f6\u00fc  Greek: \u03b1\u03b2\u03b3" \
-            -align left
-        $pdf destroy
-        set ok 1
-    } -result 1
-
-test cidfont-7.2 {drawTextBox: CID font returns page count} \
-    -constraints DejaVuSans \
-    -body {
-        set f [makeFile {} cid_box.pdf]
-        set pdf [pdf4tcl::new %AUTO% -compress 0]
-        $pdf startPage
-        $pdf setFont 11 cidFont
-        $pdf drawTextBox 50 100 400 600 \
-            "Line one\nLine two\nLine three" -align left
-        $pdf endPage
-        $pdf write -file $f
-        $pdf destroy
-        set ok [file exists $f]
-        removeFile $f
-        set ok
-    } -result 1
-
-# ===========================================================================
-# cidfont-8.x  GetCharWidth: .notdef fallback for missing glyphs (CID)
-# ===========================================================================
-
-test cidfont-8.1 {GetCharWidth: missing glyph returns .notdef width, not 0} \
-    -constraints DejaVuSans \
-    -body {
-        set pdf [pdf4tcl::new %AUTO% -compress 0]
-        $pdf startPage
-        $pdf setFont 12 cidFont
-        # U+FFFF is not a valid Unicode character -- not in any font
-        set w [$pdf getCharWidth \uFFFD]
-        $pdf destroy
-        expr {$w > 0}
-    } -result 1
-
-test cidfont-8.2 {getStringWidth: missing glyphs > known narrow glyphs} \
-    -constraints DejaVuSans \
-    -body {
-        set pdf [pdf4tcl::new %AUTO% -compress 0]
-        $pdf startPage
-        $pdf setFont 12 cidFont
-        # Period is narrow; .notdef box should be wider
-        set wDot  [$pdf getStringWidth "...."]
-        set wMiss [$pdf getStringWidth "\uFFFD\uFFFD\uFFFD\uFFFD"]
-        $pdf destroy
-        expr {$wMiss > $wDot}
-    } -result 1
-
-# ===========================================================================
-# cidfont-9.x  SafeQuoteString: bookmark title with chars > U+00FF
-# ===========================================================================
-
-test cidfont-9.1 {bookmarkAdd: title with en-dash does not throw} \
-    -constraints DejaVuSans \
-    -body {
-        set f [makeFile {} cid_bm.pdf]
-        set pdf [pdf4tcl::new %AUTO% -compress 0]
-        $pdf startPage
-        $pdf setFont 11 cidFont
-        $pdf text "test" -x 50 -y 700
-        # U+2013 en dash in bookmark title
-        $pdf bookmarkAdd -title "Section \u2013 One"
-        $pdf endPage
-        $pdf write -file $f
-        $pdf destroy
-        set ok [file exists $f]
-        removeFile $f
-        set ok
-    } -result 1
-
-test cidfont-9.2 {metadata: title with en-dash does not throw} \
-    -constraints DejaVuSans \
-    -body {
-        set f [makeFile {} cid_meta.pdf]
-        set pdf [pdf4tcl::new %AUTO% -compress 0]
-        $pdf startPage
-        $pdf setFont 11 cidFont
-        $pdf text "test" -x 50 -y 700
-        $pdf endPage
-        $pdf metadata -title "pdf4tcl \u2013 Test"
-        $pdf write -file $f
-        $pdf destroy
-        set ok [file exists $f]
-        removeFile $f
-        set ok
-    } -result 1
+    set err ""
+    catch {pdf4tcl::loadBaseTrueTypeFont __cbdt_noto__ \
+        /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf} err
+    expr {[string match "*CBDT*" $err] && \
+          [string match "*NotoEmoji-Regular*" $err]}
+} -result 1
 
 ::tcltest::cleanupTests

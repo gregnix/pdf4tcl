@@ -9,7 +9,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.6
+package provide pdf4tcl 0.9.4.7
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -164,6 +164,24 @@ namespace eval pdf4tcl {
             ChecksumFile
             ReadTableDirectory $validate
             set BFA($ttfname,subfontNameX) ""
+        }
+
+        # Detect color/bitmap-only fonts -- not supported by pdf4tcl.
+        # Check before ExtractInfo since these fonts may lack required
+        # outline tables (loca, glyf) causing confusing errors later.
+        # CBDT/CBLC: color bitmap glyphs (NotoColorEmoji)
+        # sbix:      Apple bitmap glyphs (macOS system emoji)
+        # COLR/CPAL: layered color vector glyphs (Segoe UI Emoji)
+        foreach bitmapTable {CBDT CBLC sbix COLR} {
+            if {[info exists ttftables($bitmapTable)]} {
+                unset -nocomplain ttfdata
+                unset -nocomplain ttftables
+                throw "PDF4TCL" \
+                    "TTF: color/bitmap font detected (table '$bitmapTable'\
+                     in font '$ttfname'). Only outline fonts are supported.\
+                     Use NotoEmoji-Regular.ttf (vector outlines) instead of\
+                     NotoColorEmoji.ttf."
+            }
         }
 
         ExtractInfo
@@ -1248,7 +1266,7 @@ namespace eval pdf4tcl {
             } else {
                 # Glyph not in font -- render as .notdef (GlyphID 0).
                 # Use the actual .notdef advance width from hmetrics[0]
-                # so that getStringWidth is accurate for missing glyphs.
+                # so getStringWidth is consistent with what the viewer shows.
                 set metrics [lindex $::pdf4tcl::BFA($BFN,hmetrics) 0]
                 if {$metrics ne ""} {
                     set aw [lindex $metrics 0]
@@ -1262,12 +1280,10 @@ namespace eval pdf4tcl {
 
         set BFN $::pdf4tcl::FontsAttrs($font,basefontname)
         set res 0.0
-        if {![catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}]} {
-            # Codepoint known in font.
-        } else {
-            # Codepoint not in font encoding -- CleanText will substitute "?".
-            # Use the width of "?" (0x3F) so that getStringWidth and -align
-            # right/center produce correct results even for unmappable chars.
+        catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) $n]}
+        # Ticket #17: unmappable codepoint (res still 0.0) -- fall back to
+        # width of '?' (codepoint 63) which is what CleanText actually renders.
+        if {$res == 0.0 && $n != 32} {
             catch {set res [dict get $::pdf4tcl::BFA($BFN,charWidths) 63]}
         }
         set res [expr {$res * 0.001}]
@@ -2034,9 +2050,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Start on pdfout
         my Pdfout "%PDF-1.4\n"
         set pdf(version) 1.4
-        # Add some chars >= 0x80 as recommended by the PDF standard
-        # to make it easy to detect that this is not an ASCII file.
-        my Pdfout "%\xE5\xE4\xF6\n"
+        # PDF spec §7.5.2: comment with ≥4 bytes > 0x7F marks file as binary.
+        # PDF/A also requires this. Use 4 high bytes.
+        my Pdfout "%\xE5\xE4\xF6\xE7\n"
     }
 
     # This is only for internal testing
@@ -2642,6 +2658,22 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         # Document trailer
+        # /ID is required by PDF spec (ISO 32000 §7.5.5) and PDF/A.
+        # Computed deterministically from the document content so that
+        # identical input always produces identical output (reproducible builds).
+        # Simple 128-bit hash: two 64-bit accumulators over the PDF bytes.
+        set _h1 0x811C9DC5
+        set _h2 0xCBF29CE4
+        binary scan $pdf(pdf) "Iu*" _words
+        foreach _w $_words {
+            set _h1 [expr {(($_h1 ^ $_w) * 0x01000193) & 0xFFFFFFFF}]
+            set _h2 [expr {(($_h2 + $_w) * 0x00010DCD) & 0xFFFFFFFF}]
+        }
+        set _h3 [expr {$_h1 ^ ([string length $pdf(pdf)] & 0xFFFFFFFF)}]
+        set _h4 [expr {$_h2 ^ ($pdf(out_pos) & 0xFFFFFFFF)}]
+        set idHash [format "%08X%08X%08X%08X" $_h1 $_h2 $_h3 $_h4]
+        unset _h1 _h2 _h3 _h4 _words
+
         my Pdfout "trailer\n"
         my Pdfout "<<\n"
         my Pdfout "/Size [my NextOid]\n"
@@ -2649,6 +2681,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {[info exists metadata_oid]} {
             my Pdfout "/Info $metadata_oid 0 R\n"
         }
+        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
         my Pdfout ">>\n"
         my Pdfout "\nstartxref\n"
         my Pdfout "$xref_pos\n"
@@ -5410,8 +5443,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         set fsid $files($fid)
 
         # Create annotation
+        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 §6.5.3)
         set andict "<< /Type /Annot\n"
         append andict "  /Subtype /FileAttachment\n"
+        append andict "  /F 4\n"
         append andict "  /FS $fsid 0 R\n"
         append andict "  /Contents [QuoteString $description]\n"
         if {[info exists images($icon)]} {
@@ -5484,9 +5519,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         # Build annotation dictionary
+        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 requirement)
         set andict "<< /Type /Annot\n"
         append andict "  /Subtype /Link\n"
         append andict "  /Rect \[[Nf $x] [Nf $y] [Nf $x2] [Nf $y2]\]\n"
+        append andict "  /F 4\n"
         append andict "  /Border $border\n"
         if {$borderwidth > 0} {
             set rgb [my GetColor $bordercolor]

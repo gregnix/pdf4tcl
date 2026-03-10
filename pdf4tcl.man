@@ -1,12 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.5]
+[manpage_begin pdf4tcl n 0.9.4.7]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
+[copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.5]]
+[require pdf4tcl [opt 0.9.4.7]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -89,7 +90,24 @@ as points.
 This call loads a TTF font from file to be used by any pdf4tcl objects.
 The [arg "basefontname"] is used to reference this font.
 To use this base font in documents, a font with some encoding must be
-created from it using [cmd createFont] or [cmd createFontSpecEnc].
+created from it using [cmd createFont], [cmd createFontSpecEnc], or
+[cmd createFontSpecCID].
+
+[para]
+Only TrueType outline fonts (TTF) are supported. The following font types
+are detected and rejected with a descriptive error:
+
+[list_begin itemized]
+[item] Color bitmap fonts with CBDT/CBLC tables (e.g. [file NotoColorEmoji.ttf])
+[item] Apple bitmap fonts with sbix table (macOS system emoji)
+[item] Layered color vector fonts with COLR/CPAL tables (e.g. Segoe UI Emoji on Windows)
+[item] OpenType fonts with PostScript outlines (OTTO magic, CFF-based)
+[list_end]
+
+[para]
+For emoji and symbol coverage, use a vector outline font such as
+[file NotoEmoji-Regular.ttf] ([uri "https://fonts.google.com/noto/specimen/Noto+Emoji"])
+or [file Symbola.ttf] ([uri "https://dn-works.com/ufas/"]).
 
 
 [call [cmd ::pdf4tcl::createBaseTrueTypeFont] [arg "basefontname"] [arg "ttf_data"]]
@@ -162,6 +180,14 @@ from a previously loaded TrueType base font. Unlike [cmd createFont] and [cmd cr
 which are limited to 256 characters per font instance, a CID font supports any Unicode
 character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic,
 CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.
+
+[para]
+Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
+supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
+as required by the PDF specification (ISO 32000, §9.10.3).
+This enables correct text extraction and copy-paste from PDF viewers for characters
+such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100),
+or emoji from vector outline fonts (U+1F300 and above).
 
 [example {
 pdf4tcl::loadBaseTrueTypeFont DejaVuSans "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
