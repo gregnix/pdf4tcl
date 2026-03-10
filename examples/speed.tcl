@@ -1,6 +1,7 @@
 #!/usr/bin/env tclsh -encoding cp1251
 
-lappend auto_path [pwd]/../..
+#lappend auto_path [pwd]/../..
+set auto_path [linsert $auto_path 0 [file normalize [file join [file dirname [info script]] ..]]]
 #Must be sourced with cp1251 encoding
 package require pdf4tcl
 
@@ -18,7 +19,7 @@ proc manypages {} {
     set page 1.0
     set y 30
     for {set f 1} {$f<=30000} {incr f} {
-        mypdf text "Ýòî $f ñòðîêà äëèííîãî òåñòîâîãî òåêñòà." -bg #CACACA -x 30 -y $y
+        mypdf text "ÃÃ²Ã® $f Ã±Ã²Ã°Ã®ÃªÃ  Ã¤Ã«Ã¨Ã­Ã­Ã®Ã£Ã® Ã²Ã¥Ã±Ã²Ã®Ã¢Ã®Ã£Ã® Ã²Ã¥ÃªÃ±Ã²Ã ." -bg #CACACA -x 30 -y $y
         incr y 20
         if {$y>=$h} {
             mypdf endPage 

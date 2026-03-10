@@ -36,7 +36,7 @@ pdf4tcl::createFontSpecCID DejaVuSans cidSans
 # Ausgabedatei
 set outFile [file join [file dirname [info script]] demo-cidfont.pdf]
 
-set pdf [pdf4tcl::new %AUTO% -compress 1]
+set pdf [pdf4tcl::new %AUTO% -compress 1 -orient 1]
 $pdf startPage -paper a4
 
 # Titel

@@ -1,6 +1,7 @@
 #!/usr/bin/env tclsh
 
-lappend auto_path [pwd]/../..
+#lappend auto_path [pwd]/../..
+set auto_path [linsert $auto_path 0 [file normalize [file join [file dirname [info script]] ..]]]
 package require pdf4tcl
 
 # Provide .afm and .pfb to dump type1 font:
