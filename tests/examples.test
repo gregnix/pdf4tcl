@@ -11,19 +11,39 @@ if {![file exists tcl.jpg]} {
     file link gmarbles2.jpg ../examples/gmarbles2.jpg
 }
 
+# Compare two PDFs ignoring volatile timestamp fields.
+# ModDate/CreationDate in Info-Dict and xmp:ModifyDate/xmp:CreateDate in XMP
+# change on every run -- exclude them from the diff.
+proc pdfdiff {ref new} {
+    set skipPat {/ModDate |/CreationDate |xmp:ModifyDate>|xmp:CreateDate>}
+    proc _stripDates {file pat} {
+        set fh [open $file rb]
+        set lines [split [read $fh] \n]
+        close $fh
+        return [lsearch -all -inline -not -regexp $lines $pat]
+    }
+    set refF [_stripDates $ref $skipPat]
+    set newF [_stripDates $new $skipPat]
+    rename _stripDates {}
+    if {$refF ne $newF} {
+        error "PDFs differ (excluding timestamps)"
+    }
+    return {}
+}
+
 test examples-1.0 {example test0} -body {
     source ../examples/test0.tcl
-    exec diff -a ../examples/test0.pdf test0.pdf
+    pdfdiff ../examples/test0.pdf test0.pdf
 } -result {} -cleanup {catch {p1 destroy}}
 
 test examples-1.1 {example test1} -body {
     source ../examples/test1.tcl
-    exec diff -a ../examples/test1.pdf test1.pdf
+    pdfdiff ../examples/test1.pdf test1.pdf
 } -result {} -cleanup {catch {p1 destroy}}
 
 test examples-1.2 {example test2} -body {
     source ../examples/test2.tcl
-    exec diff -a ../examples/test2.pdf test2.pdf
+    pdfdiff ../examples/test2.pdf test2.pdf
 } -result {} -cleanup {catch {p1 destroy}}
 
 test examples-1.3 {example test3} -body {
@@ -44,12 +64,12 @@ test examples-1.4 {example test4} -body {
 
 test examples-1.5 {example test5} -body {
     source ../examples/test5.tcl
-    exec diff -a ../examples/test5.pdf test5.pdf
+    pdfdiff ../examples/test5.pdf test5.pdf
 } -result {} -cleanup {catch {p1 destroy}}
 
 test examples-1.6 {example test6} -body {
     source ../examples/test6.tcl
-    exec diff -a ../examples/test6.pdf test6.pdf
+    pdfdiff ../examples/test6.pdf test6.pdf
 } -result {} -cleanup {catch {p1 destroy}}
 
 # Cleanup

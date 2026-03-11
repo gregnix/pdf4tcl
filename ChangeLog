@@ -1,3 +1,27 @@
+2026-03-11 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.8
+	* Fix ticket #2: /Length of content streams was systematically off
+	  by one. In endPage, "incr data_len" was called before writing
+	  "\nendstream\n", counting the preceding EOL toward /Length. Per
+	  PDF spec §7.3.8.1 the end-of-line marker before "endstream" is
+	  not part of the stream data and must not be included in /Length.
+	  All PDFs produced by the fork had /Length too large by 1.
+	  veraPDF reported rule 6.1.7 for every page stream. [#2]
+	* Fix ticket #19: new option -pdfa (values "", "1b", "2b") enables
+	  PDF/A conformance. When -pdfa is set, pdf4tcl automatically adds:
+	  - XMP metadata stream with pdfaid identification schema
+	    (pdfaid:part, pdfaid:conformance) required by ISO 19005-1 §6.7.11
+	  - OutputIntent dictionary with sRGB ICC profile (/GTS_PDFA1)
+	    required by ISO 19005-1 §6.2.2 and §6.2.3.3
+	  - /Group /S /Transparency suppressed on all pages per
+	    ISO 19005-1 §6.1.3 (no transparency in PDF/A-1)
+	  New helper procs: _BuildXMPStream, _FindSRGBProfile,
+	  _WriteOutputIntent. [#19]
+	* New option -pdfa-icc: explicit path to sRGB ICC profile, used
+	  when automatic search (_FindSRGBProfile) finds nothing.
+	* validator: CheckPdfa accepts "", "1b", "2b"; rejects all other
+	  values with a clear error message.
+
 2026-03-10 pdf4tcl fork contributor
 
 	* Fix: CID ToUnicode CMap -- SMP codepoints (U+10000..U+10FFFF) now

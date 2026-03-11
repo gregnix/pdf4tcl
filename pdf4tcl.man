@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.7]
+[manpage_begin pdf4tcl n 0.9.4.8]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.7]]
+[require pdf4tcl [opt 0.9.4.8]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1119,6 +1119,38 @@ Defines default unit for coordinates and distances.  Any value given without
 a unit is interpreted using this unit.  
 See [sectref UNITS] for valid units.
 Default value is "p" as in points.
+This option can only be set at object creation.
+
+[opt_def -pdfa [arg level]]
+
+Enables PDF/A conformance for the document.
+Valid values are [const ""] (none, default), [const 1b] (PDF/A-1b,
+ISO\u00a019005-1) and [const 2b] (PDF/A-2b, ISO\u00a019005-2).
+[para]
+When set to [const 1b] or [const 2b], pdf4tcl automatically embeds:
+[list_begin itemized]
+[item] An XMP metadata stream with the pdfaid identification schema
+([term pdfaid:part] and [term pdfaid:conformance]).
+[item] An OutputIntent dictionary with an sRGB ICC profile ([const /GTS_PDFA1]).
+[item] Suppresses [const {/Group /S /Transparency}] on all pages (required
+for PDF/A-1).
+[list_end]
+[para]
+Note: Standard Type\u00a01 fonts (Helvetica, Times, Courier) are not embedded.
+For full PDF/A conformance, use CID fonts created with
+[cmd ::pdf4tcl::createFontSpecCID].
+[para]
+Default value is [const ""].
+This option can only be set at object creation.
+
+[opt_def -pdfa-icc [arg path]]
+
+Explicit path to the sRGB ICC profile file used for the OutputIntent when
+[option -pdfa] is [const 1b] or [const 2b].
+[para]
+If not specified, pdf4tcl searches for the profile in standard system
+locations (e.g. [file /usr/share/color/icc/ghostscript/srgb.icc]).
+[para]
 This option can only be set at object creation.
 
 [list_end]

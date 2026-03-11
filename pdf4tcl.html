@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.7 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.8 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -135,7 +135,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.7?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.8?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -1052,6 +1052,29 @@ a unit is interpreted using this unit.
 See <span class="sectref"><a href="#section3">UNITS</a></span> for valid units.
 Default value is &quot;p&quot; as in points.
 This option can only be set at object creation.</p></dd>
+<dt><b class="option">-pdfa</b> <i class="arg">level</i></dt>
+<dd><p>Enables PDF/A conformance for the document.
+Valid values are <b class="const"></b> (none, default), <b class="const">1b</b> (PDF/A-1b,
+ISO\u00a019005-1) and <b class="const">2b</b> (PDF/A-2b, ISO\u00a019005-2).</p>
+<p>When set to <b class="const">1b</b> or <b class="const">2b</b>, pdf4tcl automatically embeds:</p>
+<ul class="doctools_itemized">
+<li><p>An XMP metadata stream with the pdfaid identification schema
+(<i class="term">pdfaid:part</i> and <i class="term">pdfaid:conformance</i>).</p></li>
+<li><p>An OutputIntent dictionary with an sRGB ICC profile (<b class="const">/GTS_PDFA1</b>).</p></li>
+<li><p>Suppresses <b class="const">/Group /S /Transparency</b> on all pages (required
+for PDF/A-1).</p></li>
+</ul>
+<p>Note: Standard Type\u00a01 fonts (Helvetica, Times, Courier) are not embedded.
+For full PDF/A conformance, use CID fonts created with
+<b class="cmd">::pdf4tcl::createFontSpecCID</b>.</p>
+<p>Default value is <b class="const"></b>.
+This option can only be set at object creation.</p></dd>
+<dt><b class="option">-pdfa-icc</b> <i class="arg">path</i></dt>
+<dd><p>Explicit path to the sRGB ICC profile file used for the OutputIntent when
+<b class="option">-pdfa</b> is <b class="const">1b</b> or <b class="const">2b</b>.</p>
+<p>If not specified, pdf4tcl searches for the profile in standard system
+locations (e.g. &quot;<b class="file">/usr/share/color/icc/ghostscript/srgb.icc</b>&quot;).</p>
+<p>This option can only be set at object creation.</p></dd>
 </dl>
 </div>
 <div id="subsection10" class="doctools_subsection"><h3><a name="subsection10">PAGE CONFIGURATION</a></h3>

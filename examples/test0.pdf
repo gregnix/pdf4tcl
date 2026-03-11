@@ -10,7 +10,7 @@ endstream
 endobj
 
 6 0 obj
-1
+0
 endobj
 
 4 0 obj
@@ -27,6 +27,7 @@ endobj
 <<
 /Type /Catalog
 /Pages 2 0 R
+/Metadata 7 0 R
 >>
 endobj
 
@@ -44,22 +45,61 @@ endobj
 >>
 endobj
 
+8 0 obj
+<<
+/Creator (pdf4tcl 0.9.4.8)
+/Keywords (./pdf4tcl/examples/test0.tcl)
+/ModDate (D:20260311000526+01)
+/Title (pdf4tcl test0.tcl)
+>>
+endobj
+
+7 0 obj
+<< /Type /Metadata /Subtype /XML /Length 815 >>
+stream
+<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+   xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+   <dc:title><rdf:Alt>
+    <rdf:li xml:lang="x-default">pdf4tcl test0.tcl</rdf:li>
+   </rdf:Alt></dc:title>
+   <dc:subject><rdf:Bag>
+    <rdf:li>./pdf4tcl/examples/test0.tcl</rdf:li>
+   </rdf:Bag></dc:subject>
+   <xmp:CreatorTool>pdf4tcl 0.9.4.8</xmp:CreatorTool>
+   <xmp:ModifyDate>2026-03-11T00:05:26+01:00</xmp:ModifyDate>
+   <pdf:Keywords>./pdf4tcl/examples/test0.tcl</pdf:Keywords>
+   <pdf:Producer>pdf4tcl</pdf:Producer>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>
+endstream
+endobj
+
 xref
-0 7
+0 9
 0000000000 65535 f 
 0000000254 00000 n 
-0000000304 00000 n 
-0000000363 00000 n 
+0000000320 00000 n 
+0000000379 00000 n 
 0000000087 00000 n 
 0000000015 00000 n 
 0000000069 00000 n 
+0000000578 00000 n 
+0000000430 00000 n 
 trailer
 <<
-/Size 7
+/Size 9
 /Root 1 0 R
-/ID [<8FB012A324EAE8148FB0125D24EAEA27> <8FB012A324EAE8148FB0125D24EAEA27>]
+/Info 8 0 R
+/ID [<914B12A321B9E814914B125D21B9EE94> <914B12A321B9E814914B125D21B9EE94>]
 >>
 
 startxref
-414
+1475
 %%EOF

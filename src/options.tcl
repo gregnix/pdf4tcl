@@ -138,6 +138,14 @@ oo::define ::pdf4tcl::options {
         }
     }
 
+    # Validator for -pdfa: accepts "", "1b", "2b"
+    method CheckPdfa {option value} {
+        if {$value ne "" && $value ne "1b" && $value ne "2b"} {
+            throw "PDF4TCL" \
+                "invalid -pdfa value \"$value\": must be \"\", \"1b\", or \"2b\""
+        }
+    }
+
     # Validator helper for numerics
     ##nagelfar syntax _obj,pdf4tcl\ CheckNumeric x x o*
     ##nagelfar option _obj,pdf4tcl\ CheckNumeric \
