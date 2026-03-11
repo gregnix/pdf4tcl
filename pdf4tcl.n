@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.7 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.8 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.7?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.8?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1454,6 +1454,39 @@ Defines default unit for coordinates and distances\&.  Any value given without
 a unit is interpreted using this unit\&.
 See \fBUNITS\fR for valid units\&.
 Default value is "p" as in points\&.
+This option can only be set at object creation\&.
+.TP
+\fB-pdfa\fR \fIlevel\fR
+Enables PDF/A conformance for the document\&.
+Valid values are \fB\fR (none, default), \fB1b\fR (PDF/A-1b,
+ISO\\u00a019005-1) and \fB2b\fR (PDF/A-2b, ISO\\u00a019005-2)\&.
+.sp
+When set to \fB1b\fR or \fB2b\fR, pdf4tcl automatically embeds:
+.RS
+.IP \(bu
+An XMP metadata stream with the pdfaid identification schema
+(\fIpdfaid:part\fR and \fIpdfaid:conformance\fR)\&.
+.IP \(bu
+An OutputIntent dictionary with an sRGB ICC profile (\fB/GTS_PDFA1\fR)\&.
+.IP \(bu
+Suppresses \fB/Group /S /Transparency\fR on all pages (required
+for PDF/A-1)\&.
+.RE
+.sp
+Note: Standard Type\\u00a01 fonts (Helvetica, Times, Courier) are not embedded\&.
+For full PDF/A conformance, use CID fonts created with
+\fB::pdf4tcl::createFontSpecCID\fR\&.
+.sp
+Default value is \fB\fR\&.
+This option can only be set at object creation\&.
+.TP
+\fB-pdfa-icc\fR \fIpath\fR
+Explicit path to the sRGB ICC profile file used for the OutputIntent when
+\fB-pdfa\fR is \fB1b\fR or \fB2b\fR\&.
+.sp
+If not specified, pdf4tcl searches for the profile in standard system
+locations (e\&.g\&. "\fI/usr/share/color/icc/ghostscript/srgb\&.icc\fR")\&.
+.sp
 This option can only be set at object creation\&.
 .PP
 .SS "PAGE CONFIGURATION"

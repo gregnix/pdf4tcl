@@ -9,7 +9,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.7
+package provide pdf4tcl 0.9.4.8
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -1850,6 +1850,14 @@ oo::define ::pdf4tcl::options {
         }
     }
 
+    # Validator for -pdfa: accepts "", "1b", "2b"
+    method CheckPdfa {option value} {
+        if {$value ne "" && $value ne "1b" && $value ne "2b"} {
+            throw "PDF4TCL" \
+                "invalid -pdfa value \"$value\": must be \"\", \"1b\", or \"2b\""
+        }
+    }
+
     # Validator helper for numerics
     ##nagelfar syntax _obj,pdf4tcl\ CheckNumeric x x o*
     ##nagelfar option _obj,pdf4tcl\ CheckNumeric \
@@ -1948,6 +1956,11 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -configuremethod SetPageOption
         my Option -rotate    -default 0      -validatemethod CheckRotation \
                 -configuremethod SetPageOption
+        # PDF/A conformance level: "" (off), "1b", "2b"
+        my Option -pdfa      -default ""     -validatemethod CheckPdfa \
+                -readonly 1
+        # Path to sRGB ICC profile for OutputIntent (auto-searched if empty)
+        my Option -pdfa-icc  -default ""     -readonly 1
 
         my Configurelist $args
         my InitPdf
@@ -2291,7 +2304,10 @@ oo::define ::pdf4tcl::pdf4tcl {
             append pdf(pageobj) "<</Type /Page\n"
             append pdf(pageobj) "/Parent 2 0 R\n"
             append pdf(pageobj) "/Resources 3 0 R\n"
-            append pdf(pageobj) "/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>\n"
+            # PDF/A-1 forbids /Group /S /Transparency on pages (ISO 19005-1 SS6.1.3)
+            if {![string match "1*" $options(-pdfa)]} {
+                append pdf(pageobj) "/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>\n"
+            }
             append pdf(pageobj) [format "/MediaBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
             if {$pdf(rotate) != 0} {
                 append pdf(pageobj) "/Rotate $pdf(rotate)\n"
@@ -2355,9 +2371,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfout "endobj\n\n"
 
         # Create Length object
+        # PDF spec SS7.3.8.1: EOL marker before endstream is NOT included in /Length.
+        # Do not incr data_len for the \n written in "\nendstream\n" above.
         my StoreXref $pdf(pagelengthoid)
         my Pdfout "$pdf(pagelengthoid) 0 obj\n"
-        incr data_len
         my Pdfout "$data_len\n"
         my Pdfout "endobj\n\n"
         set pdf(inPage) false
@@ -2420,6 +2437,17 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "/Version $pdf(version)\n"
         }
         my Pdfout "/Pages 2 0 R\n"
+        # XMP Metadata stream -- OID reserved now, written at end of endPDF
+        # (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2)
+        set xmp_oid [my GetOid 1]
+        my Pdfout "/Metadata $xmp_oid 0 R\n"
+        # PDF/A OutputIntent -- OID reserved; object written later
+        # (ISO 19005-1 SS6.2.2; required when DeviceRGB/Gray used)
+        set outputintent_list_oid ""
+        if {$options(-pdfa) ne ""} {
+            set outputintent_list_oid [my GetOid 1]
+            my Pdfout "/OutputIntents \[$outputintent_list_oid 0 R\]\n"
+        }
         # Determine the number of bookmarks to add to the document.
         set nbookmarks [llength $pdf(bookmarks)]
         if {$nbookmarks > 0} {
@@ -2636,7 +2664,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             my WriteCIDFontObjects $fontname $oid
         }
 
-        # Create the PDF document information dictionary.
+        # Create the PDF document information dictionary (Info Dict).
         if {[array exists metadata]} {
             set metadata_oid [my GetOid]
             my StoreXref $metadata_oid
@@ -2645,6 +2673,58 @@ oo::define ::pdf4tcl::pdf4tcl {
                 my Pdfout "/$name [SafeQuoteString $value]\n"
             }
             my Pdfout ">>\nendobj\n\n"
+        }
+
+        # XMP Metadata stream (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2).
+        # Always written so the /Metadata reference in the Catalog is valid.
+        # Synchronises Info Dict fields into XMP properties.
+        my StoreXref $xmp_oid
+        # XMP-Stream-Länge als UTF-8-Bytes (nicht Tcl-Zeichen),
+        # da der Binary-Channel non-ASCII-Chars als UTF-8 schreibt.
+        set xmp [my _BuildXMPStream]
+        set xmpLen [string length [encoding convertto utf-8 $xmp]]
+        my Pdfout "$xmp_oid 0 obj\n"
+        my Pdfout "<< /Type /Metadata /Subtype /XML /Length $xmpLen >>\n"
+        my Pdfout "stream\n"
+        my Pdfout $xmp
+        my Pdfout "\nendstream\nendobj\n\n"
+
+        # PDF/A OutputIntent objects (ISO 19005-1 SS6.2.2)
+        # Written here so that the reserved OID is filled before xref.
+        if {$options(-pdfa) ne "" && $outputintent_list_oid ne ""} {
+            my _WriteOutputIntent
+            # Write OutputIntent dict at the reserved OID
+            my StoreXref $outputintent_list_oid
+            if {[info exists pdf(outputintent_oid)] && \
+                    $pdf(outputintent_oid) ne ""} {
+                my Pdfout "$outputintent_list_oid 0 obj\n"
+                my Pdfout "<<\n"
+                my Pdfout "/Type /OutputIntent\n"
+                my Pdfout "/S /GTS_PDFA1\n"
+                my Pdfout "/OutputConditionIdentifier (sRGB IEC61966-2.1)\n"
+                my Pdfout "/RegistryName (http://www.color.org)\n"
+                my Pdfout "/Info (sRGB IEC61966-2.1)\n"
+                my Pdfout "/DestOutputProfile $pdf(outputintent_oid) 0 R\n"
+                my Pdfout ">>\n"
+                my Pdfout "endobj\n\n"
+            } else {
+                # No sRGB ICC profile found on system.
+                # Write an empty object to fill the reserved OID so xref stays valid.
+                # veraPDF will still report missing DestOutputProfile.
+                # Use -pdfa-icc to specify an ICC profile path explicitly.
+                puts stderr "pdf4tcl WARNING: no sRGB ICC profile found; \
+OutputIntent written without /DestOutputProfile. \
+Use -pdfa-icc to specify a profile path."
+                my Pdfout "$outputintent_list_oid 0 obj\n"
+                my Pdfout "<<\n"
+                my Pdfout "/Type /OutputIntent\n"
+                my Pdfout "/S /GTS_PDFA1\n"
+                my Pdfout "/OutputConditionIdentifier (sRGB IEC61966-2.1)\n"
+                my Pdfout "/RegistryName (http://www.color.org)\n"
+                my Pdfout "/Info (sRGB IEC61966-2.1)\n"
+                my Pdfout ">>\n"
+                my Pdfout "endobj\n\n"
+            }
         }
 
         # Cross reference table
@@ -2872,6 +2952,208 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         return $previous
+    }
+
+    #--------------------------------------------------------------------------
+    # Build an XMP metadata packet from the metadata array.
+    # Returns a UTF-8 string (no BOM in the content, xpacket adds marker).
+    # Synchronises PDF Info Dict fields with XMP namespaces:
+    #   dc:   Dublin Core  (title, creator, description, subject)
+    #   xmp:  XMP Basic    (CreatorTool, CreateDate, ModifyDate)
+    #   pdf:  PDF          (Keywords, Producer)
+    # ISO 32000 SS7.11.3 / PDF/A-1B SS6.7.2
+    method _BuildXMPStream {} {
+        # Helper: escape XML special chars
+        proc _XmlEsc {s} {
+            set s [string map {& &amp; < &lt; > &gt; \" &quot;} $s]
+            return $s
+        }
+        # Helper: convert PDF date D:YYYYMMDDHHmmSSOHH'mm to ISO 8601
+        proc _PdfDateToISO {d} {
+            # PDF date: D:YYYYMMDDHHmmSS[+/-HH'mm]
+            # ISO 8601: YYYY-MM-DDTHH:mm:SS+HH:MM
+            if {![regexp {^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(.*)} \
+                    $d -> y mo da h mi s tz]} {
+                return ""
+            }
+            # Zeitzone parsen: +HH'mm / -HH'mm / Z / leer
+            set tziso "+00:00"
+            if {[regexp {^([+-])(\d{2})'(\d{2})} $tz -> sign tzh tzm]} {
+                set tziso "${sign}${tzh}:${tzm}"
+            } elseif {[regexp {^([+-])(\d{2}):(\d{2})} $tz -> sign tzh tzm]} {
+                set tziso "${sign}${tzh}:${tzm}"
+            } elseif {[regexp {^([+-])(\d{2})$} $tz -> sign tzh]} {
+                set tziso "${sign}${tzh}:00"
+            } elseif {$tz eq "Z"} {
+                set tziso "+00:00"
+            }
+            return "${y}-${mo}-${da}T${h}:${mi}:${s}${tziso}"
+        }
+
+        # Collect fields (safe defaults)
+        set title    [expr {[info exists metadata(Title)]    ? [_XmlEsc $metadata(Title)]    : ""}]
+        set author   [expr {[info exists metadata(Author)]   ? [_XmlEsc $metadata(Author)]   : ""}]
+        set subject  [expr {[info exists metadata(Subject)]  ? [_XmlEsc $metadata(Subject)]  : ""}]
+        set keywords [expr {[info exists metadata(Keywords)] ? [_XmlEsc $metadata(Keywords)] : ""}]
+        set creator  [expr {[info exists metadata(Creator)]  ? [_XmlEsc $metadata(Creator)]  : ""}]
+        set producer [expr {[info exists metadata(Producer)] ? [_XmlEsc $metadata(Producer)] : "pdf4tcl"}]
+        set cdate    ""
+        set mdate    ""
+        if {[info exists metadata(CreationDate)]} {
+            set cdate [_PdfDateToISO $metadata(CreationDate)]
+        }
+        if {[info exists metadata(ModDate)]} {
+            set mdate [_PdfDateToISO $metadata(ModDate)]
+        }
+
+        # XMP packet -- kein BOM im xpacket-Attribut (vermeidet UTF-8/Latin-1-Laengenproblem)
+        # Gemäss ISO 32000 SS7.11.3: encoding="UTF-8" reicht als Deklaration.
+        set x "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
+        append x "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
+        append x " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
+        append x "  <rdf:Description rdf:about=\"\"\n"
+        append x "   xmlns:dc=\"http://purl.org/dc/elements/1.1/\"\n"
+        append x "   xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"\n"
+        append x "   xmlns:pdf=\"http://ns.adobe.com/pdf/1.3/\""
+        # PDF/A Identification Schema (ISO 19005-1 SS6.7.11)
+        if {$options(-pdfa) ne ""} {
+            append x "\n   xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\""
+        }
+        append x ">\n"
+
+        # dc:title
+        if {$title ne ""} {
+            append x "   <dc:title><rdf:Alt>\n"
+            append x "    <rdf:li xml:lang=\"x-default\">$title</rdf:li>\n"
+            append x "   </rdf:Alt></dc:title>\n"
+        }
+        # dc:creator (author)
+        if {$author ne ""} {
+            append x "   <dc:creator><rdf:Seq>\n"
+            append x "    <rdf:li>$author</rdf:li>\n"
+            append x "   </rdf:Seq></dc:creator>\n"
+        }
+        # dc:description (subject)
+        if {$subject ne ""} {
+            append x "   <dc:description><rdf:Alt>\n"
+            append x "    <rdf:li xml:lang=\"x-default\">$subject</rdf:li>\n"
+            append x "   </rdf:Alt></dc:description>\n"
+        }
+        # dc:subject (keywords as bag)
+        if {$keywords ne ""} {
+            append x "   <dc:subject><rdf:Bag>\n"
+            foreach kw [split $keywords ",;"] {
+                set kw [string trim $kw]
+                if {$kw ne ""} {
+                    append x "    <rdf:li>[_XmlEsc $kw]</rdf:li>\n"
+                }
+            }
+            append x "   </rdf:Bag></dc:subject>\n"
+        }
+        # xmp:CreatorTool
+        if {$creator ne ""} {
+            append x "   <xmp:CreatorTool>$creator</xmp:CreatorTool>\n"
+        }
+        # xmp:CreateDate / xmp:ModifyDate
+        if {$cdate ne ""} {
+            append x "   <xmp:CreateDate>$cdate</xmp:CreateDate>\n"
+        }
+        if {$mdate ne ""} {
+            append x "   <xmp:ModifyDate>$mdate</xmp:ModifyDate>\n"
+        }
+        # pdf:Keywords
+        if {$keywords ne ""} {
+            append x "   <pdf:Keywords>$keywords</pdf:Keywords>\n"
+        }
+        # pdf:Producer
+        append x "   <pdf:Producer>$producer</pdf:Producer>\n"
+        # pdfaid Identification (ISO 19005-1 SS6.7.11) -- nur wenn -pdfa gesetzt
+        if {$options(-pdfa) ne ""} {
+            # pdfaid:part = "1" für 1b/1a, "2" für 2b/2a
+            set pdfaid_part [string index $options(-pdfa) 0]
+            # pdfaid:conformance = "B" oder "A" (uppercase)
+            set pdfaid_conf [string toupper [string index $options(-pdfa) 1]]
+            append x "   <pdfaid:part>$pdfaid_part</pdfaid:part>\n"
+            append x "   <pdfaid:conformance>$pdfaid_conf</pdfaid:conformance>\n"
+        }
+
+        append x "  </rdf:Description>\n"
+        append x " </rdf:RDF>\n"
+        append x "</x:xmpmeta>\n"
+        append x "<?xpacket end=\"w\"?>"
+
+        # Clean up local procs
+        rename _XmlEsc ""
+        rename _PdfDateToISO ""
+
+        return $x
+    }
+
+    #--------------------------------------------------------------------------
+    # PDF/A OutputIntent support (ISO 19005-1 SS6.2.2)
+    #--------------------------------------------------------------------------
+
+    # Search for an sRGB ICC profile on the system.
+    # Returns the full path if found, "" otherwise.
+    method _FindSRGBProfile {} {
+        # Explicit override via -pdfa-icc option
+        if {$options(-pdfa-icc) ne ""} {
+            if {[file readable $options(-pdfa-icc)]} {
+                return $options(-pdfa-icc)
+            }
+            return ""
+        }
+        # Known system paths (Linux / macOS / Windows)
+        set candidates {
+            /usr/share/color/icc/ghostscript/srgb.icc
+            /usr/share/color/icc/ghostscript/sRGB.icc
+            /usr/share/ghostscript/icc/default_rgb.icc
+            /usr/share/ghostscript/icc/srgb.icc
+            /usr/share/color/icc/sRGB.icc
+            /usr/share/color/icc/sRGB2014.icc
+            /Library/ColorSync/Profiles/sRGB Profile.icc
+            {C:/Windows/System32/spool/drivers/color/sRGB Color Space Profile.icm}
+        }
+        foreach path $candidates {
+            if {[file readable $path]} {
+                return $path
+            }
+        }
+        # Try glob for ghostscript versioned paths
+        foreach gs [glob -nocomplain /usr/share/ghostscript/*/iccprofiles/sRGB.icc \
+                                     /usr/share/ghostscript/*/iccprofiles/default_rgb.icc] {
+            if {[file readable $gs]} {
+                return $gs
+            }
+        }
+        return ""
+    }
+
+    # Write the ICC profile stream object for PDF/A OutputIntent.
+    # Sets pdf(outputintent_oid) to the OID of the ICC stream, or "" if
+    # no profile is found.
+    method _WriteOutputIntent {} {
+        set iccpath [my _FindSRGBProfile]
+        if {$iccpath eq ""} {
+            set pdf(outputintent_oid) ""
+            return
+        }
+        # Read ICC profile bytes (binary)
+        set fh [open $iccpath rb]
+        set iccdata [read $fh]
+        close $fh
+
+        # Write the ICC profile as a raw (uncompressed) stream object
+        set icc_oid [my GetOid]
+        my StoreXref $icc_oid
+        set iccLen [string length $iccdata]
+        my Pdfout "$icc_oid 0 obj\n"
+        my Pdfout "<< /N 3 /Length $iccLen >>\n"
+        my Pdfout "stream\n"
+        my Pdfout $iccdata
+        my Pdfout "\nendstream\nendobj\n\n"
+
+        set pdf(outputintent_oid) $icc_oid
     }
 
     #--------------------------------------------------------------------------
