@@ -539,7 +539,7 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
 # or ps2pdf should work mostly ok.
 proc pdf4tcl::catPdf {args} {
     if {[llength $args] < 3} {
-        throw "PDF4TCL" "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
+        throw {PDF4TCL} "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
     }
     set outfile [lindex $args end]
     set infile1 [lindex $args 0]
@@ -564,7 +564,7 @@ proc pdf4tcl::catPdf {args} {
 #   default : Default value, if any.
 proc pdf4tcl::getForms {pdfFile} {
     if {![file exists $pdfFile]} {
-        throw "PDF4TCL" "No such file: $pdfFile"
+        throw {PDF4TCL} "No such file: $pdfFile"
     }
     set pdf [pdf4tcl::cat::ReadPdf $pdfFile]
 
