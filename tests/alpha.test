@@ -1,0 +1,197 @@
+# Test setAlpha / getAlpha                                          -*-tcl-*-
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Helper: create a PDF with alpha operations, return raw PDF bytes.
+# The pdf object is available as variable 'p' inside body.
+proc alphaPdf {body} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -paper {800 1000} -margin {0 0 0 0}]
+    $p startPage
+    eval $body
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+# Helper: return 1 if str contains all given substrings
+proc containsAll {str args} {
+    foreach sub $args {
+        if {[string first $sub $str] < 0} { return 0 }
+    }
+    return 1
+}
+
+# -----------------------------------------------------------------------
+# 1.x  getAlpha default
+# -----------------------------------------------------------------------
+
+test alpha-1.1 {getAlpha default before any setAlpha} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {1.0 1.0}
+
+# -----------------------------------------------------------------------
+# 2.x  setAlpha -- single value sets fill and stroke
+# -----------------------------------------------------------------------
+
+test alpha-2.1 {setAlpha single value updates getAlpha} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.5
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.5 0.5}
+
+test alpha-2.2 {setAlpha single value writes ExtGState with ca and CA} -body {
+    set data [alphaPdf { $p setAlpha 0.5 }]
+    containsAll $data "/Type /ExtGState" "/ca 0.5000" "/CA 0.5000"
+} -result 1
+
+test alpha-2.3 {setAlpha writes gs operator in page stream} -body {
+    set data [alphaPdf { $p setAlpha 0.5 }]
+    expr {[regexp {/GsAlpha\S+ gs} $data]}
+} -result 1
+
+# -----------------------------------------------------------------------
+# 3.x  setAlpha -fill / -stroke / two-value form
+# -----------------------------------------------------------------------
+
+test alpha-3.1 {setAlpha -fill updates fill only} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.5
+    $p setAlpha 0.3 -fill
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.3 0.5}
+
+test alpha-3.2 {setAlpha -stroke updates stroke only} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.5
+    $p setAlpha 0.8 -stroke
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.5 0.8}
+
+test alpha-3.3 {setAlpha two values sets fill and stroke independently} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.2 0.9
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.2 0.9}
+
+test alpha-3.4 {setAlpha -fill produces ExtGState with correct ca/CA} -body {
+    set data [alphaPdf {
+        $p setAlpha 0.7
+        $p setAlpha 0.3 -fill
+    }]
+    containsAll $data "/ca 0.3000" "/CA 0.7000"
+} -result 1
+
+# -----------------------------------------------------------------------
+# 4.x  Caching: same alpha values reuse existing ExtGState object
+# -----------------------------------------------------------------------
+
+test alpha-4.1 {same alpha value reuses one ExtGState object} -body {
+    set data [alphaPdf {
+        $p setAlpha 0.5
+        $p setAlpha 1.0
+        $p setAlpha 0.5
+    }]
+    llength [regexp -all -inline {/ca 0\.5000} $data]
+} -result 1
+
+# -----------------------------------------------------------------------
+# 5.x  Clamping
+# -----------------------------------------------------------------------
+
+test alpha-5.1 {setAlpha clamps negative value to 0.0} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha -0.5
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.0 0.0}
+
+test alpha-5.2 {setAlpha clamps value above 1.0} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 1.5
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {1.0 1.0}
+
+# -----------------------------------------------------------------------
+# 6.x  Reset to fully opaque
+# -----------------------------------------------------------------------
+
+test alpha-6.1 {setAlpha 1.0 resets to fully opaque} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.3
+    $p setAlpha 1.0
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {1.0 1.0}
+
+# -----------------------------------------------------------------------
+# 7.x  gsave / grestore restores alpha state
+# -----------------------------------------------------------------------
+
+test alpha-7.1 {gsave/grestore restores fill and stroke alpha} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.5
+    $p gsave
+    $p setAlpha 0.2
+    $p grestore
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.5 0.5}
+
+test alpha-7.2 {gsave/grestore restores mixed fill/stroke alpha} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setAlpha 0.3 0.7
+    $p gsave
+    $p setAlpha 1.0
+    $p grestore
+    set result [$p getAlpha]
+    $p destroy
+    set result
+} -result {0.3 0.7}
+
+# -----------------------------------------------------------------------
+# 8.x  Error handling
+# -----------------------------------------------------------------------
+
+test alpha-8.1 {setAlpha wrong number of args} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    set code [catch {$p setAlpha 0.5 -fill extra} msg]
+    $p destroy
+    list $code [string match "*wrong # args*" $msg]
+} -result {1 1}
+
+# -----------------------------------------------------------------------
+# 9.x  ExtGState appears in page resources
+# -----------------------------------------------------------------------
+
+test alpha-9.1 {ExtGState registered in page resource dict} -body {
+    set data [alphaPdf { $p setAlpha 0.4 }]
+    expr {[string first "/ExtGState <<" $data] >= 0}
+} -result 1
+
+::tcltest::cleanupTests
