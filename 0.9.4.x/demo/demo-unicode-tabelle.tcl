@@ -29,8 +29,31 @@
 #   Noto Sans/Serif  latein, kyrillisch, griechisch
 #                  apt install fonts-noto-core
 #
+# Empfohlene Fonts fuer beste Unicode-Abdeckung (Windows):
+#
+#   Arial Unicode MS  breite Abdeckung (nur mit Office installiert)
+#                  C:/Windows/Fonts/arialuni.ttf
+#
+#   Microsoft YaHei   CJK (Chinesisch vereinfacht)
+#                  C:/Windows/Fonts/msyh.ttc   (Sub-Font 0)
+#
+#   Meiryo            Japanisch
+#                  C:/Windows/Fonts/meiryo.ttc  (Sub-Font 0)
+#
+#   Malgun Gothic     Koreanisch
+#                  C:/Windows/Fonts/malgun.ttf
+#
+#   Arial             Latein, Griechisch, Kyrillisch
+#                  C:/Windows/Fonts/arial.ttf
+#
+# Hinweis: .TTC-Dateien (TrueType Collections) werden automatisch
+# unterstuetzt -- es wird immer Sub-Font 0 geladen.
+#
 # Diese Fonts werden automatisch gesucht und benoetigen keinen expliziten
 # Aufrufparameter. Als Fallback dient DejaVuSans bzw. FreeSans aus examples/.
+#
+# Automatisch durchsuchtes lokales Verzeichnis (relativ zum Skript):
+#   ../fonts/   (Struktur: demo/demo-unicode-tabelle.tcl + fonts/*.ttf)
 
 set auto_path [linsert $auto_path 0 \
     [file normalize [file join [file dirname [info script]] ../..]] \
@@ -84,8 +107,26 @@ set ::autoFonts {
     /usr/share/fonts/TTF/NotoSans-Regular.ttf
     /usr/share/fonts/truetype/noto/NotoSerif-Regular.ttf
     /usr/share/fonts/TTF/NotoSerif-Regular.ttf
+    C:/Windows/Fonts/arialuni.ttf
+    C:/Windows/Fonts/arial.ttf
+    C:/Windows/Fonts/msyh.ttc
+    C:/Windows/Fonts/meiryo.ttc
+    C:/Windows/Fonts/malgun.ttf
+    C:/Windows/Fonts/Calibri.ttf
 }
 foreach _f $::autoFonts { addFont $_f }
+
+# 1b) Lokales Font-Verzeichnis relativ zum Skript: ../fonts/
+#     Struktur: demo/demo-unicode-tabelle.tcl  +  fonts/*.ttf
+set _scriptDir [file dirname [file normalize [info script]]]
+set _localFonts [file normalize [file join $_scriptDir ../fonts]]
+if {[file isdirectory $_localFonts]} {
+    foreach _f [lsort [glob -nocomplain \
+            -directory $_localFonts *.ttf *.TTF *.ttc *.TTC]] {
+        addFont $_f
+    }
+}
+unset -nocomplain _scriptDir _localFonts _f
 
 # 2) Explizite Argumente oder Fallback
 if {[llength $argv] == 0} {
@@ -95,6 +136,7 @@ if {[llength $argv] == 0} {
         /usr/share/fonts/TTF/DejaVuSans.ttf
         /Library/Fonts/DejaVuSans.ttf
         C:/Windows/Fonts/DejaVuSans.ttf
+        C:/Windows/Fonts/arial.ttf
     } {
         if {[file exists $c]} { addFont $c; break }
     }
@@ -104,7 +146,8 @@ if {[llength $argv] == 0} {
 } else {
     foreach arg $argv {
         if {[file isdirectory $arg]} {
-            foreach f [lsort [glob -nocomplain -directory $arg *.ttf *.TTF]] {
+            foreach f [lsort [glob -nocomplain \
+                    -directory $arg *.ttf *.TTF *.ttc *.TTC]] {
                 addFont $f
             }
         } else {

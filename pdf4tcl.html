@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.8 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.9 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -126,6 +126,17 @@
 </ul>
 </li>
 <li class="doctools_section"><a href="#section5">EXAMPLES</a></li>
+<li class="doctools_section"><a href="#section6">CHANGES</a>
+<ul>
+<li class="doctools_subsection"><a href="#subsection11">Version 0.9.4.9</a></li>
+<li class="doctools_subsection"><a href="#subsection12">Version 0.9.4.8</a></li>
+<li class="doctools_subsection"><a href="#subsection13">Version 0.9.4.7</a></li>
+<li class="doctools_subsection"><a href="#subsection14">Version 0.9.4.6</a></li>
+<li class="doctools_subsection"><a href="#subsection15">Version 0.9.4.5</a></li>
+<li class="doctools_subsection"><a href="#subsection16">Version 0.9.4.3</a></li>
+<li class="doctools_subsection"><a href="#subsection17">Version 0.9.4.1</a></li>
+</ul>
+</li>
 <li class="doctools_section"><a href="#see-also">See Also</a></li>
 <li class="doctools_section"><a href="#keywords">Keywords</a></li>
 <li class="doctools_section"><a href="#copyright">Copyright</a></li>
@@ -135,7 +146,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.8?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.9?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -1115,6 +1126,66 @@ Allowed values are multiples of 90.</p>
   mypdf write -file mypdf.pdf
   mypdf destroy
 </pre>
+</div>
+<div id="section6" class="doctools_section"><h2><a name="section6">CHANGES</a></h2>
+<div id="subsection11" class="doctools_subsection"><h3><a name="subsection11">Version 0.9.4.9</a></h3>
+<ul class="doctools_itemized">
+<li><p>Added <b class="cmd">demo-pdfa.tcl</b>: Demonstration of PDF/A-1b and PDF/A-2b features
+using embedded CIDFont (DejaVuSans). Requires no Ghostscript.</p></li>
+<li><p>Added <b class="cmd">demo-pdfa-gs.tcl</b>: PDF/A conversion workflow via Ghostscript.
+Produces PDF/A-1b and PDF/A-2b from a pdf4tcl source document.</p></li>
+<li><p>Extended <b class="cmd">demo-all.tcl</b> with page 6 (section 12): PDF/A feature overview,
+usage example, 1b vs. 2b comparison table, and font embedding requirement.</p></li>
+<li><p>Added <b class="cmd">SafeQuoteString</b> tests (&quot;<b class="file">tests/util.test</b>&quot; util-9.1..9.5):
+covers ASCII passthrough, Latin-1 retention, SMP replacement, PDF special
+character escaping, and mixed input.</p></li>
+</ul>
+</div>
+<div id="subsection12" class="doctools_subsection"><h3><a name="subsection12">Version 0.9.4.8</a></h3>
+<ul class="doctools_itemized">
+<li><p>PDF/A-1b and PDF/A-2b support via <b class="option">-pdfa</b> option.</p></li>
+<li><p>XMP metadata stream with pdfaid identification schema
+(<i class="term">pdfaid:part</i>, <i class="term">pdfaid:conformance</i>).</p></li>
+<li><p>OutputIntent with sRGB ICC profile (<b class="option">-pdfa-icc</b> for explicit path).</p></li>
+<li><p><i class="term">/Group/S/Transparency</i> suppressed for PDF/A-1 pages.</p></li>
+<li><p>Binary comment (4 bytes &gt; 0x7F) in PDF header.</p></li>
+<li><p>Fixed <i class="term">/Length</i> calculation to use UTF-8 byte count.</p></li>
+</ul>
+</div>
+<div id="subsection13" class="doctools_subsection"><h3><a name="subsection13">Version 0.9.4.7</a></h3>
+<ul class="doctools_itemized">
+<li><p>Assembled &quot;<b class="file">pdf4tcl.tcl</b>&quot;, updated examples, manpage and tests.</p></li>
+</ul>
+</div>
+<div id="subsection14" class="doctools_subsection"><h3><a name="subsection14">Version 0.9.4.6</a></h3>
+<ul class="doctools_itemized">
+<li><p>Added <b class="cmd">SafeQuoteString</b>: strips codepoints &gt; U+00FF before PDF encoding
+for Tcl 9.0 compatibility (ticket #17).</p></li>
+<li><p>Fixed CID <i class="term">.notdef</i> width handling.</p></li>
+<li><p>Improved <b class="cmd">GetCharWidth</b> fallback for unmappable WinAnsi codepoints.</p></li>
+</ul>
+</div>
+<div id="subsection15" class="doctools_subsection"><h3><a name="subsection15">Version 0.9.4.5</a></h3>
+<ul class="doctools_itemized">
+<li><p>CIDFont Unicode support: <b class="cmd">createFontSpecCID</b> for full TTF embedding.</p></li>
+<li><p>Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.</p></li>
+<li><p>ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.</p></li>
+</ul>
+</div>
+<div id="subsection16" class="doctools_subsection"><h3><a name="subsection16">Version 0.9.4.3</a></h3>
+<ul class="doctools_itemized">
+<li><p>Added <b class="cmd">hyperlinkAdd</b>: URI annotation links with optional border and color
+(ticket #15).</p></li>
+</ul>
+</div>
+<div id="subsection17" class="doctools_subsection"><h3><a name="subsection17">Version 0.9.4.1</a></h3>
+<ul class="doctools_itemized">
+<li><p>AcroForm v2.1: extended <b class="cmd">addForm</b> from 2 to 8 field types: <i class="term">text</i>,
+<i class="term">password</i>, <i class="term">checkbutton</i>, <i class="term">combobox</i>, <i class="term">listbox</i>,
+<i class="term">radiobutton</i>, <i class="term">pushbutton</i>, <i class="term">signature</i>.
+Added <b class="option">-required</b>, <b class="option">-label</b> and radio group support (ticket #9).</p></li>
+</ul>
+</div>
 </div>
 <div id="see-also" class="doctools_section"><h2><a name="see-also">See Also</a></h2>
 <p>doctools</p>

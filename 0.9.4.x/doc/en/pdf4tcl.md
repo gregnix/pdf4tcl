@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.1?**
+package require **pdf4tcl ?0****.9****.4****.9?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -29,6 +29,8 @@ package require **pdf4tcl ?0****.9****.4****.1?**
 **::pdf4tcl::createFont** *basefontname* *fontname* *encoding_name*
 
 **::pdf4tcl::createFontSpecEnc** *basefontname* *fontname* *subset*
+
+**::pdf4tcl::createFontSpecCID** *basefontname* *fontname*
 
 **::pdf4tcl::getFonts**
 
@@ -64,7 +66,7 @@ package require **pdf4tcl ?0****.9****.4****.1?**
 
 *objectName* **get**
 
-*objectName* **write** ?*-file filename*?
+*objectName* **write** ?*-file filename*? ?*-dryrun bool*?
 
 *objectName* **addForm** *type* *x* *y* *width* *height* ?*option value*...?
 
@@ -79,6 +81,12 @@ package require **pdf4tcl ?0****.9****.4****.1?**
 *objectName* **embedFile** *filename* ?*option value*...?
 
 *objectName* **attachFile** *x* *y* *width* *height* *fid* *description* ?*option value*...?
+
+*objectName* **hyperlinkAdd** *x* *y* *width* *height* *url* ?*option value*...?
+
+*objectName* **viewerPreferences** ?*option value*...?
+
+*objectName* **pageLabel** *pageIndex* ?*option value*...?
 
 *objectName* **setFont** *size* ?*fontname*?
 
@@ -97,6 +105,8 @@ package require **pdf4tcl ?0****.9****.4****.1?**
 *objectName* **setLineSpacing** *spacing*
 
 *objectName* **getLineSpacing**
+
+*objectName* **getLineHeight**
 
 *objectName* **text** *str* ?*option value*...?
 
@@ -174,6 +184,11 @@ Any coordinates and distances can be expressed with or without an explicit unit.
 
 ### PACKAGE COMMANDS
 
+- Color bitmap fonts with CBDT/CBLC tables (e.g. "*NotoColorEmoji**.ttf*")
+- Apple bitmap fonts with sbix table (macOS system emoji)
+- Layered color vector fonts with COLR/CPAL tables (e.g. Segoe UI Emoji on Windows)
+- OpenType fonts with PostScript outlines (OTTO magic, CFF-based)
+
 **::pdf4tcl::new objectName ?option value...?**
 : This command creates a new pdf4tcl object with an associated Tcl command whose name is *objectName*. This *object* command is explained in full detail in the sections **OBJECT COMMAND** and **OBJECT METHODS**. The object command will be created under the current namespace if the *objectName* is not fully qualified, and in the specified namespace otherwise. If *objectName* is %AUTO% a name will generated. The return value is the newly created object's name. The options and their values coming after the name of the object are used to set the initial configuration of the object. See **OBJECT CONFIGURATION**.
 
@@ -187,7 +202,7 @@ Any coordinates and distances can be expressed with or without an explicit unit.
 : This call translates a measurement to points (1/72 inch). The format of *val* is '*num* ?*unit*?' where *num* is a valid integer or double. See **UNITS** for valid *unit*s. If no *unit* is given, the value is interpreted as points.
 
 **::pdf4tcl::loadBaseTrueTypeFont basefontname ttf_file_name**
-: This call loads a TTF font from file to be used by any pdf4tcl objects. The *basefontname* is used to reference this font. To use this base font in documents, a font with some encoding must be created from it using **createFont** or **createFontSpecEnc**.
+: This call loads a TTF font from file to be used by any pdf4tcl objects. The *basefontname* is used to reference this font. To use this base font in documents, a font with some encoding must be created from it using **createFont**, **createFontSpecEnc**, or **createFontSpecCID**. Only TrueType outline fonts (TTF) are supported. The following font types are detected and rejected with a descriptive error: For emoji and symbol coverage, use a vector outline font such as or "*Symbola**.ttf*" (*https://dn-works**.com/ufas/*).
 
 **::pdf4tcl::createBaseTrueTypeFont basefontname ttf_data**
 : This call creates a base font from TTF binary data.
@@ -236,6 +251,24 @@ mypdf write -file specenc.pdf
 mypdf destroy
 ```
 
+**::pdf4tcl::createFontSpecCID basefontname fontname**
+: This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encoding) from a previously loaded TrueType base font. Unlike **createFont** and **createFontSpecEnc**, which are limited to 256 characters per font instance, a CID font supports any Unicode character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic, CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF. Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap, as required by the PDF specification (ISO 32000, §9.10.3). This enables correct text extraction and copy-paste from PDF viewers for characters such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100), or emoji from vector outline fonts (U+1F300 and above).
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont DejaVuSans "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+pdf4tcl::createFontSpecCID DejaVuSans myCIDFont
+pdf4tcl::new mypdf -paper a4
+mypdf startPage
+mypdf setFont 14 myCIDFont
+mypdf text "Latin: Hello World" -x 50 -y 750
+mypdf text "Extended: \u00e4\u00f6\u00fc\u00df" -x 50 -y 720
+mypdf text "Greek: \u0391\u03b2\u03b3\u03b4" -x 50 -y 690
+mypdf text "Cyrillic: \u041f\u0440\u0438\u0432\u0435\u0442" -x 50 -y 660
+mypdf endPage
+mypdf write -file unicode.pdf
+mypdf destroy
+```
+
 **type**
 : Field type.
 
@@ -274,6 +307,12 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 
 **-noimage bool**
 : If this is set the XObject is not added to the image resource set and cannot be used with putImage, only in forms. The XObject also gets access to resources which is needed to use e.g. fonts within the XObject. This behaviour has shown to be PDF reader dependent, and it is currently not known if this can be made to work better.
+
+**-file filename**
+: Write PDF to the given file.
+
+**-dryrun bool**
+: If true, return the PDF data as a string without writing to a file and without modifying the document state. Useful for previewing or testing the output. Default is false.
 
 **-id string**
 : Unique field ID (alphanumeric). If omitted, one is generated automatically: *${type}form${n}* for most types, *${group}_${value}* for radiobuttons, *Signature${n}* for signatures.
@@ -373,7 +412,7 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **objectName get**
 : This method returns the generated pdf. This will do **endPage** and **finish** if needed. If the **-file** option was given at object creation, nothing is returned.
 
-**objectName write ?-file filename?**
+**objectName write ?-file filename? ?-dryrun bool?**
 : This method writes the generated pdf to the given *filename*. If no *filename* is given, it is written to stdout. This will do **endPage** and **finish** if needed. If the **-file** option was given at object creation, an empty file is created.
 
 **objectName addForm type x y width height ?option value...?**
@@ -408,7 +447,7 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 : Draws the contents of the canvas widget *path* on the current page. The return value is the bounding box in pdf page coordinates of the area covered. Option *-bbox* gives the area of the canvas to be drawn. Default is the entire contents, i.e. the result of $path bbox all. Options *-x*, *-y*, *-width* and *-height* defines an area on the page where to place the contents. Default area starts at origin, stretching over the drawable area of the page. Option *-sticky* defines how to place the contents within the area. The area is always filled in one direction, preserving aspect ratio, unless *-sticky* defines that the other direction should be filled too. Default *-sticky* is *nw*. If option *-bg* is true, a background is drawn in the canvas' background color. Otherwise only objects are drawn. Default is false. Option *-fontmap* gives a dictionary mapping from Tk font names to PDF font names. Option *-textscale* overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If *-textscale* is larger than 1, all text items are reduced in size by that factor. Fonts: If no font mapping is given, fonts for text items are limited to PDF's builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which one to use to get a reasonable display on the page. An element in a font mapping must exactly match the -font option in the text item. The corresponding mapping value is a PDF font family, e.g. one created by **pdf4tcl::createFont**, possibly followed by a size. It is recommended to use named fonts in Tk to control the font mapping in detail. Limitations: Option -splinesteps for lines/polygons is ignored. Stipple offset is limited. The form x,y should work. Window items require Img to be present and must be visible on-screen when the canvas is drawn.
 
 **objectName metadata ?option value...?**
-: This method sets metadata fields for this document. Supported field options are *-author*, *-creator*, *-keywords*, *-producer*, *-subject*, *-title*, *-creationdate* and *-format*.
+: This method sets metadata fields for this document. Supported field options are *-author*, *-creator*, *-keywords*, *-producer*, *-subject*, *-title*, *-creationdate* and *-moddate*. Multiple keywords should be passed as a comma-separated string, e.g. *-keywords "tcl,pdf,document"*. For *-creationdate* and *-moddate* a **clock seconds** value is expected. A value of **0** uses the current date and time. Unknown option names cause an error.
 
 **objectName bookmarkAdd ?option value...?**
 : Add a bookmark on the current page.
@@ -422,6 +461,98 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 ```tcl
 set fid [$pdfobject embedFile "data.txt" -contents "This should be stored in the file."]
 $pdfobject attachFile 0 0 100 100 $fid "This is the description"
+```
+
+**-borderwidth n**
+: Width of the annotation border in points. Use **0** for an invisible border (default: **0**).
+
+**-bordercolor color**
+: Color of the annotation border. Accepts any color format supported by pdf4tcl (default: **{0 0 1}**, blue).
+
+**-borderradius n**
+: Corner radius of the annotation border in points (default: **0**).
+
+**-borderdash on off**
+: Dash pattern of the border as a list of two numbers *on* and *off* in points. An empty list produces a solid border (default: ).
+
+**-highlight mode**
+: Visual effect when the user clicks the annotation. Valid values are **N** (None), **I** (Invert, default), **O** (Outline), and **P** (Push).
+
+**objectName hyperlinkAdd x y width height url ?option value...?**
+: This method adds a URI hyperlink annotation to the current page. The clickable area is defined by *x*, *y*, *width* and *height*. The *url* argument must be a valid URI string (e.g. **https://www****.example****.com**). By default the annotation has no visible border.
+
+```tcl
+# Invisible link
+$pdfobject hyperlinkAdd 50 100 200 20 "https://sourceforge.net/p/pdf4tcl"
+# Link with visible blue border
+$pdfobject hyperlinkAdd 50 130 200 20 "https://github.com/gregnix/pdf4tcl"  -borderwidth 1 -bordercolor {0 0 1}
+# Dashed border, rounded corners
+$pdfobject hyperlinkAdd 50 160 200 20 "https://www.tcl.tk"  -borderwidth 1 -bordercolor {0 0.6 0} -borderdash {5 3} -borderradius 4
+```
+
+**-pagelayout layout**
+: Set the page layout on open. Valid values: **SinglePage**, **OneColumn**, **TwoColumnLeft**, **TwoColumnRight**, **TwoPageLeft**, **TwoPageRight**.
+
+**-pagemode mode**
+: Set the page mode on open. Valid values: **UseNone**, **UseOutlines**, **UseThumbs**, **FullScreen**, **UseOC**, **UseAttachments**.
+
+**-hidetoolbar bool**
+: Hide the viewer toolbar when the document is open (default false).
+
+**-hidemenubar bool**
+: Hide the viewer menu bar (default false).
+
+**-hidewindowui bool**
+: Hide viewer interface elements (default false).
+
+**-fitwindow bool**
+: Resize the document window to fit the first page (default false).
+
+**-centerwindow bool**
+: Center the document window on the screen (default false).
+
+**-displaydoctitle bool**
+: Display the document title from metadata instead of the file name (default false).
+
+**-nonfullscreenpagemode mode**
+: Page mode when leaving full-screen mode. Valid values: **UseNone**, **UseOutlines**, **UseThumbs**, **UseOC**.
+
+**-direction dir**
+: Reading order. Valid values: **L2R** (default) or **R2L** (right-to-left).
+
+**-printscaling scale**
+: Default print scaling. Valid values: **AppDefault** or **None**.
+
+**-duplex mode**
+: Paper handling when printing. Valid values: **None**, **Simplex**, **DuplexFlipShortEdge**, **DuplexFlipLongEdge**.
+
+**objectName viewerPreferences ?option value...?**
+: Set viewer preference flags in the PDF catalog. These control how a PDF viewer displays the document when it is opened. Options can be combined freely.
+
+```tcl
+$pdfobject viewerPreferences -pagemode FullScreen -hidetoolbar 1
+$pdfobject viewerPreferences -pagelayout TwoColumnLeft -direction L2R
+```
+
+**-style style**
+: Numbering style. Valid values: **D** (decimal: 1 2 3), **r** (roman lowercase: i ii iii), **R** (roman uppercase: I II III), **a** (alpha lowercase: a b c), **A** (alpha uppercase: A B C), or empty string (prefix only, no number).
+
+**-prefix string**
+: Label prefix prepended to each page number (e.g. **App-** produces App-1, App-2...).
+
+**-start integer**
+: Start value for the numbering in this range. Must be a positive integer. Default is 1.
+
+**objectName pageLabel pageIndex ?option value...?**
+: Define a page label range starting at the given zero-based *pageIndex*. PDF page labels allow viewers to display custom page numbers (e.g. roman numerals for a preface, decimal numbers for the main body). Multiple ranges can be defined.
+
+```tcl
+# Preface pages: i, ii, iii...
+$pdfobject pageLabel 0 -style r
+# Main body pages: 1, 2, 3...
+$pdfobject pageLabel 4 -style D -start 1
+# Appendix with prefix
+$pdfobject pageLabel 20 -style A -prefix "App-"
 ```
 
 ### OBJECT METHODS, TEXT
@@ -438,12 +569,12 @@ $pdfobject attachFile 0 0 100 100 $fid "This is the description"
 
 **-y y   (default 0) - Allow the text to be positioned without setTextPosition.**
 
-**-bg bool   (default 0)**
+**-bg bool|color   (default 0)**
 
-**-background bool   (default 0)**
+**-background bool|color**
 
-**-fill bool   (default 0)**
-: Any of **-bg**, **-background** or **-fill** cause the text to be drawn on a background whose color is set by setBgColor.
+**-fill bool|color**
+: Any of **-bg**, **-background** or **-fill** cause the text to be drawn on a filled background. If a boolean true is given, the background color is taken from **setBgColor**. Alternatively, a color value in any format accepted by pdf4tcl can be given directly (e.g. **{1 0 0}** for red). All three options are aliases.
 
 **-align left|right|center|justify**
 : Specifies the justification. If not given, the text is left justified.
@@ -497,7 +628,10 @@ $pdfobject attachFile 0 0 100 100 $fid "This is the description"
 : Set the default line spacing used be e.g. **newLine**. Initially the spacing is 1.
 
 **objectName getLineSpacing**
-: Get the current default line spacing.
+: Get the current default line spacing factor (a dimensionless multiplier).
+
+**objectName getLineHeight**
+: Get the actual vertical distance advanced by **newLine** in the document's current unit. This is *font_size* times the line spacing factor. Use this to calculate bounding boxes around multi-line text blocks. Requires a font to be set.
 
 **objectName text str ?option value...?**
 : Draw text at the position defined by setTextPosition using the font defined by setFont.
@@ -543,7 +677,7 @@ image create photo img1 -file image.gif
 : Explicitly select an id for the image. The *id* must be unique within the document.
 
 **-type name**
-: Set the image type. This can usually be deduced from the file name, this option helps when that is not possible. This can be either "png", "jpeg", or "tiff".
+: Override automatic type detection based on file extension. Valid values are **png**, **jpg** (or **jpeg**), **tif** (or **tiff**). Set the image type. This can usually be deduced from the file name, this option helps when that is not possible. This can be either "png", "jpeg", or "tiff".
 
 **-compress boolean**
 : Raw data will be zlib compressed if this option is set to true. Default value is the document's **-compress** setting.
@@ -676,6 +810,10 @@ Colors can be expressed in various formats. First, as a three element list of va
 
 All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which defines default page settings when used with a pdf4tcl object. The objects also understand the following configuration options:
 
+- An XMP metadata stream with the pdfaid identification schema (*pdfaid:part* and *pdfaid:conformance*).
+- An OutputIntent dictionary with an sRGB ICC profile (**/GTS_PDFA1**).
+- Suppresses **/Group /S /Transparency** on all pages (required for PDF/A-1).
+
 **-cmyk boolean**
 : If true, pdf4tcl will try to generate the document in CMYK color space. See **::pdf4tcl::rgb2Cmyk** for a way to control color translation. Default value is false. This option can only be set at object creation.
 
@@ -687,6 +825,12 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 
 **-unit defaultunit**
 : Defines default unit for coordinates and distances. Any value given without a unit is interpreted using this unit. See **UNITS** for valid units. Default value is "p" as in points. This option can only be set at object creation.
+
+**-pdfa level**
+: Enables PDF/A conformance for the document. Valid values are (none, default), **1b** (PDF/A-1b, ISO\u00a019005-1) and **2b** (PDF/A-2b, ISO\u00a019005-2). When set to **1b** or **2b**, pdf4tcl automatically embeds: Note: Standard Type\u00a01 fonts (Helvetica, Times, Courier) are not embedded. For full PDF/A conformance, use CID fonts created with **::pdf4tcl::createFontSpecCID**. Default value is . This option can only be set at object creation.
+
+**-pdfa-icc path**
+: Explicit path to the sRGB ICC profile file used for the OutputIntent when **-pdfa** is **1b** or **2b**. If not specified, pdf4tcl searches for the profile in standard system locations (e.g. "*/usr/share/color/icc/ghostscript/srgb**.icc*"). This option can only be set at object creation.
 
 ### PAGE CONFIGURATION
 
@@ -716,6 +860,48 @@ pdf4tcl::new mypdf -paper a3
   mypdf destroy
 ```
 
+## CHANGES
+
+### VERSION 0.9.4.9
+
+- Added **demo-pdfa****.tcl**: Demonstration of PDF/A-1b and PDF/A-2b features using embedded CIDFont (DejaVuSans). Requires no Ghostscript.
+- Added **demo-pdfa-gs****.tcl**: PDF/A conversion workflow via Ghostscript. Produces PDF/A-1b and PDF/A-2b from a pdf4tcl source document.
+- Extended **demo-all****.tcl** with page 6 (section 12): PDF/A feature overview, usage example, 1b vs. 2b comparison table, and font embedding requirement.
+- Added **SafeQuoteString** tests ("*tests/util**.test*" util-9.1..9.5): covers ASCII passthrough, Latin-1 retention, SMP replacement, PDF special character escaping, and mixed input.
+
+### VERSION 0.9.4.8
+
+- PDF/A-1b and PDF/A-2b support via **-pdfa** option.
+- XMP metadata stream with pdfaid identification schema (*pdfaid:part*, *pdfaid:conformance*).
+- OutputIntent with sRGB ICC profile (**-pdfa-icc** for explicit path).
+- */Group/S/Transparency* suppressed for PDF/A-1 pages.
+- Binary comment (4 bytes > 0x7F) in PDF header.
+- Fixed */Length* calculation to use UTF-8 byte count.
+
+### VERSION 0.9.4.7
+
+- Assembled "*pdf4tcl**.tcl*", updated examples, manpage and tests.
+
+### VERSION 0.9.4.6
+
+- Added **SafeQuoteString**: strips codepoints > U+00FF before PDF encoding for Tcl 9.0 compatibility (ticket #17).
+- Fixed CID *.notdef* width handling.
+- Improved **GetCharWidth** fallback for unmappable WinAnsi codepoints.
+
+### VERSION 0.9.4.5
+
+- CIDFont Unicode support: **createFontSpecCID** for full TTF embedding.
+- Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.
+- ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.
+
+### VERSION 0.9.4.3
+
+- Added **hyperlinkAdd**: URI annotation links with optional border and color (ticket #15).
+
+### VERSION 0.9.4.1
+
+- AcroForm v2.1: extended **addForm** from 2 to 8 field types: *text*, *password*, *checkbutton*, *combobox*, *listbox*, *radiobutton*, *pushbutton*, *signature*. Added **-required**, **-label** and radio group support (ticket #9).
+
 ## SEE ALSO
 
 doctools
@@ -729,5 +915,6 @@ document, pdf
 ```tcl
 Copyright (c) 2007-2016 Peter Spjuth
 Copyright (c) 2009 Yaroslav Schekin
+Copyright (c) 2024-2026 gregnix (fork 0.9.4.x)
 ```
 

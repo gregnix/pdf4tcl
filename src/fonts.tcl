@@ -35,7 +35,8 @@ namespace eval pdf4tcl {
         fconfigure $fd -translation binary
         set ttfdata [read $fd]
         close $fd
-        set BFP($basefontname,rawttf) $ttfdata
+        set BFP($basefontname,rawttf)  $ttfdata
+        set BFP($basefontname,filename) $filename
         InitBaseTTF $validate
     }
 
@@ -290,7 +291,28 @@ namespace eval pdf4tcl {
 
         set BFA($ttfname,psName) [string map {" " -} $names(6)]
         if {$BFA($ttfname,psName) eq ""} {
-            throw "PDF4TCL" "could not find PostScript font name"
+            # Font has no PostScript name (NameID 6) in its name table.
+            # This violates the OpenType spec but occurs in some fonts
+            # (e.g. DroidSansFallback). Derive a fallback name from the
+            # base font name. The resulting PDF is valid for normal use
+            # but NOT suitable for PDF/A (ISO 19005 requires FontName to
+            # match the embedded font's internal PostScript name).
+            variable BFP
+            if {[info exists BFP($ttfname,filename)]} {
+                set _base [file rootname [file tail $BFP($ttfname,filename)]]
+            } else {
+                set _base $ttfname
+            }
+            # Strip characters not allowed in PS names
+            set BFA($ttfname,psName) \
+                [regsub -all {[^A-Za-z0-9_-]} $_base {}]
+            set BFA($ttfname,psNameFallback) 1
+            puts stderr "pdf4tcl warning: font \"$ttfname\" has no PostScript\
+name (NameID 6). Using fallback \"$BFA($ttfname,psName)\".\
+Not suitable for PDF/A.\
+Note: some fonts without a PS name (e.g. DroidSansFallback) also have\
+an invisible .notdef glyph -- missing characters will show as blank\
+space instead of the usual empty rectangle."
         }
 
         #----------------------------------
@@ -573,6 +595,60 @@ namespace eval pdf4tcl {
         }
         set uchar [expr {$uchar - 0x010000}]
         return [expr {((0xD800 + ($uchar >> 10)) << 16) + (0xDC00 + ($uchar & 0x3FF))}]
+    }
+
+    # Creates a ToUnicode CMap for WinAnsiEncoding (Standard Type1 fonts).
+    # Maps all 256 cp1252 byte values to their Unicode codepoints.
+    # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) map to U+FFFD.
+    # Result is a complete CMap stream string ready for MakeStream.
+    proc MakeStdToUnicodeCMap {fontname} {
+        # Build cp1252 -> Unicode table byte-by-byte (Tcl 9.0 safe)
+        set subset {}
+        for {set i 0} {$i < 256} {incr i} {
+            if {[catch {
+                set ch [encoding convertfrom cp1252 [binary format cu $i]]
+                lappend subset [scan $ch %c]
+            }]} {
+                lappend subset 0xFFFD
+            }
+        }
+        set cmap "/CIDInit /ProcSet findresource begin\n"
+        append cmap "12 dict begin\n"
+        append cmap "begincmap\n"
+        append cmap "/CIDSystemInfo\n"
+        append cmap "<< /Registry ($fontname)\n"
+        append cmap "/Ordering (UCS)\n"
+        append cmap "/Supplement 0\n"
+        append cmap ">> def\n"
+        append cmap "/CMapName /Adobe-Identity-UCS def\n"
+        append cmap "/CMapType 1 def\n"
+        append cmap "1 begincodespacerange\n"
+        append cmap "<00> <FF>\n"
+        append cmap "endcodespacerange\n"
+        # Max 100 entries per block (PDF spec SS9.10.3)
+        set f 0
+        set remaining 256
+        while {$remaining > 0} {
+            set n [expr {$remaining > 100 ? 100 : $remaining}]
+            append cmap "$n beginbfchar\n"
+            for {set i 0} {$i < $n} {incr i} {
+                set ucp [lindex $subset $f]
+                if {$ucp <= 0xFFFF} {
+                    append cmap [format "<%02X> <%04X>\n" $f $ucp]
+                } else {
+                    # SMP: UTF-16BE surrogate pair
+                    append cmap [format "<%02X> <%08X>\n" $f [ConvertToUTF16BE $ucp]]
+                }
+                incr f
+            }
+            append cmap "endbfchar\n"
+            incr remaining -100
+        }
+        append cmap "endcmap\n"
+        append cmap "CMapName currentdict /CMap defineresource pop\n"
+        append cmap "end\n"
+        append cmap "end\n"
+        return $cmap
     }
 
     # Creates a ToUnicode CMap for a given subset.

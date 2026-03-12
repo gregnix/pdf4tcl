@@ -1,4 +1,15 @@
 2026-03-11 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.9
+	* Fix ticket #X: Standard Type1 fonts (Helvetica, Times-Roman, Courier
+	  and variants) now include a ToUnicode CMap stream with full WinAnsi
+	  (cp1252) mapping. Previously these fonts had no ToUnicode entry,
+	  causing copy-paste failures and veraPDF error 6.3.9 in PDF/A mode.
+	  New proc MakeStdToUnicodeCMap in fonts.tcl generates a 256-entry
+	  CMap (chunked beginbfchar blocks, max 100 per block per PDF spec
+	  section 9.10.3). Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D)
+	  map to U+FFFD. SMP codepoints use UTF-16BE surrogate pairs.
+
+2026-03-11 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.8
 	* Fix ticket #2: /Length of content streams was systematically off
 	  by one. In endPage, "incr data_len" was called before writing

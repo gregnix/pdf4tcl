@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.8]
+[manpage_begin pdf4tcl n 0.9.4.9]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.8]]
+[require pdf4tcl [opt 0.9.4.9]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1209,6 +1209,66 @@ The default value of this option is zero.
   mypdf write -file mypdf.pdf
   mypdf destroy
 [example_end]
+
+[section CHANGES]
+
+[subsection {Version 0.9.4.9}]
+[list_begin itemized]
+[item] Added [cmd demo-pdfa.tcl]: Demonstration of PDF/A-1b and PDF/A-2b features
+using embedded CIDFont (DejaVuSans). Requires no Ghostscript.
+[item] Added [cmd demo-pdfa-gs.tcl]: PDF/A conversion workflow via Ghostscript.
+Produces PDF/A-1b and PDF/A-2b from a pdf4tcl source document.
+[item] Extended [cmd demo-all.tcl] with page 6 (section 12): PDF/A feature overview,
+usage example, 1b vs. 2b comparison table, and font embedding requirement.
+[item] Added [cmd SafeQuoteString] tests ([file tests/util.test] util-9.1..9.5):
+covers ASCII passthrough, Latin-1 retention, SMP replacement, PDF special
+character escaping, and mixed input.
+[list_end]
+
+[subsection {Version 0.9.4.8}]
+[list_begin itemized]
+[item] PDF/A-1b and PDF/A-2b support via [option -pdfa] option.
+[item] XMP metadata stream with pdfaid identification schema
+([term pdfaid:part], [term pdfaid:conformance]).
+[item] OutputIntent with sRGB ICC profile ([option -pdfa-icc] for explicit path).
+[item] [term /Group/S/Transparency] suppressed for PDF/A-1 pages.
+[item] Binary comment (4 bytes > 0x7F) in PDF header.
+[item] Fixed [term /Length] calculation to use UTF-8 byte count.
+[list_end]
+
+[subsection {Version 0.9.4.7}]
+[list_begin itemized]
+[item] Assembled [file pdf4tcl.tcl], updated examples, manpage and tests.
+[list_end]
+
+[subsection {Version 0.9.4.6}]
+[list_begin itemized]
+[item] Added [cmd SafeQuoteString]: strips codepoints > U+00FF before PDF encoding
+for Tcl 9.0 compatibility (ticket #17).
+[item] Fixed CID [term .notdef] width handling.
+[item] Improved [cmd GetCharWidth] fallback for unmappable WinAnsi codepoints.
+[list_end]
+
+[subsection {Version 0.9.4.5}]
+[list_begin itemized]
+[item] CIDFont Unicode support: [cmd createFontSpecCID] for full TTF embedding.
+[item] Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.
+[item] ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.
+[list_end]
+
+[subsection {Version 0.9.4.3}]
+[list_begin itemized]
+[item] Added [cmd hyperlinkAdd]: URI annotation links with optional border and color
+(ticket #15).
+[list_end]
+
+[subsection {Version 0.9.4.1}]
+[list_begin itemized]
+[item] AcroForm v2.1: extended [cmd addForm] from 2 to 8 field types: [term text],
+[term password], [term checkbutton], [term combobox], [term listbox],
+[term radiobutton], [term pushbutton], [term signature].
+Added [option -required], [option -label] and radio group support (ticket #9).
+[list_end]
 
 [see_also doctools]
 [keywords pdf document]

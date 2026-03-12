@@ -257,4 +257,28 @@ test util-8.4 {CID CMap: codespacerange covers full 16-bit GlyphID space} -body 
     regexp {1 begincodespacerange\s*<0000> <FFFF>} $raw
 } -result 1
 
+# ---------------------------------------------------------------------------
+# util-9.x  SafeQuoteString (Ticket #17 -- Tcl 9.0 Kompatibilitaet)
+# ---------------------------------------------------------------------------
+
+test util-9.1 {SafeQuoteString: reiner ASCII passiert unveraendert} -body {
+    pdf4tcl::SafeQuoteString "Hello World"
+} -result {(Hello World)}
+
+test util-9.2 {SafeQuoteString: Latin-1 (U+00E4 usw.) bleibt erhalten} -body {
+    pdf4tcl::SafeQuoteString "\u00e4\u00f6\u00fc\u00df"
+} -result "(\u00e4\u00f6\u00fc\u00df)"
+
+test util-9.3 {SafeQuoteString: Codepoints > U+00FF werden durch ? ersetzt} -body {
+    pdf4tcl::SafeQuoteString "AB\u0100\u4e2dCD"
+} -result {(AB??CD)}
+
+test util-9.4 {SafeQuoteString: PDF-Sonderzeichen werden escaped} -body {
+    pdf4tcl::SafeQuoteString "a(b)c\\d"
+} -result {(a\(b\)c\\d)}
+
+test util-9.5 {SafeQuoteString: gemischt -- SMP + Sonderzeichen} -body {
+    pdf4tcl::SafeQuoteString "\U0001F600(ok)\u00e4"
+} -result "(?\\(ok\\)\u00e4)"
+
 ::tcltest::cleanupTests
