@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.8 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.9 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.8?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.9?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1537,6 +1537,70 @@ The default value of this option is zero\&.
   mypdf destroy
 
 .CE
+.SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.9"
+.IP \(bu
+Added \fBdemo-pdfa\&.tcl\fR: Demonstration of PDF/A-1b and PDF/A-2b features
+using embedded CIDFont (DejaVuSans)\&. Requires no Ghostscript\&.
+.IP \(bu
+Added \fBdemo-pdfa-gs\&.tcl\fR: PDF/A conversion workflow via Ghostscript\&.
+Produces PDF/A-1b and PDF/A-2b from a pdf4tcl source document\&.
+.IP \(bu
+Extended \fBdemo-all\&.tcl\fR with page 6 (section 12): PDF/A feature overview,
+usage example, 1b vs\&. 2b comparison table, and font embedding requirement\&.
+.IP \(bu
+Added \fBSafeQuoteString\fR tests ("\fItests/util\&.test\fR" util-9\&.1\&.\&.9\&.5):
+covers ASCII passthrough, Latin-1 retention, SMP replacement, PDF special
+character escaping, and mixed input\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.8"
+.IP \(bu
+PDF/A-1b and PDF/A-2b support via \fB-pdfa\fR option\&.
+.IP \(bu
+XMP metadata stream with pdfaid identification schema
+(\fIpdfaid:part\fR, \fIpdfaid:conformance\fR)\&.
+.IP \(bu
+OutputIntent with sRGB ICC profile (\fB-pdfa-icc\fR for explicit path)\&.
+.IP \(bu
+\fI/Group/S/Transparency\fR suppressed for PDF/A-1 pages\&.
+.IP \(bu
+Binary comment (4 bytes > 0x7F) in PDF header\&.
+.IP \(bu
+Fixed \fI/Length\fR calculation to use UTF-8 byte count\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.7"
+.IP \(bu
+Assembled "\fIpdf4tcl\&.tcl\fR", updated examples, manpage and tests\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.6"
+.IP \(bu
+Added \fBSafeQuoteString\fR: strips codepoints > U+00FF before PDF encoding
+for Tcl 9\&.0 compatibility (ticket #17)\&.
+.IP \(bu
+Fixed CID \fI\&.notdef\fR width handling\&.
+.IP \(bu
+Improved \fBGetCharWidth\fR fallback for unmappable WinAnsi codepoints\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.5"
+.IP \(bu
+CIDFont Unicode support: \fBcreateFontSpecCID\fR for full TTF embedding\&.
+.IP \(bu
+Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints\&.
+.IP \(bu
+ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.3"
+.IP \(bu
+Added \fBhyperlinkAdd\fR: URI annotation links with optional border and color
+(ticket #15)\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.1"
+.IP \(bu
+AcroForm v2\&.1: extended \fBaddForm\fR from 2 to 8 field types: \fItext\fR,
+\fIpassword\fR, \fIcheckbutton\fR, \fIcombobox\fR, \fIlistbox\fR,
+\fIradiobutton\fR, \fIpushbutton\fR, \fIsignature\fR\&.
+Added \fB-required\fR, \fB-label\fR and radio group support (ticket #9)\&.
+.PP
 .SH "SEE ALSO"
 doctools
 .SH KEYWORDS

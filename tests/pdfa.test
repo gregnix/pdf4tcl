@@ -1,0 +1,298 @@
+# Test PDF/A support (ISO 19005-1 / ISO 19005-2)          -*-tcl-*-
+#
+# Tests fuer -pdfa Option, pdfaid-Schema, OutputIntent, XMP-Stream,
+# /Group-Unterdrueckung (0.9.4.8/0.9.4.9)
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Hilfsprozedur: minimales PDF mit -pdfa erzeugen und als String zurueckgeben
+proc make_pdfa {variant args} {
+    set opts [list -pdfa $variant]
+    foreach {k v} $args { lappend opts $k $v }
+    set pdf [pdf4tcl::new %AUTO% {*}$opts]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "PDF/A test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    return $data
+}
+
+# ===========================================================================
+# pdfa-1.x  -pdfa Option
+# ===========================================================================
+
+test pdfa-1.1 {-pdfa 1b: option accepted} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    set val [$pdf cget -pdfa]
+    $pdf destroy
+    set val
+} -result {1b}
+
+test pdfa-1.2 {-pdfa 2b: option accepted} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 2b]
+    set val [$pdf cget -pdfa]
+    $pdf destroy
+    set val
+} -result {2b}
+
+test pdfa-1.3 {-pdfa empty: default is no PDF/A} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    set val [$pdf cget -pdfa]
+    $pdf destroy
+    set val
+} -result {}
+
+test pdfa-1.4 {-pdfa is readonly after creation} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    catch {$pdf configure -pdfa 2b} err
+    $pdf destroy
+    set err
+} -match glob -result {*can only be set at instance creation*}
+
+test pdfa-1.5 {-pdfa-icc is readonly after creation} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    catch {$pdf configure -pdfa-icc /tmp/x.icc} err
+    $pdf destroy
+    set err
+} -match glob -result {*can only be set at instance creation*}
+
+# ===========================================================================
+# pdfa-2.x  pdfaid-Schema im XMP (ISO 19005-1 SS6.7.11)
+# ===========================================================================
+
+test pdfa-2.1 {pdfaid: xmlns:pdfaid present in XMP for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {xmlns:pdfaid} $data] >= 0}
+} -result 1
+
+test pdfa-2.2 {pdfaid: xmlns:pdfaid present in XMP for -pdfa 2b} -body {
+    set data [make_pdfa 2b]
+    expr {[string first {xmlns:pdfaid} $data] >= 0}
+} -result 1
+
+test pdfa-2.3 {pdfaid: xmlns:pdfaid absent without -pdfa} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "no pdfa" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {xmlns:pdfaid} $data] < 0}
+} -result 1
+
+test pdfa-2.4 {pdfaid: part=1 for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {<pdfaid:part>1</pdfaid:part>} $data] >= 0}
+} -result 1
+
+test pdfa-2.5 {pdfaid: part=2 for -pdfa 2b} -body {
+    set data [make_pdfa 2b]
+    expr {[string first {<pdfaid:part>2</pdfaid:part>} $data] >= 0}
+} -result 1
+
+test pdfa-2.6 {pdfaid: conformance=B for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {<pdfaid:conformance>B</pdfaid:conformance>} $data] >= 0}
+} -result 1
+
+test pdfa-2.7 {pdfaid: conformance=B for -pdfa 2b} -body {
+    set data [make_pdfa 2b]
+    expr {[string first {<pdfaid:conformance>B</pdfaid:conformance>} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# pdfa-3.x  OutputIntent (ISO 19005-1 SS6.2.2)
+# ===========================================================================
+
+test pdfa-3.1 {OutputIntent: /OutputIntents in Catalog for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/OutputIntents} $data] >= 0}
+} -result 1
+
+test pdfa-3.2 {OutputIntent: /OutputIntents in Catalog for -pdfa 2b} -body {
+    set data [make_pdfa 2b]
+    expr {[string first {/OutputIntents} $data] >= 0}
+} -result 1
+
+test pdfa-3.3 {OutputIntent: absent without -pdfa} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "no pdfa" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/OutputIntents} $data] < 0}
+} -result 1
+
+test pdfa-3.4 {OutputIntent: /S /GTS_PDFA1 present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/S /GTS_PDFA1} $data] >= 0}
+} -result 1
+
+test pdfa-3.5 {OutputIntent: /OutputConditionIdentifier present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/OutputConditionIdentifier} $data] >= 0}
+} -result 1
+
+test pdfa-3.6 {OutputIntent: /RegistryName present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/RegistryName} $data] >= 0}
+} -result 1
+
+test pdfa-3.7 {OutputIntent: -pdfa-icc option accepted} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b -pdfa-icc /nonexistent/srgb.icc]
+    set val [$pdf cget -pdfa-icc]
+    $pdf destroy
+    set val
+} -result {/nonexistent/srgb.icc}
+
+# ===========================================================================
+# pdfa-4.x  /Group /S /Transparency (ISO 19005-1 SS6.1.3)
+# ===========================================================================
+
+test pdfa-4.1 {/Group: NOT written for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/Group} $data] < 0}
+} -result 1
+
+test pdfa-4.3 {/Group: written for -pdfa 2b} -body {
+    set data [make_pdfa 2b]
+    expr {[string first {/Group} $data] >= 0}
+} -result 1
+
+test pdfa-4.4 {/Group: written when -pdfa not set} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "no pdfa" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/Group} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# pdfa-5.x  XMP-Metadaten-Stream (ISO 19005-1 SS6.7.2)
+# ===========================================================================
+
+test pdfa-5.1 {XMP: xpacket present for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {<?xpacket} $data] >= 0}
+} -result 1
+
+test pdfa-5.2 {XMP: x:xmpmeta element present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {x:xmpmeta} $data] >= 0}
+} -result 1
+
+test pdfa-5.3 {XMP: dc: namespace present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {xmlns:dc=} $data] >= 0}
+} -result 1
+
+test pdfa-5.4 {XMP: xmp: namespace present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {xmlns:xmp=} $data] >= 0}
+} -result 1
+
+test pdfa-5.5 {XMP: pdf: namespace present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {xmlns:pdf=} $data] >= 0}
+} -result 1
+
+test pdfa-5.6 {XMP: /Type /Metadata present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/Type /Metadata} $data] >= 0}
+} -result 1
+
+test pdfa-5.7 {XMP: /Subtype /XML present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {/Subtype /XML} $data] >= 0}
+} -result 1
+
+test pdfa-5.8 {XMP: xpacket end present} -body {
+    set data [make_pdfa 1b]
+    expr {[string first {<?xpacket end} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# pdfa-6.x  Metadaten-Synchronisation
+# ===========================================================================
+
+test pdfa-6.1 {metadata: title in XMP for -pdfa} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf metadata -title "Testdokument"
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {Testdokument} $data] >= 0}
+} -result 1
+
+test pdfa-6.2 {metadata: author in XMP for -pdfa} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf metadata -author "Max Mustermann"
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {Max Mustermann} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# pdfa-7.x  Binary-Comment (ISO 19005-1 SS6.1.7)
+# ===========================================================================
+
+test pdfa-7.1 {binary comment: present for -pdfa 1b} -body {
+    set data [make_pdfa 1b]
+    # Pruefen ob Bytes >= 0x80 nach dem Header vorhanden
+    set idx [string first "%PDF-" $data]
+    set line2start [string first "\n" $data $idx]
+    set line2end [string first "\n" $data [expr {$line2start+1}]]
+    set comment [string range $data [expr {$line2start+1}] $line2end]
+    # Muss mit % anfangen und mind. 4 high bytes enthalten
+    expr {[string index $comment 0] eq "%" && [string length $comment] >= 5}
+} -result 1
+
+# ===========================================================================
+# pdfa-8.x  Mehrere Seiten
+# ===========================================================================
+
+test pdfa-8.1 {-pdfa 1b: multiple pages work} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    for {set i 1} {$i <= 3} {incr i} {
+        $pdf startPage
+        $pdf setFont 10 Helvetica
+        $pdf text "Seite $i" -x 50 -y 700
+        $pdf endPage
+    }
+    set data [$pdf get]
+    $pdf destroy
+    # Alle 3 Seiten und kein /Group auf Seiten
+    expr {[string first {/Count 3} $data] >= 0 && \
+          [string first {/Group} $data] < 0}
+} -result 1
+
+test pdfa-8.2 {-pdfa 2b: multiple pages work} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 2b]
+    for {set i 1} {$i <= 3} {incr i} {
+        $pdf startPage
+        $pdf setFont 10 Helvetica
+        $pdf text "Seite $i" -x 50 -y 700
+        $pdf endPage
+    }
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/Count 3} $data] >= 0}
+} -result 1
+
+# Aufraumen
+cleanupTests

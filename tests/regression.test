@@ -1,0 +1,347 @@
+# Regression-Tests fuer pdf4tcl Fork 0.9.4.9               -*-tcl-*-
+#
+# Prueft:
+#  1. Rueckwaertskompatibilitaet (bestehende API unveraendert)
+#  2. Feature-Isolation (neue Features brechen alte nicht)
+#  3. Feature-Kombinationen (CIDFont+PDF/A, AcroForm+PDF/A, Hyperlink+PDF/A)
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Constraints
+testConstraint FreeSans    [file exists ../examples/FreeSans.ttf]
+testConstraint DejaVuSans  [file exists /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf]
+
+# ===========================================================================
+# regression-1.x  Rueckwaertskompatibilitaet: Standard-Fonts
+# ===========================================================================
+
+test regression-1.1 {compat: Helvetica text output} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Hello World" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # Standard-Font muss als (Hello World) Tj erscheinen -- nicht als Hex
+    expr {[string first {(Hello World) Tj} $data] >= 0}
+} -result 1
+
+test regression-1.2 {compat: Times-Roman text output} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Times-Roman
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {(Test) Tj} $data] >= 0}
+} -result 1
+
+test regression-1.3 {compat: Courier text output} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Courier
+    $pdf text "Code" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {(Code) Tj} $data] >= 0}
+} -result 1
+
+test regression-1.4 {compat: alle 14 Standard-Fonts ladbar} -body {
+    set fonts {
+        Courier Courier-Bold Courier-Oblique Courier-BoldOblique
+        Helvetica Helvetica-Bold Helvetica-Oblique Helvetica-BoldOblique
+        Times-Roman Times-Bold Times-Italic Times-BoldItalic
+        Symbol ZapfDingbats
+    }
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    set failed {}
+    foreach f $fonts {
+        if {[catch {$pdf setFont 10 $f} err]} {
+            lappend failed $f
+        }
+    }
+    $pdf endPage
+    $pdf destroy
+    set failed
+} -result {}
+
+test regression-1.5 {compat: getStringWidth Standard-Font} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf setFont 10 Helvetica
+    set w [$pdf getStringWidth "Hello"]
+    $pdf destroy
+    expr {$w > 0}
+} -result 1
+
+# ===========================================================================
+# regression-2.x  Rueckwaertskompatibilitaet: TTF-Fonts
+# ===========================================================================
+
+test regression-2.1 {compat: TTF createFont/setFont} -constraints FreeSans -body {
+    pdf4tcl::loadBaseTrueTypeFont BFRegr ../examples/FreeSans.ttf
+    pdf4tcl::createFont BFRegr RegrFont cp1252
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    $pdf setFont 12 RegrFont
+    $pdf text "FreeSans" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # TTF-Font: Text als (...) nicht als <...>
+    expr {[string first {/FontFile2} $data] >= 0}
+} -result 1
+
+test regression-2.2 {compat: PdfText gibt (...) fuer Standard-Font} -body {
+    # PdfText ist interner Wrapper -- muss weiterhin korrekt routen
+    set result [pdf4tcl::PdfText "Hi" Helvetica]
+    string index $result 0
+} -result {(}
+
+# ===========================================================================
+# regression-3.x  Feature-Isolation: CIDFont bricht Standard-Fonts nicht
+# ===========================================================================
+
+test regression-3.1 {isolation: std font nach CID-Font Setup unbeeintraesst} \
+    -constraints DejaVuSans -body {
+    pdf4tcl::loadBaseTrueTypeFont CIDBFRegr \
+        /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    pdf4tcl::createFontSpecCID CIDBFRegr CIDRegrFont
+
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    # CID-Font auf Seite 1
+    $pdf setFont 12 CIDRegrFont
+    $pdf text "Unicode: äöü" -x 50 -y 700
+    $pdf endPage
+    $pdf startPage
+    # Standard-Font auf Seite 2 -- muss noch (Text) Tj ausgeben
+    $pdf setFont 12 Helvetica
+    $pdf text "Latin" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # Standard-Font-Text als (...) vorhanden
+    expr {[string first {(Latin) Tj} $data] >= 0}
+} -result 1
+
+test regression-3.2 {isolation: PdfText routet CID und std korrekt} \
+    -constraints DejaVuSans -body {
+    set cid  [pdf4tcl::PdfText "A" CIDRegrFont]
+    set std  [pdf4tcl::PdfText "A" Helvetica]
+    list [string index $cid 0] [string index $std 0]
+} -result {< (}
+
+# ===========================================================================
+# regression-4.x  Feature-Isolation: ToUnicode bricht Standard-Fonts nicht
+# ===========================================================================
+
+test regression-4.1 {isolation: std font hat ToUnicode CMap} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/ToUnicode} $data] >= 0}
+} -result 1
+
+test regression-4.2 {isolation: ToUnicode CMap enthaelt begincmap} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {begincmap} $data] >= 0}
+} -result 1
+
+test regression-4.3 {isolation: ToUnicode enthaelt bfchar Eintraege} -body {
+    set pdf [pdf4tcl::new %AUTO% -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {beginbfchar} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# regression-5.x  Kombination: CIDFont + PDF/A
+# ===========================================================================
+
+test regression-5.1 {combo: CIDFont + -pdfa 1b funktioniert} \
+    -constraints DejaVuSans -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 CIDRegrFont
+    $pdf text "PDF/A mit Unicode: äöüß" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # Beides muss vorhanden sein
+    expr {[string first {/CIDFontType2} $data] >= 0 && \
+          [string first {/OutputIntents} $data] >= 0}
+} -result 1
+
+test regression-5.2 {combo: CIDFont + -pdfa 1b: kein /Group} \
+    -constraints DejaVuSans -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 CIDRegrFont
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/Group} $data] < 0}
+} -result 1
+
+test regression-5.3 {combo: CIDFont + -pdfa 1b: pdfaid vorhanden} \
+    -constraints DejaVuSans -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 CIDRegrFont
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {pdfaid:part} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# regression-6.x  Kombination: AcroForm + PDF/A
+# ===========================================================================
+
+test regression-6.1 {combo: AcroForm + -pdfa 1b: beide vorhanden} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf addForm text 50 700 200 20 -id f1
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/AcroForm} $data] >= 0 && \
+          [string first {/OutputIntents} $data] >= 0}
+} -result 1
+
+test regression-6.2 {combo: AcroForm + -pdfa 1b: kein /Group} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf addForm text 50 700 200 20 -id f2
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/Group} $data] < 0}
+} -result 1
+
+# ===========================================================================
+# regression-7.x  Kombination: Hyperlink + PDF/A
+# ===========================================================================
+
+test regression-7.1 {combo: hyperlinkAdd + -pdfa 1b: beide vorhanden} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf hyperlinkAdd 50 700 100 15 "https://example.com"
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/URI} $data] >= 0 && \
+          [string first {/OutputIntents} $data] >= 0}
+} -result 1
+
+test regression-7.2 {combo: hyperlinkAdd + -pdfa 1b: /F 4 Flag gesetzt} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf hyperlinkAdd 50 700 100 15 "https://example.com"
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/F 4} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# regression-8.x  Kombination: Bookmark + PDF/A
+# ===========================================================================
+
+test regression-8.1 {combo: bookmarkAdd + -pdfa 1b} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Kapitel 1" -x 50 -y 700
+    $pdf bookmarkAdd -title "Kapitel 1" -level 1
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first {/Outlines} $data] >= 0 && \
+          [string first {/OutputIntents} $data] >= 0}
+} -result 1
+
+# ===========================================================================
+# regression-9.x  Grundlegende API-Stabilitaet
+# ===========================================================================
+
+test regression-9.1 {api: finish gibt keine Fehler} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    catch {$pdf destroy} err
+    set err
+} -result {}
+
+test regression-9.2 {api: get liefert Daten} -body {
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 10 Courier
+    $pdf text "Data" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string length $data] > 100}
+} -result 1
+
+test regression-9.3 {api: Mehrfach-Instanzen gleichzeitig} -body {
+    set p1 [pdf4tcl::new %AUTO%]
+    set p2 [pdf4tcl::new %AUTO%]
+    $p1 startPage
+    $p1 setFont 10 Helvetica
+    $p1 text "Instanz 1" -x 50 -y 700
+    $p1 endPage
+    $p2 startPage
+    $p2 setFont 10 Courier
+    $p2 text "Instanz 2" -x 50 -y 700
+    $p2 endPage
+    set d1 [$p1 get]
+    set d2 [$p2 get]
+    $p1 destroy
+    $p2 destroy
+    expr {[string length $d1] > 0 && [string length $d2] > 0}
+} -result 1
+
+test regression-9.4 {api: %AUTO% naming} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set name [namespace tail $p]
+    $p destroy
+    # Name muss automatisch vergeben worden sein (nicht leer)
+    expr {$name ne ""}
+} -result 1
+
+test regression-9.5 {api: paper size a4} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    set area [$pdf getDrawableArea]
+    $pdf destroy
+    set area
+} -result {595.0 842.0}
+
+# Aufraumen
+cleanupTests

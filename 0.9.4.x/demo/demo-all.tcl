@@ -509,9 +509,122 @@ incr y 16
 p text "Open the bookmarks panel in your PDF reader to see them." -x 50 -y $y
 
 # ==================================================================
+# PAGE 6: PDF/A Support (v0.9.4.8+)
+# ==================================================================
+p startPage
+p bookmarkAdd -title "Page 6: PDF/A Support"
+
+set y 30
+set y [sectionHeader p "12. PDF/A Support (v0.9.4.8, ISO 19005)" $y]
+
+p setFont 10 Helvetica
+p text "pdf4tcl supports PDF/A-1b and PDF/A-2b via the -pdfa option." -x 50 -y $y
+incr y 16
+p text "PDF/A is an ISO standard for long-term archiving of documents." -x 50 -y $y
+incr y 24
+
+separator p $y
+incr y 12
+set y [sectionHeader p "12a. Usage" $y]
+
+p setFont 10 Helvetica-Bold
+p text "Create a PDF/A-1b document:" -x 50 -y $y
+incr y 16
+p setFont 10 Courier
+foreach line {
+    "pdf4tcl::loadBaseTrueTypeFont DejaVuSans /path/DejaVuSans.ttf"
+    "pdf4tcl::createFontSpecCID DejaVuSans cidSans"
+    ""
+    "set pdf \[pdf4tcl::new %AUTO% -pdfa 1b -file output.pdf\]"
+    "\$pdf startPage"
+    "\$pdf setFont 12 cidSans"
+    "\$pdf text \"Archivable content\" -x 50 -y 700"
+    "\$pdf endPage"
+    "\$pdf finish"
+} {
+    p text $line -x 60 -y $y
+    incr y 14
+}
+incr y 8
+
+separator p $y
+incr y 12
+set y [sectionHeader p "12b. What pdf4tcl adds automatically" $y]
+
+p setFont 10 Helvetica
+foreach {feature description} {
+    "XMP metadata stream"       "with pdfaid:part and pdfaid:conformance (ISO 19005-1 SS6.7.11)"
+    "OutputIntent"              "sRGB IEC61966-2.1 ICC profile  (ISO 19005-1 SS6.2.2)"
+    "/Group suppression"        "Transparency disabled for PDF/A-1 pages  (ISO 19005-1 SS6.1.3)"
+    "Binary comment"            "4 bytes > 0x7F in header  (ISO 19005 SS6.1.7)"
+    "Trailer /ID array"         "Deterministic document ID"
+    "ToUnicode CMap"            "All fonts get /ToUnicode for text extraction  (v0.9.4.9)"
+} {
+    p setFont 10 Helvetica-Bold
+    p text $feature -x 50 -y $y
+    p setFont 10 Helvetica
+    p text $description -x 210 -y $y
+    incr y 16
+}
+incr y 8
+
+separator p $y
+incr y 12
+set y [sectionHeader p "12c. PDF/A-1b vs PDF/A-2b" $y]
+
+# Tabellenkopf
+p setFillColor 0.20 0.40 0.70
+p rectangle 50 [expr {$y - 2}] 505 18 -filled 1
+p setFillColor 1 1 1
+p setFont 9 Helvetica-Bold
+p text "Feature"            -x  55 -y $y
+p text "PDF/A-1b"           -x 260 -y $y
+p text "PDF/A-2b"           -x 380 -y $y
+p setFillColor 0 0 0
+incr y 20
+
+set alt 0
+foreach {feat v1b v2b} {
+    "ISO norm"            "19005-1:2005"   "19005-2:2011"
+    "PDF base"           "PDF 1.4"        "PDF 1.7"
+    "Transparency"       "Forbidden"      "Allowed"
+    "JPEG 2000 images"   "Not allowed"    "Allowed"
+    "-pdfa value"        "1b"             "2b"
+} {
+    if {$alt} {
+        p setFillColor 0.93 0.93 0.93
+        p rectangle 50 [expr {$y - 3}] 505 16 -filled 1
+        p setFillColor 0 0 0
+    }
+    p setFont 9 Helvetica-Bold
+    p text $feat -x  55 -y $y
+    p setFont 9 Helvetica
+    p text $v1b  -x 260 -y $y
+    p text $v2b  -x 380 -y $y
+    incr y 16
+    set alt [expr {!$alt}]
+}
+
+incr y 16
+separator p $y
+incr y 12
+set y [sectionHeader p "12d. Font requirement: CIDFont (embedded TTF)" $y]
+
+p setFont 10 Helvetica
+p text "PDF/A requires all fonts to be fully embedded (ISO 19005-1 SS6.3.4)." -x 50 -y $y
+incr y 16
+p text "Standard fonts (Helvetica, Times, Courier) must NOT be used." -x 50 -y $y
+incr y 16
+p text "Use createFontSpecCID with a TTF file to embed the font completely." -x 50 -y $y
+incr y 24
+p text "Validation: verapdf --flavour 1b --format text output.pdf" -x 50 -y $y
+incr y 16
+p text "Download:   https://verapdf.org" -x 50 -y $y
+
+# ==================================================================
 # Footer on every page: version + file info
 # ==================================================================
-# (Already printed on page 1 title bar; add a small footer to pages 2-5)
+# (Already printed on page 1 title bar; add a small footer to pages 2-6)
 p write -file $outfile
 p destroy
 

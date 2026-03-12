@@ -1540,11 +1540,17 @@ Use -pdfa-icc to specify a profile path."
         if {![info exists fonts($fontname)]} {
             set fonttype $::pdf4tcl::FontsAttrs($fontname,type)
             if {$fonttype eq "std"} {
+                # ToUnicode CMap for WinAnsiEncoding (0.9.4.9)
+                # Enables copy/paste, search and PDF/A compliance (rule 6.3.9)
+                set cmap [MakeStdToUnicodeCMap $fontname]
+                set cmapbody [MakeStream "<<" $cmap $pdf(compress)]
+                set uoid [my AddObject $cmapbody]
                 set body    "<<\n/Type /Font\n"
                 append body "/Subtype /Type1\n"
                 append body "/Encoding /WinAnsiEncoding\n"
                 append body "/Name /$fontname\n"
                 append body "/BaseFont /$fontname\n"
+                append body "/ToUnicode $uoid 0 R\n"
                 append body ">>"
            } elseif {$fonttype eq "TTF"} {
                 # Add truetype font objects:

@@ -47,9 +47,9 @@ endobj
 
 8 0 obj
 <<
-/Creator (pdf4tcl 0.9.4.8)
+/Creator (pdf4tcl 0.9.4.9)
 /Keywords (./pdf4tcl/examples/test0.tcl)
-/ModDate (D:20260311000526+01)
+/ModDate (D:20260312060037+01)
 /Title (pdf4tcl test0.tcl)
 >>
 endobj
@@ -70,8 +70,8 @@ stream
    <dc:subject><rdf:Bag>
     <rdf:li>./pdf4tcl/examples/test0.tcl</rdf:li>
    </rdf:Bag></dc:subject>
-   <xmp:CreatorTool>pdf4tcl 0.9.4.8</xmp:CreatorTool>
-   <xmp:ModifyDate>2026-03-11T00:05:26+01:00</xmp:ModifyDate>
+   <xmp:CreatorTool>pdf4tcl 0.9.4.9</xmp:CreatorTool>
+   <xmp:ModifyDate>2026-03-12T06:00:37+01:00</xmp:ModifyDate>
    <pdf:Keywords>./pdf4tcl/examples/test0.tcl</pdf:Keywords>
    <pdf:Producer>pdf4tcl</pdf:Producer>
   </rdf:Description>
