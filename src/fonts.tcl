@@ -70,7 +70,7 @@ namespace eval pdf4tcl {
             if {[info exists ttftables($bitmapTable)]} {
                 unset -nocomplain ttfdata
                 unset -nocomplain ttftables
-                throw "PDF4TCL" \
+                throw {PDF4TCL} \
                     "TTF: color/bitmap font detected (table '$bitmapTable'\
                      in font '$ttfname'). Only outline fonts are supported.\
                      Use NotoEmoji-Regular.ttf (vector outlines) instead of\
@@ -114,10 +114,10 @@ namespace eval pdf4tcl {
         binary scan $ttfdata "@${ttfpos}Iu" version
         incr ttfpos 4
         if {$version == 0x4F54544F} {
-            throw "PDF4TCL" "TTF: postscript outlines are not supported"
+            throw {PDF4TCL} "TTF: postscript outlines are not supported"
         }
         if {$version ni $ttfVersions} {
-            throw "PDF4TCL" "not a TrueType font: version=$version"
+            throw {PDF4TCL} "not a TrueType font: version=$version"
         }
         return [expr {$version == [lindex $ttfVersions end]}]
     }
@@ -126,7 +126,7 @@ namespace eval pdf4tcl {
         variable ttfdata
         set checksum [CalcTTFCheckSum $ttfdata 0 [string length $ttfdata]]
         if {$checksum != 0xB1B0AFBA} {
-            throw "PDF4TCL" "invalid TTF file checksum [format %X $checksum]"
+            throw {PDF4TCL} "invalid TTF file checksum [format %X $checksum]"
         }
     }
 
@@ -143,7 +143,7 @@ namespace eval pdf4tcl {
         incr ttfpos 8
 
         if {$ttcVersion ni $ttcVersions} {
-            throw "PDF4TCL" "not a TTC file"
+            throw {PDF4TCL} "not a TTC file"
         }
 
         binary scan $ttfdata "@${ttfpos}Iu$BFA($ttfname,numSubfonts)" \
@@ -155,7 +155,7 @@ namespace eval pdf4tcl {
         variable ttfpos
         variable ttfSubFontOffsets
         if {$subfontIndex >= [llength $ttfSubFontOffsets]} {
-            throw "PDF4TCL" "bad subfontIndex $subfontIndex"
+            throw {PDF4TCL} "bad subfontIndex $subfontIndex"
         }
         set ttfpos [lindex $ttfSubFontOffsets $subfontIndex]
         ReadHeader
@@ -206,7 +206,7 @@ namespace eval pdf4tcl {
                 set RCkSum [expr {($RCkSum - $adjustment) & 0xFFFFFFFF}]
             }
             if {$RCkSum != $checksum} {
-                throw "PDF4TCL" "TTF: invalid checksum of table $t"
+                throw {PDF4TCL} "TTF: invalid checksum of table $t"
             }
         }
     }
@@ -247,7 +247,7 @@ namespace eval pdf4tcl {
         set ttfpos $name_pos
         binary scan $ttfdata "@${ttfpos}SuSuSu" fmt NumRecords SDoffset
         if {$fmt != 0} {
-            throw "PDF4TCL" "TTF: Unknown name table format $fmt"
+            throw {PDF4TCL} "TTF: Unknown name table format $fmt"
         }
         incr ttfpos 6
         set SDoffset [expr {$name_pos + $SDoffset}]
@@ -270,7 +270,7 @@ namespace eval pdf4tcl {
             if {$PlId == 3 && $EncId == 1 && $LangId == 0x409} {
                 # Microsoft, Unicode, US English, PS Name
                 if {$length & 1} {
-                    throw "PDF4TCL" \
+                    throw {PDF4TCL} \
                             "PostScript name is UTF-16 string of odd length"
                 }
                 # Try to read a string of unicode chars:
@@ -324,10 +324,10 @@ space instead of the usual empty rectangle."
                 indexToLocFormat glyphDataFormat
 
         if {$ver_maj != 1} {
-            throw "PDF4TCL" "unknown head table version $ver_maj"
+            throw {PDF4TCL} "unknown head table version $ver_maj"
         }
         if {$magic != 0x5F0F3CF5} {
-            throw "PDF4TCL" "invalid head table magic $magic"
+            throw {PDF4TCL} "invalid head table magic $magic"
         }
 
         set BFA($ttfname,bbox) [list \
@@ -380,13 +380,13 @@ space instead of the usual empty rectangle."
         binary scan $ttfdata "@${ttfpos}SuSux28SuSu" \
                 ver_maj ver_min metricDataFormat numberOfHMetrics
         if {$ver_maj != 1} {
-            throw "PDF4TCL" "unknown hhea table version"
+            throw {PDF4TCL} "unknown hhea table version"
         }
         if {$metricDataFormat != 0} {
-            throw "PDF4TCL" "unknown horizontal metric data format"
+            throw {PDF4TCL} "unknown horizontal metric data format"
         }
         if {$numberOfHMetrics == 0} {
-            throw "PDF4TCL" "number of horizontal metrics is 0"
+            throw {PDF4TCL} "number of horizontal metrics is 0"
         }
 
         # maxp - Maximum profile table
@@ -394,13 +394,13 @@ space instead of the usual empty rectangle."
         binary scan $ttfdata "@${ttfpos}SuSuSu" \
                 ver_maj ver_min numGlyphs
         if {$ver_maj != 1} {
-            throw "PDF4TCL" "unknown maxp table version"
+            throw {PDF4TCL} "unknown maxp table version"
         }
         if {!$charInfo} return
 
         # We don't care of this earlier:
         if {$glyphDataFormat != 0} {
-            throw "PDF4TCL" "unknown glyph data format"
+            throw {PDF4TCL} "unknown glyph data format"
         }
 
         # cmap - Character to glyph index mapping table
@@ -428,7 +428,7 @@ space instead of the usual empty rectangle."
         }
 
         if {![info exists stoffset]} {
-            throw "PDF4TCL" "font does not have cmap for Unicode"
+            throw {PDF4TCL} "font does not have cmap for Unicode"
         }
 
         set unicode_cmap_offset [expr {$cmap_offset + $stoffset}]
@@ -567,7 +567,7 @@ space instead of the usual empty rectangle."
 
         # loca - Index to location
         if {![info exists ttftables(loca)]} {
-            throw "PDF4TCL" "font does not have \"loca\" part"
+            throw {PDF4TCL} "font does not have \"loca\" part"
         }
         set ttfpos [lindex $ttftables(loca) 1]
         incr numGlyphs
@@ -579,7 +579,7 @@ space instead of the usual empty rectangle."
         } elseif {$indexToLocFormat == 1} {
             binary scan $ttfdata "@${ttfpos}Iu$numGlyphs" BFA($ttfname,glyphPos)
         } else {
-            throw "PDF4TCL" "unknown location table format $indexToLocFormat"
+            throw {PDF4TCL} "unknown location table format $indexToLocFormat"
         }
     }
 
@@ -978,7 +978,7 @@ space instead of the usual empty rectangle."
         variable Fonts
 
         if {[llength $subset] > 256} {
-            throw "PDF4TCL" "createFontSpecEnc: subset must not exceed 256 codepoints\
+            throw {PDF4TCL} "createFontSpecEnc: subset must not exceed 256 codepoints\
                 (got [llength $subset])"
         }
 
@@ -1048,7 +1048,7 @@ space instead of the usual empty rectangle."
     proc PfbCheck {pos data mark} {
         binary scan $data "@${pos}cucu" d0 d1
         if {($d0 != 0x80) || ($d1 != $mark)} {
-            throw "PDF4TCL" "bad pfb data at $pos"
+            throw {PDF4TCL} "bad pfb data at $pos"
         }
         if {$mark == 3} return; #PFB_EOF
         incr pos 2
@@ -1056,7 +1056,7 @@ space instead of the usual empty rectangle."
         incr pos 4
         set npos [expr {$pos + $l}]
         if {$npos > [string length $data]} {
-            throw "PDF4TCL" "pfb data is too short"
+            throw {PDF4TCL} "pfb data is too short"
         }
         return $npos
     }
@@ -1097,7 +1097,7 @@ space instead of the usual empty rectangle."
 
         set lineslst [split $type1AFM "\n"]
         if {[llength $lineslst] < 2} {
-            throw "PDF4TCL" "AFM hasn't enough data"
+            throw {PDF4TCL} "AFM hasn't enough data"
         }
 
         set InMetrics 0
@@ -1123,10 +1123,10 @@ space instead of the usual empty rectangle."
                 # Convert and store tokens:
                 foreach {l r} $toklst {et ss} [list C %d WX %d N %s] {
                     if {$l != $et} {
-                        throw "PDF4TCL" "bad line in font AFM ($et)"
+                        throw {PDF4TCL} "bad line in font AFM ($et)"
                     }
                     if {![scan $r $ss val]} {
-                        throw "PDF4TCL" "incorrect '$et' value in font AFM"
+                        throw {PDF4TCL} "incorrect '$et' value in font AFM"
                     }
                     lappend reslst $val
                 }
@@ -1202,10 +1202,10 @@ space instead of the usual empty rectangle."
         variable Fonts
 
         if {![info exists BFA($bfname,FontType)]} {
-            throw "PDF4TCL" "createFontSpecCID: base font '$bfname' not loaded (use loadBaseTrueTypeFont first)"
+            throw {PDF4TCL} "createFontSpecCID: base font '$bfname' not loaded (use loadBaseTrueTypeFont first)"
         }
         if {$BFA($bfname,FontType) ne "TTF"} {
-            throw "PDF4TCL" "createFontSpecCID: only TTF base fonts are supported (got $BFA($bfname,FontType))"
+            throw {PDF4TCL} "createFontSpecCID: only TTF base fonts are supported (got $BFA($bfname,FontType))"
         }
 
         set FontsAttrs($fontname,type)         CID

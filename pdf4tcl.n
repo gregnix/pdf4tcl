@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.9 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.10 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.9?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.10?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -409,6 +409,16 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.9?\fR
 \fIobjectName\fR \fBsetStrokeColor\fR \fIred\fR \fIgreen\fR \fIblue\fR
 .sp
 \fIobjectName\fR \fBsetStrokeColor\fR \fIc\fR \fIm\fR \fIy\fR \fIk\fR
+.sp
+\fIobjectName\fR \fBsetAlpha\fR \fIvalue\fR
+.sp
+\fIobjectName\fR \fBsetAlpha\fR \fIvalue\fR \fB-fill\fR
+.sp
+\fIobjectName\fR \fBsetAlpha\fR \fIvalue\fR \fB-stroke\fR
+.sp
+\fIobjectName\fR \fBsetAlpha\fR \fIfillValue\fR \fIstrokeValue\fR
+.sp
+\fIobjectName\fR \fBgetAlpha\fR
 .sp
 \fIobjectName\fR \fBsetLineWidth\fR \fIwidth\fR
 .sp
@@ -1314,6 +1324,28 @@ Sets the stroke color for graphics operations\&.
 .TP
 \fIobjectName\fR \fBsetStrokeColor\fR \fIc\fR \fIm\fR \fIy\fR \fIk\fR
 Alternative calling form, to set color in CMYK color space\&.
+.TP
+\fIobjectName\fR \fBsetAlpha\fR \fIvalue\fR
+Sets the opacity for both fill and stroke operations\&.
+\fIvalue\fR must be a number between 0\&.0 (fully transparent) and 1\&.0 (fully
+opaque)\&. Values outside this range are clamped\&. The default is 1\&.0\&.
+Internally this creates a PDF ExtGState object with \fB/ca\fR (fill alpha)
+and \fB/CA\fR (stroke alpha)\&. Identical alpha values are cached and reuse
+the same ExtGState object\&. The alpha state is saved and restored by
+\fBgsave\fR / \fBgrestore\fR\&.
+.TP
+\fIobjectName\fR \fBsetAlpha\fR \fIvalue\fR \fB-fill\fR
+Sets fill opacity only, leaving stroke opacity unchanged\&.
+.TP
+\fIobjectName\fR \fBsetAlpha\fR \fIvalue\fR \fB-stroke\fR
+Sets stroke opacity only, leaving fill opacity unchanged\&.
+.TP
+\fIobjectName\fR \fBsetAlpha\fR \fIfillValue\fR \fIstrokeValue\fR
+Sets fill and stroke opacity independently in a single call\&.
+.TP
+\fIobjectName\fR \fBgetAlpha\fR
+Returns the current opacity values as a two-element list
+\fIfillAlpha strokeAlpha\fR\&.
 .PP
 .SS "OBJECT METHODS, GRAPHICS"
 .TP
@@ -1422,7 +1454,7 @@ Create a clip region\&. To cancel a clip region you must restore a graphic conte
 .TP
 \fIobjectName\fR \fBgsave\fR
 Save graphic/text context\&. (I\&.e\&. insert a raw PDF "q" command)\&.
-This saves the settings of at least these calls: \fBclip\fR, \fBsetBgColor\fR, \fBsetFillColor\fR, \fBsetStrokeColor\fR, \fBsetLineStyle\fR, \fBsetLineWidth\fR, \fBsetLineDash\fR, \fBsetFont\fR, and \fBsetLineSpacing\fR\&.
+This saves the settings of at least these calls: \fBclip\fR, \fBsetBgColor\fR, \fBsetFillColor\fR, \fBsetStrokeColor\fR, \fBsetAlpha\fR, \fBsetLineStyle\fR, \fBsetLineWidth\fR, \fBsetLineDash\fR, \fBsetFont\fR, and \fBsetLineSpacing\fR\&.
 Each call to \fBgsave\fR should be followed by a later call to \fBgrestore\fR in the same page\&.
 .TP
 \fIobjectName\fR \fBgrestore\fR
@@ -1538,6 +1570,21 @@ The default value of this option is zero\&.
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.10"
+.IP \(bu
+Added \fBsetAlpha\fR: sets fill and/or stroke opacity (0\&.0 transparent,
+1\&.0 opaque) via PDF ExtGState (/ca, /CA)\&. Supports single value, \fB-fill\fR,
+\fB-stroke\fR, and two-value form for independent fill/stroke control\&.
+.IP \(bu
+Added \fBgetAlpha\fR: returns current fill and stroke opacity as a list\&.
+.IP \(bu
+Alpha state is saved and restored by \fBgsave\fR / \fBgrestore\fR\&.
+.IP \(bu
+ExtGState objects are cached: identical alpha values reuse one PDF object\&.
+.IP \(bu
+Added \fBdemo-alpha\&.tcl\fR: demonstrates transparency with overlapping shapes,
+alpha steps, independent fill/stroke alpha, transparent text, and gsave/grestore\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.9"
 .IP \(bu
 Added \fBdemo-pdfa\&.tcl\fR: Demonstration of PDF/A-1b and PDF/A-2b features

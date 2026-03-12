@@ -47,15 +47,15 @@ endobj
 
 8 0 obj
 <<
-/Creator (pdf4tcl 0.9.4.9)
+/Creator (pdf4tcl 0.9.4.10)
 /Keywords (./pdf4tcl/examples/test0.tcl)
-/ModDate (D:20260312060037+01)
+/ModDate (D:20260312101753+01)
 /Title (pdf4tcl test0.tcl)
 >>
 endobj
 
 7 0 obj
-<< /Type /Metadata /Subtype /XML /Length 815 >>
+<< /Type /Metadata /Subtype /XML /Length 816 >>
 stream
 <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
@@ -70,8 +70,8 @@ stream
    <dc:subject><rdf:Bag>
     <rdf:li>./pdf4tcl/examples/test0.tcl</rdf:li>
    </rdf:Bag></dc:subject>
-   <xmp:CreatorTool>pdf4tcl 0.9.4.9</xmp:CreatorTool>
-   <xmp:ModifyDate>2026-03-12T06:00:37+01:00</xmp:ModifyDate>
+   <xmp:CreatorTool>pdf4tcl 0.9.4.10</xmp:CreatorTool>
+   <xmp:ModifyDate>2026-03-12T10:17:53+01:00</xmp:ModifyDate>
    <pdf:Keywords>./pdf4tcl/examples/test0.tcl</pdf:Keywords>
    <pdf:Producer>pdf4tcl</pdf:Producer>
   </rdf:Description>
@@ -90,16 +90,16 @@ xref
 0000000087 00000 n 
 0000000015 00000 n 
 0000000069 00000 n 
-0000000578 00000 n 
+0000000579 00000 n 
 0000000430 00000 n 
 trailer
 <<
 /Size 9
 /Root 1 0 R
 /Info 8 0 R
-/ID [<914B12A321B9E814914B125D21B9EE94> <914B12A321B9E814914B125D21B9EE94>]
+/ID [<914B12A321B9E814914B125D21B9EE96> <914B12A321B9E814914B125D21B9EE96>]
 >>
 
 startxref
-1475
+1477
 %%EOF
