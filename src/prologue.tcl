@@ -5,11 +5,12 @@
 #                       Jens Ponisch <jens@ruessel.in-chemnitz.de>
 # Copyright (c) 2006-2016 by Peter Spjuth <peter.spjuth@gmail.com>
 # Copyright (c) 2009 by Yaroslav Schekin <ladayaroslav@yandex.ru>
+# Copyright (c) 2024-2026 by gregnix (fork 0.9.4.x additions)
 #
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.9
+package provide pdf4tcl 0.9.4.10
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -91,7 +92,7 @@ namespace eval pdf4tcl {
                 }
             }
         }
-        throw "PDF4TCL" "unknown value $val"
+        throw {PDF4TCL} "unknown value $val"
     }
 
     # Wrapper to create pdf4tcl object

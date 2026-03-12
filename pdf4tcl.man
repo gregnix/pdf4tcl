@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.9]
+[manpage_begin pdf4tcl n 0.9.4.10]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.9]]
+[require pdf4tcl [opt 0.9.4.10]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -977,6 +977,28 @@ Sets the stroke color for graphics operations.
 [call [arg objectName] [method setStrokeColor] [arg "c"] [arg "m"] [arg "y"] [arg "k"]]
 Alternative calling form, to set color in CMYK color space.
 
+[call [arg objectName] [method setAlpha] [arg "value"]]
+Sets the opacity for both fill and stroke operations.
+[arg value] must be a number between 0.0 (fully transparent) and 1.0 (fully
+opaque). Values outside this range are clamped. The default is 1.0.
+Internally this creates a PDF ExtGState object with [const /ca] (fill alpha)
+and [const /CA] (stroke alpha). Identical alpha values are cached and reuse
+the same ExtGState object. The alpha state is saved and restored by
+[method gsave] / [method grestore].
+
+[call [arg objectName] [method setAlpha] [arg "value"] [option "-fill"]]
+Sets fill opacity only, leaving stroke opacity unchanged.
+
+[call [arg objectName] [method setAlpha] [arg "value"] [option "-stroke"]]
+Sets stroke opacity only, leaving fill opacity unchanged.
+
+[call [arg objectName] [method setAlpha] [arg "fillValue"] [arg "strokeValue"]]
+Sets fill and stroke opacity independently in a single call.
+
+[call [arg objectName] [method getAlpha]]
+Returns the current opacity values as a two-element list
+[arg "fillAlpha strokeAlpha"].
+
 [list_end]
 
 [subsection {OBJECT METHODS, GRAPHICS}]
@@ -1077,7 +1099,7 @@ Alternative calling form, to set color in CMYK color space.
 
 [call [arg objectName] [method gsave]]
    Save graphic/text context. (I.e. insert a raw PDF "q" command).
-This saves the settings of at least these calls: [method clip], [method setBgColor], [method setFillColor], [method setStrokeColor], [method setLineStyle], [method setLineWidth], [method setLineDash], [method setFont], and [method setLineSpacing].
+This saves the settings of at least these calls: [method clip], [method setBgColor], [method setFillColor], [method setStrokeColor], [method setAlpha], [method setLineStyle], [method setLineWidth], [method setLineDash], [method setFont], and [method setLineSpacing].
    Each call to [method gsave] should be followed by a later call to [method grestore] in the same page.
 
 [call [arg objectName] [method grestore]]
@@ -1211,6 +1233,18 @@ The default value of this option is zero.
 [example_end]
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.10}]
+[list_begin itemized]
+[item] Added [method setAlpha]: sets fill and/or stroke opacity (0.0 transparent,
+1.0 opaque) via PDF ExtGState (/ca, /CA). Supports single value, [option -fill],
+[option -stroke], and two-value form for independent fill/stroke control.
+[item] Added [method getAlpha]: returns current fill and stroke opacity as a list.
+[item] Alpha state is saved and restored by [method gsave] / [method grestore].
+[item] ExtGState objects are cached: identical alpha values reuse one PDF object.
+[item] Added [cmd demo-alpha.tcl]: demonstrates transparency with overlapping shapes,
+alpha steps, independent fill/stroke alpha, transparent text, and gsave/grestore.
+[list_end]
 
 [subsection {Version 0.9.4.9}]
 [list_begin itemized]

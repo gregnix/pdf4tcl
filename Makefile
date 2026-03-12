@@ -1,10 +1,11 @@
 # Makefile for pdf4tcl
 
-VERSION = 0949
+VERSION = 09410
 
 # TOOL paths
 TCLSH = tclsh
 NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
+NAGELFAR90 = nagelfar -encoding iso8859-1 -s syntaxdb90.tcl
 ESKIL    = eskil
 
 all: doc web pdf4tcl.tcl
@@ -64,6 +65,12 @@ pdf4tcl_h.syntax : pdf4tcl.tcl pdf4tcl.syntax
 
 check: pdf4tcl_h.syntax
 	$(NAGELFAR) pdf4tcl_h.syntax pdf4tcl.tcl
+
+check90: pdf4tcl_h90.syntax
+	$(NAGELFAR90) pdf4tcl_h90.syntax pdf4tcl.tcl
+
+pdf4tcl_h90.syntax: pdf4tcl.tcl
+	$(NAGELFAR90) -header pdf4tcl_h90.syntax pdf4tcl.tcl -filter '*Unknown variable*' -filter '*Unknown subcommand*'
 
 # Code coverage tests
 SRCFILES = pdf4tcl.tcl

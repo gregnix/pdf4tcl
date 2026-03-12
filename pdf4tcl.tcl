@@ -5,11 +5,12 @@
 #                       Jens Ponisch <jens@ruessel.in-chemnitz.de>
 # Copyright (c) 2006-2016 by Peter Spjuth <peter.spjuth@gmail.com>
 # Copyright (c) 2009 by Yaroslav Schekin <ladayaroslav@yandex.ru>
+# Copyright (c) 2024-2026 by gregnix (fork 0.9.4.x additions)
 #
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.9
+package provide pdf4tcl 0.9.4.10
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -91,7 +92,7 @@ namespace eval pdf4tcl {
                 }
             }
         }
-        throw "PDF4TCL" "unknown value $val"
+        throw {PDF4TCL} "unknown value $val"
     }
 
     # Wrapper to create pdf4tcl object
@@ -177,7 +178,7 @@ namespace eval pdf4tcl {
             if {[info exists ttftables($bitmapTable)]} {
                 unset -nocomplain ttfdata
                 unset -nocomplain ttftables
-                throw "PDF4TCL" \
+                throw {PDF4TCL} \
                     "TTF: color/bitmap font detected (table '$bitmapTable'\
                      in font '$ttfname'). Only outline fonts are supported.\
                      Use NotoEmoji-Regular.ttf (vector outlines) instead of\
@@ -221,10 +222,10 @@ namespace eval pdf4tcl {
         binary scan $ttfdata "@${ttfpos}Iu" version
         incr ttfpos 4
         if {$version == 0x4F54544F} {
-            throw "PDF4TCL" "TTF: postscript outlines are not supported"
+            throw {PDF4TCL} "TTF: postscript outlines are not supported"
         }
         if {$version ni $ttfVersions} {
-            throw "PDF4TCL" "not a TrueType font: version=$version"
+            throw {PDF4TCL} "not a TrueType font: version=$version"
         }
         return [expr {$version == [lindex $ttfVersions end]}]
     }
@@ -233,7 +234,7 @@ namespace eval pdf4tcl {
         variable ttfdata
         set checksum [CalcTTFCheckSum $ttfdata 0 [string length $ttfdata]]
         if {$checksum != 0xB1B0AFBA} {
-            throw "PDF4TCL" "invalid TTF file checksum [format %X $checksum]"
+            throw {PDF4TCL} "invalid TTF file checksum [format %X $checksum]"
         }
     }
 
@@ -250,7 +251,7 @@ namespace eval pdf4tcl {
         incr ttfpos 8
 
         if {$ttcVersion ni $ttcVersions} {
-            throw "PDF4TCL" "not a TTC file"
+            throw {PDF4TCL} "not a TTC file"
         }
 
         binary scan $ttfdata "@${ttfpos}Iu$BFA($ttfname,numSubfonts)" \
@@ -262,7 +263,7 @@ namespace eval pdf4tcl {
         variable ttfpos
         variable ttfSubFontOffsets
         if {$subfontIndex >= [llength $ttfSubFontOffsets]} {
-            throw "PDF4TCL" "bad subfontIndex $subfontIndex"
+            throw {PDF4TCL} "bad subfontIndex $subfontIndex"
         }
         set ttfpos [lindex $ttfSubFontOffsets $subfontIndex]
         ReadHeader
@@ -313,7 +314,7 @@ namespace eval pdf4tcl {
                 set RCkSum [expr {($RCkSum - $adjustment) & 0xFFFFFFFF}]
             }
             if {$RCkSum != $checksum} {
-                throw "PDF4TCL" "TTF: invalid checksum of table $t"
+                throw {PDF4TCL} "TTF: invalid checksum of table $t"
             }
         }
     }
@@ -354,7 +355,7 @@ namespace eval pdf4tcl {
         set ttfpos $name_pos
         binary scan $ttfdata "@${ttfpos}SuSuSu" fmt NumRecords SDoffset
         if {$fmt != 0} {
-            throw "PDF4TCL" "TTF: Unknown name table format $fmt"
+            throw {PDF4TCL} "TTF: Unknown name table format $fmt"
         }
         incr ttfpos 6
         set SDoffset [expr {$name_pos + $SDoffset}]
@@ -377,7 +378,7 @@ namespace eval pdf4tcl {
             if {$PlId == 3 && $EncId == 1 && $LangId == 0x409} {
                 # Microsoft, Unicode, US English, PS Name
                 if {$length & 1} {
-                    throw "PDF4TCL" \
+                    throw {PDF4TCL} \
                             "PostScript name is UTF-16 string of odd length"
                 }
                 # Try to read a string of unicode chars:
@@ -416,7 +417,10 @@ namespace eval pdf4tcl {
             set BFA($ttfname,psNameFallback) 1
             puts stderr "pdf4tcl warning: font \"$ttfname\" has no PostScript\
 name (NameID 6). Using fallback \"$BFA($ttfname,psName)\".\
-Not suitable for PDF/A."
+Not suitable for PDF/A.\
+Note: some fonts without a PS name (e.g. DroidSansFallback) also have\
+an invisible .notdef glyph -- missing characters will show as blank\
+space instead of the usual empty rectangle."
         }
 
         #----------------------------------
@@ -428,10 +432,10 @@ Not suitable for PDF/A."
                 indexToLocFormat glyphDataFormat
 
         if {$ver_maj != 1} {
-            throw "PDF4TCL" "unknown head table version $ver_maj"
+            throw {PDF4TCL} "unknown head table version $ver_maj"
         }
         if {$magic != 0x5F0F3CF5} {
-            throw "PDF4TCL" "invalid head table magic $magic"
+            throw {PDF4TCL} "invalid head table magic $magic"
         }
 
         set BFA($ttfname,bbox) [list \
@@ -484,13 +488,13 @@ Not suitable for PDF/A."
         binary scan $ttfdata "@${ttfpos}SuSux28SuSu" \
                 ver_maj ver_min metricDataFormat numberOfHMetrics
         if {$ver_maj != 1} {
-            throw "PDF4TCL" "unknown hhea table version"
+            throw {PDF4TCL} "unknown hhea table version"
         }
         if {$metricDataFormat != 0} {
-            throw "PDF4TCL" "unknown horizontal metric data format"
+            throw {PDF4TCL} "unknown horizontal metric data format"
         }
         if {$numberOfHMetrics == 0} {
-            throw "PDF4TCL" "number of horizontal metrics is 0"
+            throw {PDF4TCL} "number of horizontal metrics is 0"
         }
 
         # maxp - Maximum profile table
@@ -498,13 +502,13 @@ Not suitable for PDF/A."
         binary scan $ttfdata "@${ttfpos}SuSuSu" \
                 ver_maj ver_min numGlyphs
         if {$ver_maj != 1} {
-            throw "PDF4TCL" "unknown maxp table version"
+            throw {PDF4TCL} "unknown maxp table version"
         }
         if {!$charInfo} return
 
         # We don't care of this earlier:
         if {$glyphDataFormat != 0} {
-            throw "PDF4TCL" "unknown glyph data format"
+            throw {PDF4TCL} "unknown glyph data format"
         }
 
         # cmap - Character to glyph index mapping table
@@ -532,7 +536,7 @@ Not suitable for PDF/A."
         }
 
         if {![info exists stoffset]} {
-            throw "PDF4TCL" "font does not have cmap for Unicode"
+            throw {PDF4TCL} "font does not have cmap for Unicode"
         }
 
         set unicode_cmap_offset [expr {$cmap_offset + $stoffset}]
@@ -671,7 +675,7 @@ Not suitable for PDF/A."
 
         # loca - Index to location
         if {![info exists ttftables(loca)]} {
-            throw "PDF4TCL" "font does not have \"loca\" part"
+            throw {PDF4TCL} "font does not have \"loca\" part"
         }
         set ttfpos [lindex $ttftables(loca) 1]
         incr numGlyphs
@@ -683,7 +687,7 @@ Not suitable for PDF/A."
         } elseif {$indexToLocFormat == 1} {
             binary scan $ttfdata "@${ttfpos}Iu$numGlyphs" BFA($ttfname,glyphPos)
         } else {
-            throw "PDF4TCL" "unknown location table format $indexToLocFormat"
+            throw {PDF4TCL} "unknown location table format $indexToLocFormat"
         }
     }
 
@@ -1082,7 +1086,7 @@ Not suitable for PDF/A."
         variable Fonts
 
         if {[llength $subset] > 256} {
-            throw "PDF4TCL" "createFontSpecEnc: subset must not exceed 256 codepoints\
+            throw {PDF4TCL} "createFontSpecEnc: subset must not exceed 256 codepoints\
                 (got [llength $subset])"
         }
 
@@ -1152,7 +1156,7 @@ Not suitable for PDF/A."
     proc PfbCheck {pos data mark} {
         binary scan $data "@${pos}cucu" d0 d1
         if {($d0 != 0x80) || ($d1 != $mark)} {
-            throw "PDF4TCL" "bad pfb data at $pos"
+            throw {PDF4TCL} "bad pfb data at $pos"
         }
         if {$mark == 3} return; #PFB_EOF
         incr pos 2
@@ -1160,7 +1164,7 @@ Not suitable for PDF/A."
         incr pos 4
         set npos [expr {$pos + $l}]
         if {$npos > [string length $data]} {
-            throw "PDF4TCL" "pfb data is too short"
+            throw {PDF4TCL} "pfb data is too short"
         }
         return $npos
     }
@@ -1201,7 +1205,7 @@ Not suitable for PDF/A."
 
         set lineslst [split $type1AFM "\n"]
         if {[llength $lineslst] < 2} {
-            throw "PDF4TCL" "AFM hasn't enough data"
+            throw {PDF4TCL} "AFM hasn't enough data"
         }
 
         set InMetrics 0
@@ -1227,10 +1231,10 @@ Not suitable for PDF/A."
                 # Convert and store tokens:
                 foreach {l r} $toklst {et ss} [list C %d WX %d N %s] {
                     if {$l != $et} {
-                        throw "PDF4TCL" "bad line in font AFM ($et)"
+                        throw {PDF4TCL} "bad line in font AFM ($et)"
                     }
                     if {![scan $r $ss val]} {
-                        throw "PDF4TCL" "incorrect '$et' value in font AFM"
+                        throw {PDF4TCL} "incorrect '$et' value in font AFM"
                     }
                     lappend reslst $val
                 }
@@ -1306,10 +1310,10 @@ Not suitable for PDF/A."
         variable Fonts
 
         if {![info exists BFA($bfname,FontType)]} {
-            throw "PDF4TCL" "createFontSpecCID: base font '$bfname' not loaded (use loadBaseTrueTypeFont first)"
+            throw {PDF4TCL} "createFontSpecCID: base font '$bfname' not loaded (use loadBaseTrueTypeFont first)"
         }
         if {$BFA($bfname,FontType) ne "TTF"} {
-            throw "PDF4TCL" "createFontSpecCID: only TTF base fonts are supported (got $BFA($bfname,FontType))"
+            throw {PDF4TCL} "createFontSpecCID: only TTF base fonts are supported (got $BFA($bfname,FontType))"
         }
 
         set FontsAttrs($fontname,type)         CID
@@ -1816,17 +1820,17 @@ oo::define ::pdf4tcl::options {
         my variable optiondefs
         my variable optiondeflist
         if {[llength $lst] % 2 != 0} {
-            throw "PDF4TCL" "wrong number of args"
+            throw {PDF4TCL} "wrong number of args"
         }
         foreach {option value} $lst {
             # TODO: recode to use prefix matching
             #tcl::prefix match $optiondeflist $option
             if {![dict exists $optiondefs $option]} {
-                throw "PDF4TCL" "unknown option \"$option\""
+                throw {PDF4TCL} "unknown option \"$option\""
             }
             if {[dict get $optiondefs $option -readonly] && \
                         [dict get $optiondefs $option _Initialised]} {
-                throw "PDF4TCL" \
+                throw {PDF4TCL} \
                         "option $option can only be set at instance creation"
             }
             if {[dict get $optiondefs $option -validatemethod] ne ""} {
@@ -1875,14 +1879,14 @@ oo::define ::pdf4tcl::options {
     method CheckPaper {option value} {
         set papersize [pdf4tcl::getPaperSize $value]
         if {[llength $papersize] == 0} {
-            throw "PDF4TCL" "papersize \"$value\" is unknown"
+            throw {PDF4TCL} "papersize \"$value\" is unknown"
         }
     }
 
     # Validator for -unit
     method CheckUnit {option value} {
         if {![info exists ::pdf4tcl::units($value)]} {
-            throw "PDF4TCL" "unit \"$value\" is unknown"
+            throw {PDF4TCL} "unit \"$value\" is unknown"
         }
     }
 
@@ -1892,26 +1896,26 @@ oo::define ::pdf4tcl::options {
             1 - 2 - 4 {
                 foreach elem $value {
                     if {[catch {pdf4tcl::getPoints $elem}]} {
-                        throw "PDF4TCL" "bad margin value \"$elem\""
+                        throw {PDF4TCL} "bad margin value \"$elem\""
                     }
                 }
             }
             default {
-                throw "PDF4TCL" "bad margin list \"$value\""
+                throw {PDF4TCL} "bad margin list \"$value\""
             }
         }
     }
     # Validator for boolean options
     method CheckBoolean {option value} {
         if {![string is boolean -strict $value]} {
-            throw "PDF4TCL" "option $option must have a boolean value"
+            throw {PDF4TCL} "option $option must have a boolean value"
         }
     }
 
     # Validator for word restricted options
     method CheckWord {option value} {
         if {![string is wordchar -strict $value]} {
-            throw "PDF4TCL" "option $option must be alphanumeric"
+            throw {PDF4TCL} "option $option must be alphanumeric"
         }
     }
 
@@ -1919,14 +1923,14 @@ oo::define ::pdf4tcl::options {
     method CheckRotation {option value} {
         my CheckNumeric $value rotation -nonnegative -integer
         if { $value % 90  } {
-            throw "PDF4TCL" "rotation $value not a multiple of 90"
+            throw {PDF4TCL} "rotation $value not a multiple of 90"
         }
     }
 
     # Validator for -pdfa: accepts "", "1b", "2b"
     method CheckPdfa {option value} {
         if {$value ne "" && $value ne "1b" && $value ne "2b"} {
-            throw "PDF4TCL" \
+            throw {PDF4TCL} \
                 "invalid -pdfa value \"$value\": must be \"\", \"1b\", or \"2b\""
         }
     }
@@ -1943,24 +1947,24 @@ oo::define ::pdf4tcl::options {
         if {$i >= 0} {
             set unit [lindex $args [expr {$i + 1}]]
             if {[catch {pdf4tcl::getPoints $val $unit} p]} {
-                throw "PDF4TCL" "bad $what \"$val\", must be numeric"
+                throw {PDF4TCL} "bad $what \"$val\", must be numeric"
             }
             set val $p
         }
         if {![string is double -strict $val]} {
-            throw "PDF4TCL" "bad $what \"$origVal\", must be numeric"
+            throw {PDF4TCL} "bad $what \"$origVal\", must be numeric"
         }
         set nonneg [lsearch -exact $args -nonnegative]
         set pos    [lsearch -exact $args -positive]
         set int    [lsearch -exact $args -integer]
         if {$nonneg >= 0 && $val < 0} {
-            throw "PDF4TCL" "bad $what \"$origVal\", may not be negative"
+            throw {PDF4TCL} "bad $what \"$origVal\", may not be negative"
         }
         if {$pos >= 0 && $val <= 0} {
-            throw "PDF4TCL" "bad $what \"$origVal\", must be positive"
+            throw {PDF4TCL} "bad $what \"$origVal\", must be positive"
         }
         if {$int >= 0 && ![string is integer -strict $val]} {
-            throw "PDF4TCL" "bad $what \"$origVal\", must be integer"
+            throw {PDF4TCL} "bad $what \"$origVal\", must be integer"
         }
         return $val
     }
@@ -1977,6 +1981,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     variable fonts
     variable bitmaps
     variable extgs
+    variable alphaStates
     variable patterns
     variable grads
     variable metadata
@@ -2079,6 +2084,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(fillColor) [list 0 0 0]
         set pdf(bgColor) [list 0 0 0]
         set pdf(strokeColor) [list 0 0 0]
+        set pdf(fillAlpha) 1.0
+        set pdf(strokeAlpha) 1.0
+        array set alphaStates {}
         # start without default font
         set pdf(font_size) 1
         set pdf(current_font) ""
@@ -2097,6 +2105,9 @@ oo::define ::pdf4tcl::pdf4tcl {
             strokeColor
             # bgColor is a pdf4tcl thing, but stored for symmetry
             bgColor
+            # Alpha (opacity) state
+            fillAlpha
+            strokeAlpha
             # Other Graphics State are not stored
 
             # Text State stores font/size:
@@ -2124,7 +2135,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(ch) ""
         if {$options(-file) ne ""} {
             if {[catch {open $options(-file) "w"} ch]} {
-                throw "PDF4TCL" "could not open file $options(-file) for writing: $ch"
+                throw {PDF4TCL} "could not open file $options(-file) for writing: $ch"
             }
             fconfigure $ch -translation binary
             set pdf(ch) $ch
@@ -2289,7 +2300,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                     my CheckBoolean $option $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$option\""
+                    throw {PDF4TCL} "unknown option \"$option\""
                 }
             }
             set localopts($option) $value
@@ -2319,7 +2330,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         if {[llength $args] % 2 != 0} {
             # Uneven, error
-            throw "PDF4TCL" "uneven number of arguments to startPage"
+            throw {PDF4TCL} "uneven number of arguments to startPage"
         } else {
             # Parse options
             foreach {option value} $args {
@@ -2346,7 +2357,7 @@ oo::define ::pdf4tcl::pdf4tcl {
                         my CheckBoolean $option $value
                     }
                     default {
-                        throw "PDF4TCL" "unknown option \"$option\""
+                        throw {PDF4TCL} "unknown option \"$option\""
                     }
                 }
                 set localopts($option) $value
@@ -2469,7 +2480,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     method FlushObjects {} {
         if {$pdf(inPage)} {
-            throw "PDF4TCL" "FlushObjects may not be called when in a page"
+            throw {PDF4TCL} "FlushObjects may not be called when in a page"
         }
 
         # Dump stored objects
@@ -2869,13 +2880,13 @@ Use -pdfa-icc to specify a profile path."
             switch -- $arg {
                 "-file" {
                     if {[catch {open $value "w"} chan]} {
-                        throw "PDF4TCL" "could not open file $value for writing: $chan"
+                        throw {PDF4TCL} "could not open file $value for writing: $chan"
                     } else {
                         set outfile 1
                     }
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -2941,7 +2952,7 @@ Use -pdfa-icc to specify a profile path."
                 -title {
                     set value [string trim $value]
                     if {[string length $value] == 0} {
-                        throw "PDF4TCL" "option $option requires a string"
+                        throw {PDF4TCL} "option $option requires a string"
                     }
                     set title $value
                 }
@@ -2954,13 +2965,13 @@ Use -pdfa-icc to specify a profile path."
                     set closed $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$option\""
+                    throw {PDF4TCL} "unknown option \"$option\""
                 }
             }
         }
 
         if {$pdf(pages) == {}} {
-            throw "PDF4TCL" "no pages defined"
+            throw {PDF4TCL} "no pages defined"
         }
 
         # Determine the object id of the current page.
@@ -3257,7 +3268,7 @@ Use -pdfa-icc to specify a profile path."
                         set metadata(ModDate) [string range $c 0 end-2]
                     }
                     default {
-                        throw "PDF4TCL" "unknown metadata option \"$option\""
+                        throw {PDF4TCL} "unknown metadata option \"$option\""
                     }
                 }
             }
@@ -3296,14 +3307,14 @@ Use -pdfa-icc to specify a profile path."
             switch -- $option {
                 -pagelayout {
                     if {$value ni $validPageLayout} {
-                        throw "PDF4TCL" \
+                        throw {PDF4TCL} \
                             "-pagelayout must be one of: [join $validPageLayout {, }]"
                     }
                     set pdf(viewer,PageLayout) $value
                 }
                 -pagemode {
                     if {$value ni $validPageMode} {
-                        throw "PDF4TCL" \
+                        throw {PDF4TCL} \
                             "-pagemode must be one of: [join $validPageMode {, }]"
                     }
                     set pdf(viewer,PageMode) $value
@@ -3316,32 +3327,32 @@ Use -pdfa-icc to specify a profile path."
                 -displaydoctitle { set pdf(viewer,DisplayDocTitle) [expr {!!$value}] }
                 -nonfullscreenpagemode {
                     if {$value ni $validNonFull} {
-                        throw "PDF4TCL" \
+                        throw {PDF4TCL} \
                             "-nonfullscreenpagemode must be one of: [join $validNonFull {, }]"
                     }
                     set pdf(viewer,NonFullScreenPageMode) $value
                 }
                 -direction {
                     if {$value ni $validDirection} {
-                        throw "PDF4TCL" "-direction must be L2R or R2L"
+                        throw {PDF4TCL} "-direction must be L2R or R2L"
                     }
                     set pdf(viewer,Direction) $value
                 }
                 -printscaling {
                     if {$value ni $validPrintScaling} {
-                        throw "PDF4TCL" "-printscaling must be None or AppDefault"
+                        throw {PDF4TCL} "-printscaling must be None or AppDefault"
                     }
                     set pdf(viewer,PrintScaling) $value
                 }
                 -duplex {
                     if {$value ni $validDuplex} {
-                        throw "PDF4TCL" \
+                        throw {PDF4TCL} \
                             "-duplex must be one of: [join $validDuplex {, }]"
                     }
                     set pdf(viewer,Duplex) $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown viewerPreferences option \"$option\""
+                    throw {PDF4TCL} "unknown viewerPreferences option \"$option\""
                 }
             }
         }
@@ -3360,14 +3371,14 @@ Use -pdfa-icc to specify a profile path."
     # Styles: D=1 2 3, r=i ii iii, R=I II III, a=a b c, A=A B C, ""=prefix only
     method pageLabel {pageIndex args} {
         if {![string is integer -strict $pageIndex] || $pageIndex < 0} {
-            throw "PDF4TCL" "pageLabel: pageIndex must be a non-negative integer"
+            throw {PDF4TCL} "pageLabel: pageIndex must be a non-negative integer"
         }
         set labelDict {}
         foreach {option value} $args {
             switch -- $option {
                 -style {
                     if {$value ni {D r R a A {}}} {
-                        throw "PDF4TCL" \
+                        throw {PDF4TCL} \
                             "-style must be one of: D r R a A or empty string"
                     }
                     if {$value ne {}} {
@@ -3379,12 +3390,12 @@ Use -pdfa-icc to specify a profile path."
                 }
                 -start {
                     if {![string is integer -strict $value] || $value < 1} {
-                        throw "PDF4TCL" "pageLabel: -start must be a positive integer"
+                        throw {PDF4TCL} "pageLabel: -start must be a positive integer"
                     }
                     lappend labelDict St $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown pageLabel option \"$option\""
+                    throw {PDF4TCL} "unknown pageLabel option \"$option\""
                 }
             }
         }
@@ -3396,14 +3407,14 @@ Use -pdfa-icc to specify a profile path."
     method setFont {size {fontname ""} {internal 0}} {
         if {$fontname eq ""} {
             if {$pdf(current_font) eq ""} {
-                throw "PDF4TCL" "no font family set"
+                throw {PDF4TCL} "no font family set"
             }
             set fontname $pdf(current_font)
         }
 
         # Font already loaded?
         if {$fontname ni $::pdf4tcl::Fonts} {
-            throw "PDF4TCL" "font $fontname doesn't exist"
+            throw {PDF4TCL} "font $fontname doesn't exist"
         }
 
         if {!$internal} {
@@ -3496,7 +3507,7 @@ Use -pdfa-icc to specify a profile path."
         variable ::pdf4tcl::BFA
 
         if {$pdf(current_font) eq ""} {
-            throw "PDF4TCL" "no font set"
+            throw {PDF4TCL} "no font set"
         }
         set fontname $pdf(current_font)
         my Pdfoutn "/$fontname [Nf $pdf(font_size)]" "Tf"
@@ -3795,7 +3806,7 @@ Use -pdfa-icc to specify a profile path."
     # bboxy   = bboxb, kept for backward compatibility
     method getFontMetric {metric {internal 0}} {
         if {$pdf(current_font) eq ""} {
-            throw "PDF4TCL" "no font set"
+            throw {PDF4TCL} "no font set"
         }
         set BFN $::pdf4tcl::FontsAttrs($pdf(current_font),basefontname)
         set bbox $::pdf4tcl::BFA($BFN,bbox)
@@ -3810,7 +3821,7 @@ Use -pdfa-icc to specify a profile path."
             }
             default {
                 if {![info exists ::pdf4tcl::BFA($BFN,$metric)]} {
-                    throw "PDF4TCL" "metric $metric doesn't exist"
+                    throw {PDF4TCL} "metric $metric doesn't exist"
                 }
                 return $::pdf4tcl::BFA($BFN,$metric)
             }
@@ -3825,7 +3836,7 @@ Use -pdfa-icc to specify a profile path."
     # Get the width of a string under the current font.
     method getStringWidth {txt {internal 0}} {
         if {$pdf(current_font) eq ""} {
-            throw "PDF4TCL" "no font set"
+            throw {PDF4TCL} "no font set"
         }
         set w 0.0
         foreach ch [split $txt ""] {
@@ -3840,7 +3851,7 @@ Use -pdfa-icc to specify a profile path."
     # Get the width of a character under the current font.
     method getCharWidth {ch {internal 0}} {
         if {$pdf(current_font) eq ""} {
-            throw "PDF4TCL" "no font set"
+            throw {PDF4TCL} "no font set"
         }
         set len [string length $ch]
         if {$len == 0} {
@@ -4000,7 +4011,7 @@ Use -pdfa-icc to specify a profile path."
                     set posSet 1
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -4114,7 +4125,7 @@ Use -pdfa-icc to specify a profile path."
                     set dryrun $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -4290,7 +4301,7 @@ Use -pdfa-icc to specify a profile path."
         } else {
             # Use catch both to catch bad color, and to catch Tk not present
             if {[catch {winfo rgb . $color} tkcolor]} {
-                throw "PDF4TCL" "unknown color: $color"
+                throw {PDF4TCL} "unknown color: $color"
             }
             foreach {red green blue} $tkcolor break
             set red   [expr {($red   & 0xFF00) / 65280.0}]
@@ -4320,7 +4331,7 @@ Use -pdfa-icc to specify a profile path."
             lappend pattern [Nf $p]
         }
         if {[llength $args] > 0 && $sum == 0} {
-            throw "PDF4TCL" "dash pattern may not be all zeroes"
+            throw {PDF4TCL} "dash pattern may not be all zeroes"
         }
         my EndTextObj
         my Pdfoutcmd $width "w"
@@ -4354,7 +4365,7 @@ Use -pdfa-icc to specify a profile path."
             lappend pattern [Nf $p]
         }
         if {[llength $args] > 0 && $sum == 0} {
-            throw "PDF4TCL" "dash pattern may not be all zeroes"
+            throw {PDF4TCL} "dash pattern may not be all zeroes"
         }
         my EndTextObj
         my Pdfout "\[$pattern\] [Nf $offset] d\n"
@@ -4381,7 +4392,7 @@ Use -pdfa-icc to specify a profile path."
     # Draw a quadratic or cubic bezier curve
     method curve {x1 y1 x2 y2 x3 y3 args} {
         if {[llength $args] != 2 && [llength $args] != 0} {
-            throw "PDF4TCL" "wrong # args: should be curve x1 y1 x2 y2 x3 y3 ?x4 y4?"
+            throw {PDF4TCL} "wrong # args: should be curve x1 y1 x2 y2 x3 y3 ?x4 y4?"
         }
         my EndTextObj
         my Trans $x1 $y1 x1 y1
@@ -4426,7 +4437,7 @@ Use -pdfa-icc to specify a profile path."
                         set closed $y
                     }
                     default {
-                        throw "PDF4TCL" "unknown option \"$x\""
+                        throw {PDF4TCL} "unknown option \"$x\""
                     }
                 }
             } else {
@@ -4512,7 +4523,7 @@ Use -pdfa-icc to specify a profile path."
                     set stroke $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -4537,7 +4548,7 @@ Use -pdfa-icc to specify a profile path."
                     set stroke $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -4619,7 +4630,7 @@ Use -pdfa-icc to specify a profile path."
                     set style $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -4682,7 +4693,79 @@ Use -pdfa-icc to specify a profile path."
         my SetStrokeColor $pdf(strokeColor)
     }
 
-    # Draw a rectangle, internal version
+    # Set fill and/or stroke opacity (0.0 = transparent, 1.0 = opaque).
+    # Usage:
+    #   setAlpha value              -- set both fill and stroke
+    #   setAlpha value -fill        -- fill only
+    #   setAlpha value -stroke      -- stroke only
+    #   setAlpha fillval strokeval  -- fill and stroke separately
+    method setAlpha {args} {
+        if {!$pdf(inPage)} { my startPage }
+
+        set newFill   $pdf(fillAlpha)
+        set newStroke $pdf(strokeAlpha)
+
+        switch [llength $args] {
+            1 {
+                set newFill   [lindex $args 0]
+                set newStroke [lindex $args 0]
+            }
+            2 {
+                set val  [lindex $args 0]
+                set mode [lindex $args 1]
+                switch -- $mode {
+                    -fill   { set newFill   $val }
+                    -stroke { set newStroke $val }
+                    default {
+                        set newFill   $val
+                        set newStroke $mode
+                    }
+                }
+            }
+            default {
+                throw {PDF4TCL ARGS} "setAlpha: wrong # args"
+            }
+        }
+
+        # Clamp to [0.0 .. 1.0]
+        if {$newFill < 0.0} {
+            set newFill 0.0
+        } elseif {$newFill > 1.0} {
+            set newFill 1.0
+        }
+        if {$newStroke < 0.0} {
+            set newStroke 0.0
+        } elseif {$newStroke > 1.0} {
+            set newStroke 1.0
+        }
+
+        # Cache key -- round to 4 decimal places to avoid float noise
+        set fkey [format "%.4f" $newFill]
+        set skey [format "%.4f" $newStroke]
+        set cacheKey "f${fkey}_s${skey}"
+
+        if {![info exists alphaStates($cacheKey)]} {
+            # Build ExtGState object: /ca = fill, /CA = stroke
+            set body "<< /Type /ExtGState /ca $fkey /CA $skey >>"
+            set oid [my AddObject $body]
+            set gsName "GsAlpha[regsub -all {[^A-Za-z0-9]} $cacheKey _]"
+            set extgs($gsName) $oid
+            set alphaStates($cacheKey) $gsName
+        }
+
+        set gsName $alphaStates($cacheKey)
+        my Pdfout "/$gsName gs\n"
+
+        set pdf(fillAlpha)   $newFill
+        set pdf(strokeAlpha) $newStroke
+    }
+
+    # Return current alpha values as a list {fillAlpha strokeAlpha}
+    method getAlpha {} {
+        return [list $pdf(fillAlpha) $pdf(strokeAlpha)]
+    }
+
+
     method DrawRect {x y w h stroke filled} {
         my Pdfoutcmd $x $y $w $h "re"
         if {$filled && $stroke} {
@@ -4729,7 +4812,7 @@ Use -pdfa-icc to specify a profile path."
                     set stroke $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -4812,7 +4895,7 @@ Use -pdfa-icc to specify a profile path."
                     set type tiff
                 }
                 default {
-                    throw "PDF4TCL" "unknown image type \"$filename\""
+                    throw {PDF4TCL} "unknown image type \"$filename\""
                 }
             }
         }
@@ -4827,7 +4910,7 @@ Use -pdfa-icc to specify a profile path."
                 set id [my AddTiff $filename $id]
             }
             default {
-                throw "PDF4TCL" "unknown image type \"$type\""
+                throw {PDF4TCL} "unknown image type \"$type\""
             }
         }
         return $id
@@ -4839,7 +4922,7 @@ Use -pdfa-icc to specify a profile path."
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
-            throw "PDF4TCL" "could not open file $filename"
+            throw {PDF4TCL} "could not open file $filename"
         }
 
         fconfigure $if -translation binary
@@ -4847,7 +4930,7 @@ Use -pdfa-icc to specify a profile path."
         close $if
         binary scan $img "H4" h
         if {$h != "ffd8"} {
-            throw "PDF4TCL" "file $filename does not contain JPEG data"
+            throw {PDF4TCL} "file $filename does not contain JPEG data"
         }
         set pos 2
         set img_length [string length $img]
@@ -4870,7 +4953,7 @@ Use -pdfa-icc to specify a profile path."
             }
         }
         if {!$imgOK} {
-            throw "PDF4TCL" "something is wrong with jpeg data in file $filename"
+            throw {PDF4TCL} "something is wrong with jpeg data in file $filename"
         }
         set    xobject "<<\n/Type /XObject\n"
         append xobject "/Subtype /Image\n"
@@ -4910,13 +4993,13 @@ Use -pdfa-icc to specify a profile path."
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
-            throw "PDF4TCL" "could not open file $filename"
+            throw {PDF4TCL} "could not open file $filename"
         }
 
         fconfigure $if -translation binary
         if {[read $if 8] != "\x89PNG\r\n\x1a\n"} {
             close $if
-            throw "PDF4TCL" "file does not contain PNG data"
+            throw {PDF4TCL} "file does not contain PNG data"
         }
         set img [read $if]
         close $if
@@ -4950,20 +5033,20 @@ Use -pdfa-icc to specify a profile path."
         }
 
         if {!$imgOK} {
-            throw "PDF4TCL" "something is wrong with PNG data in file $filename"
+            throw {PDF4TCL} "something is wrong with PNG data in file $filename"
         }
         if {[string length $img_data] == 0} {
-            throw "PDF4TCL" "PNG file does not contain any IDAT chunks"
+            throw {PDF4TCL} "PNG file does not contain any IDAT chunks"
         }
         if {$compression != 0} {
-            throw "PDF4TCL" "PNG file is of an unsupported compression type"
+            throw {PDF4TCL} "PNG file is of an unsupported compression type"
         }
         if {$filter != 0} {
-            throw "PDF4TCL" "PNG file is of an unsupported filter type"
+            throw {PDF4TCL} "PNG file is of an unsupported filter type"
         }
         if {$interlace != 0} {
             # Would need to unpack and repack to do interlaced
-            throw "PDF4TCL" "interlaced PNG is not supported"
+            throw {PDF4TCL} "interlaced PNG is not supported"
         }
 
         if {$palette ne ""} {
@@ -5058,13 +5141,13 @@ Use -pdfa-icc to specify a profile path."
     # TIFF part of addImage
     method AddTiff {filename id} {
         if {[catch {package require tiff}]} {
-            throw PDF4TCL "package tiff is required to use TIFF"
+            throw {PDF4TCL} "package tiff is required to use TIFF"
         }
         if {![::tiff::isTIFF $filename]} {
-            throw PDF4TCL "file $filename does not contain TIFF data"
+            throw {PDF4TCL} "file $filename does not contain TIFF data"
         }
         if {[catch {open $filename r} chan]} {
-            throw PDF4TCL "could not open file $filename"
+            throw {PDF4TCL} "could not open file $filename"
         }
         try {
             chan configure $chan -translation binary
@@ -5110,7 +5193,7 @@ Use -pdfa-icc to specify a profile path."
                     }
                 }
                 default {
-                    throw PDF4TCL "unsupported TIFF compression"
+                    throw {PDF4TCL} "unsupported TIFF compression"
                 }
             }
             append xobject ">>\n"
@@ -5155,14 +5238,14 @@ Use -pdfa-icc to specify a profile path."
 
         set imgOK false
         if {[catch {open $filename "r"} if]} {
-            throw "PDF4TCL" "could not open file $filename"
+            throw {PDF4TCL} "could not open file $filename"
         }
 
         fconfigure $if -translation binary
         set sign [read $if 6]
         if {![string match "GIF*" $sign]} {
             close $if
-            throw "PDF4TCL" "file does not contain GIF data"
+            throw {PDF4TCL} "file does not contain GIF data"
         }
         set img [read $if]
         close $if
@@ -5214,20 +5297,20 @@ Use -pdfa-icc to specify a profile path."
         }
 
         if {!$imgOK} {
-            throw "PDF4TCL" "something is wrong with PNG data in file $filename"
+            throw {PDF4TCL} "something is wrong with PNG data in file $filename"
         }
         if {[string length $img_data] == 0} {
-            throw "PDF4TCL" "PNG file does not contain any IDAT chunks"
+            throw {PDF4TCL} "PNG file does not contain any IDAT chunks"
         }
         if {$compression != 0} {
-            throw "PDF4TCL" "PNG file is of an unsupported compression type"
+            throw {PDF4TCL} "PNG file is of an unsupported compression type"
         }
         if {$filter != 0} {
-            throw "PDF4TCL" "PNG file is of an unsupported filter type"
+            throw {PDF4TCL} "PNG file is of an unsupported filter type"
         }
         if {$interlace != 0} {
             # Would need to unpack and repack to do interlaced
-            throw "PDF4TCL" "interlaced PNG is not supported"
+            throw {PDF4TCL} "interlaced PNG is not supported"
         }
 
         if {$palette ne ""} {
@@ -5328,7 +5411,7 @@ Use -pdfa-icc to specify a profile path."
     # Check an anchor value and optionally translate it
     method CheckAnchor {value {dxName ""} {dyName ""}} {
         if {$value ni {nw n ne e se s sw w center}} {
-            throw "PDF4TCL" "bad anchor \"$value\""
+            throw {PDF4TCL} "bad anchor \"$value\""
         }
         if {$dxName eq "" && $dyName eq ""} return
         upvar 1 $dxName dx $dyName dy
@@ -5591,19 +5674,19 @@ Use -pdfa-icc to specify a profile path."
             set filename [file join $::pdf4tcl::dir "bitmaps" ${bitmap}.xbm]
         }
         if {![file exists $filename]} {
-            throw "PDF4TCL" "no such bitmap $bitmap"
+            throw {PDF4TCL} "no such bitmap $bitmap"
         }
         set ch [open $filename "r"]
         set bitmapdata [read $ch]
         close $ch
         if {![regexp {_width (\d+)} $bitmapdata -> width]} {
-            throw "PDF4TCL" "not a bitmap $bitmap"
+            throw {PDF4TCL} "not a bitmap $bitmap"
         }
         if {![regexp {_height (\d+)} $bitmapdata -> height]} {
-            throw "PDF4TCL" "not a bitmap $bitmap"
+            throw {PDF4TCL} "not a bitmap $bitmap"
         }
         if {![regexp {_bits\s*\[\]\s*=\s*\{(.*)\}} $bitmapdata -> rawdata]} {
-            throw "PDF4TCL" "not a bitmap $bitmap"
+            throw {PDF4TCL} "not a bitmap $bitmap"
         }
         set bytes [regexp -all -inline {0x[a-fA-F0-9]{2}} $rawdata]
         set bytesPerLine [expr {[llength $bytes] / $height}]
@@ -5784,13 +5867,13 @@ Use -pdfa-icc to specify a profile path."
                 -icon {
                     if {$value ni {Paperclip Tag Graph PushPin}} {
                         if {![info exists images($value)]} {
-                            throw "PDF4TCL" "unknown value for -icon"
+                            throw {PDF4TCL} "unknown value for -icon"
                         }
                     }
                     set icon $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$option\""
+                    throw {PDF4TCL} "unknown option \"$option\""
                 }
             }
         }
@@ -5852,13 +5935,13 @@ Use -pdfa-icc to specify a profile path."
                 -borderdash   { set borderdash   $value }
                 -highlight {
                     if {$value ni {N I O P}} {
-                        throw "PDF4TCL" \
+                        throw {PDF4TCL} \
                             "invalid -highlight \"$value\": must be N, I, O or P"
                     }
                     set highlight $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$option\""
+                    throw {PDF4TCL} "unknown option \"$option\""
                 }
             }
         }
@@ -6090,7 +6173,7 @@ Use -pdfa-icc to specify a profile path."
             set ftype "checkbutton"
         }
         if {$ftype ni {text checkbutton combobox listbox password radiobutton pushbutton signature}} {
-            throw "PDF4TCL" "unknown form type $ftype"
+            throw {PDF4TCL} "unknown form type $ftype"
         }
         set initValue ""
         set onObj ""
@@ -6118,7 +6201,7 @@ Use -pdfa-icc to specify a profile path."
 
         # Handle options
         if {[llength $args] % 2} {
-            throw "PDF4TCL" "options must be key-value pairs"
+            throw {PDF4TCL} "options must be key-value pairs"
         }
         foreach {option value} $args {
             switch -- $option {
@@ -6177,43 +6260,43 @@ Use -pdfa-icc to specify a profile path."
                 }
                 -required {
                     if {$ftype in {pushbutton signature}} {
-                        throw "PDF4TCL" "-required is not valid for $ftype"
+                        throw {PDF4TCL} "-required is not valid for $ftype"
                     }
                     my CheckBoolean $option $value
                     set required $value
                 }
                 -label {
                     if {$ftype ne "signature"} {
-                        throw "PDF4TCL" "-label is only valid for signature fields"
+                        throw {PDF4TCL} "-label is only valid for signature fields"
                     }
                     set label $value
                 }
                 default {
-                    throw "PDF4TCL" "unknown option \"$option\""
+                    throw {PDF4TCL} "unknown option \"$option\""
                 }
             }
         }
         # Check init value
         if {$ftype eq "checkbutton"} {
             if {![string is boolean -strict $initValue]} {
-                throw "PDF4TCL" "initial value for checkbutton must be boolean"
+                throw {PDF4TCL} "initial value for checkbutton must be boolean"
             }
             if {$offObj ne ""} {
                 if {![info exists images($offObj)]} {
-                    throw "PDF4TCL" "bad id for -off"
+                    throw {PDF4TCL} "bad id for -off"
                 }
                 # Must have been created by xobject, image is no good
                 if {![string match xobject* $offObj]} {
-                    throw "PDF4TCL" "bad id for -off"
+                    throw {PDF4TCL} "bad id for -off"
                 }
             }
             if {$onObj ne ""} {
                 if {![info exists images($onObj)]} {
-                    throw "PDF4TCL" "bad id for -on"
+                    throw {PDF4TCL} "bad id for -on"
                 }
                 # Must have been created by xobject, image is no good
                 if {![string match xobject* $onObj]} {
-                    throw "PDF4TCL" "bad id for -on"
+                    throw {PDF4TCL} "bad id for -on"
                 }
             }
         }
@@ -6221,17 +6304,17 @@ Use -pdfa-icc to specify a profile path."
         # Check choice field options
         if {$ftype in {combobox listbox}} {
             if {[llength $optionsList] == 0} {
-                throw "PDF4TCL" "-options is required for $ftype"
+                throw {PDF4TCL} "-options is required for $ftype"
             }
         }
 
         # Check radiobutton requirements and default id
         if {$ftype eq "radiobutton"} {
             if {$groupName eq ""} {
-                throw "PDF4TCL" "-group is required for radiobutton"
+                throw {PDF4TCL} "-group is required for radiobutton"
             }
             if {$radioValue eq ""} {
-                throw "PDF4TCL" "-value is required for radiobutton"
+                throw {PDF4TCL} "-value is required for radiobutton"
             }
             # Group and value are used as PDF names — must be alphanumeric
             my CheckWord -group $groupName
@@ -6244,10 +6327,10 @@ Use -pdfa-icc to specify a profile path."
         # Check pushbutton requirements
         if {$ftype eq "pushbutton"} {
             if {$actionType eq "" && $caption eq ""} {
-                throw "PDF4TCL" "-action or -caption is required for pushbutton"
+                throw {PDF4TCL} "-action or -caption is required for pushbutton"
             }
             if {$actionType in {url submit} && $actionValue eq ""} {
-                throw "PDF4TCL" "-url is required when -action is $actionType"
+                throw {PDF4TCL} "-url is required when -action is $actionType"
             }
         }
 
@@ -6533,7 +6616,7 @@ Use -pdfa-icc to specify a profile path."
                 "-bg"     {set bg $value}
                 "-fontmap" {set canvasFontMapping $value}
                 default {
-                    throw "PDF4TCL" "unknown option \"$arg\""
+                    throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
         }
@@ -6553,7 +6636,7 @@ Use -pdfa-icc to specify a profile path."
             }
         }
         if {[llength $bbox] != 4} {
-            throw "PDF4TCL" "-bbox must be a four element list"
+            throw {PDF4TCL} "-bbox must be a four element list"
         }
         foreach {bbx1 bby1 bbx2 bby2} $bbox break
         set bbw [expr {$bbx2 - $bbx1}]
@@ -8139,7 +8222,7 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
 # or ps2pdf should work mostly ok.
 proc pdf4tcl::catPdf {args} {
     if {[llength $args] < 3} {
-        throw "PDF4TCL" "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
+        throw {PDF4TCL} "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
     }
     set outfile [lindex $args end]
     set infile1 [lindex $args 0]
@@ -8164,7 +8247,7 @@ proc pdf4tcl::catPdf {args} {
 #   default : Default value, if any.
 proc pdf4tcl::getForms {pdfFile} {
     if {![file exists $pdfFile]} {
-        throw "PDF4TCL" "No such file: $pdfFile"
+        throw {PDF4TCL} "No such file: $pdfFile"
     }
     set pdf [pdf4tcl::cat::ReadPdf $pdfFile]
 
