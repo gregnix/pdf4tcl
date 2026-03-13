@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.10]
+[manpage_begin pdf4tcl n 0.9.4.11]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.10]]
+[require pdf4tcl [opt 0.9.4.11]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1175,6 +1175,30 @@ locations (e.g. [file /usr/share/color/icc/ghostscript/srgb.icc]).
 [para]
 This option can only be set at object creation.
 
+[opt_def -userpassword [arg string]]
+
+Set a user (open) password for the document.
+When set, the document cannot be opened without this password.
+[para]
+Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification).
+[para]
+Note: [option -userpassword] and [option -pdfa] cannot be combined --
+PDF/A forbids encryption (ISO 19005).
+[para]
+This option can only be set at object creation.
+
+[opt_def -ownerpassword [arg string]]
+
+Set an owner password for the document.
+The owner password grants full access regardless of user-password
+restrictions.
+When only [option -ownerpassword] is set (no [option -userpassword]),
+the document opens without a password but is protected from modification.
+[para]
+Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification).
+[para]
+This option can only be set at object creation.
+
 [list_end]
 
 [subsection {PAGE CONFIGURATION}]
@@ -1233,6 +1257,21 @@ The default value of this option is zero.
 [example_end]
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.11}]
+[list_begin itemized]
+[item] New module [file src/encrypt.tcl]: AES-128 encryption (V=4, R=4)
+per PDF 1.6 specification. New options [option -userpassword] and
+[option -ownerpassword]. The Encrypt dictionary uses
+[const /CFM] [const /AESV2], [const /StmF] [const /StdCF],
+[const /StrF] [const /StdCF]. Padding constant corrected
+to 0x7A (qpdf-compatible).
+[item] Extended [cmd _FindSRGBProfile] with TeX Live path variants for
+the sRGB ICC profile (glob search for year-variable path components).
+[item] New test file [file tests/encrypt.test]: 25 tests covering
+AES-128 encryption, O/U-entry calculation, and Encrypt dictionary
+structure.
+[list_end]
 
 [subsection {Version 0.9.4.10}]
 [list_begin itemized]

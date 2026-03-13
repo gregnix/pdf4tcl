@@ -175,6 +175,11 @@ Die Standard-Fonts unterstuetzen WinAnsi/CP1252. Damit sind
 westeuropaeische Zeichen abgedeckt, darunter deutsche Umlaute
 (ae, oe, ue, ss), franzoesische Akzente und skandinavische Zeichen.
 
+Ab Version 0.9.4.9 enthalten Standard-Fonts automatisch einen
+ToUnicode-CMap-Stream. Damit ist korrekte Text-Extraktion und
+Copy-Paste aus PDF-Viewern moeglich (vorher: nur Fragezeichen beim
+Kopieren von Sonderzeichen).
+
 ```tcl
 # Funktioniert (WinAnsi)
 $pdf text "Gruesse aus Muenchen" -x 50 -y 100

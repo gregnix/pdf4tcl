@@ -68,6 +68,11 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -readonly 1
         # Path to sRGB ICC profile for OutputIntent (auto-searched if empty)
         my Option -pdfa-icc  -default ""     -readonly 1
+        # Encryption (AES-128, V=4/R=4, PDF 1.5+).
+        # Setting either password enables encryption.
+        # If ownerpassword is empty, userpassword is used for both.
+        my Option -userpassword  -default "" -readonly 1
+        my Option -ownerpassword -default "" -readonly 1
 
         my Configurelist $args
         my InitPdf
@@ -110,6 +115,20 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(compress) $options(-compress)
         set pdf(finished) false
         set pdf(inPage) false
+
+        # Encryption state
+        set pdf(encrypt) [expr {
+            $options(-userpassword) ne {} || $options(-ownerpassword) ne {}
+        }]
+        set pdf(encP)      -196
+        set pdf(encKey)    ""
+        set pdf(encO)      ""
+        set pdf(encU)      ""
+        set pdf(encFileId) ""
+        if {$pdf(encrypt)} {
+            my InitEncrypt
+        }
+
         set pdf(fillColor) [list 0 0 0]
         set pdf(bgColor) [list 0 0 0]
         set pdf(strokeColor) [list 0 0 0]
@@ -173,9 +192,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         # collect output in memory
         set pdf(pdf) ""
 
-        # Start on pdfout
-        my Pdfout "%PDF-1.4\n"
-        set pdf(version) 1.4
+        # Version: 1.5+ required for V=4/R=4 AES-128 encryption
+        set pdf(version) [expr {$pdf(encrypt) ? 1.5 : 1.4}]
+        my Pdfout "%PDF-$pdf(version)\n"
         # PDF spec §7.5.2: comment with ≥4 bytes > 0x7F marks file as binary.
         # PDF/A also requires this. Use 4 high bytes.
         my Pdfout "%\xE5\xE4\xF6\xE7\n"
@@ -432,6 +451,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         # start of contents
         set oid [my GetOid]
+        set pdf(contentoid) $oid
         my Pdfout "$oid 0 obj\n"
         # Allocate an object for the page length
         set pdf(pagelengthoid) [my GetOid 1]
@@ -452,8 +472,13 @@ oo::define ::pdf4tcl::pdf4tcl {
                                [expr {1.0/$pdf(height)}]]
             # TBD: Resources?
         }
+        # For V=4/R=4 with crypt filters: /StmF /StdCF in Encrypt dict means
+        # streams are encrypted IMPLICITLY. The encryption is applied automatically
+        # by the reader based on /StmF /StdCF, so /StdCF must NOT appear in the
+        # stream /Filter array. Otherwise qpdf tries to decrypt twice and fails.
+        # The /Filter entry should only specify compression filters.
         if {$pdf(compress)} {
-            my Pdfout "/Filter \[/FlateDecode\]\n"
+            my Pdfout "/Filter /FlateDecode\n"
         }
         my Pdfout "/Length $pdf(pagelengthoid) 0 R\n"
         my Pdfout ">>\nstream\n"
@@ -478,7 +503,24 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "\nET\n"
         }
         # get buffer
-        set data_len [my Flush $pdf(compress)]
+        if {$pdf(encrypt)} {
+            # Capture unencrypted stream data, then encrypt
+            set plain $pdf(ob)
+            set pdf(ob) ""
+            if {$pdf(compress)} {
+                set plain [zlib compress $plain]
+            }
+            set ct [my EncryptBytes $pdf(contentoid) $plain]
+            set data_len [string length $ct]
+            if {$pdf(ch) eq ""} {
+                append pdf(pdf) $ct
+            } else {
+                puts -nonewline $pdf(ch) $ct
+            }
+            incr pdf(out_pos) $data_len
+        } else {
+            set data_len [my Flush $pdf(compress)]
+        }
         set pdf(out_pos) [expr {$pdf(data_start)+$data_len}]
         my Pdfout "\nendstream\n"
         my Pdfout "endobj\n\n"
@@ -514,6 +556,9 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         # Dump stored objects
         foreach {oid body} $pdf(objects) {
+            if {$pdf(encrypt)} {
+                set body [my EncryptStreamBody $oid $body]
+            }
             my StoreXref $oid
             my Pdfout $body
         }
@@ -840,6 +885,14 @@ Use -pdfa-icc to specify a profile path."
             }
         }
 
+        # Encrypt dictionary (V=4/R=4) written before xref.
+        # The dict itself is NOT encrypted (ISO 32000 §7.6.1).
+        set encdict_oid ""
+        if {$pdf(encrypt)} {
+            set encdict_oid [my WriteEncryptDict]
+            my Flush
+        }
+
         # Cross reference table
         set xref_pos $pdf(out_pos)
         my Pdfout "xref\n"
@@ -852,20 +905,24 @@ Use -pdfa-icc to specify a profile path."
 
         # Document trailer
         # /ID is required by PDF spec (ISO 32000 §7.5.5) and PDF/A.
-        # Computed deterministically from the document content so that
-        # identical input always produces identical output (reproducible builds).
-        # Simple 128-bit hash: two 64-bit accumulators over the PDF bytes.
-        set _h1 0x811C9DC5
-        set _h2 0xCBF29CE4
-        binary scan $pdf(pdf) "Iu*" _words
-        foreach _w $_words {
-            set _h1 [expr {(($_h1 ^ $_w) * 0x01000193) & 0xFFFFFFFF}]
-            set _h2 [expr {(($_h2 + $_w) * 0x00010DCD) & 0xFFFFFFFF}]
+        # Encrypted documents use a random ID (computed in InitEncrypt).
+        # Unencrypted documents use a deterministic content-based ID.
+        if {$pdf(encrypt)} {
+            binary scan $pdf(encFileId) H* idHash
+        } else {
+            # Deterministic: two 32-bit accumulators over PDF bytes.
+            set _h1 0x811C9DC5
+            set _h2 0xCBF29CE4
+            binary scan $pdf(pdf) "Iu*" _words
+            foreach _w $_words {
+                set _h1 [expr {(($_h1 ^ $_w) * 0x01000193) & 0xFFFFFFFF}]
+                set _h2 [expr {(($_h2 + $_w) * 0x00010DCD) & 0xFFFFFFFF}]
+            }
+            set _h3 [expr {$_h1 ^ ([string length $pdf(pdf)] & 0xFFFFFFFF)}]
+            set _h4 [expr {$_h2 ^ ($pdf(out_pos) & 0xFFFFFFFF)}]
+            set idHash [format "%08X%08X%08X%08X" $_h1 $_h2 $_h3 $_h4]
+            unset _h1 _h2 _h3 _h4 _words
         }
-        set _h3 [expr {$_h1 ^ ([string length $pdf(pdf)] & 0xFFFFFFFF)}]
-        set _h4 [expr {$_h2 ^ ($pdf(out_pos) & 0xFFFFFFFF)}]
-        set idHash [format "%08X%08X%08X%08X" $_h1 $_h2 $_h3 $_h4]
-        unset _h1 _h2 _h3 _h4 _words
 
         my Pdfout "trailer\n"
         my Pdfout "<<\n"
@@ -873,6 +930,9 @@ Use -pdfa-icc to specify a profile path."
         my Pdfout "/Root 1 0 R\n"
         if {[info exists metadata_oid]} {
             my Pdfout "/Info $metadata_oid 0 R\n"
+        }
+        if {$encdict_oid ne ""} {
+            my Pdfout "/Encrypt $encdict_oid 0 R\n"
         }
         my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
         my Pdfout ">>\n"
@@ -1224,6 +1284,8 @@ Use -pdfa-icc to specify a profile path."
             /usr/share/ghostscript/icc/srgb.icc
             /usr/share/color/icc/sRGB.icc
             /usr/share/color/icc/sRGB2014.icc
+            /usr/share/texlive/texmf-dist/tex/generic/colorprofiles/sRGB.icc
+            /usr/share/texlive/texmf-dist/tex/latex/pdfx/sRGB_IEC61966-2-1_black_scaled.icc
             /Library/ColorSync/Profiles/sRGB Profile.icc
             {C:/Windows/System32/spool/drivers/color/sRGB Color Space Profile.icm}
         }
@@ -1233,8 +1295,11 @@ Use -pdfa-icc to specify a profile path."
             }
         }
         # Try glob for ghostscript versioned paths
-        foreach gs [glob -nocomplain /usr/share/ghostscript/*/iccprofiles/sRGB.icc \
-                                     /usr/share/ghostscript/*/iccprofiles/default_rgb.icc] {
+        foreach gs [glob -nocomplain \
+                /usr/share/ghostscript/*/iccprofiles/sRGB.icc \
+                /usr/share/ghostscript/*/iccprofiles/default_rgb.icc \
+                /usr/share/texlive/*/tex/generic/colorprofiles/sRGB.icc \
+                /usr/share/texlive/*/tex/latex/pdfx/sRGB*.icc] {
             if {[file readable $gs]} {
                 return $gs
             }

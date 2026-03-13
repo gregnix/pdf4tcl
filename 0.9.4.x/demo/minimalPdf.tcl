@@ -1,5 +1,9 @@
 #!/usr/bin/env tclsh
-package require pdf4tcl 0.9
+set demodir  [file dirname [file normalize [info script]]]
+set reporoot [file normalize [file join $demodir ../..]]
+set auto_path [linsert $auto_path 0 $reporoot]
+
+package require pdf4tcl
 
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
 $pdf startPage

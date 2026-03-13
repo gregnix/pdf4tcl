@@ -11,5 +11,14 @@
 ##nagelfar syntax tiff::isTIFF x
 ##nagelfar syntax tiff::getEntry x x
 
+##nagelfar package known md5
+##nagelfar syntax md5::md5 x
+##nagelfar syntax md5::MD5Init
+##nagelfar syntax md5::MD5Update x x
+##nagelfar syntax md5::MD5Final x
+
+##nagelfar package known aes
+##nagelfar syntax aes::aes x*
+
 # 8.7 feature used
 ##nagelfar syntax lseq r 1 5

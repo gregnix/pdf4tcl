@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.10 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.11 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.10?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.11?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1520,6 +1520,28 @@ If not specified, pdf4tcl searches for the profile in standard system
 locations (e\&.g\&. "\fI/usr/share/color/icc/ghostscript/srgb\&.icc\fR")\&.
 .sp
 This option can only be set at object creation\&.
+.TP
+\fB-userpassword\fR \fIstring\fR
+Set a user (open) password for the document\&.
+When set, the document cannot be opened without this password\&.
+.sp
+Uses AES-128 encryption (V=4, R=4 per PDF 1\&.6 specification)\&.
+.sp
+Note: \fB-userpassword\fR and \fB-pdfa\fR cannot be combined --
+PDF/A forbids encryption (ISO 19005)\&.
+.sp
+This option can only be set at object creation\&.
+.TP
+\fB-ownerpassword\fR \fIstring\fR
+Set an owner password for the document\&.
+The owner password grants full access regardless of user-password
+restrictions\&.
+When only \fB-ownerpassword\fR is set (no \fB-userpassword\fR),
+the document opens without a password but is protected from modification\&.
+.sp
+Uses AES-128 encryption (V=4, R=4 per PDF 1\&.6 specification)\&.
+.sp
+This option can only be set at object creation\&.
 .PP
 .SS "PAGE CONFIGURATION"
 .TP
@@ -1570,6 +1592,22 @@ The default value of this option is zero\&.
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.11"
+.IP \(bu
+New module "\fIsrc/encrypt\&.tcl\fR": AES-128 encryption (V=4, R=4)
+per PDF 1\&.6 specification\&. New options \fB-userpassword\fR and
+\fB-ownerpassword\fR\&. The Encrypt dictionary uses
+\fB/CFM\fR \fB/AESV2\fR, \fB/StmF\fR \fB/StdCF\fR,
+\fB/StrF\fR \fB/StdCF\fR\&. Padding constant corrected
+to 0x7A (qpdf-compatible)\&.
+.IP \(bu
+Extended \fB_FindSRGBProfile\fR with TeX Live path variants for
+the sRGB ICC profile (glob search for year-variable path components)\&.
+.IP \(bu
+New test file "\fItests/encrypt\&.test\fR": 25 tests covering
+AES-128 encryption, O/U-entry calculation, and Encrypt dictionary
+structure\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.10"
 .IP \(bu
 Added \fBsetAlpha\fR: sets fill and/or stroke opacity (0\&.0 transparent,
