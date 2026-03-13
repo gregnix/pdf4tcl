@@ -9,7 +9,7 @@ Tcl/Tk bereits vertraut sind und nun PDF-Dokumente erzeugen moechten.
 ### Voraussetzungen
 
 pdf4tcl benoetigt Tcl/Tk ab Version 8.6. Die empfohlene Version von
-pdf4tcl ist 0.9.4. Optional koennen folgende Tools installiert werden:
+pdf4tcl ist 0.9.4.11. Optional koennen folgende Tools installiert werden:
 
 - poppler-utils: `pdfinfo` und `pdftotext` fuer PDF-Validierung
 - mupdf: Leichtgewichtiger PDF-Viewer
@@ -360,6 +360,55 @@ meinprojekt/
 |-- data/                    # Eingabedaten
 |-- images/                  # Logos und Bilder
 ```
+
+## Verschluesselung
+
+Ab Version 0.9.4.11 unterstuetzt pdf4tcl AES-128-Verschluesselung (V=4, R=4
+nach PDF 1.6). Die Optionen werden beim Erzeugen des PDF-Objekts gesetzt:
+
+```tcl
+# Nur User-Passwort -- Dokument kann ohne Passwort nicht geoeffnet werden
+set pdf [::pdf4tcl::new %AUTO% -paper a4 \
+    -userpassword "geheim"]
+
+# Nur Owner-Passwort -- oeffnet ohne Passwort, aber vor Aenderungen geschuetzt
+set pdf [::pdf4tcl::new %AUTO% -paper a4 \
+    -ownerpassword "admin"]
+
+# User + Owner-Passwort kombiniert
+set pdf [::pdf4tcl::new %AUTO% -paper a4 \
+    -userpassword  "benutzer" \
+    -ownerpassword "admin"]
+```
+
+Hinweis: Verschluesselung und PDF/A (`-pdfa`) koennen nicht kombiniert
+werden -- PDF/A verbietet Verschluesselung nach ISO 19005.
+
+
+## PDF/A-Konformitaet
+
+pdf4tcl erzeugt PDF/A-1b- und PDF/A-2b-konforme Dokumente mit der
+Option `-pdfa`:
+
+```tcl
+set pdf [::pdf4tcl::new %AUTO% -paper a4 \
+    -pdfa 1b \
+    -pdfa-icc /usr/share/color/icc/ghostscript/srgb.icc]
+```
+
+pdf4tcl fuegt automatisch ein XMP-Metadaten-Stream mit pdfaid-Schema,
+einen OutputIntent mit sRGB-ICC-Profil und unterdrueckt
+`/Group /S /Transparency` auf allen Seiten.
+
+**Wichtig:** Fuer PDF/A muessen alle Fonts eingebettet sein. Standard-Fonts
+(Helvetica, Times, Courier) sind nicht eingebettet und verletzen PDF/A.
+Ausschliesslich CIDFonts verwenden (siehe `pdf4tcl-cid-fonts.md`).
+
+Validierung:
+```bash
+verapdf --flavour 1b --format text mein.pdf
+```
+
 
 ## Naechste Schritte
 

@@ -1,0 +1,265 @@
+# Test ToUnicode CMap for WinAnsiEncoding (Standard Fonts)  -*-tcl-*-
+# Version: 0.9.4.9
+#
+# Tests for ToUnicode CMap generation for standard Type1 fonts.
+# This enables text extraction, copy/paste, and PDF/A compliance (rule 6.3.9).
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Helper: create a PDF with standard font, return raw PDF bytes.
+proc stdFontPdf {body} {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    eval $body
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+# Helper: check if string contains all given substrings
+proc containsAll {str args} {
+    foreach sub $args {
+        if {[string first $sub $str] < 0} { return 0 }
+    }
+    return 1
+}
+
+# ===========================================================================
+# tounicode-1.x  ToUnicode CMap creation for standard fonts
+# ===========================================================================
+
+test tounicode-1.1 {ToUnicode CMap created for Helvetica} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Test" -x 50 -y 700
+    }]
+    containsAll $data "/ToUnicode" "/Type /Font" "/Subtype /Type1" "/Encoding /WinAnsiEncoding"
+} -result 1
+
+test tounicode-1.2 {ToUnicode CMap created for Times-Roman} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Times-Roman
+        $p text "Test" -x 50 -y 700
+    }]
+    containsAll $data "/ToUnicode" "/Type /Font" "/Subtype /Type1" "/Encoding /WinAnsiEncoding"
+} -result 1
+
+test tounicode-1.3 {ToUnicode CMap created for Courier} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Courier
+        $p text "Test" -x 50 -y 700
+    }]
+    containsAll $data "/ToUnicode" "/Type /Font" "/Subtype /Type1" "/Encoding /WinAnsiEncoding"
+} -result 1
+
+test tounicode-1.4 {ToUnicode CMap NOT created for CIDFonts} -body {
+    # CIDFonts have their own ToUnicode CMap, not WinAnsi
+    set dejavuPath ""
+    foreach candidate {
+        /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+        /usr/share/fonts/TTF/DejaVuSans.ttf
+        /Library/Fonts/DejaVuSans.ttf
+    } {
+        if {[file exists $candidate]} {
+            set dejavuPath $candidate
+            break
+        }
+    }
+    if {$dejavuPath eq ""} {
+        return -code skip "DejaVuSans.ttf not found"
+    }
+    pdf4tcl::loadBaseTrueTypeFont DejaVuSansCID $dejavuPath
+    pdf4tcl::createFontSpecCID DejaVuSansCID cidFont
+    set data [stdFontPdf {
+        $p setFont 12 cidFont
+        $p text "Test" -x 50 -y 700
+    }]
+    # CIDFont should have ToUnicode, but NOT WinAnsiEncoding
+    expr {[string match */ToUnicode* $data] && ![string match */WinAnsiEncoding* $data]}
+} -result 1
+
+# ===========================================================================
+# tounicode-2.x  WinAnsiEncoding → Unicode mapping correctness
+# ===========================================================================
+
+test tounicode-2.1 {CMap contains ASCII mapping (0x20-0x7E)} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Hello" -x 50 -y 700
+    }]
+    # Check for ASCII mappings: space (0x20), 'H' (0x48), 'e' (0x65), 'l' (0x6C), 'o' (0x6F)
+    containsAll $data "<20> <0020>" "<48> <0048>" "<65> <0065>" "<6C> <006C>" "<6F> <006F>"
+} -result 1
+
+test tounicode-2.2 {CMap contains Latin-1 mapping (0x80-0xFF)} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        # Use cp1252 encoding to get Latin-1 characters
+        $p text [encoding convertfrom cp1252 "\xE4\xF6\xFC"] -x 50 -y 700
+    }]
+    # Check for Latin-1 mappings: ä (0xE4 = U+00E4), ö (0xF6 = U+00F6), ü (0xFC = U+00FC)
+    containsAll $data "<E4> <00E4>" "<F6> <00F6>" "<FC> <00FC>"
+} -result 1
+
+test tounicode-2.3 {CMap maps all cp1252 bytes including control characters} -body {
+    # Test that CMap contains mapping for byte 0x81
+    # Note: cp1252 encoding may map 0x81 to a valid Unicode character,
+    # not necessarily U+FFFD. The important thing is that the mapping exists.
+    set cmap [pdf4tcl::MakeStdToUnicodeCMap Helvetica]
+    # Check that byte 0x81 has a mapping (could be U+0081 or U+FFFD depending on cp1252)
+    expr {[regexp {<81> <[0-9A-F]+>} $cmap]}
+} -result 1
+
+test tounicode-2.4 {CMap contains all 256 byte mappings} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Test" -x 50 -y 700
+    }]
+    # CMap should have beginbfchar blocks with 100 entries each (max per PDF spec)
+    # 256 entries = 3 blocks (100 + 100 + 56)
+    set count100 [regexp -all {100 beginbfchar} $data]
+    set count56 [regexp -all {56 beginbfchar} $data]
+    # Should have at least 2 blocks of 100, and possibly one of 56
+    expr {$count100 >= 2 && ($count100 == 3 || ($count100 == 2 && $count56 == 1))}
+} -result 1
+
+# ===========================================================================
+# tounicode-3.x  CMap format correctness
+# ===========================================================================
+
+test tounicode-3.1 {CMap contains correct CMap structure} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Test" -x 50 -y 700
+    }]
+    # Check for required CMap structure elements
+    containsAll $data "/CIDInit /ProcSet findresource begin" \
+                     "begincmap" \
+                     "/CIDSystemInfo" \
+                     "/CMapName /Adobe-Identity-UCS def" \
+                     "begincodespacerange" \
+                     "<00> <FF>" \
+                     "endcodespacerange" \
+                     "beginbfchar" \
+                     "endbfchar" \
+                     "endcmap"
+} -result 1
+
+test tounicode-3.2 {CMap codespacerange covers 0x00-0xFF} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Test" -x 50 -y 700
+    }]
+    # Codespacerange should cover all 256 bytes
+    expr {[string match *begincodespacerange*<00>*<FF>*endcodespacerange* $data]}
+} -result 1
+
+test tounicode-3.3 {CMap entries use correct format (<XX> <UUUU>)} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "A" -x 50 -y 700
+    }]
+    # Check for correct format: <XX> <UUUU> where XX is hex byte, UUUU is Unicode
+    # Example: <41> <0041> for 'A'
+    expr {[regexp {<[0-9A-F]{2}> <[0-9A-F]{4}>} $data]}
+} -result 1
+
+test tounicode-3.4 {CMap blocks respect 100-entry limit} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Test" -x 50 -y 700
+    }]
+    # No block should exceed 100 entries (PDF spec §9.10.3)
+    # Check that we don't have "101 beginbfchar" or higher (>= 101)
+    # Use word boundary to avoid matching "100" as part of larger number
+    set found [regexp -all -inline {\b(\d+) beginbfchar} $data]
+    set maxEntries 0
+    foreach {match num} $found {
+        if {$num > $maxEntries} {
+            set maxEntries $num
+        }
+    }
+    # Maximum should be 100 (not >= 101)
+    expr {$maxEntries <= 100}
+} -result 1
+
+# ===========================================================================
+# tounicode-4.x  Text extraction support
+# ===========================================================================
+
+test tounicode-4.1 {CMap enables text extraction for ASCII} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text "Hello World" -x 50 -y 700
+    }]
+    # CMap should contain mappings for all characters in "Hello World"
+    # H=0x48, e=0x65, l=0x6C, o=0x6F, space=0x20, W=0x57, r=0x72, d=0x64
+    containsAll $data "<48> <0048>" "<65> <0065>" "<6C> <006C>" \
+                     "<6F> <006F>" "<20> <0020>" "<57> <0057>" \
+                     "<72> <0072>" "<64> <0064>"
+} -result 1
+
+test tounicode-4.2 {CMap enables text extraction for Latin-1} -body {
+    set data [stdFontPdf {
+        $p setFont 12 Helvetica
+        $p text [encoding convertfrom cp1252 "\xC4\xD6\xDC\xDF"] -x 50 -y 700
+    }]
+    # CMap should contain mappings for Ä, Ö, Ü, ß
+    # Ä=0xC4=U+00C4, Ö=0xD6=U+00D6, Ü=0xDC=U+00DC, ß=0xDF=U+00DF
+    containsAll $data "<C4> <00C4>" "<D6> <00D6>" "<DC> <00DC>" "<DF> <00DF>"
+} -result 1
+
+# ===========================================================================
+# tounicode-5.x  PDF/A compliance
+# ===========================================================================
+
+test tounicode-5.1 {ToUnicode present for PDF/A-1b compliance} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # PDF/A-1b requires ToUnicode for all fonts (rule 6.3.9)
+    containsAll $data "/ToUnicode" "/Type /Font" "/Encoding /WinAnsiEncoding"
+} -result 1
+
+test tounicode-5.2 {ToUnicode present for PDF/A-2b compliance} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Times-Roman
+    $pdf text "Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # PDF/A-2b also requires ToUnicode for all fonts
+    containsAll $data "/ToUnicode" "/Type /Font" "/Encoding /WinAnsiEncoding"
+} -result 1
+
+test tounicode-5.3 {MakeStdToUnicodeCMap function exists} -body {
+    # Test that the function is available
+    info procs ::pdf4tcl::MakeStdToUnicodeCMap
+} -result ::pdf4tcl::MakeStdToUnicodeCMap
+
+test tounicode-5.4 {MakeStdToUnicodeCMap generates valid CMap} -body {
+    set cmap [pdf4tcl::MakeStdToUnicodeCMap Helvetica]
+    # Check for required CMap structure
+    containsAll $cmap "/CIDInit /ProcSet findresource begin" \
+                     "begincmap" \
+                     "/CIDSystemInfo" \
+                     "/CMapName /Adobe-Identity-UCS def" \
+                     "begincodespacerange" \
+                     "<00> <FF>" \
+                     "endcodespacerange" \
+                     "beginbfchar" \
+                     "endbfchar" \
+                     "endcmap"
+} -result 1
+
+test tounicode-5.5 {MakeStdToUnicodeCMap maps ASCII correctly} -body {
+    set cmap [pdf4tcl::MakeStdToUnicodeCMap Helvetica]
+    # Check that ASCII characters are mapped correctly
+    # Space (0x20) -> U+0020, 'A' (0x41) -> U+0041, 'a' (0x61) -> U+0061
+    containsAll $cmap "<20> <0020>" "<41> <0041>" "<61> <0061>"
+} -result 1

@@ -1,5 +1,7 @@
 web/pdf4tcl.html
 pdf4tcl_h.syntax
 *.tar.gz
+*.pdf
+*.log
 **/nogit/
 syntaxdb*.tcl

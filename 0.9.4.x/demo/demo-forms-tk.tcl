@@ -12,6 +12,10 @@
 
 package require Tk
 
+set demodir  [file dirname [file normalize [info script]]]
+set reporoot [file normalize [file join $demodir ../..]]
+set auto_path [linsert $auto_path 0 $reporoot]
+
 namespace eval ::demo {
     variable paper       "a4"
     variable orient      1

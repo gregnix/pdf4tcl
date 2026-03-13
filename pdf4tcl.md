@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.9?**
+package require **pdf4tcl ?0****.9****.4****.11?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -140,6 +140,16 @@ package require **pdf4tcl ?0****.9****.4****.9?**
 
 *objectName* **setStrokeColor** *c* *m* *y* *k*
 
+*objectName* **setAlpha** *value*
+
+*objectName* **setAlpha** *value* **-fill**
+
+*objectName* **setAlpha** *value* **-stroke**
+
+*objectName* **setAlpha** *fillValue* *strokeValue*
+
+*objectName* **getAlpha**
+
 *objectName* **setLineWidth** *width*
 
 *objectName* **setLineDash** ?*on off*...? ?*offset*?
@@ -167,10 +177,6 @@ package require **pdf4tcl ?0****.9****.4****.9?**
 *objectName* **gsave**
 
 *objectName* **grestore**
-
-*objectName* **setAlpha** *alpha* ?**-fill**|**-stroke**?
-
-*objectName* **getAlpha** ?**-fill**|**-stroke**?
 
 ## DESCRIPTION
 
@@ -730,6 +736,21 @@ Colors can be expressed in various formats. First, as a three element list of va
 **objectName setStrokeColor c m y k**
 : Alternative calling form, to set color in CMYK color space.
 
+**objectName setAlpha value**
+: Sets the opacity for both fill and stroke operations. *value* must be a number between 0.0 (fully transparent) and 1.0 (fully opaque). Values outside this range are clamped. The default is 1.0. Internally this creates a PDF ExtGState object with **/ca** (fill alpha) and **/CA** (stroke alpha). Identical alpha values are cached and reuse the same ExtGState object. The alpha state is saved and restored by **gsave** / **grestore**.
+
+**objectName setAlpha value -fill**
+: Sets fill opacity only, leaving stroke opacity unchanged.
+
+**objectName setAlpha value -stroke**
+: Sets stroke opacity only, leaving fill opacity unchanged.
+
+**objectName setAlpha fillValue strokeValue**
+: Sets fill and stroke opacity independently in a single call.
+
+**objectName getAlpha**
+: Returns the current opacity values as a two-element list *fillAlpha strokeAlpha*.
+
 ### OBJECT METHODS, GRAPHICS
 
 **-filled bool   (default 0)**
@@ -805,16 +826,10 @@ Colors can be expressed in various formats. First, as a three element list of va
 : Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.
 
 **objectName gsave**
-: Save graphic/text context. (I.e. insert a raw PDF "q" command). This saves the settings of at least these calls: **clip**, **setBgColor**, **setFillColor**, **setStrokeColor**, **setLineStyle**, **setLineWidth**, **setLineDash**, **setFont**, and **setLineSpacing**. Each call to **gsave** should be followed by a later call to **grestore** in the same page.
+: Save graphic/text context. (I.e. insert a raw PDF "q" command). This saves the settings of at least these calls: **clip**, **setBgColor**, **setFillColor**, **setStrokeColor**, **setAlpha**, **setLineStyle**, **setLineWidth**, **setLineDash**, **setFont**, and **setLineSpacing**. Each call to **gsave** should be followed by a later call to **grestore** in the same page.
 
 **objectName grestore**
 : Restore graphic/text context. (I.e. insert a raw PDF "Q" command).
-
-**objectName setAlpha** *alpha* ?**-fill**|**-stroke**?
-: Set the opacity (alpha) for subsequent drawing operations. *alpha* is a floating-point value between 0.0 (fully transparent) and 1.0 (fully opaque). With **-fill**, only the fill opacity is changed. With **-stroke**, only the stroke opacity is changed. Without a flag, both fill and stroke opacity are set to *alpha*. The alpha value is saved and restored by **gsave**/**grestore**.
-
-**objectName getAlpha** ?**-fill**|**-stroke**?
-: Return the current alpha (opacity) value. With **-fill** returns fill alpha, with **-stroke** returns stroke alpha. Without a flag, returns the fill alpha. Default value is 1.0.
 
 ### OBJECT CONFIGURATION
 
@@ -843,10 +858,10 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 : Explicit path to the sRGB ICC profile file used for the OutputIntent when **-pdfa** is **1b** or **2b**. If not specified, pdf4tcl searches for the profile in standard system locations (e.g. "*/usr/share/color/icc/ghostscript/srgb**.icc*"). This option can only be set at object creation.
 
 **-userpassword string**
-: Set a user (open) password for the PDF document. When set, the document cannot be opened without this password. Uses AES-128 encryption (V=4, R=4 per PDF 1.6). This option can only be set at object creation.
+: Set a user (open) password for the document. When set, the document cannot be opened without this password. Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification). Note: **-userpassword** and **-pdfa** cannot be combined -- PDF/A forbids encryption (ISO 19005). This option can only be set at object creation.
 
 **-ownerpassword string**
-: Set an owner password for the PDF document. The owner password grants full access to the document regardless of user-password restrictions. When only **-ownerpassword** is set (no **-userpassword**), the document opens without a password but is protected from modification. Uses AES-128 encryption (V=4, R=4). This option can only be set at object creation.
+: Set an owner password for the document. The owner password grants full access regardless of user-password restrictions. When only **-ownerpassword** is set (no **-userpassword**), the document opens without a password but is protected from modification. Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification). This option can only be set at object creation.
 
 ### PAGE CONFIGURATION
 
@@ -880,18 +895,17 @@ pdf4tcl::new mypdf -paper a3
 
 ### VERSION 0.9.4.11
 
-- New module **src/encrypt.tcl**: AES-128 encryption (V=4, R=4) per PDF 1.6 specification. New options **-userpassword** and **-ownerpassword**. The Encrypt dictionary uses `/CFM /AESV2`, `/StmF /StdCF`, `/StrF /StdCF`. Padding constant corrected to 0x7A (qpdf-compatible).
+- New module "*src/encrypt**.tcl*": AES-128 encryption (V=4, R=4) per PDF 1.6 specification. New options **-userpassword** and **-ownerpassword**. The Encrypt dictionary uses **/CFM** **/AESV2**, **/StmF** **/StdCF**, **/StrF** **/StdCF**. Padding constant corrected to 0x7A (qpdf-compatible).
 - Extended **_FindSRGBProfile** with TeX Live path variants for the sRGB ICC profile (glob search for year-variable path components).
-- New test file **tests/encrypt.test**: 25 tests covering AES-128 encryption, O/U-entry calculation, and Encrypt dictionary structure.
+- New test file "*tests/encrypt**.test*": 25 tests covering AES-128 encryption, O/U-entry calculation, and Encrypt dictionary structure.
 
 ### VERSION 0.9.4.10
 
-- New methods **setAlpha** and **getAlpha** for transparency control. **setAlpha** accepts **-fill** and **-stroke** flags; internally uses ExtGState `/ca` (fill alpha) and `/CA` (stroke alpha).
-- New option **-alpha** for initial alpha value at object creation.
-- Fixed: **throw** error codes unified to `{PDF4TCL ERROR}` throughout all public methods.
-- Fixed: `licence.terms` encoding cleaned (non-ASCII bytes removed).
-- Makefile: new target **check90** for static analysis against Tcl 9.0 syntax database.
-- New demo **demo-alpha.tcl** illustrating transparency effects.
+- Added **setAlpha**: sets fill and/or stroke opacity (0.0 transparent, 1.0 opaque) via PDF ExtGState (/ca, /CA). Supports single value, **-fill**, **-stroke**, and two-value form for independent fill/stroke control.
+- Added **getAlpha**: returns current fill and stroke opacity as a list.
+- Alpha state is saved and restored by **gsave** / **grestore**.
+- ExtGState objects are cached: identical alpha values reuse one PDF object.
+- Added **demo-alpha****.tcl**: demonstrates transparency with overlapping shapes, alpha steps, independent fill/stroke alpha, transparent text, and gsave/grestore.
 
 ### VERSION 0.9.4.9
 

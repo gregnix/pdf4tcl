@@ -1,0 +1,294 @@
+# Tests for AES-128 encryption (V=4/R=4)
+source init.tcl
+
+package require md5
+package require aes
+
+# ---------------------------------------------------------------------------
+# Helper: check if a PDF has the Standard encrypt dictionary
+proc hasEncryptDict {data} {
+    return [regexp {/Filter /Standard} $data]
+}
+
+proc extractEntry {data key} {
+    if {[regexp "/${key} <(\[0-9a-fA-F\]+)>" $data -> val]} {
+        return $val
+    }
+    return ""
+}
+
+# ---------------------------------------------------------------------------
+# 1. Basic: userpassword enables encryption
+# ---------------------------------------------------------------------------
+test encrypt-1.1 {userpassword triggers encryption} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "hello"]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "Secret" -x 72 -y 700
+    $p endPage
+    set data [$p get]
+    $p destroy
+    hasEncryptDict $data
+} 1
+
+test encrypt-1.2 {ownerpassword triggers encryption} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -ownerpassword "owner"]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "Secret" -x 72 -y 700
+    $p endPage
+    set data [$p get]
+    $p destroy
+    hasEncryptDict $data
+} 1
+
+test encrypt-1.3 {no password: no encryption} {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "Open" -x 72 -y 700
+    $p endPage
+    set data [$p get]
+    $p destroy
+    hasEncryptDict $data
+} 0
+
+# ---------------------------------------------------------------------------
+# 2. Encrypt dictionary structure (V=4/R=4)
+# ---------------------------------------------------------------------------
+test encrypt-2.1 {encrypt dict has V=4} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/V 4} $data
+} 1
+
+test encrypt-2.2 {encrypt dict has R=4} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/R 4} $data
+} 1
+
+test encrypt-2.3 {encrypt dict has Length 128} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Length 128} $data
+} 1
+
+test encrypt-2.4 {encrypt dict has AESV2 crypt filter} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/CFM /AESV2} $data
+} 1
+
+test encrypt-2.5 {StmF and StrF reference StdCF} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    set ok [regexp {/StmF /StdCF} $data]
+    set ok [expr {$ok && [regexp {/StrF /StdCF} $data]}]
+    set ok
+} 1
+
+test encrypt-2.6 {O entry is 32 bytes} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    set ohex [extractEntry $data O]
+    expr {[string length $ohex] == 64}
+} 1
+
+test encrypt-2.7 {U entry is 32 bytes} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    set uhex [extractEntry $data U]
+    expr {[string length $uhex] == 64}
+} 1
+
+test encrypt-2.8 {U entry last 16 bytes are zero (Algorithm 5 step f)} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    set uhex [extractEntry $data U]
+    # Last 16 bytes = chars 32..63 of hex string
+    string equal [string range $uhex 32 end] [string repeat 00 16]
+} 1
+
+test encrypt-2.9 {P entry is -196 (all permissions, reserved bits clear)} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/P -196} $data
+} 1
+
+# ---------------------------------------------------------------------------
+# 3. Trailer entries
+# ---------------------------------------------------------------------------
+test encrypt-3.1 {trailer has /Encrypt reference} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Encrypt \d+ 0 R} $data
+} 1
+
+test encrypt-3.2 {trailer has /ID} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/ID \[<[0-9a-fA-F]+>} $data
+} 1
+
+test encrypt-3.3 {encrypted PDF version >= 1.5} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {%PDF-1\.[5-9]} $data
+} 1
+
+# ---------------------------------------------------------------------------
+# 4. Stream encryption: content must not appear in plaintext
+# ---------------------------------------------------------------------------
+test encrypt-4.1 {page content stream is not plaintext} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "SensitiveText12345" -x 72 -y 700
+    $p endPage
+    set data [$p get]
+    $p destroy
+    # The text operator "SensitiveText12345" must not appear unencrypted
+    expr {![string match *SensitiveText12345* $data]}
+} 1
+
+test encrypt-4.2 {encrypted PDF is larger than plain (IV overhead)} {
+    set p1 [pdf4tcl::new %AUTO% -paper a4]
+    $p1 startPage
+    $p1 setFont 12 Helvetica
+    $p1 text "Hello World" -x 72 -y 700
+    $p1 endPage
+    set plain [$p1 get]
+    $p1 destroy
+
+    set p2 [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+    $p2 startPage
+    $p2 setFont 12 Helvetica
+    $p2 text "Hello World" -x 72 -y 700
+    $p2 endPage
+    set enc [$p2 get]
+    $p2 destroy
+
+    # Encrypted must be larger (encrypt dict + IV overhead)
+    expr {[string length $enc] > [string length $plain]}
+} 1
+
+# ---------------------------------------------------------------------------
+# 5. Algorithm correctness: RC4 internal
+# ---------------------------------------------------------------------------
+test encrypt-5.1 {RC4 encrypt/decrypt round-trip} {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    oo::objdefine $p export _RC4
+    set key [binary format H32 0102030405060708090a0b0c0d0e0f10]
+    set pt  "Hello World!!!!!"
+    set ct  [$p _RC4 $key $pt]
+    set dt  [$p _RC4 $key $ct]
+    $p destroy
+    string equal $dt $pt
+} 1
+
+test encrypt-5.2 {RC4 known vector: RFC6229 key=01..10} {
+    # RFC 6229 first 16 bytes, key = 0102030405060708090a0b0c0d0e0f10 (16 bytes)
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    oo::objdefine $p export _RC4
+    set key [binary format H32 0102030405060708090a0b0c0d0e0f10]
+    set pt  [string repeat "\x00" 16]
+    set ct  [$p _RC4 $key $pt]
+    $p destroy
+    binary scan $ct H* cthex
+    # Expected from RFC 6229 (key 16 bytes 01..10, first 16 bytes of keystream)
+    string equal $cthex "9ac7cc9a609d1ef7b2932899cde41b97"
+} 1
+
+# ---------------------------------------------------------------------------
+# 6. Algorithm correctness: per-object key (Algorithm 1)
+# ---------------------------------------------------------------------------
+test encrypt-6.1 {ObjKey returns 16 bytes} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "test"]
+    $p startPage; $p endPage
+    oo::objdefine $p export _ObjKey
+    set key [$p _ObjKey 5]
+    $p destroy
+    string length $key
+} 16
+
+test encrypt-6.2 {ObjKey differs per OID} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "test"]
+    $p startPage; $p endPage
+    oo::objdefine $p export _ObjKey
+    set k5 [$p _ObjKey 5]
+    set k6 [$p _ObjKey 6]
+    $p destroy
+    expr {$k5 ne $k6}
+} 1
+
+# ---------------------------------------------------------------------------
+# 7. EncryptBytes: structure
+# ---------------------------------------------------------------------------
+test encrypt-7.1 {EncryptBytes prepends 16-byte IV} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "test"]
+    $p startPage; $p endPage
+    oo::objdefine $p export EncryptBytes
+    set pt [string repeat "A" 16]
+    set ct [$p EncryptBytes 5 $pt]
+    $p destroy
+    # ct = 16 (IV) + 32 (padded AES block)
+    string length $ct
+} 48
+
+test encrypt-7.2 {EncryptBytes: PKCS5 pad adds full block when aligned} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "test"]
+    $p startPage; $p endPage
+    oo::objdefine $p export EncryptBytes
+    set pt [string repeat "B" 16]  ;# exactly 1 block
+    set ct [$p EncryptBytes 5 $pt]
+    $p destroy
+    # 16 (IV) + 32 (16 data + 16 PKCS5 pad) = 48
+    string length $ct
+} 48
+
+test encrypt-7.3 {EncryptBytes: 9-byte plaintext} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "test"]
+    $p startPage; $p endPage
+    oo::objdefine $p export EncryptBytes
+    set pt [string repeat "C" 9]
+    set ct [$p EncryptBytes 5 $pt]
+    $p destroy
+    # 16 (IV) + 16 (9 data padded to 16) = 32
+    string length $ct
+} 32
+
+# ---------------------------------------------------------------------------
+# 8. Multi-page encrypted document
+# ---------------------------------------------------------------------------
+test encrypt-8.1 {multi-page encrypted document builds without error} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw" -ownerpassword "ow"]
+    for {set i 1} {$i <= 3} {incr i} {
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Page $i" -x 72 -y 700
+        $p endPage
+    }
+    set data [$p get]
+    $p destroy
+    set ok [hasEncryptDict $data]
+    set ok [expr {$ok && [regexp {/Type /Pages} $data]}]
+    set ok
+} 1
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+cleanupTests

@@ -9,7 +9,12 @@ set auto_path [linsert $auto_path 0 $reporoot]
 
 package require pdf4tcl
 
-set outfile [expr {$argc > 0 ? [lindex $argv 0] : "demo-alpha.pdf"}]
+set outdir  [expr {$argc > 0 ? [lindex $argv 0] : $demodir}]
+if {[file isdirectory $outdir]} {
+    set outfile [file join $outdir demo-alpha.pdf]
+} else {
+    set outfile $outdir
+}
 
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient false -compress 1]
 $pdf startPage

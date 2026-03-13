@@ -317,6 +317,11 @@ $pdf setFillColor $r $g $b
 # Strichlinie
 $pdf setLineDash $dash $gap
 
+# Transparenz
+$pdf setAlpha 0.5           ;# Fill und Stroke auf 50%
+$pdf setAlpha 0.3 -fill     ;# Nur Fill
+$pdf setAlpha 1.0 -stroke   ;# Nur Stroke
+
 # Transformation
 $pdf gsave
 $pdf translate $dx $dy
@@ -324,6 +329,45 @@ $pdf rotate $degrees
 $pdf scale $sx $sy
 $pdf grestore
 ```
+
+## Transparenz (setAlpha / getAlpha)
+
+Ab Version 0.9.4.10 unterstuetzt pdf4tcl Transparenz ueber `setAlpha`
+und `getAlpha`. Der Alpha-Wert liegt zwischen 0.0 (unsichtbar) und
+1.0 (undurchsichtig, Standard).
+
+```tcl
+# Fill und Stroke gemeinsam setzen
+$pdf setAlpha 0.5
+
+# Nur Fill-Alpha (fuer Flaechen/Text)
+$pdf setFillColor 1 0 0
+$pdf setAlpha 0.4 -fill
+$pdf rectangle 50 500 200 100 -filled 1
+
+# Nur Stroke-Alpha (fuer Konturlinien)
+$pdf setAlpha 1.0 -stroke
+$pdf setLineStyle 2
+$pdf rectangle 50 500 200 100
+
+# Aktuellen Alpha-Wert abfragen
+set a [$pdf getAlpha -fill]
+```
+
+`gsave`/`grestore` speichern und stellen den Alpha-Wert zurueck:
+
+```tcl
+$pdf setAlpha 0.3
+$pdf gsave
+$pdf rectangle 60 400 100 50 -filled 1   ;# alpha 0.3
+$pdf grestore
+$pdf rectangle 180 400 100 50 -filled 1  ;# wieder alpha 1.0
+```
+
+**Hinweis:** Bei PDF/A-1 (`-pdfa 1b`) ist Transparenz nicht erlaubt.
+pdf4tcl unterdrueckt `/Group /S /Transparency` automatisch, aber
+`setAlpha`-Werte kleiner 1.0 koennen veraPDF-Fehler erzeugen.
+
 
 ## Praktisches Beispiel: Horizontale Trennlinie
 
