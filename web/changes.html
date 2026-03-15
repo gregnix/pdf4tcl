@@ -18,6 +18,21 @@ Changes in v0.9.X (Not released yet):<br>
 
 </ul>
 
+Changes in v0.9.4.15 (2026-03-16, fork gregnix):<br>
+<ul>
+  <li> OTF/CFF font support in <b>loadBaseTrueTypeFont</b>:
+       OpenType fonts with CFF outlines (.otf files, OTTO magic number)
+       are now accepted. Previously raised
+       <i>TTF: postscript outlines are not supported</i>.
+       Font binary is embedded as-is; only metadata tables are read.
+       PDF embedding uses <b>/CIDFontType0</b> + <b>/FontFile3</b>
+       with <b>/Subtype /OpenType</b> instead of the TTF path
+       (CIDFontType2 / FontFile2). New internal flag
+       <b>BFA($name,isCFF)</b>.
+       25 new tests in tests/new-0.9.4.15.test.
+  </li>
+</ul>
+
 Changes in v0.9.4.14 (2026-03-15, fork gregnix):<br>
 <ul>
   <li> New method <b>addEmbeddedFile</b>: embeds a file silently in the PDF

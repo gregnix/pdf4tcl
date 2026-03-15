@@ -1,6 +1,4 @@
 <!DOCTYPE html><html><head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pdf4tcl - Pdf document generation</title>
 <style type="text/css"><!--
     HTML {
@@ -100,7 +98,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.14 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.15 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -143,7 +141,8 @@
 <li class="doctools_subsection"><a href="#subsection20">Version 0.9.4.5</a></li>
 <li class="doctools_subsection"><a href="#subsection21">Version 0.9.4.3</a></li>
 <li class="doctools_subsection"><a href="#subsection22">Version 0.9.4.1</a></li>
-<li class="doctools_subsection"><a href="#subsection23">Version 0.9.4.14</a></li>
+<li class="doctools_subsection"><a href="#subsection23">Version 0.9.4.15</a></li>
+<li class="doctools_subsection"><a href="#subsection24">Version 0.9.4.14</a></li>
 </ul>
 </li>
 <li class="doctools_section"><a href="#see-also">See Also</a></li>
@@ -155,7 +154,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.14?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.15?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -381,7 +380,7 @@ character covered by the underlying TTF file. This includes Latin Extended, Gree
 CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.</p>
 <p>Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
 supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
-as required by the PDF specification (ISO 32000, &sect;9.10.3).
+as required by the PDF specification (ISO 32000, &Acirc;&sect;9.10.3).
 This enables correct text extraction and copy-paste from PDF viewers for characters
 such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100),
 or emoji from vector outline fonts (U+1F300 and above).</p>
@@ -1043,7 +1042,7 @@ automatically.</p></dd>
 <dd><p>Paints a linear (axial) gradient from (<i class="arg">x1</i>,<i class="arg">y1</i>) to
 (<i class="arg">x2</i>,<i class="arg">y2</i>). <i class="arg">color1</i> is the colour at the start point,
 <i class="arg">color2</i> at the end point. Both colours can be specified as an RGB triple
-<i class="arg">{r g b}</i> (values 0.0â€“1.0), a named colour (<b class="const">red</b>, <b class="const">green</b>,
+<i class="arg">{r g b}</i> (values 0.0&acirc;€“1.0), a named colour (<b class="const">red</b>, <b class="const">green</b>,
 <b class="const">blue</b>, <b class="const">white</b>, <b class="const">black</b>, <b class="const">yellow</b>, <b class="const">cyan</b>,
 <b class="const">magenta</b>) or a CSS hex string <i class="arg">#rrggbb</i>.</p>
 <p>Options:</p>
@@ -1429,7 +1428,25 @@ for Tcl 9.0 compatibility (ticket #17).</p></li>
 Added <b class="option">-required</b>, <b class="option">-label</b> and radio group support (ticket #9).</p></li>
 </ul>
 </div>
-<div id="subsection23" class="doctools_subsection"><h3><a name="subsection23">Version 0.9.4.14</a></h3>
+<div id="subsection23" class="doctools_subsection"><h3><a name="subsection23">Version 0.9.4.15</a></h3>
+<ul class="doctools_itemized">
+<li><p>OTF/CFF font support in <b class="cmd">pdf4tcl::loadBaseTrueTypeFont</b>:
+OpenType fonts with CFF outlines (&quot;<b class="file">.otf</b>&quot; files, OTTO magic number
+<b class="const">0x4F54544F</b>) are now accepted without error.
+Previously these fonts caused <em>TTF: postscript outlines are not supported</em>.</p>
+<p>No CFF parser is required: pdf4tcl embeds the font binary as-is and reads
+only metadata tables (<b class="const">name</b>, <b class="const">head</b>, <b class="const">OS/2</b>,
+<b class="const">post</b>, <b class="const">hhea</b>, <b class="const">maxp</b>, <b class="const">cmap</b>, <b class="const">hmtx</b>).
+<b class="const">loca</b> and <b class="const">glyf</b> tables (TTF-only) are skipped for CFF fonts.</p>
+<p>PDF embedding uses <b class="const">/CIDFontType0</b> with <b class="const">/FontFile3</b>
+(<b class="const">/Subtype /OpenType</b>) instead of the TTF path
+(<b class="const">/CIDFontType2</b> / <b class="const">/FontFile2</b> / <b class="const">/Length1</b>).
+The ToUnicode CMap and all other font objects are identical.</p>
+<p>A new internal flag <b class="const">BFA($name,isCFF)</b> is set to <b class="const">1</b> for
+CFF/OTF fonts and <b class="const">0</b> for TrueType fonts.</p></li>
+</ul>
+</div>
+<div id="subsection24" class="doctools_subsection"><h3><a name="subsection24">Version 0.9.4.14</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">addEmbeddedFile</b>: embeds a file silently into the
 PDF Catalog <b class="const">/Names</b> / <b class="const">/EmbeddedFiles</b> NameTree

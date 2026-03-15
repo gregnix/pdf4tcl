@@ -1,5 +1,15 @@
-2026-03-15 Gregor  <gregnix@github>
-	* Bumped revision to 0.9.4.14
+2026-03-16 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.15
+	* OTF/CFF font support in loadBaseTrueTypeFont:
+	  OpenType fonts with CFF outlines (.otf, OTTO magic) are now accepted.
+	  Previously raised "TTF: postscript outlines are not supported".
+	  Font binary embedded as-is; only metadata tables parsed.
+	  PDF output: /CIDFontType0 + /FontFile3 /Subtype /OpenType.
+	  New internal flag BFA($name,isCFF) for TTF/CFF distinction.
+	  25 new tests in tests/new-0.9.4.15.test.
+	  Demo: 0.9.4.x/demo/demo-otf.tcl (3 pages).
+
+
 	* New method addEmbeddedFile: embeds a file silently in the PDF
 	  Catalog /Names /EmbeddedFiles NameTree (ISO 32000 SS7.11.4).
 	  No visible page annotation. Options: -contents, -mimetype,

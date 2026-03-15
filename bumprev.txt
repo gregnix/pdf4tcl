@@ -9,7 +9,7 @@ pdf4tcl.man (two places) (regenerate doc)
 README.md (version in heading + package require + test count)
 web/index.html (version number)
 nogit/scripts/sync-pdf4tcl.tcl (VERSION in paths, two places)
-nogit/scripts/make-release.tcl (VERSION, REPODIR, TAGMSG)
+nogit/scripts/make-release.tcl (VERSION, REPODIR, TAGMSG, tarball name)
 
 Also update these:
 ChangeLog

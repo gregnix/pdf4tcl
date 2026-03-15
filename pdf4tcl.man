@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.14]
+[manpage_begin pdf4tcl n 0.9.4.15]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.14]]
+[require pdf4tcl [opt 0.9.4.15]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1533,6 +1533,27 @@ for Tcl 9.0 compatibility (ticket #17).
 [term password], [term checkbutton], [term combobox], [term listbox],
 [term radiobutton], [term pushbutton], [term signature].
 Added [option -required], [option -label] and radio group support (ticket #9).
+[list_end]
+
+[subsection {Version 0.9.4.15}]
+[list_begin itemized]
+[item] OTF/CFF font support in [cmd pdf4tcl::loadBaseTrueTypeFont]:
+OpenType fonts with CFF outlines ([file .otf] files, OTTO magic number
+[const 0x4F54544F]) are now accepted without error.
+Previously these fonts caused [emph "TTF: postscript outlines are not supported"].
+[para]
+No CFF parser is required: pdf4tcl embeds the font binary as-is and reads
+only metadata tables ([const name], [const head], [const OS/2],
+[const post], [const hhea], [const maxp], [const cmap], [const hmtx]).
+[const loca] and [const glyf] tables (TTF-only) are skipped for CFF fonts.
+[para]
+PDF embedding uses [const /CIDFontType0] with [const /FontFile3]
+([const {/Subtype /OpenType}]) instead of the TTF path
+([const /CIDFontType2] / [const /FontFile2] / [const /Length1]).
+The ToUnicode CMap and all other font objects are identical.
+[para]
+A new internal flag [const {BFA($name,isCFF)}] is set to [const 1] for
+CFF/OTF fonts and [const 0] for TrueType fonts.
 [list_end]
 
 [subsection {Version 0.9.4.14}]
