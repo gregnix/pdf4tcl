@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.11]
+[manpage_begin pdf4tcl n 0.9.4.12]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.11]]
+[require pdf4tcl [opt 0.9.4.12]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1094,6 +1094,19 @@ Returns the current opacity values as a two-element list
       Draw an outline of the rectangle.
    [list_end]
 
+
+[call [arg objectName] [method roundedRect] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+   Draw a rectangle with rounded corners (Bezier approximation).
+   [list_begin options]
+      [opt_def -radius "[arg value]   (default 5)"]
+      Corner radius in the document's current unit. Automatically clamped
+      to half the shorter side.
+      [opt_def -filled "[arg bool]   (default 0)"]
+      Fill the rectangle.
+      [opt_def -stroke "[arg bool]   (default 1)"]
+      Draw an outline of the rectangle.
+   [list_end]
+
 [call [arg objectName] [method clip] [arg "x"] [arg "y"] [arg "width"] [arg "height"]]
    Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.
 
@@ -1256,7 +1269,48 @@ The default value of this option is zero.
   mypdf destroy
 [example_end]
 
+[subsection {Unit conversion procs}]
+
+The following procs convert common units to PDF points (1 pt = 1/72 inch).
+They can be used directly in any coordinate or distance argument.
+
+[list_begin definitions]
+[def "[cmd pdf4tcl::mm] [arg value]"]
+Convert millimetres to points.
+[def "[cmd pdf4tcl::cm] [arg value]"]
+Convert centimetres to points.
+[def "[cmd pdf4tcl::in] [arg value]"]
+Convert inches to points.
+[def "[cmd pdf4tcl::pt] [arg value]"]
+Identity conversion (returns the value as a floating-point number).
+[list_end]
+
+Example:
+[example {
+$pdf text "Hello" -x [pdf4tcl::mm 20] -y [pdf4tcl::mm 267]
+$pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm 80] [pdf4tcl::mm 30]                  -radius [pdf4tcl::mm 5] -filled 1
+}]
+
+
 [section CHANGES]
+
+[subsection {Version 0.9.4.12}]
+[list_begin itemized]
+[item] New method [method roundedRect]: draws a rectangle with rounded
+corners using Bezier approximation. Options [option -radius] (default 5),
+[option -filled], [option -stroke]. Radius is automatically clamped to
+half the shorter side.
+[item] New namespace procs [cmd pdf4tcl::mm], [cmd pdf4tcl::cm],
+[cmd pdf4tcl::in], [cmd pdf4tcl::pt]: convert common units to PDF points
+(1 pt = 1/72 inch). Use directly in coordinate arguments.
+[item] Date validation in [method metadata]: new method
+[cmd _ValidatePdfDate] validates and normalises PDF date strings for
+[option -creationdate] and [option -moddate]. Throws [const {PDF4TCL BADDATE}]
+on invalid format.
+[item] Extended [file 0.9.4.x/demo/demo-alpha.tcl] with sections
+demonstrating [method roundedRect] and unit conversion procs.
+[item] New test file [file tests/new-0.9.4.12.test]: 17 tests.
+[list_end]
 
 [subsection {Version 0.9.4.11}]
 [list_begin itemized]

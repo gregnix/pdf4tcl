@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.11 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.12 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.11?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.12?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -441,6 +441,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.11?\fR
 \fIobjectName\fR \fBarrow\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIsize\fR ?\fIangle\fR?
 .sp
 \fIobjectName\fR \fBrectangle\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBroundedRect\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBclip\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
 .sp
@@ -1449,6 +1451,21 @@ Fill the rectangle\&.
 Draw an outline of the rectangle\&.
 .RE
 .TP
+\fIobjectName\fR \fBroundedRect\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+Draw a rectangle with rounded corners (Bezier approximation)\&.
+.RS
+.TP
+\fB-radius\fR \fIvalue\fR   (default 5)
+Corner radius in the document's current unit\&. Automatically clamped
+to half the shorter side\&.
+.TP
+\fB-filled\fR \fIbool\fR   (default 0)
+Fill the rectangle\&.
+.TP
+\fB-stroke\fR \fIbool\fR   (default 1)
+Draw an outline of the rectangle\&.
+.RE
+.TP
 \fIobjectName\fR \fBclip\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR
 Create a clip region\&. To cancel a clip region you must restore a graphic context that was saved before\&.
 .TP
@@ -1591,7 +1608,52 @@ The default value of this option is zero\&.
   mypdf destroy
 
 .CE
+.SS "UNIT CONVERSION PROCS"
+The following procs convert common units to PDF points (1 pt = 1/72 inch)\&.
+They can be used directly in any coordinate or distance argument\&.
+.TP
+\fBpdf4tcl::mm\fR \fIvalue\fR
+Convert millimetres to points\&.
+.TP
+\fBpdf4tcl::cm\fR \fIvalue\fR
+Convert centimetres to points\&.
+.TP
+\fBpdf4tcl::in\fR \fIvalue\fR
+Convert inches to points\&.
+.TP
+\fBpdf4tcl::pt\fR \fIvalue\fR
+Identity conversion (returns the value as a floating-point number)\&.
+.PP
+Example:
+.CS
+
+
+$pdf text "Hello" -x [pdf4tcl::mm 20] -y [pdf4tcl::mm 267]
+$pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm 80] [pdf4tcl::mm 30]                  -radius [pdf4tcl::mm 5] -filled 1
+
+.CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.12"
+.IP \(bu
+New method \fBroundedRect\fR: draws a rectangle with rounded
+corners using Bezier approximation\&. Options \fB-radius\fR (default 5),
+\fB-filled\fR, \fB-stroke\fR\&. Radius is automatically clamped to
+half the shorter side\&.
+.IP \(bu
+New namespace procs \fBpdf4tcl::mm\fR, \fBpdf4tcl::cm\fR,
+\fBpdf4tcl::in\fR, \fBpdf4tcl::pt\fR: convert common units to PDF points
+(1 pt = 1/72 inch)\&. Use directly in coordinate arguments\&.
+.IP \(bu
+Date validation in \fBmetadata\fR: new method
+\fB_ValidatePdfDate\fR validates and normalises PDF date strings for
+\fB-creationdate\fR and \fB-moddate\fR\&. Throws \fBPDF4TCL BADDATE\fR
+on invalid format\&.
+.IP \(bu
+Extended "\fI0\&.9\&.4\&.x/demo/demo-alpha\&.tcl\fR" with sections
+demonstrating \fBroundedRect\fR and unit conversion procs\&.
+.IP \(bu
+New test file "\fItests/new-0\&.9\&.4\&.12\&.test\fR": 17 tests\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.11"
 .IP \(bu
 New module "\fIsrc/encrypt\&.tcl\fR": AES-128 encryption (V=4, R=4)

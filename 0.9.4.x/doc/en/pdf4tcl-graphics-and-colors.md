@@ -170,6 +170,37 @@ proc drawCell {pdf x y w h text {bg ""}} {
 }
 ```
 
+### Rounded rectangles (0.9.4.12)
+
+```tcl
+$pdf roundedRect x y width height ?-radius r? ?-filled 0/1? ?-stroke 0/1?
+```
+
+Draws a rectangle with rounded corners (Bezier approximation).
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-radius` | 5 | Corner radius in points |
+| `-filled` | 0 | Fill the shape |
+| `-stroke` | 1 | Draw outline |
+
+The radius is automatically clamped to half the shorter side.
+
+```tcl
+# Outline only
+$pdf roundedRect 50 100 200 80 -radius 12
+
+# Filled with outline
+$pdf setFillColor 0.2 0.6 0.3
+$pdf roundedRect 50 100 200 80 -radius 20 -filled 1 -stroke 1
+
+# Filled, no outline, semi-transparent
+$pdf setFillColor 0.8 0.2 0.2
+$pdf setAlpha 0.5
+$pdf roundedRect 50 100 200 80 -radius 8 -filled 1 -stroke 0
+```
+
+
 ## Circles and Ellipses
 
 ### Circle

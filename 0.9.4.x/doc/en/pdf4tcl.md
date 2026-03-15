@@ -878,6 +878,14 @@ pdf4tcl::new mypdf -paper a3
 
 ## CHANGES
 
+### VERSION 0.9.4.12
+
+- New method **roundedRect**: draws a rectangle with rounded corners using Bezier approximation. Options **-radius** (default 5), **-filled**, **-stroke**. Radius is automatically clamped to half the shorter side.
+- New namespace procs **pdf4tcl::mm**, **pdf4tcl::cm**, **pdf4tcl::in**, **pdf4tcl::pt**: convert common units to PDF points (1 pt = 1/72 inch). Use directly in coordinate arguments.
+- New method **_ValidatePdfDate**: validates and normalises PDF date strings in the **metadata** method. Accepts integers (clock seconds), validates `D:` prefix and minimum length, throws `{PDF4TCL BADDATE}` on invalid format.
+- Extended **demo-alpha.tcl** with sections demonstrating `roundedRect` and unit conversion procs.
+- New test file **tests/new-0.9.4.12.test**: 17 tests covering unit procs, roundedRect, and date validation.
+
 ### VERSION 0.9.4.11
 
 - New module **src/encrypt.tcl**: AES-128 encryption (V=4, R=4) per PDF 1.6 specification. New options **-userpassword** and **-ownerpassword**. The Encrypt dictionary uses `/CFM /AESV2`, `/StmF /StdCF`, `/StrF /StdCF`. Padding constant corrected to 0x7A (qpdf-compatible).
@@ -947,5 +955,32 @@ document, pdf
 Copyright (c) 2007-2016 Peter Spjuth
 Copyright (c) 2009 Yaroslav Schekin
 Copyright (c) 2024-2026 gregnix (fork 0.9.4.x)
+```
+
+
+## Units
+
+### Built-in conversion procs (0.9.4.12)
+
+From 0.9.4.12, unit conversion procs are built into pdf4tcl:
+
+```tcl
+pdf4tcl::mm 25.4    ;# --> 72.0 pt
+pdf4tcl::cm 2.54    ;# --> 72.0 pt
+pdf4tcl::in 1       ;# --> 72.0 pt
+pdf4tcl::pt 42.5    ;# --> 42.5 pt  (identity)
+```
+
+Use directly in coordinate arguments:
+
+```tcl
+# 20mm left margin, 15mm from top
+$pdf text "Hello" -x [pdf4tcl::mm 20] -y [pdf4tcl::mm 267]
+
+# Rectangle 5cm wide, 3cm tall
+$pdf rectangle [pdf4tcl::cm 2] [pdf4tcl::cm 10]                [pdf4tcl::cm 5] [pdf4tcl::cm 3]
+
+# Rounded rectangle with mm dimensions
+$pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm 80] [pdf4tcl::mm 30]                  -radius [pdf4tcl::mm 5] -filled 1
 ```
 

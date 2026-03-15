@@ -170,6 +170,37 @@ proc drawCell {pdf x y w h text {bg ""}} {
 }
 ```
 
+### Abgerundete Rechtecke (0.9.4.12)
+
+```tcl
+$pdf roundedRect x y breite hoehe ?-radius r? ?-filled 0/1? ?-stroke 0/1?
+```
+
+Zeichnet ein Rechteck mit abgerundeten Ecken (Bezier-Approximation).
+
+| Option | Standard | Beschreibung |
+|--------|----------|-------------|
+| `-radius` | 5 | Eckenradius in Punkten |
+| `-filled` | 0 | Fläche füllen |
+| `-stroke` | 1 | Rahmen zeichnen |
+
+Der Radius wird automatisch auf die Hälfte der kürzeren Seite begrenzt.
+
+```tcl
+# Nur Rahmen
+$pdf roundedRect 50 100 200 80 -radius 12
+
+# Gefüllt mit Rahmen
+$pdf setFillColor 0.2 0.6 0.3
+$pdf roundedRect 50 100 200 80 -radius 20 -filled 1 -stroke 1
+
+# Gefüllt ohne Rahmen, halbtransparent
+$pdf setFillColor 0.8 0.2 0.2
+$pdf setAlpha 0.5
+$pdf roundedRect 50 100 200 80 -radius 8 -filled 1 -stroke 0
+```
+
+
 ## Kreise und Ellipsen
 
 ### Kreis

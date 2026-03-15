@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# demo-alpha.tcl -- demonstrate setAlpha (fill/stroke opacity)
+# demo-alpha.tcl -- demonstrate setAlpha, roundedRect, unit procs
 #
 # Usage: tclsh demo-alpha.tcl [outputfile.pdf]
 
@@ -98,6 +98,51 @@ $pdf rectangle 60 390 100 50 -filled 1
 $pdf grestore
 # alpha is restored to 1.0 here
 $pdf rectangle 180 390 100 50 -filled 1
+
+
+# -----------------------------------------------------------------------
+# Section 6: roundedRect (0.9.4.12)
+# -----------------------------------------------------------------------
+$pdf setAlpha 1.0
+$pdf setFont 11 Helvetica
+$pdf text "6) roundedRect -- rounded corners (0.9.4.12)" -x 50 -y 370
+
+# stroke only
+$pdf setStrokeColor 0 0 0
+$pdf setFillColor 0.2 0.4 0.8
+$pdf roundedRect 60 290 120 60 -radius 12
+
+# filled + stroke
+$pdf setFillColor 0.2 0.6 0.3
+$pdf roundedRect 200 290 120 60 -radius 20 -filled 1 -stroke 1
+
+# filled, no stroke, semi-transparent
+$pdf setFillColor 0.8 0.2 0.2
+$pdf setAlpha 0.5
+$pdf roundedRect 340 290 120 60 -radius 8 -filled 1 -stroke 0
+
+# -----------------------------------------------------------------------
+# Section 7: Unit conversion procs (0.9.4.12)
+# -----------------------------------------------------------------------
+$pdf setAlpha 1.0
+$pdf setFont 11 Helvetica
+$pdf text "7) Unit conversion: pdf4tcl::mm / cm / in (0.9.4.12)" -x 50 -y 275
+
+# 20mm wide bar
+$pdf setFillColor 0.6 0.2 0.8
+$pdf rectangle 60 230 [pdf4tcl::mm 20] 20 -filled 1
+$pdf setFont 9 Helvetica
+$pdf text "20mm" -x 60 -y 220
+
+# 1cm wide bar
+$pdf setFillColor 0.2 0.6 0.8
+$pdf rectangle 140 230 [pdf4tcl::cm 1] 20 -filled 1
+$pdf text "1cm" -x 140 -y 220
+
+# 0.5in wide bar
+$pdf setFillColor 0.8 0.6 0.2
+$pdf rectangle 220 230 [pdf4tcl::in 0.5] 20 -filled 1
+$pdf text "0.5in" -x 220 -y 220
 
 $pdf endPage
 $pdf write -file $outfile

@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.9)
+# pdf4tcl fork (0.9.4.12)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -151,3 +151,16 @@ Patches for individual tickets are in `0.9.4.x/ticket*/` and can be
 applied independently to a clean upstream clone.
 
 Original project: https://sourceforge.net/projects/pdf4tcl/
+
+## Changelog
+
+### 0.9.4.12 (2026-03-15)
+
+- `roundedRect` method: rectangle with rounded corners, Bezier approximation,
+  options `-radius`, `-filled`, `-stroke`
+- Unit conversion procs: `pdf4tcl::mm`, `pdf4tcl::cm`, `pdf4tcl::in`,
+  `pdf4tcl::pt` — convert to PDF points
+- `_ValidatePdfDate`: validate and normalise PDF date strings in `metadata`
+  method; throws `PDF4TCL BADDATE` on invalid format
+- 17 new tests in `tests/new-0.9.4.12.test`
+
