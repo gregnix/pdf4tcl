@@ -1,4 +1,13 @@
 2026-03-15 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.14
+	* New method addEmbeddedFile: embeds a file silently in the PDF
+	  Catalog /Names /EmbeddedFiles NameTree (ISO 32000 SS7.11.4).
+	  No visible page annotation. Options: -contents, -mimetype,
+	  -description, -afrelationship (Alternative|Data|Source|
+	  Supplement|Unspecified). Raises error when -pdfa 1b is set
+	  (ISO 19005-1 SS6.1.7). Intended for ZUGFeRD/Factur-X invoices.
+
+2026-03-15 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.13
 	* New method setBlendMode: sets PDF blend mode via ExtGState /BM.
 	  Supported modes: Normal Multiply Screen Overlay Darken Lighten

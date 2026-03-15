@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.13]
+[manpage_begin pdf4tcl n 0.9.4.14]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.13]]
+[require pdf4tcl [opt 0.9.4.14]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -610,6 +610,55 @@ Controls the appearance of the attachment. Valid values are Paperclip, Tag, Grap
 [example {
 set fid [$pdfobject embedFile "data.txt" -contents "This should be stored in the file."]
 $pdfobject attachFile 0 0 100 100 $fid "This is the description"
+}]
+
+[call [arg objectName] [method addEmbeddedFile] [arg "filename"] [opt [arg "option value"]...]]
+
+This method embeds a file silently into the PDF document via the Catalog
+[const /Names] / [const /EmbeddedFiles] NameTree (ISO 32000 SS7.11.4).
+No visible annotation is created on any page.
+This is the correct mechanism for electronic invoice attachments
+(ZUGFeRD, Factur-X) and other document-level file attachments.
+[para]
+[arg filename] is used as the display name stored in the PDF
+([const /F] and [const /UF] entries of the FileSpec dictionary).
+When [option -contents] is not given, the file is read from disk using
+[arg filename] as path; in that case the basename is used as the PDF name.
+[para]
+[strong "PDF/A-1 restriction:"] embedded files are forbidden by
+ISO 19005-1 SS6.1.7.  Calling this method when [option -pdfa] is
+set to [const 1b] raises an error.  PDF/A-2b and PDF/A-3b allow
+embedded files.
+
+[list_begin options]
+
+[opt_def -contents [arg data]]
+Raw binary content of the file.  If omitted, the file is read from
+disk using [arg filename] as path.
+
+[opt_def -mimetype [arg type]]
+MIME type string, e.g. [const "application/xml"].
+Written as [const /Subtype] in the EmbeddedFile stream dictionary.
+
+[opt_def -description [arg text]]
+Human-readable description stored as [const /Desc] in the FileSpec
+dictionary.
+
+[opt_def -afrelationship [arg rel]]
+PDF/A-3 [const /AFRelationship] entry.  Valid values are
+[const Alternative], [const Data], [const Source],
+[const Supplement], and [const Unspecified].
+
+[list_end]
+
+[example {
+# ZUGFeRD / Factur-X pattern
+set xmlData [read [open "factur-x.xml" rb]]
+$pdfobject addEmbeddedFile "factur-x.xml" \
+    -contents $xmlData \
+    -mimetype "application/xml" \
+    -description "Factur-X invoice" \
+    -afrelationship Alternative
 }]
 
 [call [arg objectName] [method hyperlinkAdd] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [arg "url"] [opt [arg "option value"]...]]
@@ -1484,6 +1533,20 @@ for Tcl 9.0 compatibility (ticket #17).
 [term password], [term checkbutton], [term combobox], [term listbox],
 [term radiobutton], [term pushbutton], [term signature].
 Added [option -required], [option -label] and radio group support (ticket #9).
+[list_end]
+
+[subsection {Version 0.9.4.14}]
+[list_begin itemized]
+[item] New method [method addEmbeddedFile]: embeds a file silently into the
+PDF Catalog [const /Names] / [const /EmbeddedFiles] NameTree
+(ISO 32000 SS7.11.4). No visible page annotation is created.
+Options: [option -contents] (raw data), [option -mimetype],
+[option -description], [option -afrelationship]
+([const Alternative] | [const Data] | [const Source] |
+[const Supplement] | [const Unspecified]).
+Calling this method when [option -pdfa] is [const 1b] raises an error
+(ISO 19005-1 SS6.1.7). Intended use: ZUGFeRD / Factur-X electronic
+invoices and other document-level attachments.
 [list_end]
 
 [see_also doctools]

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.13 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.14 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -276,9 +276,9 @@ Database Class:	\\fB\\$3\\fR
 .SH NAME
 pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
-package require \fBTcl  8\&.6\fR
+package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl  ?0\&.9\&.4\&.13?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.14?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -351,6 +351,8 @@ package require \fBpdf4tcl  ?0\&.9\&.4\&.13?\fR
 \fIobjectName\fR \fBembedFile\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBattachFile\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIfid\fR \fIdescription\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -994,6 +996,50 @@ Controls the appearance of the attachment\&. Valid values are Paperclip, Tag, Gr
 
 set fid [$pdfobject embedFile "data\&.txt" -contents "This should be stored in the file\&."]
 $pdfobject attachFile 0 0 100 100 $fid "This is the description"
+
+.CE
+.TP
+\fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
+This method embeds a file silently into the PDF document via the Catalog
+\fB/Names\fR / \fB/EmbeddedFiles\fR NameTree (ISO 32000 SS7\&.11\&.4)\&.
+No visible annotation is created on any page\&.
+This is the correct mechanism for electronic invoice attachments
+(ZUGFeRD, Factur-X) and other document-level file attachments\&.
+.sp
+\fIfilename\fR is used as the display name stored in the PDF
+(\fB/F\fR and \fB/UF\fR entries of the FileSpec dictionary)\&.
+When \fB-contents\fR is not given, the file is read from disk using
+\fIfilename\fR as path; in that case the basename is used as the PDF name\&.
+.sp
+\fIPDF/A-1 restriction:\fR embedded files are forbidden by
+ISO 19005-1 SS6\&.1\&.7\&.  Calling this method when \fB-pdfa\fR is
+set to \fB1b\fR raises an error\&.  PDF/A-2b and PDF/A-3b allow
+embedded files\&.
+.RS
+.TP
+\fB-contents\fR \fIdata\fR
+Raw binary content of the file\&.  If omitted, the file is read from
+disk using \fIfilename\fR as path\&.
+.TP
+\fB-mimetype\fR \fItype\fR
+MIME type string, e\&.g\&. \fBapplication/xml\fR\&.
+Written as \fB/Subtype\fR in the EmbeddedFile stream dictionary\&.
+.TP
+\fB-description\fR \fItext\fR
+Human-readable description stored as \fB/Desc\fR in the FileSpec
+dictionary\&.
+.TP
+\fB-afrelationship\fR \fIrel\fR
+PDF/A-3 \fB/AFRelationship\fR entry\&.  Valid values are
+\fBAlternative\fR, \fBData\fR, \fBSource\fR,
+\fBSupplement\fR, and \fBUnspecified\fR\&.
+.RE
+.CS
+
+
+# ZUGFeRD / Factur-X pattern
+set xmlData [read [open "factur-x\&.xml" rb]]
+$pdfobject addEmbeddedFile "factur-x\&.xml"  -contents $xmlData  -mimetype "application/xml"  -description "Factur-X invoice"  -afrelationship Alternative
 
 .CE
 .TP
@@ -1852,6 +1898,19 @@ AcroForm v2\&.1: extended \fBaddForm\fR from 2 to 8 field types: \fItext\fR,
 \fIpassword\fR, \fIcheckbutton\fR, \fIcombobox\fR, \fIlistbox\fR,
 \fIradiobutton\fR, \fIpushbutton\fR, \fIsignature\fR\&.
 Added \fB-required\fR, \fB-label\fR and radio group support (ticket #9)\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.14"
+.IP \(bu
+New method \fBaddEmbeddedFile\fR: embeds a file silently into the
+PDF Catalog \fB/Names\fR / \fB/EmbeddedFiles\fR NameTree
+(ISO 32000 SS7\&.11\&.4)\&. No visible page annotation is created\&.
+Options: \fB-contents\fR (raw data), \fB-mimetype\fR,
+\fB-description\fR, \fB-afrelationship\fR
+(\fBAlternative\fR | \fBData\fR | \fBSource\fR |
+\fBSupplement\fR | \fBUnspecified\fR)\&.
+Calling this method when \fB-pdfa\fR is \fB1b\fR raises an error
+(ISO 19005-1 SS6\&.1\&.7)\&. Intended use: ZUGFeRD / Factur-X electronic
+invoices and other document-level attachments\&.
 .PP
 .SH "SEE ALSO"
 doctools

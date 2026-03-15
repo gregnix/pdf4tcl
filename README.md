@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.12)
+# pdf4tcl fork (0.9.4.14)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -47,13 +47,13 @@ Do not edit `pdf4tcl.tcl` directly -- changes will be lost on the next build.
 make test
 ```
 
-Tcl 8.6: 397 tests, 393 passed, 4 skipped (demo, knownbug, notoColorEmoji, runin87p).
+Tcl 8.6: 462 tests, 456 passed, 6 failed (pre-existing: color/canvas need Tk, errors need non-root, examples need Tk).
 
 ## Usage
 
 ```tcl
 lappend auto_path /path/to/pdf4tcl
-package require pdf4tcl 0.9.4.9
+package require pdf4tcl 0.9.4.14
 
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true -compress 1]
 $pdf startPage
@@ -114,10 +114,30 @@ Standard fonts (Helvetica, Times-Roman, Courier and variants) now include
 a ToUnicode CMap stream. This enables copy-paste and text extraction in
 PDF viewers and fixes veraPDF rule 6.3.9 in PDF/A mode.
 
+### addEmbeddedFile -- Catalog embedding (0.9.4.14)
+
+Embeds a file silently in the PDF Catalog NameTree (`/Names /EmbeddedFiles`).
+No visible annotation is created. Intended for ZUGFeRD / Factur-X electronic
+invoices and other document-level attachments. Raises an error when
+`-pdfa 1b` is set (ISO 19005-1 §6.1.7 forbids embedded files in PDF/A-1).
+
+```tcl
+$pdf addEmbeddedFile "factur-x.xml" \
+    -contents $xmlData \
+    -mimetype "application/xml" \
+    -description "Factur-X invoice" \
+    -afrelationship Alternative
+```
+
+### setBlendMode / linearGradient / radialGradient (0.9.4.13)
+
+Blend modes (`setBlendMode`/`getBlendMode`), linear and radial gradient fills
+(`linearGradient`, `radialGradient`), AcroForm accessibility (`addForm -tooltip`,
+`-tabindex`), tab order (`/Tabs /R` in page dict).
+
 ### Further fixes and additions
 
 - `getLineHeight` method (Ticket #18)
-- `viewerPreferences`, `metadata -moddate` (Ticket #19)
 - `pageLabel` for custom page numbering in viewer (Ticket #23)
 - `GetCharWidth` fallback for unmappable characters -- fixes `-align right/center` (Ticket #17)
 - `SafeQuoteString` -- fixes Tcl 9.0 EILSEQ in `bookmarkAdd`/`metadata` with titles containing characters above U+00FF
@@ -152,15 +172,5 @@ applied independently to a clean upstream clone.
 
 Original project: https://sourceforge.net/projects/pdf4tcl/
 
-## Changelog
 
-### 0.9.4.12 (2026-03-15)
-
-- `roundedRect` method: rectangle with rounded corners, Bezier approximation,
-  options `-radius`, `-filled`, `-stroke`
-- Unit conversion procs: `pdf4tcl::mm`, `pdf4tcl::cm`, `pdf4tcl::in`,
-  `pdf4tcl::pt` — convert to PDF points
-- `_ValidatePdfDate`: validate and normalise PDF date strings in `metadata`
-  method; throws `PDF4TCL BADDATE` on invalid format
-- 17 new tests in `tests/new-0.9.4.12.test`
 

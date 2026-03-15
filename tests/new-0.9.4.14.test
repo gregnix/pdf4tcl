@@ -1,0 +1,284 @@
+# new-0.9.4.14.test -- Tests for pdf4tcl 0.9.4.14 new features
+# addEmbeddedFile: silent catalog embedding (ZUGFeRD / Factur-X)
+
+source init.tcl
+
+# Helper: check whether a byte pattern exists in a PDF file
+proc pdfContains {file pattern} {
+    set fh [open $file rb]
+    set content [read $fh]
+    close $fh
+    expr {[string first $pattern $content] >= 0}
+}
+
+# Helper: count occurrences of pattern in PDF file
+proc pdfCount {file pattern} {
+    set fh [open $file rb]
+    set content [read $fh]
+    close $fh
+    set count 0
+    set start 0
+    while {[set pos [string first $pattern $content $start]] >= 0} {
+        incr count
+        set start [expr {$pos + 1}]
+    }
+    return $count
+}
+
+# Helper: create a temp XML file
+proc makeTempXml {content} {
+    set f [makeFile {} test-embed.xml]
+    set fh [open $f w]
+    fconfigure $fh -encoding utf-8
+    puts -nonewline $fh $content
+    close $fh
+    return $f
+}
+
+# ── Grundfunktion ─────────────────────────────────────────────────────────────
+
+test embedfile-1.1 {addEmbeddedFile: EmbeddedFile stream im PDF} {
+    set f [makeFile {} test-emb1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice>test</invoice>"
+    $pdf destroy
+    pdfContains $f "/Type /EmbeddedFile"
+} 1
+
+test embedfile-1.2 {addEmbeddedFile: Filespec-Dict im PDF} {
+    set f [makeFile {} test-emb2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice>test</invoice>"
+    $pdf destroy
+    pdfContains $f "/Type /Filespec"
+} 1
+
+test embedfile-1.3 {addEmbeddedFile: Dateiname im Filespec} {
+    set f [makeFile {} test-emb3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice>test</invoice>"
+    $pdf destroy
+    pdfContains $f "(invoice.xml)"
+} 1
+
+test embedfile-1.4 {addEmbeddedFile: Inhalt landet im Stream} {
+    set f [makeFile {} test-emb4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "data.xml" -contents "<root>hello</root>"
+    $pdf destroy
+    pdfContains $f "<root>hello</root>"
+} 1
+
+test embedfile-1.5 {addEmbeddedFile: /Names /EmbeddedFiles im Catalog} {
+    set f [makeFile {} test-emb5.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice/>"
+    $pdf destroy
+    pdfContains $f "/EmbeddedFiles"
+} 1
+
+test embedfile-1.6 {addEmbeddedFile: NameTree /Names-Array vorhanden} {
+    set f [makeFile {} test-emb6.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice/>"
+    $pdf destroy
+    pdfContains $f "/Names \["
+} 1
+
+test embedfile-1.7 {addEmbeddedFile: kein EmbeddedFiles ohne Aufruf} {
+    set f [makeFile {} test-emb7.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "no attachment"
+    $pdf destroy
+    expr {![pdfContains $f "/EmbeddedFiles"]}
+} 1
+
+# ── Optionen ──────────────────────────────────────────────────────────────────
+
+test embedfile-2.1 {addEmbeddedFile: -mimetype wird als /Subtype gesetzt} {
+    set f [makeFile {} test-emb-mime.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" \
+        -contents "<invoice/>" \
+        -mimetype "application/xml"
+    $pdf destroy
+    pdfContains $f "(application/xml)"
+} 1
+
+test embedfile-2.2 {addEmbeddedFile: -description landet im Filespec} {
+    set f [makeFile {} test-emb-desc.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" \
+        -contents "<invoice/>" \
+        -description "ZUGFeRD Rechnung"
+    $pdf destroy
+    pdfContains $f "(ZUGFeRD Rechnung)"
+} 1
+
+test embedfile-2.3 {addEmbeddedFile: -afrelationship Alternative} {
+    set f [makeFile {} test-emb-afrel.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" \
+        -contents "<invoice/>" \
+        -afrelationship Alternative
+    $pdf destroy
+    pdfContains $f "/AFRelationship /Alternative"
+} 1
+
+test embedfile-2.4 {addEmbeddedFile: ohne -mimetype kein MIME-Subtype} {
+    set f [makeFile {} test-emb-nomime.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "data.xml" -contents "<x/>"
+    $pdf destroy
+    # Fonts haben /Subtype /Name (kein String-Literal).
+    # MIME wäre /Subtype (application/...) -- PDF-String in Klammern.
+    expr {![pdfContains $f "/Subtype ("]}
+} 1
+
+test embedfile-2.5 {addEmbeddedFile: /Params /Size gesetzt} {
+    set f [makeFile {} test-emb-size.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "data.xml" -contents "hello"
+    $pdf destroy
+    pdfContains $f "/Params << /Size 5 >>"
+} 1
+
+# ── Mehrere Dateien ───────────────────────────────────────────────────────────
+
+test embedfile-3.1 {addEmbeddedFile: zwei Dateien -- beide im NameTree} {
+    set f [makeFile {} test-emb-multi.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice/>"
+    $pdf addEmbeddedFile "schema.xsd"  -contents "<schema/>"
+    $pdf destroy
+    expr {[pdfContains $f "(invoice.xml)"] && [pdfContains $f "(schema.xsd)"]}
+} 1
+
+test embedfile-3.2 {addEmbeddedFile: zwei /Type /EmbeddedFile Streams} {
+    set f [makeFile {} test-emb-multi2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "a.xml" -contents "<a/>"
+    $pdf addEmbeddedFile "b.xml" -contents "<b/>"
+    $pdf destroy
+    expr {[pdfCount $f "/Type /EmbeddedFile"] == 2}
+} 1
+
+# ── Datei von Disk lesen ──────────────────────────────────────────────────────
+
+test embedfile-4.1 {addEmbeddedFile: ohne -contents liest Datei von Disk} {
+    set xmlf [makeTempXml "<invoice>from-disk</invoice>"]
+    set f [makeFile {} test-emb-disk.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile $xmlf
+    $pdf destroy
+    pdfContains $f "<invoice>from-disk</invoice>"
+} 1
+
+test embedfile-4.2 {addEmbeddedFile: basename aus Pfad wird als Name benutzt} {
+    set xmlf [makeTempXml "<x/>"]
+    set f [makeFile {} test-emb-base.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile $xmlf
+    $pdf destroy
+    pdfContains $f "([file tail $xmlf])"
+} 1
+
+# ── Fehlerbehandlung ──────────────────────────────────────────────────────────
+
+test embedfile-5.1 {addEmbeddedFile: unbekannte Option -> throw} {
+    set f [makeFile {} test-emb-err1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    catch {$pdf addEmbeddedFile "x.xml" -contents "<x/>" -badopt foo} err opts
+    $pdf destroy
+    string match "*unknown option*" $err
+} 1
+
+test embedfile-5.2 {addEmbeddedFile: ungültiger -afrelationship -> throw} {
+    set f [makeFile {} test-emb-err2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    catch {$pdf addEmbeddedFile "x.xml" -contents "<x/>" \
+        -afrelationship BadValue} err opts
+    $pdf destroy
+    string match "*invalid -afrelationship*" $err
+} 1
+
+test embedfile-5.3 {addEmbeddedFile: nicht lesbare Datei -> throw} {
+    set f [makeFile {} test-emb-err3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    catch {$pdf addEmbeddedFile "/nonexistent/path/file.xml"} err opts
+    $pdf destroy
+    string match "*cannot read file*" $err
+} 1
+
+test embedfile-5.4 {addEmbeddedFile: PDF/A-1b -> throw (verboten)} {
+    set f [makeFile {} test-emb-pdfa1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f -pdfa 1b]
+    $pdf startPage
+    catch {$pdf addEmbeddedFile "x.xml" -contents "<x/>"} err opts
+    $pdf destroy
+    string match "*PDF/A-1*" $err
+} 1
+
+test embedfile-5.5 {addEmbeddedFile: PDF/A-2b -> kein Fehler} {
+    set f [makeFile {} test-emb-pdfa2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f -pdfa 2b]
+    $pdf startPage
+    set rc [catch {$pdf addEmbeddedFile "x.xml" -contents "<x/>"} err]
+    $pdf destroy
+    expr {$rc == 0}
+} 1
+
+# ── Coexistenz mit anderen Features ──────────────────────────────────────────
+
+test embedfile-6.1 {addEmbeddedFile: zusammen mit Lesezeichen} {
+    set f [makeFile {} test-emb-bm.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf bookmarkAdd -title "Kapitel 1" -level 0
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice/>"
+    $pdf destroy
+    expr {[pdfContains $f "/Outlines"] && [pdfContains $f "/EmbeddedFiles"]}
+} 1
+
+test embedfile-6.2 {addEmbeddedFile: zusammen mit Formularfeld} {
+    set f [makeFile {} test-emb-form.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id myfield
+    $pdf addEmbeddedFile "invoice.xml" -contents "<invoice/>"
+    $pdf destroy
+    expr {[pdfContains $f "/AcroForm"] && [pdfContains $f "/EmbeddedFiles"]}
+} 1
+
+test embedfile-6.3 {addEmbeddedFile: /UF (Unicode filename) gesetzt} {
+    set f [makeFile {} test-emb-uf.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addEmbeddedFile "rechnung.xml" -contents "<r/>"
+    $pdf destroy
+    pdfContains $f "/UF"
+} 1
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+
+cleanupTests
