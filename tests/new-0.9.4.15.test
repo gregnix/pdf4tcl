@@ -1,0 +1,327 @@
+# new-0.9.4.15.test -- Tests for pdf4tcl 0.9.4.15 new features
+# OTF/CFF-Support in loadBaseTrueTypeFont
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# Constraints
+# ---------------------------------------------------------------------------
+set otfPath ""
+foreach candidate {
+    /usr/share/fonts/opentype/tlwg/Loma.otf
+    /usr/share/fonts/opentype/tlwg/Loma-Bold.otf
+    /usr/share/fonts/truetype/baskerville/GFSBaskerville.otf
+    /usr/share/fonts/opentype/porson/GFSPorson.otf
+} {
+    if {[file exists $candidate]} { set otfPath $candidate; break }
+}
+testConstraint hasOTF [expr {$otfPath ne ""}]
+testConstraint hasLoma [file exists /usr/share/fonts/opentype/tlwg/Loma.otf]
+testConstraint hasLomaBold [file exists /usr/share/fonts/opentype/tlwg/Loma-Bold.otf]
+
+set ttfPath ""
+foreach candidate {
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    /usr/share/fonts/TTF/DejaVuSans.ttf
+} {
+    if {[file exists $candidate]} { set ttfPath $candidate; break }
+}
+testConstraint hasTTF [expr {$ttfPath ne ""}]
+
+# ===========================================================================
+# otf-1.x  loadBaseTrueTypeFont -- OTF accepted, isCFF flag set
+# ===========================================================================
+
+test otf-1.1 {loadBaseTrueTypeFont: OTF font loads without error} \
+    -constraints hasOTF \
+    -body {
+        expr {[catch {pdf4tcl::loadBaseTrueTypeFont otf11 $otfPath}] == 0}
+    } -result 1
+
+test otf-1.2 {loadBaseTrueTypeFont: isCFF flag is 1 for OTF} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf12 $otfPath
+        set ::pdf4tcl::BFA(otf12,isCFF)
+    } -result 1
+
+test otf-1.3 {loadBaseTrueTypeFont: TTF font still has isCFF=0} \
+    -constraints hasTTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont ttf13 $ttfPath
+        set ::pdf4tcl::BFA(ttf13,isCFF)
+    } -result 0
+
+test otf-1.4 {loadBaseTrueTypeFont: OTF has valid unitsPerEm} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf14 $otfPath
+        expr {$::pdf4tcl::BFA(otf14,unitsPerEm) > 0}
+    } -result 1
+
+test otf-1.5 {loadBaseTrueTypeFont: OTF has valid psName} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf15 $otfPath
+        expr {$::pdf4tcl::BFA(otf15,psName) ne ""}
+    } -result 1
+
+test otf-1.6 {loadBaseTrueTypeFont: OTF has hmetrics (glyph widths)} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf16 $otfPath
+        expr {[llength $::pdf4tcl::BFA(otf16,hmetrics)] > 0}
+    } -result 1
+
+test otf-1.7 {loadBaseTrueTypeFont: OTF has charWidths dict} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf17 $otfPath
+        expr {[dict size $::pdf4tcl::BFA(otf17,charWidths)] > 0}
+    } -result 1
+
+# ===========================================================================
+# otf-2.x  createFontSpecCID -- OTF font spec creation
+# ===========================================================================
+
+test otf-2.1 {createFontSpecCID: works with OTF font} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf21base $otfPath
+        expr {[catch {pdf4tcl::createFontSpecCID otf21base cid21}] == 0}
+    } -result 1
+
+test otf-2.2 {createFontSpecCID: OTF font usable with setFont} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf22base $otfPath
+        pdf4tcl::createFontSpecCID otf22base cid22
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        set rc [catch {$pdf setFont 12 cid22}]
+        $pdf destroy
+        set rc
+    } -result 0
+
+# ===========================================================================
+# otf-3.x  PDF output -- CIDFontType0 / FontFile3 structure
+# ===========================================================================
+
+proc makeOTFpdf {baseName fontFile {txt "OTF Test"}} {
+    pdf4tcl::loadBaseTrueTypeFont $baseName $fontFile
+    pdf4tcl::createFontSpecCID $baseName cid_$baseName
+    set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $pdf startPage
+    $pdf setFont 14 cid_$baseName
+    $pdf text $txt -x 50 -y 100
+    $pdf endPage
+    $pdf finish
+    set c [$pdf get]
+    $pdf destroy
+    return $c
+}
+
+test otf-3.1 {OTF PDF: contains /CIDFontType0} \
+    -constraints hasOTF \
+    -body {
+        set c [makeOTFpdf otf31 $otfPath]
+        expr {[string first "/CIDFontType0" $c] >= 0}
+    } -result 1
+
+test otf-3.2 {OTF PDF: contains /FontFile3} \
+    -constraints hasOTF \
+    -body {
+        set c [makeOTFpdf otf32 $otfPath]
+        expr {[string first "/FontFile3" $c] >= 0}
+    } -result 1
+
+test otf-3.3 {OTF PDF: font stream has /Subtype /OpenType} \
+    -constraints hasOTF \
+    -body {
+        set c [makeOTFpdf otf33 $otfPath]
+        expr {[string first "/Subtype /OpenType" $c] >= 0}
+    } -result 1
+
+test otf-3.4 {OTF PDF: does NOT contain /CIDFontType2} \
+    -constraints hasOTF \
+    -body {
+        set c [makeOTFpdf otf34 $otfPath]
+        expr {[string first "/CIDFontType2" $c] < 0}
+    } -result 1
+
+test otf-3.5 {OTF PDF: does NOT contain /FontFile2} \
+    -constraints hasOTF \
+    -body {
+        set c [makeOTFpdf otf35 $otfPath]
+        expr {[string first "/FontFile2" $c] < 0}
+    } -result 1
+
+test otf-3.6 {OTF PDF: does NOT contain /Length1} \
+    -constraints hasOTF \
+    -body {
+        set c [makeOTFpdf otf36 $otfPath]
+        expr {[string first "/Length1" $c] < 0}
+    } -result 1
+
+test otf-3.7 {TTF PDF: still contains /CIDFontType2 (regression)} \
+    -constraints hasTTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont ttf37 $ttfPath
+        pdf4tcl::createFontSpecCID ttf37 cid37
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 14 cid37
+        $pdf text "TTF regression" -x 50 -y 100
+        $pdf endPage
+        $pdf finish
+        set c [$pdf get]
+        $pdf destroy
+        expr {[string first "/CIDFontType2" $c] >= 0}
+    } -result 1
+
+test otf-3.8 {TTF PDF: still contains /FontFile2 (regression)} \
+    -constraints hasTTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont ttf38 $ttfPath
+        pdf4tcl::createFontSpecCID ttf38 cid38
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 14 cid38
+        $pdf text "TTF regression" -x 50 -y 100
+        $pdf endPage
+        $pdf finish
+        set c [$pdf get]
+        $pdf destroy
+        expr {[string first "/FontFile2" $c] >= 0}
+    } -result 1
+
+# ===========================================================================
+# otf-4.x  Text rendering -- getStringWidth works for OTF
+# ===========================================================================
+
+test otf-4.1 {OTF: getStringWidth returns positive value} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf41 $otfPath
+        pdf4tcl::createFontSpecCID otf41 cid41
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 12 cid41
+        set w [$pdf getStringWidth "Hello"]
+        $pdf destroy
+        expr {$w > 0}
+    } -result 1
+
+test otf-4.2 {OTF: wider string has larger getStringWidth} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf42 $otfPath
+        pdf4tcl::createFontSpecCID otf42 cid42
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 12 cid42
+        set w1 [$pdf getStringWidth "Hi"]
+        set w2 [$pdf getStringWidth "Hello World"]
+        $pdf destroy
+        expr {$w2 > $w1}
+    } -result 1
+
+test otf-4.3 {OTF: text command executes without error} \
+    -constraints hasOTF \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont otf43 $otfPath
+        pdf4tcl::createFontSpecCID otf43 cid43
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 14 cid43
+        set rc [catch {$pdf text "OTF text output" -x 50 -y 100}]
+        $pdf destroy
+        set rc
+    } -result 0
+
+# ===========================================================================
+# otf-5.x  Loma OTF -- Thai Unicode support
+# ===========================================================================
+
+test otf-5.1 {Loma OTF: Thai codepoints in charWidths} \
+    -constraints hasLoma \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont loma51 /usr/share/fonts/opentype/tlwg/Loma.otf
+        # charWidths keys are decimal integers; U+0E2A = 3626
+        dict exists $::pdf4tcl::BFA(loma51,charWidths) [expr {0x0E2A}]
+    } -result 1
+
+test otf-5.2 {Loma OTF: Thai text renders without error} \
+    -constraints hasLoma \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont loma52 /usr/share/fonts/opentype/tlwg/Loma.otf
+        pdf4tcl::createFontSpecCID loma52 cidLoma52
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 14 cidLoma52
+        set rc [catch {$pdf text "\u0E2A\u0E27\u0E31\u0E2A\u0E14\u0E35" -x 50 -y 100}]
+        $pdf destroy
+        set rc
+    } -result 0
+
+test otf-5.3 {Loma OTF: Thai text produces ToUnicode CMap in PDF} \
+    -constraints hasLoma \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont loma53 /usr/share/fonts/opentype/tlwg/Loma.otf
+        pdf4tcl::createFontSpecCID loma53 cid_loma53
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+        $pdf startPage
+        $pdf setFont 14 cid_loma53
+        $pdf text "\u0E2A\u0E27\u0E31\u0E2A\u0E14\u0E35" -x 50 -y 100
+        $pdf endPage
+        $pdf finish
+        set c [$pdf get]
+        $pdf destroy
+        expr {[string first "beginbfchar" $c] >= 0}
+    } -result 1
+
+# ===========================================================================
+# otf-6.x  Two OTF fonts in same document
+# ===========================================================================
+
+test otf-6.1 {Two OTF fonts: both get /CIDFontType0 in PDF} \
+    -constraints {hasLoma hasLomaBold} \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont lomaR61 /usr/share/fonts/opentype/tlwg/Loma.otf
+        pdf4tcl::loadBaseTrueTypeFont lomaB61 /usr/share/fonts/opentype/tlwg/Loma-Bold.otf
+        pdf4tcl::createFontSpecCID lomaR61 cid61r
+        pdf4tcl::createFontSpecCID lomaB61 cid61b
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 14 cid61r
+        $pdf text "Regular" -x 50 -y 100
+        $pdf setFont 14 cid61b
+        $pdf text "Bold" -x 50 -y 130
+        $pdf endPage
+        $pdf finish
+        set c [$pdf get]
+        $pdf destroy
+        regexp -all {/CIDFontType0} $c
+    } -result 2
+
+test otf-6.2 {Two OTF fonts: both get /FontFile3 in PDF} \
+    -constraints {hasLoma hasLomaBold} \
+    -body {
+        pdf4tcl::loadBaseTrueTypeFont lomaR62 /usr/share/fonts/opentype/tlwg/Loma.otf
+        pdf4tcl::loadBaseTrueTypeFont lomaB62 /usr/share/fonts/opentype/tlwg/Loma-Bold.otf
+        pdf4tcl::createFontSpecCID lomaR62 cid62r
+        pdf4tcl::createFontSpecCID lomaB62 cid62b
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        $pdf startPage
+        $pdf setFont 14 cid62r
+        $pdf text "Regular" -x 50 -y 100
+        $pdf setFont 14 cid62b
+        $pdf text "Bold" -x 50 -y 130
+        $pdf endPage
+        $pdf finish
+        set c [$pdf get]
+        $pdf destroy
+        regexp -all {/FontFile3} $c
+    } -result 2
+
+::tcltest::cleanupTests

@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.14)
+# pdf4tcl fork (0.9.4.15)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -47,13 +47,13 @@ Do not edit `pdf4tcl.tcl` directly -- changes will be lost on the next build.
 make test
 ```
 
-Tcl 8.6: 462 tests, 456 passed, 6 failed (pre-existing: color/canvas need Tk, errors need non-root, examples need Tk).
+Tcl 8.6: 512 tests, 506 passed, 6 failed (pre-existing: color/canvas need Tk, errors need non-root, examples need Tk).
 
 ## Usage
 
 ```tcl
 lappend auto_path /path/to/pdf4tcl
-package require pdf4tcl 0.9.4.14
+package require pdf4tcl 0.9.4.15
 
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true -compress 1]
 $pdf startPage
@@ -113,6 +113,23 @@ instead of the built-in standard fonts (Helvetica, Times-Roman, Courier).
 Standard fonts (Helvetica, Times-Roman, Courier and variants) now include
 a ToUnicode CMap stream. This enables copy-paste and text extraction in
 PDF viewers and fixes veraPDF rule 6.3.9 in PDF/A mode.
+
+### OTF/CFF font support (0.9.4.15)
+
+OpenType fonts with CFF outlines (`.otf` files) are now supported in
+`loadBaseTrueTypeFont`. Previously these fonts raised
+`TTF: postscript outlines are not supported`.
+No CFF parser is required — the font binary is embedded as-is and only
+metadata tables are read. PDF embedding uses `/CIDFontType0` and
+`/FontFile3 /Subtype /OpenType` (instead of the TTF path `/CIDFontType2`
+and `/FontFile2`).
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont MyOTF /path/to/font.otf
+pdf4tcl::createFontSpecCID MyOTF cidOTF
+$pdf setFont 12 cidOTF
+$pdf text "Hello from an OTF font" -x 50 -y 100
+```
 
 ### addEmbeddedFile -- Catalog embedding (0.9.4.14)
 

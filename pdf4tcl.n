@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.14 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.15 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -276,9 +276,9 @@ Database Class:	\\fB\\$3\\fR
 .SH NAME
 pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
-package require \fBTcl 8\&.6\fR
+package require \fBTcl  8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.14?\fR
+package require \fBpdf4tcl  ?0\&.9\&.4\&.15?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1898,6 +1898,26 @@ AcroForm v2\&.1: extended \fBaddForm\fR from 2 to 8 field types: \fItext\fR,
 \fIpassword\fR, \fIcheckbutton\fR, \fIcombobox\fR, \fIlistbox\fR,
 \fIradiobutton\fR, \fIpushbutton\fR, \fIsignature\fR\&.
 Added \fB-required\fR, \fB-label\fR and radio group support (ticket #9)\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.15"
+.IP \(bu
+OTF/CFF font support in \fBpdf4tcl::loadBaseTrueTypeFont\fR:
+OpenType fonts with CFF outlines ("\fI\&.otf\fR" files, OTTO magic number
+\fB0x4F54544F\fR) are now accepted without error\&.
+Previously these fonts caused \fITTF: postscript outlines are not supported\fR\&.
+.sp
+No CFF parser is required: pdf4tcl embeds the font binary as-is and reads
+only metadata tables (\fBname\fR, \fBhead\fR, \fBOS/2\fR,
+\fBpost\fR, \fBhhea\fR, \fBmaxp\fR, \fBcmap\fR, \fBhmtx\fR)\&.
+\fBloca\fR and \fBglyf\fR tables (TTF-only) are skipped for CFF fonts\&.
+.sp
+PDF embedding uses \fB/CIDFontType0\fR with \fB/FontFile3\fR
+(\fB/Subtype /OpenType\fR) instead of the TTF path
+(\fB/CIDFontType2\fR / \fB/FontFile2\fR / \fB/Length1\fR)\&.
+The ToUnicode CMap and all other font objects are identical\&.
+.sp
+A new internal flag \fBBFA($name,isCFF)\fR is set to \fB1\fR for
+CFF/OTF fonts and \fB0\fR for TrueType fonts\&.
 .PP
 .SS "VERSION 0\&.9\&.4\&.14"
 .IP \(bu

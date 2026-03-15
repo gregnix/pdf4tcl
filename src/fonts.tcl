@@ -55,7 +55,9 @@ namespace eval pdf4tcl {
             ReadTTCHeader
             GetSubfont $subfontIndex $validate
         } else {
-            ChecksumFile
+            if {!$BFA($ttfname,isCFF)} {
+                ChecksumFile
+            }
             ReadTableDirectory $validate
             set BFA($ttfname,subfontNameX) ""
         }
@@ -109,13 +111,20 @@ namespace eval pdf4tcl {
     proc ReadHeader {} {
         variable ttfpos
         variable ttfdata
+        variable ttfname
+        variable BFA
         set ttfVersions [list 65536 1953658213 1953784678]
 
         binary scan $ttfdata "@${ttfpos}Iu" version
         incr ttfpos 4
         if {$version == 0x4F54544F} {
-            throw {PDF4TCL} "TTF: postscript outlines are not supported"
+            # OTF with CFF outlines (0x4F54544F = 'OTTO').
+            # No glyf/loca tables, but all metadata tables are identical to TTF.
+            # The font binary is embedded as-is; the PDF viewer renders the glyphs.
+            set BFA($ttfname,isCFF) 1
+            return 0
         }
+        set BFA($ttfname,isCFF) 0
         if {$version ni $ttfVersions} {
             throw {PDF4TCL} "not a TrueType font: version=$version"
         }
@@ -390,16 +399,20 @@ space instead of the usual empty rectangle."
         }
 
         # maxp - Maximum profile table
+        # TTF: version 1.0  (ver_maj=1, ver_min=0) -- full table
+        # CFF: version 0.5  (ver_maj=0, ver_min=0x5000) -- only numGlyphs
         set ttfpos [lindex $ttftables(maxp) 1]
         binary scan $ttfdata "@${ttfpos}SuSuSu" \
                 ver_maj ver_min numGlyphs
-        if {$ver_maj != 1} {
+        if {$ver_maj != 1 && !($ver_maj == 0 && $ver_min == 0x5000)} {
             throw {PDF4TCL} "unknown maxp table version"
         }
         if {!$charInfo} return
 
         # We don't care of this earlier:
-        if {$glyphDataFormat != 0} {
+        # glyphDataFormat is TTF-specific (head table field for glyf table format)
+        # CFF fonts always have glyphDataFormat=0 but the glyf table is absent.
+        if {!$BFA($ttfname,isCFF) && $glyphDataFormat != 0} {
             throw {PDF4TCL} "unknown glyph data format"
         }
 
@@ -565,21 +578,23 @@ space instead of the usual empty rectangle."
             }
         }
 
-        # loca - Index to location
-        if {![info exists ttftables(loca)]} {
-            throw {PDF4TCL} "font does not have \"loca\" part"
-        }
-        set ttfpos [lindex $ttftables(loca) 1]
-        incr numGlyphs
-        if {$indexToLocFormat == 0} {
-            binary scan $ttfdata "@${ttfpos}Su$numGlyphs" glyphPositions
-            foreach el $glyphPositions {
-                lappend BFA($ttfname,glyphPos) [expr {$el << 1}]
+        # loca - Index to location (TTF only; CFF fonts have no loca/glyf tables)
+        if {!$BFA($ttfname,isCFF)} {
+            if {![info exists ttftables(loca)]} {
+                throw {PDF4TCL} "font does not have \"loca\" part"
             }
-        } elseif {$indexToLocFormat == 1} {
-            binary scan $ttfdata "@${ttfpos}Iu$numGlyphs" BFA($ttfname,glyphPos)
-        } else {
-            throw {PDF4TCL} "unknown location table format $indexToLocFormat"
+            set ttfpos [lindex $ttftables(loca) 1]
+            incr numGlyphs
+            if {$indexToLocFormat == 0} {
+                binary scan $ttfdata "@${ttfpos}Su$numGlyphs" glyphPositions
+                foreach el $glyphPositions {
+                    lappend BFA($ttfname,glyphPos) [expr {$el << 1}]
+                }
+            } elseif {$indexToLocFormat == 1} {
+                binary scan $ttfdata "@${ttfpos}Iu$numGlyphs" BFA($ttfname,glyphPos)
+            } else {
+                throw {PDF4TCL} "unknown location table format $indexToLocFormat"
+            }
         }
     }
 

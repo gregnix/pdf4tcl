@@ -1833,10 +1833,16 @@ Use -pdfa-icc to specify a profile path."
             }
         }
 
-        # 1. Font binary data (full original TTF)
+        # 1. Font binary data (full original font file)
+        # TTF: /Length1 = uncompressed size (required by PDF spec §9.9)
+        # CFF/OTF: /Subtype /OpenType (FontFile3, no /Length1)
         set rawttf $BFP($BFN,rawttf)
         set lc [string length $rawttf]
-        set dictv "<<\n/Length1 $lc"
+        if {$BFA($BFN,isCFF)} {
+            set dictv "<<\n/Subtype /OpenType"
+        } else {
+            set dictv "<<\n/Length1 $lc"
+        }
         set fsbody [MakeStream $dictv $rawttf $pdf(compress)]
         set fsoid [my GetOid]
         my Pdfout "$fsoid 0 obj\n$fsbody\nendobj\n\n"
@@ -1853,7 +1859,11 @@ Use -pdfa-icc to specify a profile path."
         append body "/Descent [Nf $BFA($BFN,descend)]\n"
         append body "/CapHeight [Nf $BFA($BFN,CapHeight)]\n"
         append body "/StemV [Nf $BFA($BFN,stemV)]\n"
-        append body "/FontFile2 $fsoid 0 R\n"
+        if {$BFA($BFN,isCFF)} {
+            append body "/FontFile3 $fsoid 0 R\n"
+        } else {
+            append body "/FontFile2 $fsoid 0 R\n"
+        }
         append body ">>"
         set fdoid [my GetOid]
         my Pdfout "$fdoid 0 obj\n$body\nendobj\n\n"
@@ -1921,16 +1931,24 @@ Use -pdfa-icc to specify a profile path."
             append warray "$glyph \[$w\] "
         }
 
-        # 5. CIDFont (CIDFontType2) descendant
+        # 5. CIDFont descendant
+        # TTF:  CIDFontType2 + /CIDToGIDMap /Identity (GlyphID == CID)
+        # CFF:  CIDFontType0 (no /CIDToGIDMap; Identity-H encoding handles mapping)
         set body "<<\n/Type /Font\n"
-        append body "/Subtype /CIDFontType2\n"
+        if {$BFA($BFN,isCFF)} {
+            append body "/Subtype /CIDFontType0\n"
+        } else {
+            append body "/Subtype /CIDFontType2\n"
+        }
         append body "/BaseFont /$BFN\n"
         append body "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>\n"
         append body "/FontDescriptor $fdoid 0 R\n"
         if {$warray ne ""} {
             append body "/W \[$warray\]\n"
         }
-        append body "/CIDToGIDMap /Identity\n"
+        if {!$BFA($BFN,isCFF)} {
+            append body "/CIDToGIDMap /Identity\n"
+        }
         append body ">>"
         set cidoid [my GetOid]
         my Pdfout "$cidoid 0 obj\n$body\nendobj\n\n"
