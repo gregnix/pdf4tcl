@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.12]
+[manpage_begin pdf4tcl n 0.9.4.13]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.12]]
+[require pdf4tcl [opt 0.9.4.13]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -481,6 +481,19 @@ must be given.
 [opt_def -label [arg string]]
 Placeholder text displayed on the signature line.
 Default [const Signature]. Only valid for [arg signature] fields.
+[list_end]
+
+[def "[emph {Accessibility and tab order options}]"]
+[list_begin options]
+[opt_def -tooltip [arg string]]
+Tooltip text written as PDF [const /TU] (Tooltip User) entry.
+Displayed by PDF readers on hover and read aloud by screen readers
+(PDF/UA). Valid for all field types.
+
+[opt_def -tabindex [arg integer]]
+Tab order index written as PDF [const /TI] entry. Must be a
+non-negative integer. Used to define the logical keyboard tab order
+within the AcroForm. Valid for all field types.
 [list_end]
 
 [list_end]
@@ -999,6 +1012,51 @@ Sets fill and stroke opacity independently in a single call.
 Returns the current opacity values as a two-element list
 [arg "fillAlpha strokeAlpha"].
 
+[call [arg objectName] [method setBlendMode] [arg "mode"]]
+Sets the PDF blend mode for subsequent graphics and text operations.
+[arg mode] must be one of: [const Normal], [const Multiply], [const Screen],
+[const Overlay], [const Darken], [const Lighten], [const ColorDodge],
+[const ColorBurn], [const HardLight], [const SoftLight], [const Difference],
+[const Exclusion], [const Hue], [const Saturation], [const Color],
+[const Luminosity].
+Use [const Normal] to reset to the default. Internally this creates a PDF
+ExtGState object combining [const /BM] with the current alpha values; objects
+are cached per mode and alpha combination. The PDF version is raised to 1.4
+automatically.
+
+[call [arg objectName] [method getBlendMode]]
+Returns the currently active blend mode string (default: [const Normal]).
+
+[call [arg objectName] [method linearGradient] [arg "x1"] [arg "y1"] [arg "x2"] [arg "y2"] [arg "color1"] [arg "color2"] [opt [arg "options"]]]
+Paints a linear (axial) gradient from ([arg x1],[arg y1]) to
+([arg x2],[arg y2]). [arg color1] is the colour at the start point,
+[arg color2] at the end point. Both colours can be specified as an RGB triple
+[arg "{r g b}"] (values 0.0–1.0), a named colour ([const red], [const green],
+[const blue], [const white], [const black], [const yellow], [const cyan],
+[const magenta]) or a CSS hex string [arg #rrggbb].
+[nl]
+Options:
+[list_begin options]
+[opt_def -extend [arg "{bool bool}"]] Whether to extend the gradient beyond
+the start ([arg bool1]) and end ([arg bool2]) coordinates. Default: [const {1 1}].
+[list_end]
+[nl]
+The gradient is painted using PDF ShadingType 2 + FunctionType 2 and
+registered in the page [const /Shading] resource dictionary.
+Clip the drawing area first (e.g. [method clip] or [method gsave]/[method grestore])
+to constrain the fill.
+
+[call [arg objectName] [method radialGradient] [arg "cx1"] [arg "cy1"] [arg "r1"] [arg "cx2"] [arg "cy2"] [arg "r2"] [arg "color1"] [arg "color2"] [opt [arg "options"]]]
+Paints a radial gradient between two circles. The first circle is centred at
+([arg cx1],[arg cy1]) with radius [arg r1]; the second at ([arg cx2],[arg cy2])
+with radius [arg r2]. [arg color1] applies to the first circle,
+[arg color2] to the second. Colour formats are the same as for
+[method linearGradient].
+[nl]
+Options: same [option -extend] option as [method linearGradient].
+[nl]
+Uses PDF ShadingType 3 + FunctionType 2.
+
 [list_end]
 
 [subsection {OBJECT METHODS, GRAPHICS}]
@@ -1293,6 +1351,37 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.13}]
+[list_begin itemized]
+[item] New method [method setBlendMode]: sets the PDF blend mode for
+subsequent graphics operations via ExtGState [const /BM]. Supported modes:
+[const Normal], [const Multiply], [const Screen], [const Overlay],
+[const Darken], [const Lighten], [const ColorDodge], [const ColorBurn],
+[const HardLight], [const SoftLight], [const Difference], [const Exclusion],
+[const Hue], [const Saturation], [const Color], [const Luminosity].
+Requires PDF 1.4 (version is raised automatically). ExtGState objects are
+cached per mode + alpha combination.
+[item] New method [method getBlendMode]: returns the currently active blend
+mode (default [const Normal]).
+[item] New method [method linearGradient]: paints a linear (axial) gradient
+between two points using PDF ShadingType 2 + FunctionType 2. Options:
+[option -extend] [arg {bool bool}] (default [const {1 1}]).
+[item] New method [method radialGradient]: paints a radial gradient between
+two circles using PDF ShadingType 3 + FunctionType 2. Options:
+[option -extend] [arg {bool bool}] (default [const {1 1}]).
+[item] New internal helper [method _colorToRGB]: accepts an RGB triple
+[arg {{r g b}}], a named color ([const red], [const green], [const blue],
+[const white], [const black], [const yellow], [const cyan], [const magenta])
+or a CSS hex string [arg #rrggbb].
+[item] New options [option -tooltip] and [option -tabindex] in
+[method addForm]: [option -tooltip] writes [const /TU] (PDF/UA accessible
+tooltip); [option -tabindex] writes [const /TI] (tab order index within
+AcroForm, non-negative integer).
+[item] [method endPage] now writes [const {/Tabs /R}] into the page
+dictionary when annotations are present, enabling correct tab order for
+screen readers.
+[list_end]
 
 [subsection {Version 0.9.4.12}]
 [list_begin itemized]

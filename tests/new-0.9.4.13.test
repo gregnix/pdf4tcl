@@ -1,0 +1,379 @@
+# new-0.9.4.13.test -- Tests for pdf4tcl 0.9.4.13 new features
+# setBlendMode, getBlendMode, linearGradient, radialGradient,
+# _colorToRGB (indirekt), addForm -tooltip/-tabindex, /Tabs /R
+
+source init.tcl
+
+# Hilfsproc: prueft ob Substring in Datei vorkommt
+proc pdfContains {file pattern} {
+    set fh [open $file rb]
+    set content [read $fh]
+    close $fh
+    expr {[string first $pattern $content] >= 0}
+}
+
+# ── _colorToRGB (indirekt ueber linearGradient) ───────────────────────────────
+
+test colortorgb-1.1 {_colorToRGB: named color red -> C0} {
+    set f [makeFile {} test-c2rgb1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 red blue
+    $pdf destroy
+    pdfContains $f "/C0 \[1.0 0.0 0.0\]"
+} 1
+
+test colortorgb-1.2 {_colorToRGB: named color blue -> C1} {
+    set f [makeFile {} test-c2rgb2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 red blue
+    $pdf destroy
+    pdfContains $f "/C1 \[0.0 0.0 1.0\]"
+} 1
+
+test colortorgb-1.3 {_colorToRGB: named color white} {
+    set f [makeFile {} test-c2rgb3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 white black
+    $pdf destroy
+    pdfContains $f "/C0 \[1.0 1.0 1.0\]"
+} 1
+
+test colortorgb-1.4 {_colorToRGB: named color black} {
+    set f [makeFile {} test-c2rgb4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 white black
+    $pdf destroy
+    pdfContains $f "/C1 \[0.0 0.0 0.0\]"
+} 1
+
+test colortorgb-1.5 {_colorToRGB: hex #ff0000 approx 1.0 red} {
+    set f [makeFile {} test-c2rgb5.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 #ff0000 #0000ff
+    $pdf destroy
+    set fh [open $f rb]
+    set content [read $fh]
+    close $fh
+    regexp {/C0 \[([0-9.]+) ([0-9.]+) ([0-9.]+)\]} $content -> r g b
+    expr {abs($r - 1.0) < 0.01 && abs($g - 0.0) < 0.01 && abs($b - 0.0) < 0.01}
+} 1
+
+test colortorgb-1.6 {_colorToRGB: unknown color throws} {
+    set f [makeFile {} test-c2rgb6.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf linearGradient 50 50 300 50 unknowncolor blue} msg]
+    $pdf destroy
+    set err
+} 1
+
+test colortorgb-1.7 {_colorToRGB: {r g b} triple pass-through} {
+    set f [makeFile {} test-c2rgb7.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf radialGradient 200 200 0 200 200 100 {1.0 0.5 0.0} {0.0 0.5 1.0}
+    $pdf destroy
+    pdfContains $f "/C0 \[1.0 0.5 0.0\]"
+} 1
+
+# ── setBlendMode / getBlendMode ───────────────────────────────────────────────
+
+test blendmode-1.1 {getBlendMode: default is Normal} {
+    set f [makeFile {} test-bm1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    set result [$pdf getBlendMode]
+    $pdf destroy
+    set result
+} Normal
+
+test blendmode-1.2 {setBlendMode: Multiply, getBlendMode returns Multiply} {
+    set f [makeFile {} test-bm2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf setBlendMode Multiply
+    set result [$pdf getBlendMode]
+    $pdf destroy
+    set result
+} Multiply
+
+test blendmode-1.3 {setBlendMode: creates valid PDF} {
+    set f [makeFile {} test-bm3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf setBlendMode Screen
+    $pdf destroy
+    file exists $f
+} 1
+
+test blendmode-1.4 {setBlendMode: unknown mode throws} {
+    set f [makeFile {} test-bm4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf setBlendMode BadMode} msg]
+    $pdf destroy
+    set err
+} 1
+
+test blendmode-1.5 {setBlendMode: all 16 modes accepted} {
+    set modes {Normal Multiply Screen Overlay Darken Lighten
+               ColorDodge ColorBurn HardLight SoftLight
+               Difference Exclusion Hue Saturation Color Luminosity}
+    set f [makeFile {} test-bm5.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set ok 1
+    foreach m $modes {
+        if {[catch {$pdf setBlendMode $m}]} { set ok 0 }
+    }
+    $pdf destroy
+    set ok
+} 1
+
+test blendmode-1.6 {setBlendMode: PDF version raised to 1.4} {
+    set f [makeFile {} test-bm6.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf setBlendMode Overlay
+    $pdf destroy
+    set fh [open $f rb]
+    set content [read $fh]
+    close $fh
+    regexp {%PDF-1\.[4-9]} $content
+} 1
+
+test blendmode-1.7 {setBlendMode: /BM /Multiply in ExtGState} {
+    set f [makeFile {} test-bm7.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf setBlendMode Multiply
+    $pdf destroy
+    pdfContains $f "/BM /Multiply"
+} 1
+
+test blendmode-1.8 {setBlendMode Normal resets mode} {
+    set f [makeFile {} test-bm8.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf setBlendMode Multiply
+    $pdf setBlendMode Normal
+    set result [$pdf getBlendMode]
+    $pdf destroy
+    set result
+} Normal
+
+# ── linearGradient ────────────────────────────────────────────────────────────
+
+test lineargradient-1.1 {linearGradient: creates valid PDF} {
+    set f [makeFile {} test-lg1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 red blue
+    $pdf destroy
+    file exists $f
+} 1
+
+test lineargradient-1.2 {linearGradient: with hex colors} {
+    set f [makeFile {} test-lg2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 300 #ff0000 #0000ff
+    $pdf destroy
+    file exists $f
+} 1
+
+test lineargradient-1.3 {linearGradient: with {r g b} colors} {
+    set f [makeFile {} test-lg3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 {1.0 0.0 0.0} {0.0 0.0 1.0}
+    $pdf destroy
+    file exists $f
+} 1
+
+test lineargradient-1.4 {linearGradient: -extend option} {
+    set f [makeFile {} test-lg4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf linearGradient 100 100 300 100 white black -extend {0 1}
+    $pdf destroy
+    file exists $f
+} 1
+
+test lineargradient-1.5 {linearGradient: ShadingType 2 in PDF} {
+    set f [makeFile {} test-lg5.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 red blue
+    $pdf destroy
+    pdfContains $f "/ShadingType 2"
+} 1
+
+test lineargradient-1.6 {linearGradient: unknown option throws} {
+    set f [makeFile {} test-lg6.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf linearGradient 50 50 300 50 red blue -badopt x} msg]
+    $pdf destroy
+    set err
+} 1
+
+test lineargradient-1.7 {linearGradient: /Shading dict in page resources} {
+    set f [makeFile {} test-lg7.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf linearGradient 50 50 300 50 red blue
+    $pdf destroy
+    pdfContains $f "/Shading <<"
+} 1
+
+# ── radialGradient ────────────────────────────────────────────────────────────
+
+test radialgradient-1.1 {radialGradient: creates valid PDF} {
+    set f [makeFile {} test-rg1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf radialGradient 200 200 0 200 200 150 white black
+    $pdf destroy
+    file exists $f
+} 1
+
+test radialgradient-1.2 {radialGradient: with hex colors} {
+    set f [makeFile {} test-rg2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf radialGradient 200 400 10 200 400 180 #ffff00 #0000ff
+    $pdf destroy
+    file exists $f
+} 1
+
+test radialgradient-1.3 {radialGradient: -extend option} {
+    set f [makeFile {} test-rg3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf radialGradient 200 200 0 200 200 150 red white -extend {1 0}
+    $pdf destroy
+    file exists $f
+} 1
+
+test radialgradient-1.4 {radialGradient: ShadingType 3 in PDF} {
+    set f [makeFile {} test-rg4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf radialGradient 200 200 0 200 200 150 white black
+    $pdf destroy
+    pdfContains $f "/ShadingType 3"
+} 1
+
+test radialgradient-1.5 {radialGradient: FunctionType 2 in PDF} {
+    set f [makeFile {} test-rg5.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf radialGradient 200 200 0 200 200 150 white black
+    $pdf destroy
+    pdfContains $f "/FunctionType 2"
+} 1
+
+test radialgradient-1.6 {radialGradient: unknown option throws} {
+    set f [makeFile {} test-rg6.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf radialGradient 200 200 0 200 200 150 red blue -bad x} msg]
+    $pdf destroy
+    set err
+} 1
+
+# ── addForm -tooltip / -tabindex ──────────────────────────────────────────────
+
+test addform-tooltip-1.1 {addForm -tooltip: creates PDF without error} {
+    set f [makeFile {} test-tooltip1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id fld1 -tooltip "Enter your name"
+    $pdf destroy
+    file exists $f
+} 1
+
+test addform-tooltip-1.2 {addForm -tooltip: /TU in PDF} {
+    set f [makeFile {} test-tooltip2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id fld1 -tooltip "MyTip"
+    $pdf destroy
+    pdfContains $f "/TU"
+} 1
+
+test addform-tooltip-1.3 {addForm -tooltip: tooltip text present in PDF} {
+    set f [makeFile {} test-tooltip3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id fld1 -tooltip "HoverText"
+    $pdf destroy
+    pdfContains $f "HoverText"
+} 1
+
+test addform-tabindex-1.1 {addForm -tabindex: creates PDF without error} {
+    set f [makeFile {} test-tabidx1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id fld1 -tabindex 0
+    $pdf addForm text 50 650 200 20 -id fld2 -tabindex 1
+    $pdf destroy
+    file exists $f
+} 1
+
+test addform-tabindex-1.2 {addForm -tabindex: /TI 3 in PDF} {
+    set f [makeFile {} test-tabidx2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id fld1 -tabindex 3
+    $pdf destroy
+    pdfContains $f "/TI 3"
+} 1
+
+test addform-tabindex-1.3 {addForm -tabindex: negative value throws} {
+    set f [makeFile {} test-tabidx3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf addForm text 50 700 200 20 -id fld1 -tabindex -1} msg]
+    $pdf destroy
+    set err
+} 1
+
+test addform-tabindex-1.4 {addForm -tabindex: non-integer throws} {
+    set f [makeFile {} test-tabidx4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf addForm text 50 700 200 20 -id fld1 -tabindex abc} msg]
+    $pdf destroy
+    set err
+} 1
+
+# ── /Tabs /R ──────────────────────────────────────────────────────────────────
+
+test tabsr-1.1 {/Tabs /R present when form fields exist} {
+    set f [makeFile {} test-tabsr1.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf addForm text 50 700 200 20 -id fld1
+    $pdf destroy
+    pdfContains $f "/Tabs /R"
+} 1
+
+test tabsr-1.2 {/Tabs /R absent without annotations} {
+    set f [makeFile {} test-tabsr2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "No form fields here"
+    $pdf destroy
+    expr {![pdfContains $f "/Tabs /R"]}
+} 1
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+
+cleanupTests

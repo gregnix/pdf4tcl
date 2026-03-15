@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.12 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.13 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -276,9 +276,9 @@ Database Class:	\\fB\\$3\\fR
 .SH NAME
 pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
-package require \fBTcl 8\&.6\fR
+package require \fBTcl  8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.12?\fR
+package require \fBpdf4tcl  ?0\&.9\&.4\&.13?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -419,6 +419,14 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.12?\fR
 \fIobjectName\fR \fBsetAlpha\fR \fIfillValue\fR \fIstrokeValue\fR
 .sp
 \fIobjectName\fR \fBgetAlpha\fR
+.sp
+\fIobjectName\fR \fBsetBlendMode\fR \fImode\fR
+.sp
+\fIobjectName\fR \fBgetBlendMode\fR
+.sp
+\fIobjectName\fR \fBlinearGradient\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIcolor1\fR \fIcolor2\fR ?\fIoptions\fR?
+.sp
+\fIobjectName\fR \fBradialGradient\fR \fIcx1\fR \fIcy1\fR \fIr1\fR \fIcx2\fR \fIcy2\fR \fIr2\fR \fIcolor1\fR \fIcolor2\fR ?\fIoptions\fR?
 .sp
 \fIobjectName\fR \fBsetLineWidth\fR \fIwidth\fR
 .sp
@@ -871,6 +879,20 @@ must be given\&.
 \fB-label\fR \fIstring\fR
 Placeholder text displayed on the signature line\&.
 Default \fBSignature\fR\&. Only valid for \fIsignature\fR fields\&.
+.RE
+.TP
+\fIAccessibility and tab order options\fR
+.RS
+.TP
+\fB-tooltip\fR \fIstring\fR
+Tooltip text written as PDF \fB/TU\fR (Tooltip User) entry\&.
+Displayed by PDF readers on hover and read aloud by screen readers
+(PDF/UA)\&. Valid for all field types\&.
+.TP
+\fB-tabindex\fR \fIinteger\fR
+Tab order index written as PDF \fB/TI\fR entry\&. Must be a
+non-negative integer\&. Used to define the logical keyboard tab order
+within the AcroForm\&. Valid for all field types\&.
 .RE
 .RE
 .IP
@@ -1348,6 +1370,53 @@ Sets fill and stroke opacity independently in a single call\&.
 \fIobjectName\fR \fBgetAlpha\fR
 Returns the current opacity values as a two-element list
 \fIfillAlpha strokeAlpha\fR\&.
+.TP
+\fIobjectName\fR \fBsetBlendMode\fR \fImode\fR
+Sets the PDF blend mode for subsequent graphics and text operations\&.
+\fImode\fR must be one of: \fBNormal\fR, \fBMultiply\fR, \fBScreen\fR,
+\fBOverlay\fR, \fBDarken\fR, \fBLighten\fR, \fBColorDodge\fR,
+\fBColorBurn\fR, \fBHardLight\fR, \fBSoftLight\fR, \fBDifference\fR,
+\fBExclusion\fR, \fBHue\fR, \fBSaturation\fR, \fBColor\fR,
+\fBLuminosity\fR\&.
+Use \fBNormal\fR to reset to the default\&. Internally this creates a PDF
+ExtGState object combining \fB/BM\fR with the current alpha values; objects
+are cached per mode and alpha combination\&. The PDF version is raised to 1\&.4
+automatically\&.
+.TP
+\fIobjectName\fR \fBgetBlendMode\fR
+Returns the currently active blend mode string (default: \fBNormal\fR)\&.
+.TP
+\fIobjectName\fR \fBlinearGradient\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR \fIcolor1\fR \fIcolor2\fR ?\fIoptions\fR?
+Paints a linear (axial) gradient from (\fIx1\fR,\fIy1\fR) to
+(\fIx2\fR,\fIy2\fR)\&. \fIcolor1\fR is the colour at the start point,
+\fIcolor2\fR at the end point\&. Both colours can be specified as an RGB triple
+\fI{r g b}\fR (values 0\&.0–1\&.0), a named colour (\fBred\fR, \fBgreen\fR,
+\fBblue\fR, \fBwhite\fR, \fBblack\fR, \fByellow\fR, \fBcyan\fR,
+\fBmagenta\fR) or a CSS hex string \fI#rrggbb\fR\&.
+.sp
+Options:
+.RS
+.TP
+\fB-extend\fR \fI{bool bool}\fR
+Whether to extend the gradient beyond
+the start (\fIbool1\fR) and end (\fIbool2\fR) coordinates\&. Default: \fB1 1\fR\&.
+.RE
+.sp
+The gradient is painted using PDF ShadingType 2 + FunctionType 2 and
+registered in the page \fB/Shading\fR resource dictionary\&.
+Clip the drawing area first (e\&.g\&. \fBclip\fR or \fBgsave\fR/\fBgrestore\fR)
+to constrain the fill\&.
+.TP
+\fIobjectName\fR \fBradialGradient\fR \fIcx1\fR \fIcy1\fR \fIr1\fR \fIcx2\fR \fIcy2\fR \fIr2\fR \fIcolor1\fR \fIcolor2\fR ?\fIoptions\fR?
+Paints a radial gradient between two circles\&. The first circle is centred at
+(\fIcx1\fR,\fIcy1\fR) with radius \fIr1\fR; the second at (\fIcx2\fR,\fIcy2\fR)
+with radius \fIr2\fR\&. \fIcolor1\fR applies to the first circle,
+\fIcolor2\fR to the second\&. Colour formats are the same as for
+\fBlinearGradient\fR\&.
+.sp
+Options: same \fB-extend\fR option as \fBlinearGradient\fR\&.
+.sp
+Uses PDF ShadingType 3 + FunctionType 2\&.
 .PP
 .SS "OBJECT METHODS, GRAPHICS"
 .TP
@@ -1633,6 +1702,42 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.13"
+.IP \(bu
+New method \fBsetBlendMode\fR: sets the PDF blend mode for
+subsequent graphics operations via ExtGState \fB/BM\fR\&. Supported modes:
+\fBNormal\fR, \fBMultiply\fR, \fBScreen\fR, \fBOverlay\fR,
+\fBDarken\fR, \fBLighten\fR, \fBColorDodge\fR, \fBColorBurn\fR,
+\fBHardLight\fR, \fBSoftLight\fR, \fBDifference\fR, \fBExclusion\fR,
+\fBHue\fR, \fBSaturation\fR, \fBColor\fR, \fBLuminosity\fR\&.
+Requires PDF 1\&.4 (version is raised automatically)\&. ExtGState objects are
+cached per mode + alpha combination\&.
+.IP \(bu
+New method \fBgetBlendMode\fR: returns the currently active blend
+mode (default \fBNormal\fR)\&.
+.IP \(bu
+New method \fBlinearGradient\fR: paints a linear (axial) gradient
+between two points using PDF ShadingType 2 + FunctionType 2\&. Options:
+\fB-extend\fR \fIbool bool\fR (default \fB1 1\fR)\&.
+.IP \(bu
+New method \fBradialGradient\fR: paints a radial gradient between
+two circles using PDF ShadingType 3 + FunctionType 2\&. Options:
+\fB-extend\fR \fIbool bool\fR (default \fB1 1\fR)\&.
+.IP \(bu
+New internal helper \fB_colorToRGB\fR: accepts an RGB triple
+\fI{r g b}\fR, a named color (\fBred\fR, \fBgreen\fR, \fBblue\fR,
+\fBwhite\fR, \fBblack\fR, \fByellow\fR, \fBcyan\fR, \fBmagenta\fR)
+or a CSS hex string \fI#rrggbb\fR\&.
+.IP \(bu
+New options \fB-tooltip\fR and \fB-tabindex\fR in
+\fBaddForm\fR: \fB-tooltip\fR writes \fB/TU\fR (PDF/UA accessible
+tooltip); \fB-tabindex\fR writes \fB/TI\fR (tab order index within
+AcroForm, non-negative integer)\&.
+.IP \(bu
+\fBendPage\fR now writes \fB/Tabs /R\fR into the page
+dictionary when annotations are present, enabling correct tab order for
+screen readers\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.12"
 .IP \(bu
 New method \fBroundedRect\fR: draws a rectangle with rounded

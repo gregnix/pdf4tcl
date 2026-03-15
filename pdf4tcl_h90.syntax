@@ -32,6 +32,7 @@
 ##nagelfar syntax {_obj,pdf4tcl _BuildSignatureAP} 3
 ##nagelfar syntax {_obj,pdf4tcl _BuildTextAP} 4
 ##nagelfar syntax {_obj,pdf4tcl _BuildXMPStream} 0
+##nagelfar syntax {_obj,pdf4tcl _colorToRGB} 1
 ##nagelfar syntax {_obj,pdf4tcl _EncComputeO} 2
 ##nagelfar syntax {_obj,pdf4tcl _EncComputeU} 2
 ##nagelfar syntax {_obj,pdf4tcl _EncKey} 4
@@ -41,6 +42,7 @@
 ##nagelfar syntax {_obj,pdf4tcl _FormXObjHeader} 2
 ##nagelfar syntax {_obj,pdf4tcl _ObjKey} 1
 ##nagelfar syntax {_obj,pdf4tcl _RC4} 2
+##nagelfar syntax {_obj,pdf4tcl _ValidatePdfDate} 2
 ##nagelfar syntax {_obj,pdf4tcl _WriteOutputIntent} 0
 ##nagelfar syntax {_obj,pdf4tcl AddBitmap} r 1
 ##nagelfar syntax {_obj,pdf4tcl addForm} r 5
@@ -108,6 +110,7 @@
 ##nagelfar syntax {_obj,pdf4tcl FlushObjects} 0
 ##nagelfar syntax {_obj,pdf4tcl get} 0
 ##nagelfar syntax {_obj,pdf4tcl getAlpha} 0
+##nagelfar syntax {_obj,pdf4tcl getBlendMode} 0
 ##nagelfar syntax {_obj,pdf4tcl getCharWidth} r 1 2
 ##nagelfar syntax {_obj,pdf4tcl GetColor} 1
 ##nagelfar syntax {_obj,pdf4tcl getDrawableArea} 0
@@ -127,6 +130,7 @@
 ##nagelfar syntax {_obj,pdf4tcl InitEncrypt} 0
 ##nagelfar syntax {_obj,pdf4tcl InitPdf} 0
 ##nagelfar syntax {_obj,pdf4tcl line} 4
+##nagelfar syntax {_obj,pdf4tcl linearGradient} r 6
 ##nagelfar syntax {_obj,pdf4tcl metadata} r 0
 ##nagelfar syntax {_obj,pdf4tcl moveTextPosition} 2
 ##nagelfar syntax {_obj,pdf4tcl new} 0
@@ -145,10 +149,13 @@
 ##nagelfar syntax {_obj,pdf4tcl PushFont} 0
 ##nagelfar syntax {_obj,pdf4tcl putImage} r 3
 ##nagelfar syntax {_obj,pdf4tcl putRawImage} r 3
+##nagelfar syntax {_obj,pdf4tcl radialGradient} r 8
 ##nagelfar syntax {_obj,pdf4tcl rectangle} r 4
 ##nagelfar syntax {_obj,pdf4tcl RequireVersion} 1
+##nagelfar syntax {_obj,pdf4tcl roundedRect} r 4
 ##nagelfar syntax {_obj,pdf4tcl setAlpha} r 0
 ##nagelfar syntax {_obj,pdf4tcl setBgColor} r 0
+##nagelfar syntax {_obj,pdf4tcl setBlendMode} 1
 ##nagelfar syntax {_obj,pdf4tcl SetFillColor} 1
 ##nagelfar syntax {_obj,pdf4tcl setFillColor} r 0
 ##nagelfar syntax {_obj,pdf4tcl setFont} r 1 3
@@ -215,6 +222,7 @@
 ##nagelfar syntax pdf4tcl::ChecksumTables 0
 ##nagelfar syntax pdf4tcl::CIDEncodeText 2
 ##nagelfar syntax pdf4tcl::CleanText 2
+##nagelfar syntax pdf4tcl::cm 1
 ##nagelfar syntax pdf4tcl::cmyk2Rgb 1
 ##nagelfar syntax pdf4tcl::ConvertToUTF16BE 1
 ##nagelfar syntax pdf4tcl::createBaseTrueTypeFont r 2 3
@@ -230,6 +238,7 @@
 ##nagelfar syntax pdf4tcl::getPaperSizeList 0
 ##nagelfar syntax pdf4tcl::getPoints r 1 2
 ##nagelfar syntax pdf4tcl::GetSubfont r 1 2
+##nagelfar syntax pdf4tcl::in 1
 ##nagelfar syntax pdf4tcl::InitBaseTTF 1
 ##nagelfar syntax pdf4tcl::InitBaseType1 0
 ##nagelfar syntax pdf4tcl::loadBaseTrueTypeFont r 2 3
@@ -240,6 +249,7 @@
 ##nagelfar syntax pdf4tcl::MakeStream 3
 ##nagelfar syntax pdf4tcl::MakeToUnicodeCMap 2
 ##nagelfar syntax pdf4tcl::MakeTTFSubset 3
+##nagelfar syntax pdf4tcl::mm 1
 ##nagelfar syntax pdf4tcl::MulMxM 2
 ##nagelfar syntax pdf4tcl::MulVxM 2
 ##nagelfar syntax pdf4tcl::new r 0
@@ -260,6 +270,7 @@
 ##nagelfar syntax {pdf4tcl::pdf4tcl varname} v
 ##nagelfar syntax pdf4tcl::PdfText 2
 ##nagelfar syntax pdf4tcl::PfbCheck 3
+##nagelfar syntax pdf4tcl::pt 1
 ##nagelfar syntax pdf4tcl::QuoteString 1
 ##nagelfar syntax pdf4tcl::ReadHeader 0
 ##nagelfar syntax pdf4tcl::ReadTableDirectory 1
@@ -274,7 +285,7 @@
 ##nagelfar syntax tiff::getEntry x x
 ##nagelfar syntax tiff::isTIFF x
 ##nagelfar subcmd _obj,options CheckBoolean CheckMargin CheckNumeric CheckPaper CheckPdfa CheckRotation CheckUnit CheckWord Configurelist Option cget configure create destroy new variable varname Option Configurelist cget configure CheckPaper CheckUnit CheckMargin CheckBoolean CheckWord CheckRotation CheckPdfa CheckNumeric
-##nagelfar subcmd _obj,pdf4tcl AddBitmap AddGif AddJpeg AddObject AddPng AddTiff BeginTextObj BookmarkObject CanvasBezier CanvasDoItem CanvasDoTkoPathItem CanvasDoTkpathItem CanvasFillColor CanvasGetBitmap CanvasRawCurve CanvasSetFont CanvasStdOpts CanvasStrokeColor CheckAnchor CheckBoolean CheckMargin CheckNumeric CheckPaper CheckPdfa CheckRotation CheckUnit CheckWord Configurelist DebugGetInternalState DrawArc DrawLine DrawOval DrawPoly DrawRect DrawTextAt EncryptBytes EncryptStreamBody EndTextObj Flush FlushObjects GetColor GetOid InitEncrypt InitPdf NextOid Option Pdfout Pdfoutcmd Pdfoutn PngInitGrayAlpha PngInitRgba PopFont PushFont RequireVersion SetFillColor SetPageMargin SetPageOption SetPageSize SetStrokeColor SetTextPosition SetTextPositionAngle SetUnit SetupFont SetupZaDbFont StoreXref Trans TransR WriteCIDFontObjects WriteEncryptDict _BuildCheckboxAP _BuildChoiceAP _BuildPushbuttonAP _BuildRadioAP _BuildSignatureAP _BuildTextAP _BuildXMPStream _EncComputeO _EncComputeU _EncKey _EncPadStr _EncRandBytes _FindSRGBProfile _FormXObjHeader _ObjKey _RC4 _WriteOutputIntent addForm addImage addRawImage addTkpextgs addTkpgrad addTkpimgObj addTkpobj arc arrow attachFile bookmarkAdd canvas cget circle clip configure create curve destroy drawTextBox embedFile endPage endXObject finish get getAlpha getCharWidth getDrawableArea getFontMetric getImageHeight getImageSize getImageWidth getLineHeight getLineSpacing getStringWidth getTextPosition getTkpptext grestore gsave hyperlinkAdd line metadata moveTextPosition new newLine oval pageLabel polygon putImage putRawImage rectangle setAlpha setBgColor setFillColor setFont setLineDash setLineSpacing setLineStyle setLineWidth setStrokeColor setTextPosition setTkpfont startPage startXObject text variable varname viewerPreferences write SetPageOption SetUnit InitPdf DebugGetInternalState Pdfout Pdfoutn Pdfoutcmd Flush RequireVersion SetPageMargin SetPageSize startXObject endXObject startPage endPage FlushObjects AddObject finish get write Trans TransR getDrawableArea bookmarkAdd BookmarkObject _BuildXMPStream _FindSRGBProfile _WriteOutputIntent metadata viewerPreferences pageLabel setFont setTkpfont PushFont PopFont SetupZaDbFont SetupFont WriteCIDFontObjects getFontMetric getStringWidth getCharWidth SetTextPosition SetTextPositionAngle setTextPosition moveTextPosition getTextPosition newLine setLineSpacing getLineSpacing getLineHeight text DrawTextAt drawTextBox BeginTextObj EndTextObj GetColor setLineStyle setLineWidth setLineDash DrawLine line curve polygon DrawOval circle oval DrawArc arc arrow setBgColor SetFillColor setFillColor SetStrokeColor setStrokeColor setAlpha getAlpha DrawRect DrawPoly rectangle clip gsave grestore addImage AddJpeg AddPng PngInitRgba AddTiff PngInitGrayAlpha AddGif getImageHeight getImageSize getImageWidth CheckAnchor putImage addRawImage putRawImage AddBitmap addTkpimgObj getTkpptext addTkpextgs addTkpobj addTkpgrad embedFile attachFile hyperlinkAdd _FormXObjHeader _BuildCheckboxAP _BuildTextAP _BuildChoiceAP _BuildRadioAP _BuildPushbuttonAP _BuildSignatureAP addForm canvas CanvasDoTkoPathItem CanvasDoTkpathItem CanvasDoItem CanvasBezier CanvasRawCurve CanvasGetBitmap CanvasStdOpts CanvasFillColor CanvasStrokeColor CanvasSetFont GetOid NextOid StoreXref _EncPadStr _RC4 _EncKey _EncComputeO _EncComputeU _ObjKey EncryptBytes _EncRandBytes InitEncrypt EncryptStreamBody WriteEncryptDict
+##nagelfar subcmd _obj,pdf4tcl AddBitmap AddGif AddJpeg AddObject AddPng AddTiff BeginTextObj BookmarkObject CanvasBezier CanvasDoItem CanvasDoTkoPathItem CanvasDoTkpathItem CanvasFillColor CanvasGetBitmap CanvasRawCurve CanvasSetFont CanvasStdOpts CanvasStrokeColor CheckAnchor CheckBoolean CheckMargin CheckNumeric CheckPaper CheckPdfa CheckRotation CheckUnit CheckWord Configurelist DebugGetInternalState DrawArc DrawLine DrawOval DrawPoly DrawRect DrawTextAt EncryptBytes EncryptStreamBody EndTextObj Flush FlushObjects GetColor GetOid InitEncrypt InitPdf NextOid Option Pdfout Pdfoutcmd Pdfoutn PngInitGrayAlpha PngInitRgba PopFont PushFont RequireVersion SetFillColor SetPageMargin SetPageOption SetPageSize SetStrokeColor SetTextPosition SetTextPositionAngle SetUnit SetupFont SetupZaDbFont StoreXref Trans TransR WriteCIDFontObjects WriteEncryptDict _BuildCheckboxAP _BuildChoiceAP _BuildPushbuttonAP _BuildRadioAP _BuildSignatureAP _BuildTextAP _BuildXMPStream _EncComputeO _EncComputeU _EncKey _EncPadStr _EncRandBytes _FindSRGBProfile _FormXObjHeader _ObjKey _RC4 _ValidatePdfDate _WriteOutputIntent _colorToRGB addForm addImage addRawImage addTkpextgs addTkpgrad addTkpimgObj addTkpobj arc arrow attachFile bookmarkAdd canvas cget circle clip configure create curve destroy drawTextBox embedFile endPage endXObject finish get getAlpha getBlendMode getCharWidth getDrawableArea getFontMetric getImageHeight getImageSize getImageWidth getLineHeight getLineSpacing getStringWidth getTextPosition getTkpptext grestore gsave hyperlinkAdd line linearGradient metadata moveTextPosition new newLine oval pageLabel polygon putImage putRawImage radialGradient rectangle roundedRect setAlpha setBgColor setBlendMode setFillColor setFont setLineDash setLineSpacing setLineStyle setLineWidth setStrokeColor setTextPosition setTkpfont startPage startXObject text variable varname viewerPreferences write SetPageOption SetUnit InitPdf DebugGetInternalState Pdfout Pdfoutn Pdfoutcmd Flush RequireVersion SetPageMargin SetPageSize startXObject endXObject startPage endPage FlushObjects AddObject finish get write Trans TransR getDrawableArea bookmarkAdd BookmarkObject _BuildXMPStream _FindSRGBProfile _WriteOutputIntent _ValidatePdfDate metadata viewerPreferences pageLabel setFont setTkpfont PushFont PopFont SetupZaDbFont SetupFont WriteCIDFontObjects getFontMetric getStringWidth getCharWidth SetTextPosition SetTextPositionAngle setTextPosition moveTextPosition getTextPosition newLine setLineSpacing getLineSpacing getLineHeight text DrawTextAt drawTextBox BeginTextObj EndTextObj GetColor setLineStyle setLineWidth setLineDash DrawLine line curve polygon DrawOval circle oval DrawArc arc arrow setBgColor SetFillColor setFillColor SetStrokeColor setStrokeColor setAlpha getAlpha setBlendMode getBlendMode linearGradient radialGradient _colorToRGB DrawRect DrawPoly rectangle roundedRect clip gsave grestore addImage AddJpeg AddPng PngInitRgba AddTiff PngInitGrayAlpha AddGif getImageHeight getImageSize getImageWidth CheckAnchor putImage addRawImage putRawImage AddBitmap addTkpimgObj getTkpptext addTkpextgs addTkpobj addTkpgrad embedFile attachFile hyperlinkAdd _FormXObjHeader _BuildCheckboxAP _BuildTextAP _BuildChoiceAP _BuildRadioAP _BuildPushbuttonAP _BuildSignatureAP addForm canvas CanvasDoTkoPathItem CanvasDoTkpathItem CanvasDoItem CanvasBezier CanvasRawCurve CanvasGetBitmap CanvasStdOpts CanvasFillColor CanvasStrokeColor CanvasSetFont GetOid NextOid StoreXref _EncPadStr _RC4 _EncKey _EncComputeO _EncComputeU _ObjKey EncryptBytes _EncRandBytes InitEncrypt EncryptStreamBody WriteEncryptDict
 ##nagelfar subcmd pdf4tcl::options create new destroy variable varname
 ##nagelfar subcmd pdf4tcl::pdf4tcl create new destroy variable varname
 ##nagelfar option {_obj,pdf4tcl CheckNumeric} -nonnegative -positive -integer -unit

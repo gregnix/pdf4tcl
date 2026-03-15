@@ -1,5 +1,27 @@
-2026-03-11 Gregor  <gregnix@github>
-	* Bumped revision to 0.9.4.9
+2026-03-15 Gregor  <gregnix@github>
+	* Bumped revision to 0.9.4.13
+	* New method setBlendMode: sets PDF blend mode via ExtGState /BM.
+	  Supported modes: Normal Multiply Screen Overlay Darken Lighten
+	  ColorDodge ColorBurn HardLight SoftLight Difference Exclusion
+	  Hue Saturation Color Luminosity. PDF version raised to 1.4 minimum.
+	  ExtGState objects cached per mode + alpha combination.
+	* New method getBlendMode: returns currently active blend mode.
+	* New method linearGradient: axial (linear) gradient fill using
+	  PDF ShadingType 2 + FunctionType 2. Option -extend.
+	* New method radialGradient: radial gradient fill between two circles
+	  using PDF ShadingType 3 + FunctionType 2. Option -extend.
+	* New internal helper _colorToRGB: accepts {r g b} list, named color
+	  or #rrggbb hex string.
+	* New options -tooltip (/TU) and -tabindex (/TI) in addForm for
+	  PDF/UA accessibility and AcroForm tab order.
+	* endPage now writes /Tabs /R in the page dictionary when annotations
+	  are present (correct tab order for screen readers).
+	* Fix: method DrawRect header was accidentally dropped during 0.9.4.13
+	  development; rectangle calls would have thrown "unknown method DrawRect".
+	* Fix: set pdf(blendMode) was missing in setBlendMode body; getBlendMode
+	  always returned "Normal" regardless of the mode set.
+
+
 	* Fix ticket #X: Standard Type1 fonts (Helvetica, Times-Roman, Courier
 	  and variants) now include a ToUnicode CMap stream with full WinAnsi
 	  (cp1252) mapping. Previously these fonts had no ToUnicode entry,

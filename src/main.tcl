@@ -134,6 +134,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(strokeColor) [list 0 0 0]
         set pdf(fillAlpha) 1.0
         set pdf(strokeAlpha) 1.0
+        set pdf(blendMode) Normal
+        set pdf(shadingCount) 0
         array set alphaStates {}
         # start without default font
         set pdf(font_size) 1
@@ -538,6 +540,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {!$pdf(inXObject)} {
             if {[llength $pdf(annotations)] > 0} {
                 append pdf(pageobj) "/Annots \[[join $pdf(annotations) \n]\]\n"
+                # /Tabs /R (row order) enables logical tab order for form fields
+                append pdf(pageobj) "/Tabs /R\n"
             }
             append pdf(pageobj) ">>\n"
             append pdf(pageobj) "endobj\n\n"
@@ -2897,7 +2901,150 @@ Use -pdfa-icc to specify a profile path."
         return [list $pdf(fillAlpha) $pdf(strokeAlpha)]
     }
 
+    # ── setBlendMode (0.9.4.13) ──────────────────────────────────────────────
+    # Set the blend mode for subsequent graphics operations.
+    # Valid modes (PDF 1.4+):
+    #   Normal Multiply Screen Overlay Darken Lighten ColorDodge ColorBurn
+    #   HardLight SoftLight Difference Exclusion Hue Saturation Color Luminosity
+    # Use "Normal" to reset.
+    method setBlendMode {mode} {
+        set validModes {Normal Multiply Screen Overlay Darken Lighten
+                        ColorDodge ColorBurn HardLight SoftLight
+                        Difference Exclusion Hue Saturation Color Luminosity}
+        if {$mode ni $validModes} {
+            throw {PDF4TCL} "setBlendMode: unknown mode \"$mode\" (valid: [join $validModes {, }])"
+        }
+        if {!$pdf(inPage)} { my startPage }
+        # Reuse existing ExtGState if same mode was used before
+        set cacheKey "bm_$mode"
+        if {![info exists alphaStates($cacheKey)]} {
+            # Combine with current alpha so ExtGState stays consistent
+            set fkey [format "%.4f" $pdf(fillAlpha)]
+            set skey [format "%.4f" $pdf(strokeAlpha)]
+            set body "<< /Type /ExtGState /BM /$mode /ca $fkey /CA $skey >>"
+            set oid [my AddObject $body]
+            set gsName "GsBM[regsub -all {[^A-Za-z0-9]} $cacheKey _]"
+            set extgs($gsName) $oid
+            set alphaStates($cacheKey) $gsName
+        }
+        my Pdfout "/$alphaStates($cacheKey) gs\n"
+        set pdf(blendMode) $mode
+        # Upgrade PDF version to 1.4 minimum (BlendModes require 1.4+)
+        if {$pdf(version) < 1.4} {
+            set pdf(version) 1.4
+        }
+    }
 
+    # Return current blend mode (stored in pdf array)
+    method getBlendMode {} {
+        return $pdf(blendMode)
+    }
+
+    # ── linearGradient (0.9.4.13) ────────────────────────────────────────────
+    # Paint a linear gradient between two points.
+    # x1 y1 x2 y2: start and end coordinates (in user units)
+    # color1 color2: colors as {r g b} lists or named colors
+    # Options: -extend 1/1 (default: extend beyond endpoints)
+    method linearGradient {x1 y1 x2 y2 color1 color2 args} {
+        set extend1 1
+        set extend2 1
+        foreach {opt val} $args {
+            switch -- $opt {
+                -extend { set extend1 [lindex $val 0]; set extend2 [lindex [concat $val $val] 1] }
+                default { throw {PDF4TCL} "linearGradient: unknown option \"$opt\"" }
+            }
+        }
+        if {!$pdf(inPage)} { my startPage }
+        my Trans $x1 $y1 x1 y1
+        my Trans $x2 $y2 x2 y2
+        set c1 [my _colorToRGB $color1]
+        set c2 [my _colorToRGB $color2]
+
+        # ShadingType 2: Axial shading
+        set funcBody "<< /FunctionType 2 /Domain \[0 1\] "
+        append funcBody "/C0 \[[join $c1 { }]\] /C1 \[[join $c2 { }]\] /N 1 >>"
+        set funcOid [my AddObject $funcBody]
+
+        set shdBody "<< /ShadingType 2 /ColorSpace /DeviceRGB "
+        append shdBody "/Coords \[$x1 $y1 $x2 $y2\] "
+        append shdBody "/Function $funcOid 0 R "
+        append shdBody "/Extend \[$extend1 $extend2\] >>"
+        set shdOid [my AddObject $shdBody]
+
+        set id "Shd[incr pdf(shadingCount)]"
+        set grads($id) [list 0 0 $shdOid]
+        my Pdfout "/$id sh\n"
+        if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
+    }
+
+    # ── radialGradient (0.9.4.13) ────────────────────────────────────────────
+    # Paint a radial gradient between two circles.
+    # cx1 cy1 r1: center and radius of start circle
+    # cx2 cy2 r2: center and radius of end circle
+    # color1 color2: colors as {r g b} lists or named colors
+    method radialGradient {cx1 cy1 r1 cx2 cy2 r2 color1 color2 args} {
+        set extend1 1
+        set extend2 1
+        foreach {opt val} $args {
+            switch -- $opt {
+                -extend { set extend1 [lindex $val 0]; set extend2 [lindex [concat $val $val] 1] }
+                default { throw {PDF4TCL} "radialGradient: unknown option \"$opt\"" }
+            }
+        }
+        if {!$pdf(inPage)} { my startPage }
+        my Trans $cx1 $cy1 cx1 cy1
+        my Trans $cx2 $cy2 cx2 cy2
+        my TransR $r1 $r1 r1 _
+        my TransR $r2 $r2 r2 _
+        set c1 [my _colorToRGB $color1]
+        set c2 [my _colorToRGB $color2]
+
+        # ShadingType 3: Radial shading
+        set funcBody "<< /FunctionType 2 /Domain \[0 1\] "
+        append funcBody "/C0 \[[join $c1 { }]\] /C1 \[[join $c2 { }]\] /N 1 >>"
+        set funcOid [my AddObject $funcBody]
+
+        set shdBody "<< /ShadingType 3 /ColorSpace /DeviceRGB "
+        append shdBody "/Coords \[$cx1 $cy1 $r1 $cx2 $cy2 $r2\] "
+        append shdBody "/Function $funcOid 0 R "
+        append shdBody "/Extend \[$extend1 $extend2\] >>"
+        set shdOid [my AddObject $shdBody]
+
+        set id "Shd[incr pdf(shadingCount)]"
+        set grads($id) [list 0 0 $shdOid]
+        my Pdfout "/$id sh\n"
+        if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
+    }
+
+    # ── _colorToRGB helper ───────────────────────────────────────────────────
+    # Accept {r g b} list (0.0-1.0) or named color or #rrggbb hex.
+    method _colorToRGB {color} {
+        if {[llength $color] == 3} {
+            return $color
+        }
+        set color [string tolower $color]
+        switch -- $color {
+            red     { return {1.0 0.0 0.0} }
+            green   { return {0.0 0.5 0.0} }
+            blue    { return {0.0 0.0 1.0} }
+            white   { return {1.0 1.0 1.0} }
+            black   { return {0.0 0.0 0.0} }
+            yellow  { return {1.0 1.0 0.0} }
+            cyan    { return {0.0 1.0 1.0} }
+            magenta { return {1.0 0.0 1.0} }
+            default {
+                if {[regexp {^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$} $color -> rh gh bh]} {
+                    scan $rh %x rv
+                    scan $gh %x gv
+                    scan $bh %x bv
+                    return [list [expr {$rv/255.0}] [expr {$gv/255.0}] [expr {$bv/255.0}]]
+                }
+                throw {PDF4TCL} "_colorToRGB: unknown color \"$color\""
+            }
+        }
+    }
+
+    # Draw a rectangle, internal version
     method DrawRect {x y w h stroke filled} {
         my Pdfoutcmd $x $y $w $h "re"
         if {$filled && $stroke} {
@@ -4395,6 +4542,8 @@ Use -pdfa-icc to specify a profile path."
         set readonly 0
         set required 0
         set label ""
+        set tooltip ""
+        set tabindex -1
         if {$ftype eq "checkbutton"} {
             set initValue 0
         }
@@ -4473,6 +4622,15 @@ Use -pdfa-icc to specify a profile path."
                         throw {PDF4TCL} "-label is only valid for signature fields"
                     }
                     set label $value
+                }
+                -tooltip {
+                    set tooltip $value
+                }
+                -tabindex {
+                    if {![string is integer -strict $value] || $value < 0} {
+                        throw {PDF4TCL} "-tabindex must be a non-negative integer"
+                    }
+                    set tabindex $value
                 }
                 default {
                     throw {PDF4TCL} "unknown option \"$option\""
@@ -4774,6 +4932,14 @@ Use -pdfa-icc to specify a profile path."
         }
         # Flag for print
         append andict "  /F 4\n"
+        # Tooltip (PDF/UA accessibility) -- /TU
+        if {$tooltip ne ""} {
+            append andict "  /TU [QuoteString $tooltip]\n"
+        }
+        # Tab index -- /TI (field tab order within AcroForm)
+        if {$tabindex >= 0} {
+            append andict "  /TI $tabindex\n"
+        }
         append andict ">>\n"
         set anid [my AddObject $andict]
 
