@@ -1,0 +1,138 @@
+# new-0.9.4.12.test -- Tests for pdf4tcl 0.9.4.12 new features
+# roundedRect, unit procs, _ValidatePdfDate
+
+source init.tcl
+
+# ── Unit conversion procs ────────────────────────────────────────────────────
+
+test unit-1.1 {pdf4tcl::mm: 25.4mm = 72pt} {
+    expr {abs([pdf4tcl::mm 25.4] - 72.0) < 0.001}
+} 1
+
+test unit-1.2 {pdf4tcl::cm: 2.54cm = 72pt} {
+    expr {abs([pdf4tcl::cm 2.54] - 72.0) < 0.001}
+} 1
+
+test unit-1.3 {pdf4tcl::in: 1in = 72pt} {
+    expr {abs([pdf4tcl::in 1] - 72.0) < 0.001}
+} 1
+
+test unit-1.4 {pdf4tcl::pt: identity} {
+    pdf4tcl::pt 42.5
+} 42.5
+
+test unit-1.5 {pdf4tcl::mm: 0mm = 0pt} {
+    pdf4tcl::mm 0
+} 0.0
+
+test unit-1.6 {pdf4tcl::cm: 10cm} {
+    expr {abs([pdf4tcl::cm 10] - 283.46) < 0.01}
+} 1
+
+# ── roundedRect ──────────────────────────────────────────────────────────────
+
+test roundedrect-1.1 {roundedRect: creates PDF without error} {
+    set f [makeFile {} test-roundedrect.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf roundedRect 50 50 200 100 -radius 10
+    $pdf destroy
+    file exists $f
+} 1
+
+test roundedrect-1.2 {roundedRect: filled} {
+    set f [makeFile {} test-roundedrect-filled.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf roundedRect 50 50 200 100 -radius 15 -filled 1
+    $pdf destroy
+    file exists $f
+} 1
+
+test roundedrect-1.3 {roundedRect: filled and stroked} {
+    set f [makeFile {} test-roundedrect-both.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf roundedRect 50 50 200 100 -radius 10 -filled 1 -stroke 1
+    $pdf destroy
+    file exists $f
+} 1
+
+test roundedrect-1.4 {roundedRect: default radius (5)} {
+    set f [makeFile {} test-roundedrect-default.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf roundedRect 50 50 200 100
+    $pdf destroy
+    file exists $f
+} 1
+
+test roundedrect-1.5 {roundedRect: unknown option throws} {
+    set f [makeFile {} test-roundedrect-err.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    set err [catch {$pdf roundedRect 50 50 200 100 -badopt x} msg]
+    $pdf destroy
+    set err
+} 1
+
+test roundedrect-1.6 {roundedRect: radius clamped to half shorter side} {
+    # w=100 h=40 -> maxR=20; radius=50 should be clamped
+    set f [makeFile {} test-roundedrect-clamp.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf startPage
+    $pdf roundedRect 50 50 100 40 -radius 50
+    $pdf destroy
+    file exists $f
+} 1
+
+# ── _ValidatePdfDate / metadata DateTime-Validierung ────────────────────────
+
+test metadata-date-1.1 {metadata -creationdate: integer accepted} {
+    set f [makeFile {} test-meta-date.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf metadata -creationdate 0
+    $pdf destroy
+    file exists $f
+} 1
+
+test metadata-date-1.2 {metadata -creationdate: valid D: string accepted} {
+    set f [makeFile {} test-meta-date2.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf metadata -creationdate {D:20260315120000+01'00'}
+    $pdf destroy
+    file exists $f
+} 1
+
+test metadata-date-1.3 {metadata -creationdate: missing D: prefix throws} {
+    set f [makeFile {} test-meta-date3.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    set err [catch {$pdf metadata -creationdate {20260315120000}} msg]
+    $pdf destroy
+    set err
+} 1
+
+test metadata-date-1.4 {metadata -creationdate: D: too short throws} {
+    set f [makeFile {} test-meta-date4.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    set err [catch {$pdf metadata -creationdate {D:2026}} msg]
+    $pdf destroy
+    set err
+} 1
+
+test metadata-date-1.5 {metadata: title + author in info dict} {
+    set f [makeFile {} test-meta-fields.pdf]
+    set pdf [pdf4tcl::new %AUTO% -file $f]
+    $pdf metadata -title "Test Document" -author "Gregor"
+    $pdf destroy
+    # Check title appears in PDF
+    set fh [open $f rb]
+    set content [read $fh]
+    close $fh
+    expr {[string match *Test\ Document* $content] || \
+          [string match *Test* $content]}
+} 1
+
+# ── Cleanup ──────────────────────────────────────────────────────────────────
+
+cleanupTests

@@ -221,6 +221,33 @@ proc pt_to_mm {pt} {
 }
 ```
 
+### Eingebaute Konvertierungsprozeduren (0.9.4.12)
+
+Ab 0.9.4.12 sind Konvertierungsprozeduren direkt in pdf4tcl eingebaut:
+
+```tcl
+pdf4tcl::mm 25.4    ;# --> 72.0 pt
+pdf4tcl::cm 2.54    ;# --> 72.0 pt
+pdf4tcl::in 1       ;# --> 72.0 pt
+pdf4tcl::pt 42.5    ;# --> 42.5 pt  (Identität)
+```
+
+Verwendung direkt in Koordinaten-Argumenten:
+
+```tcl
+# Rand 20mm von links, 15mm von oben
+$pdf text "Hallo" -x [pdf4tcl::mm 20] -y [pdf4tcl::mm 267]
+
+# Rechteck mit 5cm Breite und 3cm Höhe
+$pdf rectangle [pdf4tcl::cm 2] [pdf4tcl::cm 10]                [pdf4tcl::cm 5] [pdf4tcl::cm 3]
+
+# Abgerundetes Rechteck, Masse in mm
+$pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm 80] [pdf4tcl::mm 30]                  -radius [pdf4tcl::mm 5] -filled 1
+```
+
+Die alten eigenen Konvertierungsprozeduren bleiben natürlich weiterhin nutzbar.
+
+
 ### Typische Werte fuer A4
 
 ```tcl

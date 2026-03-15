@@ -1336,6 +1336,45 @@ Use -pdfa-icc to specify a profile path."
 
     #--------------------------------------------------------------------------
     # Configure method for the PDF document metadata options.
+    # _ValidatePdfDate -- validate and normalise a PDF date string (0.9.4.12)
+    # Accepts:
+    #   D:YYYYMMDDHHmmSS+HH'mm'   (full with timezone)
+    #   D:YYYYMMDDHHmmSS           (no timezone -> appended as Z)
+    #   integer (clock seconds)    (converted automatically)
+    # Returns normalised D:... string or throws PDF4TCL BADDATE.
+    method _ValidatePdfDate {value option} {
+        # Integer: convert via clock format
+        if {[string is integer -strict $value]} {
+            set c [clock format $value -format {D:%Y%m%d%H%M%S%z} -gmt 0]
+            return [string range $c 0 end-2]
+        }
+        # Must start with D:
+        if {![string match "D:*" $value]} {
+            throw {PDF4TCL BADDATE} \
+                "metadata $option: invalid date \"$value\" (must start with D:)"
+        }
+        # Must have at least D:YYYYMMDD
+        if {![regexp {^D:(\d{4})(\d{2})(\d{2})} $value]} {
+            throw {PDF4TCL BADDATE} \
+                "metadata $option: date too short \"$value\" (need at least D:YYYYMMDD)"
+        }
+        # Normalize: pad to D:YYYYMMDDHHmmSS if shorter
+        set body [string range $value 2 end]
+        set body [string trimright $body "Z+-0123456789'"]
+        set body [string range $value 2 end]
+        # Accept as-is if matches full pattern
+        if {[regexp {^D:\d{14}([+-]\d{2}'\d{2}'|Z)?$} $value]} {
+            return $value
+        }
+        # Pad missing time fields
+        set digits [regexp -all {\d} $body]
+        if {[string length $body] < 14} {
+            set pad [string repeat "0" [expr {14 - [string length $body]}]]
+            set value "D:${body}${pad}"
+        }
+        return $value
+    }
+
     method metadata {args} {
         foreach {option value} $args {
             set value [string trim $value]
@@ -1348,18 +1387,12 @@ Use -pdfa-icc to specify a profile path."
                     -subject  {set metadata(Subject)  $value}
                     -title    {set metadata(Title)    $value}
                     -creationdate {
-                        if {$value == 0} {
-                            set value [clock seconds]
-                        }
-                        set c [clock format $value -format {D:%Y%m%d%H%M%S%z} -gmt 0]
-                        set metadata(CreationDate) [string range $c 0 end-2]
+                        if {$value == 0} { set value [clock seconds] }
+                        set metadata(CreationDate) [my _ValidatePdfDate $value -creationdate]
                     }
                     -moddate {
-                        if {$value == 0} {
-                            set value [clock seconds]
-                        }
-                        set c [clock format $value -format {D:%Y%m%d%H%M%S%z} -gmt 0]
-                        set metadata(ModDate) [string range $c 0 end-2]
+                        if {$value == 0} { set value [clock seconds] }
+                        set metadata(ModDate) [my _ValidatePdfDate $value -moddate]
                     }
                     default {
                         throw {PDF4TCL} "unknown metadata option \"$option\""
@@ -1367,6 +1400,11 @@ Use -pdfa-icc to specify a profile path."
                 }
             }
         }
+        # Sync Info-Dict fields to XMP: mark as dirty so _BuildXMPStream
+        # picks up the latest values on finish (no action needed here --
+        # _BuildXMPStream already reads from metadata() array directly).
+        # Flag: metadata was set after construction
+        set pdf(metadata_set) 1
     }
 
     # Set viewer preferences in the PDF catalog.
@@ -2914,6 +2952,77 @@ Use -pdfa-icc to specify a profile path."
         my TransR $w $h w h
 
         my DrawRect $x $y $w $h $stroke $filled
+    }
+
+    # Draw a rectangle with rounded corners (0.9.4.12)
+    # x y w h: position and size (in user units)
+    # -radius r: corner radius (default: 5)
+    # -filled 0/1: fill (default: 0)
+    # -stroke 0/1: stroke outline (default: 1)
+    method roundedRect {x y w h args} {
+        my EndTextObj
+
+        set radius 5
+        set filled 0
+        set stroke 1
+        foreach {arg value} $args {
+            switch -- $arg {
+                -radius  { set radius $value }
+                -filled  { set filled $value }
+                -stroke  { set stroke $value }
+                default  { throw {PDF4TCL} "unknown option \"$arg\"" }
+            }
+        }
+        my Trans $x $y x y
+        my TransR $w $h w h
+        my TransR $radius $radius radius _
+
+        # Clamp radius to half of shorter side
+        set maxR [expr {min($w, $h) / 2.0}]
+        if {$radius > $maxR} { set radius $maxR }
+
+        # Bezier control point factor for quarter-circle approximation
+        set k [expr {$radius * 0.5522847498}]
+
+        set x1 $x
+        set y1 $y
+        set x2 [expr {$x + $w}]
+        set y2 [expr {$y + $h}]
+
+        # Path: start at bottom-left corner arc start
+        my Pdfoutcmd [expr {$x1 + $radius}] $y1 m
+        my Pdfoutcmd [expr {$x2 - $radius}] $y1 l
+        # Bottom-right corner
+        my Pdfoutcmd \
+            [expr {$x2 - $radius + $k}] $y1 \
+            $x2 [expr {$y1 + $radius - $k}] \
+            $x2 [expr {$y1 + $radius}] c
+        my Pdfoutcmd $x2 [expr {$y2 - $radius}] l
+        # Top-right corner
+        my Pdfoutcmd \
+            $x2 [expr {$y2 - $radius + $k}] \
+            [expr {$x2 - $radius + $k}] $y2 \
+            [expr {$x2 - $radius}] $y2 c
+        my Pdfoutcmd [expr {$x1 + $radius}] $y2 l
+        # Top-left corner
+        my Pdfoutcmd \
+            [expr {$x1 + $radius - $k}] $y2 \
+            $x1 [expr {$y2 - $radius + $k}] \
+            $x1 [expr {$y2 - $radius}] c
+        my Pdfoutcmd $x1 [expr {$y1 + $radius}] l
+        # Bottom-left corner
+        my Pdfoutcmd \
+            $x1 [expr {$y1 + $radius - $k}] \
+            [expr {$x1 + $radius - $k}] $y1 \
+            [expr {$x1 + $radius}] $y1 c
+
+        if {$filled && $stroke} {
+            my Pdfoutcmd B
+        } elseif {$filled} {
+            my Pdfoutcmd f
+        } else {
+            my Pdfoutcmd S
+        }
     }
 
     # Clip outside a rectangle

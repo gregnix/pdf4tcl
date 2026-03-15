@@ -418,3 +418,20 @@ proc ::pdf4tcl::SafeQuoteString {string} {
     set safe [regsub -all {[^\x00-\xFF]} $string {?}]
     return [QuoteString $safe]
 }
+
+# ── Unit conversion helpers (0.9.4.12) ────────────────────────────────────────
+# Convert common units to PDF points (1 pt = 1/72 inch)
+
+namespace eval pdf4tcl {
+    # mm to points
+    proc mm {v} { expr {$v * 72.0 / 25.4} }
+
+    # cm to points
+    proc cm {v} { expr {$v * 72.0 / 2.54} }
+
+    # inches to points
+    proc in {v} { expr {$v * 72.0} }
+
+    # points (identity -- for symmetric usage)
+    proc pt {v} { expr {double($v)} }
+}

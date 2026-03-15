@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.11?**
+package require **pdf4tcl ?0****.9****.4****.12?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -171,6 +171,8 @@ package require **pdf4tcl ?0****.9****.4****.11?**
 *objectName* **arrow** *x1* *y1* *x2* *y2* *size* ?*angle*?
 
 *objectName* **rectangle** *x* *y* *width* *height* ?*option value*...?
+
+*objectName* **roundedRect** *x* *y* *width* *height* ?*option value*...?
 
 *objectName* **clip** *x* *y* *width* *height*
 
@@ -567,21 +569,29 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 
 ### OBJECT METHODS, TEXT
 
-**-align left|right|center   (default left)**
+**-align**
+: *left|right|center* (default left)
 
-**-angle degrees   (default 0) - Orient string at the specified angle.**
+**-angle**
+: *degrees* (default 0) - Orient string at the specified angle.
 
-**-xangle degrees   (default 0)**
+**-xangle**
+: *degrees* (default 0)
 
-**-yangle degrees   (default 0) - Apply x or y shear to the text.**
+**-yangle**
+: *degrees* (default 0) - Apply x or y shear to the text.
 
-**-x x   (default 0)**
+**-x**
+: *x* (default 0)
 
-**-y y   (default 0) - Allow the text to be positioned without setTextPosition.**
+**-y**
+: *y* (default 0) - Allow the text to be positioned without setTextPosition.
 
-**-bg bool|color   (default 0)**
+**-bg**
+: *bool|color* (default 0)
 
-**-background bool|color**
+**-background**
+: *bool|color*
 
 **-fill bool|color**
 : Any of **-bg**, **-background** or **-fill** cause the text to be drawn on a filled background. If a boolean true is given, the background color is taken from **setBgColor**. Alternatively, a color value in any format accepted by pdf4tcl can be given directly (e.g. **{1 0 0}** for red). All three options are aliases.
@@ -789,6 +799,15 @@ Colors can be expressed in various formats. First, as a three element list of va
 **-stroke bool   (default 1)**
 : Draw an outline of the rectangle.
 
+**-radius value   (default 5)**
+: Corner radius in the document's current unit. Automatically clamped to half the shorter side.
+
+**-filled bool   (default 0)**
+: Fill the rectangle.
+
+**-stroke bool   (default 1)**
+: Draw an outline of the rectangle.
+
 **objectName setLineWidth width**
 : Sets the width for subsequent line drawing. Line width must be a non-negative number.
 
@@ -821,6 +840,9 @@ Colors can be expressed in various formats. First, as a three element list of va
 
 **objectName rectangle x y width height ?option value...?**
 : Draw a rectangle.
+
+**objectName roundedRect x y width height ?option value...?**
+: Draw a rectangle with rounded corners (Bezier approximation).
 
 **objectName clip x y width height**
 : Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.
@@ -891,7 +913,36 @@ pdf4tcl::new mypdf -paper a3
   mypdf destroy
 ```
 
+### UNIT CONVERSION PROCS
+
+The following procs convert common units to PDF points (1 pt = 1/72 inch). They can be used directly in any coordinate or distance argument.
+
+**pdf4tcl::mm value**
+: Convert millimetres to points.
+
+**pdf4tcl::cm value**
+: Convert centimetres to points.
+
+**pdf4tcl::in value**
+: Convert inches to points.
+
+**pdf4tcl::pt value**
+: Identity conversion (returns the value as a floating-point number). Example:
+
+```tcl
+$pdf text "Hello" -x [pdf4tcl::mm 20] -y [pdf4tcl::mm 267]
+$pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm 80] [pdf4tcl::mm 30]                  -radius [pdf4tcl::mm 5] -filled 1
+```
+
 ## CHANGES
+
+### VERSION 0.9.4.12
+
+- New method **roundedRect**: draws a rectangle with rounded corners using Bezier approximation. Options **-radius** (default 5), **-filled**, **-stroke**. Radius is automatically clamped to half the shorter side.
+- New namespace procs **pdf4tcl::mm**, **pdf4tcl::cm**, **pdf4tcl::in**, **pdf4tcl::pt**: convert common units to PDF points (1 pt = 1/72 inch). Use directly in coordinate arguments.
+- Date validation in **metadata**: new method **_ValidatePdfDate** validates and normalises PDF date strings for **-creationdate** and **-moddate**. Throws **PDF4TCL BADDATE** on invalid format.
+- Extended "*0**.9**.4**.x/demo/demo-alpha**.tcl*" with sections demonstrating **roundedRect** and unit conversion procs.
+- New test file "*tests/new-0**.9**.4**.12**.test*": 17 tests.
 
 ### VERSION 0.9.4.11
 
