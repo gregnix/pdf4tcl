@@ -3,13 +3,20 @@ These files need to be changed when bumping revisions:
 src/prologue.tcl (package provide)
 tests/init.tcl (package require)
 pkgIndex.tcl (package ifneeded)
+pkg/pkgIndex.tcl (package ifneeded)
 Makefile (VERSION)
 pdf4tcl.man (two places) (regenerate doc)
+README.md (version in heading + package require + test count)
+web/index.html (version number)
+nogit/scripts/sync-pdf4tcl.tcl (VERSION in paths, two places)
+nogit/scripts/make-release.tcl (VERSION, REPODIR, TAGMSG)
 
 Also update these:
 ChangeLog
-web/index.html
 web/changes.html
+nogit/docs/de/TODO.md
+nogit/docs/de/regelbuch-pdf4tcl.md (new version section)
+nogit/docs/de/uebergabe-0.9.4.x.md (new file)
 
 
 

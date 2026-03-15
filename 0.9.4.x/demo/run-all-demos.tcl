@@ -49,6 +49,7 @@ set DEMOS {
     {demo-alpha.tcl              0  {file demo-alpha.pdf}  "Transparenz (setAlpha/getAlpha)"}
     {demo-api-vergleich.tcl      0  none       "API-Vergleich (Font-Demo)"}
     {demo-cidfont.tcl            0  none       "CIDFont Unicode-Support"}
+    {demo-embedfile.tcl          0  --out      "Eingebettete Dateien (addEmbeddedFile)"}
     {demo-encryption.tcl         0  dir        "AES-128 Verschluesselung"}
     {demo-pdfa.tcl               0  --out      "PDF/A direkt"}
     {demo-pdfa-gs.tcl            0  --out      "PDF/A via Ghostscript"}

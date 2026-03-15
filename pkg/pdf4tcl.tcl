@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.13
+package provide pdf4tcl 0.9.4.14
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2100,6 +2100,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(cidfonts) {}
         set pdf(viewer) {}
         set pdf(pagelabels) {}
+        set pdf(embfiles) {}
         set pdf(compress) $options(-compress)
         set pdf(finished) false
         set pdf(inPage) false
@@ -2648,6 +2649,12 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
             my Pdfout "\] >>\n"
         }
+        # Embedded files NameTree (ISO 32000 SS7.11.4, PDF/A-3 SS6.2.7)
+        set embnames_oid ""
+        if {[llength $pdf(embfiles)] > 0} {
+            set embnames_oid [my GetOid 1]
+            my Pdfout "/Names << /EmbeddedFiles $embnames_oid 0 R >>\n"
+        }
         my Pdfout ">>\n"
         my Pdfout "endobj\n\n"
 
@@ -2875,6 +2882,19 @@ Use -pdfa-icc to specify a profile path."
                 my Pdfout ">>\n"
                 my Pdfout "endobj\n\n"
             }
+        }
+
+        # Embedded files NameTree object
+        # (ISO 32000 SS7.11.4; flat tree sufficient for small lists)
+        if {$embnames_oid ne "" && [llength $pdf(embfiles)] > 0} {
+            my StoreXref $embnames_oid
+            my Pdfout "$embnames_oid 0 obj\n"
+            my Pdfout "<< /Names \[\n"
+            foreach {basename fsid} $pdf(embfiles) {
+                my Pdfout "[QuoteString $basename] $fsid 0 R\n"
+            }
+            my Pdfout "\] >>\n"
+            my Pdfout "endobj\n\n"
         }
 
         # Encrypt dictionary (V=4/R=4) written before xref.
@@ -6243,6 +6263,87 @@ Use -pdfa-icc to specify a profile path."
 
         # 4. Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
+    }
+
+    # Embed a file silently in the PDF Catalog NameTree (no visible annotation).
+    # For electronic invoices (ZUGFeRD, Factur-X) and other attachments.
+    # NOT allowed in PDF/A-1 (ISO 19005-1 §6.1.7); allowed in PDF/A-3.
+    #
+    # addEmbeddedFile filename ?options?
+    #
+    # filename   -- name stored in the PDF (basename used as key in NameTree)
+    # Options:
+    #   -contents    data    raw binary content (default: read from filename)
+    #   -mimetype    type    MIME type, e.g. "application/xml" (default: "")
+    #   -description text    human-readable description (default: "")
+    #   -afrelationship rel  PDF/A-3 AFRelationship: Alternative|Data|Source|
+    #                        Supplement|Unspecified (default: "")
+    method addEmbeddedFile {filename args} {
+        # PDF/A-1 guard (ISO 19005-1 §6.1.7 forbids EmbeddedFiles)
+        if {[string match "1*" $options(-pdfa)]} {
+            throw {PDF4TCL} \
+                "addEmbeddedFile: embedded files are not allowed in PDF/A-1 (ISO 19005-1 §6.1.7)"
+        }
+
+        set contents       ""
+        set contentsIsSet  0
+        set mimetype       ""
+        set description    ""
+        set afrelationship ""
+
+        foreach {opt val} $args {
+            switch -- $opt {
+                -contents       { set contents $val ; set contentsIsSet 1 }
+                -mimetype       { set mimetype $val }
+                -description    { set description $val }
+                -afrelationship {
+                    if {$val ni {Alternative Data Source Supplement Unspecified ""}} {
+                        throw {PDF4TCL} \
+                            "invalid -afrelationship \"$val\": must be Alternative, Data, Source, Supplement, or Unspecified"
+                    }
+                    set afrelationship $val
+                }
+                default {
+                    throw {PDF4TCL} "unknown option \"$opt\""
+                }
+            }
+        }
+
+        if {!$contentsIsSet} {
+            if {![file readable $filename]} {
+                throw {PDF4TCL} "addEmbeddedFile: cannot read file \"$filename\""
+            }
+            set ch [open $filename rb]
+            set contents [read $ch]
+            close $ch
+        }
+
+        # 1. EmbeddedFile stream  (ISO 32000 SS7.11.4)
+        set efdict "<< /Type /EmbeddedFile"
+        if {$mimetype ne ""} {
+            append efdict "\n   /Subtype [QuoteString $mimetype]"
+        }
+        append efdict "\n   /Params << /Size [string length $contents] >> "
+        set efbody [MakeStream $efdict $contents $pdf(compress)]
+        set efid [my AddObject $efbody]
+
+        # 2. FileSpec dictionary  (ISO 32000 SS7.11.3)
+        set basename [file tail $filename]
+        set fsdict "<< /Type /Filespec\n"
+        append fsdict "   /F [QuoteString $basename]\n"
+        append fsdict "   /UF [QuoteString $basename]\n"
+        append fsdict "   /EF << /F $efid 0 R /UF $efid 0 R >>\n"
+        if {$description ne ""} {
+            append fsdict "   /Desc [QuoteString $description]\n"
+        }
+        if {$afrelationship ne ""} {
+            append fsdict "   /AFRelationship /$afrelationship\n"
+        }
+        append fsdict ">>\n"
+        set fsid [my AddObject $fsdict]
+
+        # 3. Register in NameTree list (pairs: basename fsid)
+        lappend pdf(embfiles) $basename $fsid
     }
 
     # Add a hyperlink annotation (URI link). [SF ticket #15]

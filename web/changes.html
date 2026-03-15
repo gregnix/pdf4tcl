@@ -16,6 +16,22 @@ Changes in v0.9.X (Not released yet):<br>
   <li> TBW </li>
 </ul>
 
+</ul>
+
+Changes in v0.9.4.14 (2026-03-15, fork gregnix):<br>
+<ul>
+  <li> New method <b>addEmbeddedFile</b>: embeds a file silently in the PDF
+       Catalog /Names /EmbeddedFiles NameTree (ISO 32000 SS7.11.4).
+       No visible page annotation is created.
+       Options: <b>-contents</b> (raw data), <b>-mimetype</b>,
+       <b>-description</b>, <b>-afrelationship</b>
+       (Alternative | Data | Source | Supplement | Unspecified).
+       Raises an error when <b>-pdfa 1b</b> is set
+       (ISO 19005-1 SS6.1.7 forbids embedded files in PDF/A-1).
+       Intended use: ZUGFeRD / Factur-X electronic invoices and
+       other document-level attachments. </li>
+</ul>
+
 Changes in v0.9.4.13 (2026-03-15, fork gregnix):<br>
 <ul>
   <li> New method <b>setBlendMode</b>: sets PDF blend mode (Normal, Multiply, Screen,
