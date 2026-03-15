@@ -16,6 +16,26 @@ Changes in v0.9.X (Not released yet):<br>
   <li> TBW </li>
 </ul>
 
+Changes in v0.9.4.13 (2026-03-15, fork gregnix):<br>
+<ul>
+  <li> New method <b>setBlendMode</b>: sets PDF blend mode (Normal, Multiply, Screen,
+       Overlay, Darken, Lighten, ColorDodge, ColorBurn, HardLight, SoftLight,
+       Difference, Exclusion, Hue, Saturation, Color, Luminosity) via ExtGState /BM.
+       Requires PDF 1.4 (raised automatically). </li>
+  <li> New method <b>getBlendMode</b>: returns currently active blend mode. </li>
+  <li> New method <b>linearGradient</b>: axial gradient fill (ShadingType 2 +
+       FunctionType 2). Options: -extend. </li>
+  <li> New method <b>radialGradient</b>: radial gradient fill between two circles
+       (ShadingType 3 + FunctionType 2). Options: -extend. </li>
+  <li> New options <b>-tooltip</b> (/TU) and <b>-tabindex</b> (/TI) in addForm
+       for PDF/UA accessibility and AcroForm tab order. </li>
+  <li> endPage now writes /Tabs /R in the page dict when annotations are present. </li>
+  <li> Bugfix: method DrawRect header was accidentally dropped; rectangle calls
+       would have failed with "unknown method DrawRect". </li>
+  <li> Bugfix: getBlendMode always returned "Normal" (missing assignment in
+       setBlendMode). </li>
+</ul>
+
 Changes in v0.9.4 (2021-01-25):<br>
 <ul>
   <li> Support tko::path for PDF generation. </li>
