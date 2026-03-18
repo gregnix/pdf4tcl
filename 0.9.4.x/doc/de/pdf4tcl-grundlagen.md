@@ -9,7 +9,7 @@ Tcl/Tk bereits vertraut sind und nun PDF-Dokumente erzeugen moechten.
 ### Voraussetzungen
 
 pdf4tcl benoetigt Tcl/Tk ab Version 8.6. Die empfohlene Version von
-pdf4tcl ist 0.9.4.11. Optional koennen folgende Tools installiert werden:
+pdf4tcl ist 0.9.4.16. Optional koennen folgende Tools installiert werden:
 
 - poppler-utils: `pdfinfo` und `pdftotext` fuer PDF-Validierung
 - mupdf: Leichtgewichtiger PDF-Viewer
@@ -390,26 +390,30 @@ meinprojekt/
 
 ## Verschluesselung
 
-Ab Version 0.9.4.11 unterstuetzt pdf4tcl AES-128-Verschluesselung (V=4, R=4
-nach PDF 1.6). Die Optionen werden beim Erzeugen des PDF-Objekts gesetzt:
+Ab Version 0.9.4.11 unterstuetzt pdf4tcl AES-128-Verschluesselung (V=4, R=4,
+PDF 1.5+). Ab Version 0.9.4.16 ist zusaetzlich AES-256 (V=5, R=6, PDF 2.0)
+verfuegbar. Die Verschluesselungsstufe wird mit `-encversion` gewaehlt.
 
 ```tcl
-# Nur User-Passwort -- Dokument kann ohne Passwort nicht geoeffnet werden
-set pdf [::pdf4tcl::new %AUTO% -paper a4 \
-    -userpassword "geheim"]
-
-# Nur Owner-Passwort -- oeffnet ohne Passwort, aber vor Aenderungen geschuetzt
-set pdf [::pdf4tcl::new %AUTO% -paper a4 \
-    -ownerpassword "admin"]
-
-# User + Owner-Passwort kombiniert
+# AES-128 (Standard, nur Tcllib noetig)
 set pdf [::pdf4tcl::new %AUTO% -paper a4 \
     -userpassword  "benutzer" \
     -ownerpassword "admin"]
+
+# AES-256 (benoetigt openssl im PATH, ca. 2-4 Sekunden)
+set pdf [::pdf4tcl::new %AUTO% -paper a4 \
+    -userpassword  "benutzer" \
+    -ownerpassword "admin" \
+    -encversion    5]
+```
+
+Verifikation:
+```bash
+qpdf --password=benutzer --check output.pdf
 ```
 
 Hinweis: Verschluesselung und PDF/A (`-pdfa`) koennen nicht kombiniert
-werden -- PDF/A verbietet Verschluesselung nach ISO 19005.
+werden — PDF/A verbietet Verschluesselung nach ISO 19005.
 
 
 ## PDF/A-Konformitaet

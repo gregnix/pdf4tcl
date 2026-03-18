@@ -370,3 +370,81 @@ proc drawSeparator {pdf x y width {color "0.6 0.6 0.6"}} {
 
 Never use `string repeat "-"` as a separator. Always use `$pdf line`
 for pixel-accurate positioning.
+
+## Blend Modes (0.9.4.13)
+
+`setBlendMode` sets the PDF blend mode via ExtGState `/BM`. The mode
+controls how new drawing operations combine with the content underneath.
+`getBlendMode` returns the currently active mode.
+
+```tcl
+# Set blend mode
+$pdf setBlendMode Multiply
+$pdf rectangle 50 100 200 100 -filled 1
+
+# Combine with alpha
+$pdf setAlpha 0.7
+$pdf setBlendMode Screen
+$pdf rectangle 100 150 200 100 -filled 1
+
+# Query current mode
+set mode [$pdf getBlendMode]   ;# --> "Screen"
+
+# Reset
+$pdf setBlendMode Normal
+$pdf setAlpha 1.0
+```
+
+Supported modes: `Normal Multiply Screen Overlay Darken Lighten
+ColorDodge ColorBurn HardLight SoftLight Difference Exclusion
+Hue Saturation Color Luminosity`
+
+Note: Blend modes require PDF 1.4 or later. pdf4tcl raises the PDF
+version to at least 1.4 automatically. ExtGState objects are cached
+per mode + alpha combination.
+
+## Gradients (0.9.4.13)
+
+### linearGradient
+
+Axial gradient from color A to color B along a line between two points
+(PDF ShadingType 2 + FunctionType 2).
+
+```tcl
+# Horizontal: red to blue
+$pdf linearGradient 50 100 250 100 \
+    {1.0 0.0 0.0} {0.0 0.0 1.0}
+
+# Diagonal with extend
+$pdf linearGradient 50 200 300 350 \
+    {1.0 1.0 1.0} {0.2 0.2 0.2} -extend 1
+
+# Hex notation
+$pdf linearGradient 50 400 350 400 \
+    {#ff6600} {#0066ff}
+```
+
+Options:
+- `-extend 1` — continue gradient beyond endpoints (default: 0)
+
+### radialGradient
+
+Radial gradient between two circles (PDF ShadingType 3 + FunctionType 2).
+
+```tcl
+# Simple radial: bright center, dark edge
+$pdf radialGradient \
+    150 300 0  \
+    150 300 80 \
+    {1.0 1.0 0.8} {0.6 0.3 0.0}
+
+# Offset centers (spotlight effect)
+$pdf radialGradient \
+    120 480 10 \
+    150 500 100 \
+    {1.0 1.0 1.0} {0.1 0.1 0.3} -extend 1
+```
+
+Arguments: `x0 y0 r0 x1 y1 r1 color0 color1 ?-extend bool?`
+
+Colors accept `{r g b}` (0.0–1.0), `{r g b a}` with alpha, or `#rrggbb`.

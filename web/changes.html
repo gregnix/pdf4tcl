@@ -11,11 +11,24 @@
 <p>
 <h2>Changes</h2>
 
-Changes in v0.9.X (Not released yet):<br>
+Changes in v0.9.4.16 (2026-03-17, fork gregnix):<br>
 <ul>
-  <li> TBW </li>
-</ul>
-
+  <li> <b>AES-256 encryption</b> (V=5, R=6, PDF 2.0) via new option
+       <b>-encversion 5</b>. Algorithm 2.B compatible with qpdf
+       (password||K||ukey, sum(E[0:16])%3, K keeps full SHA-384/512
+       length in loop). SHA-384/512 via openssl stdin pipe. </li>
+  <li> Bugfix: Algorithm 2.B K-truncation: K now keeps full 48/64 byte
+       length after SHA-384/512 within the iteration loop. </li>
+  <li> <b>String encryption</b> (ISO 32000 §7.6.5): new method
+       EncryptStringsInBody encrypts all PDF literal strings in object
+       dictionaries. Fixes AcroForm field corruption in encrypted
+       documents (/T, /DA, /V, /TU, /CA). </li>
+  <li> pdflab2.tcl: AES-256 support (showEncDict, showEncryptVerify,
+       H4/KRITISCH-2). New verify_enc3.py for AES-256 verification. </li>
+  <li> tests: new-0.9.4.16.test with 29 tests for AES-256 and
+       string encryption; graceful skip when openssl or Tk unavailable. </li>
+  <li> Documentation: all doc/de/ and doc/en/ files updated to 0.9.4.16;
+       AES-128 reference unified to PDF 1.6+; tests/README.md added. </li>
 </ul>
 
 Changes in v0.9.4.15 (2026-03-16, fork gregnix):<br>

@@ -308,3 +308,41 @@ set textY [expr {$y0 + int(($cellH - $fontSize) / 0.45)}]
 Der Ascent (Hoehe ueber Baseline) betraegt bei Helvetica ca. 70-80%
 der fontSize. Bei Division durch 2.0 liegt die Baseline zu nah an
 der Oberkante der Zelle.
+
+## ToUnicode fuer Standard-Fonts (0.9.4.13)
+
+Ab 0.9.4.13 generiert pdf4tcl für alle 14 Standard-Fonts (Helvetica, Times,
+Courier und deren Varianten) automatisch einen ToUnicode-CMap-Stream mit der
+vollständigen WinAnsi/CP1252-Kodierung.
+
+**Hinweis:** Das ist ein Feature von pdf4tcl — der PDF-Standard schreibt
+ToUnicode-CMaps für Standard-Fonts nicht vor. Ohne diesen Eintrag schlägt
+Copy-Paste von Sonderzeichen in vielen Viewern fehl, und veraPDF meldet
+Fehler 6.3.9 im PDF/A-Modus.
+
+Für Anwendungen, die nur Standard-Fonts und 7-Bit-ASCII verwenden, ist
+keine Änderung erforderlich. Der Unterschied zeigt sich beim Kopieren von
+Text mit Umlauten oder Sonderzeichen aus dem PDF-Viewer.
+
+## OTF/CFF-Fonts in CIDFont-Kontext (0.9.4.15)
+
+Ab 0.9.4.15 akzeptiert `loadBaseTrueTypeFont` auch OpenType-Fonts mit
+CFF-Outlines (`.otf`-Dateien, Magic `OTTO`). Vorher wurde bei solchen
+Fonts der Fehler `TTF: postscript outlines are not supported` ausgegeben.
+
+```tcl
+# TTF (TrueType-Outlines) -- schon immer unterstuetzt
+$pdf loadBaseTrueTypeFont "DejaVuSans" \
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+
+# OTF (CFF/PostScript-Outlines) -- neu ab 0.9.4.15
+$pdf loadBaseTrueTypeFont "NotoSans" \
+    /usr/share/fonts/opentype/noto/NotoSans-Regular.otf
+```
+
+Beide Typen werden vollstaendig eingebettet. Im PDF-Objekt-Modell erzeugt
+ein OTF-Font `/CIDFontType0` (statt `/CIDFontType2` bei TTF) und verwendet
+`/FontFile3 /Subtype /OpenType` fuer das eingebettete Font-Binary.
+
+Die restliche CIDFont-API (`createFontSpecCID`, Glyphen-Breiten, Text-
+Ausgabe, `getStringWidth`) funktioniert identisch fuer TTF und OTF.

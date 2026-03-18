@@ -667,3 +667,100 @@ The pushbutton caption centering uses an estimated character width
 (`strlen * fontSize * 0.5`), which is only approximate. Using
 `getStringWidth` would give exact results but requires the font metrics
 to be loaded.
+
+---
+
+## Tooltip and Tab Order (0.9.4.13)
+
+### -tooltip option
+
+Maps to the PDF `/TU` (text string, user-visible name) field in the
+Widget annotation dictionary. Written as a literal string:
+
+```
+/TU (Enter the customer name)
+```
+
+Processed by option parsing and appended to `andict` unconditionally
+when set. Used by screen readers as the accessible field label and
+displayed as a hover tooltip by PDF viewers.
+
+### -tabindex option
+
+Maps to the PDF `/TI` (tab index, integer) field. Controls keyboard
+tab order within an AcroForm. Fields are visited in ascending `/TI`
+order.
+
+```
+/TI 3
+```
+
+Additionally, when any form fields are present on a page, `endPage`
+now writes `/Tabs /R` in the page dictionary, enabling row-based tab
+order as specified in ISO 32000 §12.5.
+
+---
+
+## String Encryption (0.9.4.16, ISO 32000 §7.6.5)
+
+When the document is encrypted (`pdf(encrypt) == 1`), all PDF literal
+strings `(...)` in object dictionaries must be encrypted, not just
+stream bodies.
+
+### EncryptStringsInBody
+
+New method in `encrypt.tcl`. Called from `FlushObjects` in `main.tcl`
+**before** `EncryptStreamBody`:
+
+```tcl
+# FlushObjects: order matters
+set body [my EncryptStringsInBody $oid $body]
+set body [my EncryptStreamBody    $oid $body]
+```
+
+**Algorithm:**
+
+1. Locate the start of `stream\n` (if any). Only process the dictionary
+   part before it; the stream is handled by `EncryptStreamBody`.
+2. Iterate character-by-character over the dictionary.
+3. On `(`: parse a balanced PDF literal string (tracking `\`-escapes
+   and nesting depth).
+4. Decode via `_PdfLiteralToBytes` (handles `\n \r \t \b \f \( \)`,
+   `\\`, and octal `\ddd`).
+5. Encrypt the decoded bytes with `EncryptBytes $oid`.
+6. Replace the `(...)` literal with `<hexciphertext>`.
+
+**Object-level encryption note:** Both `EncryptStringsInBody` and
+`EncryptStreamBody` call `EncryptBytes`, which prepends a random 16-byte
+IV to each encrypted block (AES-CBC, PKCS5 padding). For AES-256, the
+file encryption key (FEK) is used directly for all objects; for AES-128,
+a per-object key is derived from the FEK and the object number. This
+ensures each encrypted value is independently random even if plaintexts
+are identical.
+
+**Validated against:** qpdf, Evince, Firefox (PDF.js).
+
+**Call sites in main.tcl:**
+
+| Location | Strings encrypted |
+|---|---|
+| `FlushObjects` | `/T /DA /V /TU /CA /Opt` in all form field objects |
+| Radio group parent block | `/T ($groupName)` |
+| Info dictionary | `/Author /Title /Subject /Creator` etc. |
+| Bookmark objects | `/Title (...)` |
+
+### _PdfLiteralToBytes
+
+Helper method. Decodes PDF escape sequences in the content between
+the outer parentheses of a literal string:
+
+| Escape | Result |
+|---|---|
+| `\n \r \t \b \f` | control characters |
+| `\( \) \\` | literal `( ) \` |
+| `\ddd` (octal, 1–3 digits) | byte value |
+| unknown `\x` | literal `x` |
+
+Without this decoding, multi-byte or escaped strings would be encrypted
+in their escape-sequence form rather than in their actual byte content,
+producing mismatches during viewer decryption.

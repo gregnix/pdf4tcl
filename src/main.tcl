@@ -73,6 +73,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         # If ownerpassword is empty, userpassword is used for both.
         my Option -userpassword  -default "" -readonly 1
         my Option -ownerpassword -default "" -readonly 1
+        my Option -encversion    -default 4  -readonly 1 \
+            -validatemethod _ValidateEncVersion
 
         my Configurelist $args
         my InitPdf
@@ -121,6 +123,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(encrypt) [expr {
             $options(-userpassword) ne {} || $options(-ownerpassword) ne {}
         }]
+        set pdf(encVersion) $options(-encversion)
         set pdf(encP)      -196
         set pdf(encKey)    ""
         set pdf(encO)      ""
@@ -195,8 +198,14 @@ oo::define ::pdf4tcl::pdf4tcl {
         # collect output in memory
         set pdf(pdf) ""
 
-        # Version: 1.5+ required for V=4/R=4 AES-128 encryption
-        set pdf(version) [expr {$pdf(encrypt) ? 1.5 : 1.4}]
+        # Version: 1.5+ for AES-128, 2.0 for AES-256
+        if {$pdf(encrypt) && $pdf(encVersion) == 5} {
+            set pdf(version) 2.0
+        } elseif {$pdf(encrypt)} {
+            set pdf(version) 1.5
+        } else {
+            set pdf(version) 1.4
+        }
         my Pdfout "%PDF-$pdf(version)\n"
         # PDF spec §7.5.2: comment with ≥4 bytes > 0x7F marks file as binary.
         # PDF/A also requires this. Use 4 high bytes.
@@ -562,7 +571,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Dump stored objects
         foreach {oid body} $pdf(objects) {
             if {$pdf(encrypt)} {
-                set body [my EncryptStreamBody $oid $body]
+                set body [my EncryptStringsInBody $oid $body]
+                set body [my EncryptStreamBody    $oid $body]
             }
             my StoreXref $oid
             my Pdfout $body
@@ -782,39 +792,39 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Finalize radio button groups
         # Each group becomes a parent field with /Kids pointing to buttons
         dict for {groupName groupData} $pdf(radiogroups) {
-            set parentOid [dict get $groupData parentOid]
-            set kids [dict get $groupData kids]
-            set selectedValue [dict get $groupData selectedValue]
-            set groupReadonly [dict get $groupData readonly]
-            set groupRequired [dict get $groupData required]
-            my StoreXref $parentOid
-            my Pdfout "$parentOid 0 obj\n"
-            my Pdfout "<<\n"
-            my Pdfout "  /FT /Btn\n"
-            my Pdfout "  /T ($groupName)\n"
+            set grpParentOid   [dict get $groupData parentOid]
+            set grpKids        [dict get $groupData kids]
+            set grpSelValue    [dict get $groupData selectedValue]
+            set grpReadonly    [dict get $groupData readonly]
+            set grpRequired    [dict get $groupData required]
             # Ff: NoToggleToOff + Radio
             set ff [expr {$::pdf4tcl::Ff_NOTOGGLEOFF | $::pdf4tcl::Ff_RADIO}]
-            if {$groupReadonly} {
+            if {$grpReadonly} {
                 set ff [expr {$ff | $::pdf4tcl::Ff_READONLY}]
             }
-            if {$groupRequired} {
+            if {$grpRequired} {
                 set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
             }
-            my Pdfout "  /Ff $ff\n"
-            my Pdfout "  /Kids \["
-            foreach kid $kids {
-                my Pdfout "$kid 0 R "
-            }
-            my Pdfout "\]\n"
-            if {$selectedValue ne ""} {
-                my Pdfout "  /V /$selectedValue\n"
+            # Build body as string so EncryptStringsInBody can process /T (...)
+            set grpbody "$grpParentOid 0 obj\n<<\n"
+            append grpbody "  /FT /Btn\n"
+            append grpbody "  /T ($groupName)\n"
+            append grpbody "  /Ff $ff\n"
+            set kidsref [join $grpKids { 0 R }]
+            append grpbody "  /Kids \[$kidsref 0 R\]\n"
+            if {$grpSelValue ne ""} {
+                append grpbody "  /V /$grpSelValue\n"
             } else {
-                my Pdfout "  /V /Off\n"
+                append grpbody "  /V /Off\n"
             }
-            my Pdfout ">>\n"
-            my Pdfout "endobj\n\n"
+            append grpbody ">>\nendobj\n\n"
+            if {$pdf(encrypt)} {
+                set grpbody [my EncryptStringsInBody $grpParentOid $grpbody]
+            }
+            my StoreXref $grpParentOid
+            my Pdfout $grpbody
             # Add parent to forms list (not the individual buttons)
-            lappend pdf(forms) "$parentOid 0 R"
+            lappend pdf(forms) "$grpParentOid 0 R"
         }
         # Any forms?
         if {[llength $pdf(forms)] > 0} {
@@ -836,12 +846,16 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Create the PDF document information dictionary (Info Dict).
         if {[array exists metadata]} {
             set metadata_oid [my GetOid]
-            my StoreXref $metadata_oid
-            my Pdfout "$metadata_oid 0 obj\n<<\n"
+            set infobody "$metadata_oid 0 obj\n<<\n"
             foreach {name value} [array get metadata] {
-                my Pdfout "/$name [SafeQuoteString $value]\n"
+                append infobody "/$name [SafeQuoteString $value]\n"
             }
-            my Pdfout ">>\nendobj\n\n"
+            append infobody ">>\nendobj\n\n"
+            if {$pdf(encrypt)} {
+                set infobody [my EncryptStringsInBody $metadata_oid $infobody]
+            }
+            my StoreXref $metadata_oid
+            my Pdfout $infobody
         }
 
         # XMP Metadata stream (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2).
@@ -1115,17 +1129,18 @@ Use -pdfa-icc to specify a profile path."
             set count [expr {-$count}]
         }
 
-        my Pdfout "$oid 0 obj\n"
-        my Pdfout "<<\n/Title [SafeQuoteString $title]\n"
-        my Pdfout "/Parent $parent 0 R\n"
-        if {$previous != {}} {my Pdfout "/Prev $previous 0 R\n"}
-        if {$next     != {}} {my Pdfout "/Next $next 0 R\n"}
-        if {$first    != {}} {my Pdfout "/First $first 0 R\n"}
-        if {$last     != {}} {my Pdfout "/Last $last 0 R\n"}
-        if {$count} {my Pdfout "/Count $count\n"}
-        my Pdfout "/Dest \[$destination 0 R /XYZ null null null\]\n"
-        my Pdfout ">>\n"
-        my Pdfout "endobj\n\n"
+        set bkbody "$oid 0 obj\n<<\n/Title [SafeQuoteString $title]\n"
+        append bkbody "/Parent $parent 0 R\n"
+        if {$previous != {}} {append bkbody "/Prev $previous 0 R\n"}
+        if {$next     != {}} {append bkbody "/Next $next 0 R\n"}
+        if {$first    != {}} {append bkbody "/First $first 0 R\n"}
+        if {$last     != {}} {append bkbody "/Last $last 0 R\n"}
+        if {$count}           {append bkbody "/Count $count\n"}
+        append bkbody "/Dest \[$destination 0 R /XYZ null null null\]\n>>\nendobj\n\n"
+        if {$pdf(encrypt)} {
+            set bkbody [my EncryptStringsInBody $oid $bkbody]
+        }
+        my Pdfout $bkbody
 
         if {$next != {}} {
             set previous $oid
@@ -1359,6 +1374,15 @@ Use -pdfa-icc to specify a profile path."
     }
 
     #--------------------------------------------------------------------------
+    # Validate -encversion option: must be 4 (AES-128) or 5 (AES-256)
+    method _ValidateEncVersion {option value} {
+        if {$value ni {4 5}} {
+            throw {PDF4TCL} \
+                "$option: invalid encryption version \"$value\" (must be 4 or 5)"
+        }
+        return $value
+    }
+
     # Configure method for the PDF document metadata options.
     # _ValidatePdfDate -- validate and normalise a PDF date string (0.9.4.12)
     # Accepts:
@@ -4544,12 +4568,15 @@ Use -pdfa-icc to specify a profile path."
             append stream "1 1 1 rg 0 0 [Nf $width] [Nf $height] re f "
             append stream "0.5 0.5 0.5 RG 0.5 w 0 0 [Nf $width] [Nf $height] re S "
         }
-        # Show init value or first option as text
+        # Text im AP-Stream wird nur fuer listbox gerendert.
+        # Bei combobox uebernimmt der Viewer das Text-Rendering basierend
+        # auf /DA und /V -- ein Text im AP-Stream wuerde doppelt erscheinen
+        # (AP-Stream klein + Viewer-Rendering normal).
         set displayText ""
-        if {$initValue ne ""} {
-            set displayText $initValue
-        } elseif {[llength $optionsList] > 0} {
-            if {$ftype eq "listbox"} {
+        if {$ftype eq "listbox"} {
+            if {$initValue ne ""} {
+                set displayText $initValue
+            } elseif {[llength $optionsList] > 0} {
                 set displayText [lindex $optionsList 0]
             }
         }
@@ -4846,9 +4873,14 @@ Use -pdfa-icc to specify a profile path."
         } elseif {$ftype in {text password}} {
             set onid [my _BuildTextAP $width $height $initValue \
                     [expr {$ftype eq "password"}]]
-        } elseif {$ftype in {combobox listbox}} {
+        } elseif {$ftype eq "listbox"} {
             set choiceApId [my _BuildChoiceAP $width $height $ftype \
                     $initValue $optionsList]
+        } elseif {$ftype eq "combobox"} {
+            # Kein AP-Stream fuer combobox: der Viewer rendert das Feld
+            # vollstaendig selbst basierend auf /DA, /V und /Opt.
+            # Ein statischer AP-Stream wuerde zu doppelter Darstellung fuehren
+            # (AP-Stream + Viewer-eigenes Rendering uebereinander).
         } elseif {$ftype eq "radiobutton"} {
             lassign [my _BuildRadioAP $width $height] onid offid
         } elseif {$ftype eq "pushbutton"} {

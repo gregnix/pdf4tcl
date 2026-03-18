@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.12?**
+package require **pdf4tcl ?0****.9****.4****.16?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -82,6 +82,8 @@ package require **pdf4tcl ?0****.9****.4****.12?**
 
 *objectName* **attachFile** *x* *y* *width* *height* *fid* *description* ?*option value*...?
 
+*objectName* **addEmbeddedFile** *filename* ?*option value*...?
+
 *objectName* **hyperlinkAdd** *x* *y* *width* *height* *url* ?*option value*...?
 
 *objectName* **viewerPreferences** ?*option value*...?
@@ -149,6 +151,14 @@ package require **pdf4tcl ?0****.9****.4****.12?**
 *objectName* **setAlpha** *fillValue* *strokeValue*
 
 *objectName* **getAlpha**
+
+*objectName* **setBlendMode** *mode*
+
+*objectName* **getBlendMode**
+
+*objectName* **linearGradient** *x1* *y1* *x2* *y2* *color1* *color2* ?*options*?
+
+*objectName* **radialGradient** *cx1* *cy1* *r1* *cx2* *cy2* *r2* *color1* *color2* ?*options*?
 
 *objectName* **setLineWidth** *width*
 
@@ -377,6 +387,12 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **-label string**
 : Placeholder text displayed on the signature line. Default **Signature**. Only valid for *signature* fields.
 
+**-tooltip string**
+: Tooltip text written as PDF **/TU** (Tooltip User) entry. Displayed by PDF readers on hover and read aloud by screen readers (PDF/UA). Valid for all field types.
+
+**-tabindex integer**
+: Tab order index written as PDF **/TI** entry. Must be a non-negative integer. Used to define the logical keyboard tab order within the AcroForm. Valid for all field types.
+
 **Common options**
 
 **Text / Password options**
@@ -390,6 +406,8 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **Pushbutton options**
 
 **Signature options**
+
+**Accessibility and tab order options**
 
 **objectName configure**
 : The method returns a list of all known options and their current values when called without any arguments.
@@ -473,6 +491,27 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 ```tcl
 set fid [$pdfobject embedFile "data.txt" -contents "This should be stored in the file."]
 $pdfobject attachFile 0 0 100 100 $fid "This is the description"
+```
+
+**-contents data**
+: Raw binary content of the file. If omitted, the file is read from disk using *filename* as path.
+
+**-mimetype type**
+: MIME type string, e.g. **application/xml**. Written as **/Subtype** in the EmbeddedFile stream dictionary.
+
+**-description text**
+: Human-readable description stored as **/Desc** in the FileSpec dictionary.
+
+**-afrelationship rel**
+: PDF/A-3 **/AFRelationship** entry. Valid values are **Alternative**, **Data**, **Source**, **Supplement**, and **Unspecified**.
+
+**objectName addEmbeddedFile filename ?option value...?**
+: This method embeds a file silently into the PDF document via the Catalog **/Names** / **/EmbeddedFiles** NameTree (ISO 32000 SS7.11.4). No visible annotation is created on any page. This is the correct mechanism for electronic invoice attachments (ZUGFeRD, Factur-X) and other document-level file attachments. *filename* is used as the display name stored in the PDF (**/F** and **/UF** entries of the FileSpec dictionary). When **-contents** is not given, the file is read from disk using *filename* as path; in that case the basename is used as the PDF name. *PDF/A-1 restriction:* embedded files are forbidden by ISO 19005-1 SS6.1.7. Calling this method when **-pdfa** is set to **1b** raises an error. PDF/A-2b and PDF/A-3b allow embedded files.
+
+```tcl
+# ZUGFeRD / Factur-X pattern
+set xmlData [read [open "factur-x.xml" rb]]
+$pdfobject addEmbeddedFile "factur-x.xml"  -contents $xmlData  -mimetype "application/xml"  -description "Factur-X invoice"  -afrelationship Alternative
 ```
 
 **-borderwidth n**
@@ -728,6 +767,9 @@ image create photo img1 -file image.gif
 
 Colors can be expressed in various formats. First, as a three element list of values in the range 0.0 to 1.0. Second, in the format #XXXXXX where the Xes are two hexadecimal digits per color value. Third, if Tk is available, any color accepted by winfo rgb is accepted.
 
+**-extend {bool bool}**
+: Whether to extend the gradient beyond the start (*bool1*) and end (*bool2*) coordinates. Default: **1 1**.
+
 **objectName setBgColor red green blue**
 : Sets the background color for text operations where -bg is true.
 
@@ -760,6 +802,18 @@ Colors can be expressed in various formats. First, as a three element list of va
 
 **objectName getAlpha**
 : Returns the current opacity values as a two-element list *fillAlpha strokeAlpha*.
+
+**objectName setBlendMode mode**
+: Sets the PDF blend mode for subsequent graphics and text operations. *mode* must be one of: **Normal**, **Multiply**, **Screen**, **Overlay**, **Darken**, **Lighten**, **ColorDodge**, **ColorBurn**, **HardLight**, **SoftLight**, **Difference**, **Exclusion**, **Hue**, **Saturation**, **Color**, **Luminosity**. Use **Normal** to reset to the default. Internally this creates a PDF ExtGState object combining **/BM** with the current alpha values; objects are cached per mode and alpha combination. The PDF version is raised to 1.4 automatically.
+
+**objectName getBlendMode**
+: Returns the currently active blend mode string (default: **Normal**).
+
+**objectName linearGradient x1 y1 x2 y2 color1 color2 ?options?**
+: Paints a linear (axial) gradient from (*x1*,*y1*) to (*x2*,*y2*). *color1* is the colour at the start point, *color2* at the end point. Both colours can be specified as an RGB triple *{r g b}* (values 0.0–1.0), a named colour (**red**, **green**, **blue**, **white**, **black**, **yellow**, **cyan**, **magenta**) or a CSS hex string *#rrggbb*. Options: The gradient is painted using PDF ShadingType 2 + FunctionType 2 and registered in the page **/Shading** resource dictionary. Clip the drawing area first (e.g. **clip** or **gsave**/**grestore**) to constrain the fill.
+
+**objectName radialGradient cx1 cy1 r1 cx2 cy2 r2 color1 color2 ?options?**
+: Paints a radial gradient between two circles. The first circle is centred at (*cx1*,*cy1*) with radius *r1*; the second at (*cx2*,*cy2*) with radius *r2*. *color1* applies to the first circle, *color2* to the second. Colour formats are the same as for **linearGradient**. Options: same **-extend** option as **linearGradient**. Uses PDF ShadingType 3 + FunctionType 2.
 
 ### OBJECT METHODS, GRAPHICS
 
@@ -880,10 +934,13 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 : Explicit path to the sRGB ICC profile file used for the OutputIntent when **-pdfa** is **1b** or **2b**. If not specified, pdf4tcl searches for the profile in standard system locations (e.g. "*/usr/share/color/icc/ghostscript/srgb**.icc*"). This option can only be set at object creation.
 
 **-userpassword string**
-: Set a user (open) password for the document. When set, the document cannot be opened without this password. Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification). Note: **-userpassword** and **-pdfa** cannot be combined -- PDF/A forbids encryption (ISO 19005). This option can only be set at object creation.
+: Set a user (open) password for the document. When set, the document cannot be opened without this password. The encryption level is controlled by **-encversion**: AES-128 (default, V=4/R=4) or AES-256 (V=5/R=6). Note: **-userpassword** and **-pdfa** cannot be combined -- PDF/A forbids encryption (ISO 19005). This option can only be set at object creation.
 
 **-ownerpassword string**
-: Set an owner password for the document. The owner password grants full access regardless of user-password restrictions. When only **-ownerpassword** is set (no **-userpassword**), the document opens without a password but is protected from modification. Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification). This option can only be set at object creation.
+: Set an owner password for the document. The owner password grants full access regardless of user-password restrictions. When only **-ownerpassword** is set (no **-userpassword**), the document opens without a password but is protected from modification. This option can only be set at object creation.
+
+**-encversion integer**
+: Set the encryption version. Must be **4** (AES-128, default) or **5** (AES-256). **4**: AES-128, V=4/R=4, PDF 1.5+. Pure Tcl, no external programs. **5**: AES-256, V=5/R=6, PDF 2.0. Requires **openssl** in PATH for SHA-384/SHA-512 computation. Generates approximately 2-4 seconds of processing time per document due to multiple **openssl** subprocess invocations. This option can only be set at object creation.
 
 ### PAGE CONFIGURATION
 
@@ -935,6 +992,22 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 ```
 
 ## CHANGES
+
+### VERSION 0.9.4.16
+
+- AES-256 encryption (V=5, R=6, PDF 2.0, ISO 32000-2 §7.6.4). New option **-encversion**: **4** (AES-128, default) or **5** (AES-256). AES-256 requires **openssl** in PATH. Algorithm 2.B implemented after pypdf/qpdf reference ("*libqpdf/QPDF_encryption**.cc*").
+- Fixed "*src/main**.tcl*": Makefile dependency correct build order.
+- Extended "*tests/encrypt**.test*" with 12 AES-256 tests (encrypt-9.1 through encrypt-9.12).
+
+### VERSION 0.9.4.13
+
+- New method **setBlendMode**: sets the PDF blend mode for subsequent graphics operations via ExtGState **/BM**. Supported modes: **Normal**, **Multiply**, **Screen**, **Overlay**, **Darken**, **Lighten**, **ColorDodge**, **ColorBurn**, **HardLight**, **SoftLight**, **Difference**, **Exclusion**, **Hue**, **Saturation**, **Color**, **Luminosity**. Requires PDF 1.4 (version is raised automatically). ExtGState objects are cached per mode + alpha combination.
+- New method **getBlendMode**: returns the currently active blend mode (default **Normal**).
+- New method **linearGradient**: paints a linear (axial) gradient between two points using PDF ShadingType 2 + FunctionType 2. Options: **-extend** *bool bool* (default **1 1**).
+- New method **radialGradient**: paints a radial gradient between two circles using PDF ShadingType 3 + FunctionType 2. Options: **-extend** *bool bool* (default **1 1**).
+- New internal helper **_colorToRGB**: accepts an RGB triple *{r g b}*, a named color (**red**, **green**, **blue**, **white**, **black**, **yellow**, **cyan**, **magenta**) or a CSS hex string *#rrggbb*.
+- New options **-tooltip** and **-tabindex** in **addForm**: **-tooltip** writes **/TU** (PDF/UA accessible tooltip); **-tabindex** writes **/TI** (tab order index within AcroForm, non-negative integer).
+- **endPage** now writes **/Tabs /R** into the page dictionary when annotations are present, enabling correct tab order for screen readers.
 
 ### VERSION 0.9.4.12
 
@@ -997,6 +1070,14 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 ### VERSION 0.9.4.1
 
 - AcroForm v2.1: extended **addForm** from 2 to 8 field types: *text*, *password*, *checkbutton*, *combobox*, *listbox*, *radiobutton*, *pushbutton*, *signature*. Added **-required**, **-label** and radio group support (ticket #9).
+
+### VERSION 0.9.4.15
+
+- OTF/CFF font support in **pdf4tcl::loadBaseTrueTypeFont**: OpenType fonts with CFF outlines ("*.otf*" files, OTTO magic number **0x4F54544F**) are now accepted without error. Previously these fonts caused *TTF: postscript outlines are not supported*. No CFF parser is required: pdf4tcl embeds the font binary as-is and reads only metadata tables (**name**, **head**, **OS/2**, **post**, **hhea**, **maxp**, **cmap**, **hmtx**). **loca** and **glyf** tables (TTF-only) are skipped for CFF fonts. PDF embedding uses **/CIDFontType0** with **/FontFile3** (**/Subtype /OpenType**) instead of the TTF path (**/CIDFontType2** / **/FontFile2** / **/Length1**). The ToUnicode CMap and all other font objects are identical. A new internal flag **BFA($name,isCFF)** is set to **1** for CFF/OTF fonts and **0** for TrueType fonts.
+
+### VERSION 0.9.4.14
+
+- New method **addEmbeddedFile**: embeds a file silently into the PDF Catalog **/Names** / **/EmbeddedFiles** NameTree (ISO 32000 SS7.11.4). No visible page annotation is created. Options: **-contents** (raw data), **-mimetype**, **-description**, **-afrelationship** (**Alternative** | **Data** | **Source** | **Supplement** | **Unspecified**). Calling this method when **-pdfa** is **1b** raises an error (ISO 19005-1 SS6.1.7). Intended use: ZUGFeRD / Factur-X electronic invoices and other document-level attachments.
 
 ## SEE ALSO
 
