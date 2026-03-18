@@ -1,4 +1,6 @@
 <!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pdf4tcl - Pdf document generation</title>
 <style type="text/css"><!--
     HTML {
@@ -98,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.15 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.16 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -130,19 +132,20 @@
 </li>
 <li class="doctools_section"><a href="#section6">CHANGES</a>
 <ul>
-<li class="doctools_subsection"><a href="#subsection12">Version 0.9.4.13</a></li>
-<li class="doctools_subsection"><a href="#subsection13">Version 0.9.4.12</a></li>
-<li class="doctools_subsection"><a href="#subsection14">Version 0.9.4.11</a></li>
-<li class="doctools_subsection"><a href="#subsection15">Version 0.9.4.10</a></li>
-<li class="doctools_subsection"><a href="#subsection16">Version 0.9.4.9</a></li>
-<li class="doctools_subsection"><a href="#subsection17">Version 0.9.4.8</a></li>
-<li class="doctools_subsection"><a href="#subsection18">Version 0.9.4.7</a></li>
-<li class="doctools_subsection"><a href="#subsection19">Version 0.9.4.6</a></li>
-<li class="doctools_subsection"><a href="#subsection20">Version 0.9.4.5</a></li>
-<li class="doctools_subsection"><a href="#subsection21">Version 0.9.4.3</a></li>
-<li class="doctools_subsection"><a href="#subsection22">Version 0.9.4.1</a></li>
-<li class="doctools_subsection"><a href="#subsection23">Version 0.9.4.15</a></li>
-<li class="doctools_subsection"><a href="#subsection24">Version 0.9.4.14</a></li>
+<li class="doctools_subsection"><a href="#subsection12">Version 0.9.4.16</a></li>
+<li class="doctools_subsection"><a href="#subsection13">Version 0.9.4.13</a></li>
+<li class="doctools_subsection"><a href="#subsection14">Version 0.9.4.12</a></li>
+<li class="doctools_subsection"><a href="#subsection15">Version 0.9.4.11</a></li>
+<li class="doctools_subsection"><a href="#subsection16">Version 0.9.4.10</a></li>
+<li class="doctools_subsection"><a href="#subsection17">Version 0.9.4.9</a></li>
+<li class="doctools_subsection"><a href="#subsection18">Version 0.9.4.8</a></li>
+<li class="doctools_subsection"><a href="#subsection19">Version 0.9.4.7</a></li>
+<li class="doctools_subsection"><a href="#subsection20">Version 0.9.4.6</a></li>
+<li class="doctools_subsection"><a href="#subsection21">Version 0.9.4.5</a></li>
+<li class="doctools_subsection"><a href="#subsection22">Version 0.9.4.3</a></li>
+<li class="doctools_subsection"><a href="#subsection23">Version 0.9.4.1</a></li>
+<li class="doctools_subsection"><a href="#subsection24">Version 0.9.4.15</a></li>
+<li class="doctools_subsection"><a href="#subsection25">Version 0.9.4.14</a></li>
 </ul>
 </li>
 <li class="doctools_section"><a href="#see-also">See Also</a></li>
@@ -154,7 +157,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.15?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.16?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -380,7 +383,7 @@ character covered by the underlying TTF file. This includes Latin Extended, Gree
 CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.</p>
 <p>Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
 supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
-as required by the PDF specification (ISO 32000, &Acirc;&sect;9.10.3).
+as required by the PDF specification (ISO 32000, &sect;9.10.3).
 This enables correct text extraction and copy-paste from PDF viewers for characters
 such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100),
 or emoji from vector outline fonts (U+1F300 and above).</p>
@@ -1042,7 +1045,7 @@ automatically.</p></dd>
 <dd><p>Paints a linear (axial) gradient from (<i class="arg">x1</i>,<i class="arg">y1</i>) to
 (<i class="arg">x2</i>,<i class="arg">y2</i>). <i class="arg">color1</i> is the colour at the start point,
 <i class="arg">color2</i> at the end point. Both colours can be specified as an RGB triple
-<i class="arg">{r g b}</i> (values 0.0&acirc;€“1.0), a named colour (<b class="const">red</b>, <b class="const">green</b>,
+<i class="arg">{r g b}</i> (values 0.0â€“1.0), a named colour (<b class="const">red</b>, <b class="const">green</b>,
 <b class="const">blue</b>, <b class="const">white</b>, <b class="const">black</b>, <b class="const">yellow</b>, <b class="const">cyan</b>,
 <b class="const">magenta</b>) or a CSS hex string <i class="arg">#rrggbb</i>.</p>
 <p>Options:</p>
@@ -1221,7 +1224,8 @@ locations (e.g. &quot;<b class="file">/usr/share/color/icc/ghostscript/srgb.icc<
 <dt><b class="option">-userpassword</b> <i class="arg">string</i></dt>
 <dd><p>Set a user (open) password for the document.
 When set, the document cannot be opened without this password.</p>
-<p>Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification).</p>
+<p>The encryption level is controlled by <b class="option">-encversion</b>:
+AES-128 (default, V=4/R=4) or AES-256 (V=5/R=6).</p>
 <p>Note: <b class="option">-userpassword</b> and <b class="option">-pdfa</b> cannot be combined --
 PDF/A forbids encryption (ISO 19005).</p>
 <p>This option can only be set at object creation.</p></dd>
@@ -1231,7 +1235,15 @@ The owner password grants full access regardless of user-password
 restrictions.
 When only <b class="option">-ownerpassword</b> is set (no <b class="option">-userpassword</b>),
 the document opens without a password but is protected from modification.</p>
-<p>Uses AES-128 encryption (V=4, R=4 per PDF 1.6 specification).</p>
+<p>This option can only be set at object creation.</p></dd>
+<dt><b class="option">-encversion</b> <i class="arg">integer</i></dt>
+<dd><p>Set the encryption version. Must be <b class="const">4</b> (AES-128, default) or
+<b class="const">5</b> (AES-256).</p>
+<p><b class="const">4</b>: AES-128, V=4/R=4, PDF 1.5+. Pure Tcl, no external programs.</p>
+<p><b class="const">5</b>: AES-256, V=5/R=6, PDF 2.0. Requires <b class="cmd">openssl</b> in PATH
+for SHA-384/SHA-512 computation. Generates approximately 2-4 seconds
+of processing time per document due to multiple <b class="cmd">openssl</b> subprocess
+invocations.</p>
 <p>This option can only be set at object creation.</p></dd>
 </dl>
 </div>
@@ -1294,7 +1306,21 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 </div>
 </div>
 <div id="section6" class="doctools_section"><h2><a name="section6">CHANGES</a></h2>
-<div id="subsection12" class="doctools_subsection"><h3><a name="subsection12">Version 0.9.4.13</a></h3>
+<div id="subsection12" class="doctools_subsection"><h3><a name="subsection12">Version 0.9.4.16</a></h3>
+<ul class="doctools_itemized">
+<li><p>AES-256 encryption (V=5, R=6, PDF 2.0, ISO 32000-2 &sect;7.6.4).
+New option <b class="option">-encversion</b>: <b class="const">4</b> (AES-128, default) or
+<b class="const">5</b> (AES-256). AES-256 requires <b class="cmd">openssl</b> in PATH.
+Algorithm 2.B implemented after pypdf/qpdf reference
+(&quot;<b class="file">libqpdf/QPDF_encryption.cc</b>&quot;).</p></li>
+<li><p>Fixed &quot;<b class="file">src/main.tcl</b>&quot;: Makefile dependency
+&quot;<b class="file">web/mypdf.pdf</b>&quot; now depends on &quot;<b class="file">pdf4tcl.tcl</b>&quot; to ensure
+correct build order.</p></li>
+<li><p>Extended &quot;<b class="file">tests/encrypt.test</b>&quot; with 12 AES-256 tests
+(encrypt-9.1 through encrypt-9.12).</p></li>
+</ul>
+</div>
+<div id="subsection13" class="doctools_subsection"><h3><a name="subsection13">Version 0.9.4.13</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">setBlendMode</b>: sets the PDF blend mode for
 subsequent graphics operations via ExtGState <b class="const">/BM</b>. Supported modes:
@@ -1325,7 +1351,7 @@ dictionary when annotations are present, enabling correct tab order for
 screen readers.</p></li>
 </ul>
 </div>
-<div id="subsection13" class="doctools_subsection"><h3><a name="subsection13">Version 0.9.4.12</a></h3>
+<div id="subsection14" class="doctools_subsection"><h3><a name="subsection14">Version 0.9.4.12</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">roundedRect</b>: draws a rectangle with rounded
 corners using Bezier approximation. Options <b class="option">-radius</b> (default 5),
@@ -1343,7 +1369,7 @@ demonstrating <b class="method">roundedRect</b> and unit conversion procs.</p></
 <li><p>New test file &quot;<b class="file">tests/new-0.9.4.12.test</b>&quot;: 17 tests.</p></li>
 </ul>
 </div>
-<div id="subsection14" class="doctools_subsection"><h3><a name="subsection14">Version 0.9.4.11</a></h3>
+<div id="subsection15" class="doctools_subsection"><h3><a name="subsection15">Version 0.9.4.11</a></h3>
 <ul class="doctools_itemized">
 <li><p>New module &quot;<b class="file">src/encrypt.tcl</b>&quot;: AES-128 encryption (V=4, R=4)
 per PDF 1.6 specification. New options <b class="option">-userpassword</b> and
@@ -1358,7 +1384,7 @@ AES-128 encryption, O/U-entry calculation, and Encrypt dictionary
 structure.</p></li>
 </ul>
 </div>
-<div id="subsection15" class="doctools_subsection"><h3><a name="subsection15">Version 0.9.4.10</a></h3>
+<div id="subsection16" class="doctools_subsection"><h3><a name="subsection16">Version 0.9.4.10</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="method">setAlpha</b>: sets fill and/or stroke opacity (0.0 transparent,
 1.0 opaque) via PDF ExtGState (/ca, /CA). Supports single value, <b class="option">-fill</b>,
@@ -1370,7 +1396,7 @@ structure.</p></li>
 alpha steps, independent fill/stroke alpha, transparent text, and gsave/grestore.</p></li>
 </ul>
 </div>
-<div id="subsection16" class="doctools_subsection"><h3><a name="subsection16">Version 0.9.4.9</a></h3>
+<div id="subsection17" class="doctools_subsection"><h3><a name="subsection17">Version 0.9.4.9</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="cmd">demo-pdfa.tcl</b>: Demonstration of PDF/A-1b and PDF/A-2b features
 using embedded CIDFont (DejaVuSans). Requires no Ghostscript.</p></li>
@@ -1383,7 +1409,7 @@ covers ASCII passthrough, Latin-1 retention, SMP replacement, PDF special
 character escaping, and mixed input.</p></li>
 </ul>
 </div>
-<div id="subsection17" class="doctools_subsection"><h3><a name="subsection17">Version 0.9.4.8</a></h3>
+<div id="subsection18" class="doctools_subsection"><h3><a name="subsection18">Version 0.9.4.8</a></h3>
 <ul class="doctools_itemized">
 <li><p>PDF/A-1b and PDF/A-2b support via <b class="option">-pdfa</b> option.</p></li>
 <li><p>XMP metadata stream with pdfaid identification schema
@@ -1394,12 +1420,12 @@ character escaping, and mixed input.</p></li>
 <li><p>Fixed <i class="term">/Length</i> calculation to use UTF-8 byte count.</p></li>
 </ul>
 </div>
-<div id="subsection18" class="doctools_subsection"><h3><a name="subsection18">Version 0.9.4.7</a></h3>
+<div id="subsection19" class="doctools_subsection"><h3><a name="subsection19">Version 0.9.4.7</a></h3>
 <ul class="doctools_itemized">
 <li><p>Assembled &quot;<b class="file">pdf4tcl.tcl</b>&quot;, updated examples, manpage and tests.</p></li>
 </ul>
 </div>
-<div id="subsection19" class="doctools_subsection"><h3><a name="subsection19">Version 0.9.4.6</a></h3>
+<div id="subsection20" class="doctools_subsection"><h3><a name="subsection20">Version 0.9.4.6</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="cmd">SafeQuoteString</b>: strips codepoints &gt; U+00FF before PDF encoding
 for Tcl 9.0 compatibility (ticket #17).</p></li>
@@ -1407,20 +1433,20 @@ for Tcl 9.0 compatibility (ticket #17).</p></li>
 <li><p>Improved <b class="cmd">GetCharWidth</b> fallback for unmappable WinAnsi codepoints.</p></li>
 </ul>
 </div>
-<div id="subsection20" class="doctools_subsection"><h3><a name="subsection20">Version 0.9.4.5</a></h3>
+<div id="subsection21" class="doctools_subsection"><h3><a name="subsection21">Version 0.9.4.5</a></h3>
 <ul class="doctools_itemized">
 <li><p>CIDFont Unicode support: <b class="cmd">createFontSpecCID</b> for full TTF embedding.</p></li>
 <li><p>Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.</p></li>
 <li><p>ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.</p></li>
 </ul>
 </div>
-<div id="subsection21" class="doctools_subsection"><h3><a name="subsection21">Version 0.9.4.3</a></h3>
+<div id="subsection22" class="doctools_subsection"><h3><a name="subsection22">Version 0.9.4.3</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="cmd">hyperlinkAdd</b>: URI annotation links with optional border and color
 (ticket #15).</p></li>
 </ul>
 </div>
-<div id="subsection22" class="doctools_subsection"><h3><a name="subsection22">Version 0.9.4.1</a></h3>
+<div id="subsection23" class="doctools_subsection"><h3><a name="subsection23">Version 0.9.4.1</a></h3>
 <ul class="doctools_itemized">
 <li><p>AcroForm v2.1: extended <b class="cmd">addForm</b> from 2 to 8 field types: <i class="term">text</i>,
 <i class="term">password</i>, <i class="term">checkbutton</i>, <i class="term">combobox</i>, <i class="term">listbox</i>,
@@ -1428,7 +1454,7 @@ for Tcl 9.0 compatibility (ticket #17).</p></li>
 Added <b class="option">-required</b>, <b class="option">-label</b> and radio group support (ticket #9).</p></li>
 </ul>
 </div>
-<div id="subsection23" class="doctools_subsection"><h3><a name="subsection23">Version 0.9.4.15</a></h3>
+<div id="subsection24" class="doctools_subsection"><h3><a name="subsection24">Version 0.9.4.15</a></h3>
 <ul class="doctools_itemized">
 <li><p>OTF/CFF font support in <b class="cmd">pdf4tcl::loadBaseTrueTypeFont</b>:
 OpenType fonts with CFF outlines (&quot;<b class="file">.otf</b>&quot; files, OTTO magic number
@@ -1446,7 +1472,7 @@ The ToUnicode CMap and all other font objects are identical.</p>
 CFF/OTF fonts and <b class="const">0</b> for TrueType fonts.</p></li>
 </ul>
 </div>
-<div id="subsection24" class="doctools_subsection"><h3><a name="subsection24">Version 0.9.4.14</a></h3>
+<div id="subsection25" class="doctools_subsection"><h3><a name="subsection25">Version 0.9.4.14</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">addEmbeddedFile</b>: embeds a file silently into the
 PDF Catalog <b class="const">/Names</b> / <b class="const">/EmbeddedFiles</b> NameTree

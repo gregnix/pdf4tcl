@@ -172,7 +172,7 @@ test tounicode-3.4 {CMap blocks respect 100-entry limit} -body {
     # No block should exceed 100 entries (PDF spec §9.10.3)
     # Check that we don't have "101 beginbfchar" or higher (>= 101)
     # Use word boundary to avoid matching "100" as part of larger number
-    set found [regexp -all -inline {\b(\d+) beginbfchar} $data]
+    set found [regexp -all -inline {\y(\d+) beginbfchar} $data]
     set maxEntries 0
     foreach {match num} $found {
         if {$num > $maxEntries} {

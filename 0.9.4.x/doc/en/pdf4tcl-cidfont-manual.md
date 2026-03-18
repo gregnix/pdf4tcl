@@ -400,3 +400,56 @@ CJK characters are typically full-width (advance = unitsPerEm), which
 | `demo-cidfont.tcl`            | Basic CID font usage example                 |
 
 All demo files are located in `0.9.4.x/demo/` and require DejaVuSans.ttf.
+
+---
+
+## OTF/CFF Font Support (0.9.4.15)
+
+From version 0.9.4.15, `loadBaseTrueTypeFont` also accepts OpenType fonts
+with CFF outlines (`.otf` files, magic bytes `OTTO`). Previously these
+files raised `TTF: postscript outlines are not supported`.
+
+### Supported font file types
+
+| Type | Magic | Outlines | PDF CIDFont type |
+|---|---|---|---|
+| TrueType | `\x00\x01\x00\x00` or `true` | glyf/loca | `/CIDFontType2` |
+| OpenType CFF | `OTTO` | CFF | `/CIDFontType0` |
+
+Both types are detected automatically by `loadBaseTrueTypeFont` using a
+new internal flag `BFA($name,isCFF)`. No API change is required.
+
+### Differences in the PDF object model
+
+For OTF/CFF fonts, pdf4tcl writes:
+
+```
+/CIDFontType0          (instead of /CIDFontType2 for TTF)
+/FontFile3 << /Subtype /OpenType >>   (instead of /FontFile2)
+```
+
+The entire font binary is embedded as-is. Only the metadata tables
+(cmap, hmtx, name, head, OS/2) are parsed to extract character widths
+and glyph mappings; the CFF outline data is not interpreted.
+
+### Usage example
+
+```tcl
+# TTF — supported since 0.9.4.5
+$pdf loadBaseTrueTypeFont "DejaVu" \
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+
+# OTF/CFF — supported since 0.9.4.15
+$pdf loadBaseTrueTypeFont "NotoSans" \
+    /usr/share/fonts/opentype/noto/NotoSans-Regular.otf
+
+# Usage is identical for both types
+set fs [$pdf createFontSpecCID "NotoSans" 12]
+$pdf setFont 12 $fs
+$pdf text "Text with OTF font" -x 72 -y 200
+```
+
+### Demo
+
+`demo-otf.tcl` in `0.9.4.x/demo/` demonstrates OTF font loading across
+three pages with Latin, Greek, and CJK characters.

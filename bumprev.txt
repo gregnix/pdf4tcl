@@ -1,52 +1,69 @@
-These files need to be changed when bumping revisions:
+Version bump for pdf4tcl fork -- using tools/bump.tcl
+======================================================
 
-src/prologue.tcl (package provide)
-tests/init.tcl (package require)
-pkgIndex.tcl (package ifneeded)
-pkg/pkgIndex.tcl (package ifneeded)
-Makefile (VERSION)
-pdf4tcl.man (two places) (regenerate doc)
-README.md (version in heading + package require + test count)
-web/index.html (version number)
-nogit/scripts/sync-pdf4tcl.tcl (VERSION in paths, two places)
-nogit/scripts/make-release.tcl (VERSION, REPODIR, TAGMSG, tarball name)
+QUICK BUMP (all files updated automatically):
 
-Also update these:
-ChangeLog
-web/changes.html
-nogit/docs/de/TODO.md
-nogit/docs/de/regelbuch-pdf4tcl.md (new version section)
-nogit/docs/de/uebergabe-0.9.4.x.md (new file)
+  tclsh tools/bump.tcl --to 0.9.4.X --msg "short description"
 
+WITH GIT (commit + tag + push in one step):
 
+  tclsh tools/bump.tcl --to 0.9.4.X --msg "short description" --git
 
-To do when updating code:
+VIA MAKEFILE:
 
-Is pdf4tcl.man, ChangeLog, web/changes.html updated?
-Everything clean?
-make
-make test
-make check
-make example
+  make bump   TO=0.9.4.X MSG="short description"
+  make verify              # consistency check only, no changes
 
-Review and commit:
-git diff / git commit
-git push origin master
+DRY RUN (show what would change):
+
+  tclsh tools/bump.tcl --to 0.9.4.X --msg "..." --dry-run --no-test
 
 
+Files updated automatically by bump.tcl:
+-----------------------------------------
+src/prologue.tcl           package provide
+tests/init.tcl             package require
+pkgIndex.tcl               package ifneeded
+pkg/pkgIndex.tcl           package ifneeded
+Makefile                   VERSION (no dots)
+pdf4tcl.man                two places
+README.md                  heading only (no version in package require)
+web/index.html             version number
+web/changes.html           new entry added (edit to expand)
+ChangeLog                  stub entry added (edit to expand)
+nogit/scripts/sync-pdf4tcl.tcl     paths (two places)
+nogit/scripts/make-release.tcl     VERSION + REPODIR + TAGMSG
+pdf4tcl.tcl                reassembled
+pkg/pdf4tcl.tcl            reassembled
 
-To do when doing a release:
+Note: restore-pkg-symlinks.tcl reads VERSION from src/prologue.tcl automatically.
 
-All clean above? Revision bumped?
 
-make release
+Still manual after bump:
+--------------------------
+ChangeLog                  expand stub entry
+web/changes.html           expand stub entry
+make doc                   regenerate pdf4tcl.html + pdf4tcl.n
+nogit/docs/de/regelbuch-pdf4tcl.md   new "Neue Fixes" section
+nogit/docs/de/TODO.md      version table + GitHub command
+nogit/docs/de/uebergabe-0.9.4.X.md  new handover file
+examples/test*.pdf         regenerate if PDF structure changed
 
-For the fork (GitHub):
-git tag v0.9.4.x
-git push origin master
-git push origin --tags
 
-For upstream (SourceForge, if patch is accepted):
-make upload
-make webt
-Go to sourceforge and mark uploaded file as latest release for all platforms.
+Release checklist:
+-------------------
+[ ] tclsh tools/bump.tcl --to X --msg "..." --no-test
+[ ] make doc
+[ ] make test  (check for new failures)
+[ ] regenerate examples/test*.pdf if needed
+[ ] expand ChangeLog + web/changes.html
+[ ] write uebergabe-0.9.4.X.md
+[ ] update regelbuch-pdf4tcl.md + TODO.md
+[ ] git add -A && git commit -m "0.9.4.X: ..."
+[ ] git tag -a v0.9.4.X -m "..." && git push origin v0.9.4.X
+
+
+Release with full make pipeline:
+----------------------------------
+[ ] make release   (builds tarball in pkg/)
+[ ] tclsh 0.9.4.x/nogit/scripts/make-release.tcl  (verify + tag + push)

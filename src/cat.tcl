@@ -242,7 +242,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
             # TBD limit length properly on the full string
             if {![string match *endobj $fullObj]} {
                 # This should not happen if the xref limit above works
-                puts "XXXX $obj [regexp -all -inline {endobj} $fullObj]"
+                #puts "XXXX $obj [regexp -all -inline {endobj} $fullObj]"
             }
             dict set pdfdata $obj full $fullObj
         }

@@ -3,6 +3,7 @@
 
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
+testConstraint Tk [expr {![catch {package require Tk}]}]
 proc r2c2r {RGB} {
     pdf4tcl::cmyk2Rgb [pdf4tcl::rgb2Cmyk $RGB]
 }
@@ -60,14 +61,14 @@ test color-5.1 {cmyk read only} -body {
     apa destroy
 } -returnCodes 1 -result "option -cmyk can only be set at instance creation"
 
-test color-6.1 {tk colors} -body {
+test color-6.1 {tk colors} -constraints Tk -body {
     package require Tk
     mytest {setFillColor red} {setStrokeColor blue} {line 20 20 40 40} {
         1 0 0 rg 0 0 1 RG 120 220 m 140 240 l S
     }
 } -result 1
 
-test color-6.2 {tk colors} -body {
+test color-6.2 {tk colors} -constraints Tk -body {
     package require Tk
     mytest {setFillColor fnurga} {}
 } -returnCodes 1 -result "unknown color: fnurga"

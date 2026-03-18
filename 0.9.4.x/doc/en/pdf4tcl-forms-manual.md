@@ -681,3 +681,78 @@ each field with type, flags, and value.
 
 The demo generates demo-forms-output.pdf in the current directory.
 For implementation details, see pdf4tcl-forms-technical.md.
+
+## Tooltip and Tab Order (0.9.4.13)
+
+Two new options improve PDF/UA accessibility and keyboard navigation:
+
+### -tooltip
+
+Sets the `/TU` (tooltip) field in the PDF annotation dictionary.
+PDF viewers display this string as a tooltip when hovering over the field.
+Screen readers use it as the accessible label.
+
+```tcl
+$pdf setFont 10 Helvetica
+$pdf addForm text 140 105 240 16 \
+    -id "f_name" \
+    -tooltip "Enter the customer's full name"
+
+$pdf addForm combobox 140 130 200 16 \
+    -id "f_country" \
+    -options {Germany Austria Switzerland} \
+    -tooltip "Select the country of delivery"
+```
+
+### -tabindex
+
+Sets the `/TI` (tab index) field. Controls the keyboard tab order between
+fields. Fields are visited in ascending order of their tab index.
+
+```tcl
+$pdf setFont 10 Helvetica
+$pdf addForm text 140 105 240 16 -id "f_name"    -tabindex 1
+$pdf addForm text 140 130 240 16 -id "f_email"   -tabindex 2
+$pdf addForm text 140 155 240 16 -id "f_phone"   -tabindex 3
+$pdf addForm pushbutton 140 180 80 20 \
+    -id "submit" -caption "Submit" \
+    -action reset -tabindex 4
+```
+
+Note: pdf4tcl also writes `/Tabs /R` in the page dictionary when form
+fields are present, enabling row-based tab order in compliant viewers.
+
+## Encryption and Forms (0.9.4.16)
+
+When encryption is active, pdf4tcl encrypts all PDF string objects in
+field dictionaries (ISO 32000 §7.6.5), including `/T` (field name), `/DA`
+(default appearance), `/V` (initial value), `/TU` (tooltip), and `/CA`
+(button caption). Appearance streams (AP entries) are encrypted as PDF
+streams. Each encrypted value gets its own random 16-byte IV.
+
+Without string encryption, PDF viewers decrypt `/T` field names and receive
+corrupted text. Since all corrupted names collide, any text typed in one
+field appears in all fields.
+
+No API change is required. String encryption is applied automatically
+whenever the document is encrypted. **Validated against qpdf, Evince, and
+Firefox (PDF.js).**
+
+**Note on Chrome:** Chrome's built-in PDF renderer does not display AcroForm
+fields at all — this is a viewer limitation unrelated to encryption.
+
+```tcl
+# AES-128: forms work correctly with encryption
+set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "secret"]
+$p startPage
+$p setFont 10 Helvetica
+$p addForm text 140 105 240 16 -id "f_name" -init ""
+$p addForm text 140 130 240 16 -id "f_email" -init ""
+$p endPage
+$p write -file form-enc.pdf
+$p destroy
+
+# AES-256
+set p [pdf4tcl::new %AUTO% -paper a4 \
+    -userpassword "secret" -encversion 5]
+```

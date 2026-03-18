@@ -1,9 +1,9 @@
 # Makefile for pdf4tcl
 
-VERSION = 09415
+VERSION = 09416
 
 # TOOL paths
-TCLSH = tclsh
+TCLSH    = tclsh8.6
 NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
 NAGELFAR90 = nagelfar -encoding iso8859-1 -s syntaxdb90.tcl
 ESKIL    = eskil
@@ -22,13 +22,17 @@ doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
 pdf4tcl.html pdf4tcl.n : pdf4tcl.man mkdoc.tcl
 	./mkdoc.tcl
 
+# Generate pdf4tcl.md from pdf4tcl.n via nroff2md.tcl
+md : pdf4tcl.n
+	$(TCLSH) tools/nroff2md.tcl pdf4tcl.n pdf4tcl.md
+
 checkdoc: pdf4tcl.tcl
 	@egrep 'method [a-z]' pdf4tcl.man | grep '\[call' | egrep -v 'method configure' | sed 's/[]["]/ /g' | sed 's/ arg / /g' | sed 's/  */ /g' | sed 's/call objectName/ /g' | sort > _docmeth
 	@egrep 'method [a-z]' pdf4tcl.tcl | sed 's/[{}]/ /g' | sed 's/  */ /g' | sort > _srcmeth
 	@$(ESKIL) -block _srcmeth _docmeth
 	@rm _srcmeth _docmeth
 
-web/mypdf.pdf: mkweb.tcl web/index.html
+web/mypdf.pdf: pdf4tcl.tcl mkweb.tcl web/index.html
 	./mkweb.tcl
 
 web/pdf4tcl.html: pdf4tcl.html
@@ -95,17 +99,35 @@ icheck: $(MFILES)
 
 cleancc:
 	@rm -f $(LOGFILES) $(IFILES) $(MFILES)
+
+# Version management
+verify:
+	@$(TCLSH) tools/bump.tcl --verify
+
+bump:
+	@$(TCLSH) tools/bump.tcl \
+	    $(if $(TO),--to $(TO),) \
+	    $(if $(MSG),--msg "$(MSG)",) \
+	    --no-test
+
+bump-git:
+	@$(TCLSH) tools/bump.tcl \
+	    $(if $(TO),--to $(TO),) \
+	    $(if $(MSG),--msg "$(MSG)",) \
+	    --git
 #----------------------------------------------------------------
 # Packaging/Releasing
 #----------------------------------------------------------------
 
 release: pdf4tcl.tcl doc
-	@\rm -f pdf4tcl.tar.gz
+	@mkdir -p release
+	@rm -f release/pdf4tcl.tar.gz release/pdf4tcl$(VERSION).tar.gz
 	@ln -s pkg pdf4tcl$(VERSION)
-	@tar -zcvhf pdf4tcl.tar.gz --exclude=.svn pdf4tcl$(VERSION)
-	@\rm -f pdf4tcl$(VERSION)
-	@cp pdf4tcl.tar.gz pdf4tcl`date +%Y%m%d`.tar.gz
-	@mv pdf4tcl.tar.gz pdf4tcl$(VERSION).tar.gz
+	@tar -zcvhf release/pdf4tcl.tar.gz --exclude=.svn pdf4tcl$(VERSION)
+	@rm -f pdf4tcl$(VERSION)
+	@cp release/pdf4tcl.tar.gz release/pdf4tcl`date +%Y%m%d`.tar.gz
+	@mv release/pdf4tcl.tar.gz release/pdf4tcl$(VERSION).tar.gz
+	@ls -lh release/pdf4tcl$(VERSION).tar.gz
 
 upload:
-	rsync -e ssh README pdf4tcl$(VERSION).tar.gz pspjuth@frs.sourceforge.net:/home/frs/project/pdf4tcl/
+	rsync -e ssh README release/pdf4tcl$(VERSION).tar.gz pspjuth@frs.sourceforge.net:/home/frs/project/pdf4tcl/

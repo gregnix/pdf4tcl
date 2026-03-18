@@ -414,3 +414,83 @@ proc drawSeparator {pdf x y width {color "0.6 0.6 0.6"}} {
 
 Wichtig: Nie `string repeat "-"` als Separator verwenden.
 Immer `$pdf line` fuer pixelgenaue Positionierung nutzen.
+
+## Blend Modes (0.9.4.13)
+
+`setBlendMode` setzt den PDF-Blend-Mode ueber ExtGState `/BM`. Der Modus
+bestimmt, wie neue Zeichenoperationen mit dem darunter liegenden Inhalt
+kombiniert werden. `getBlendMode` liefert den aktuell gesetzten Modus.
+
+```tcl
+# Blend Mode setzen
+$pdf setBlendMode Multiply
+$pdf rectangle 50 100 200 100 -filled 1
+
+# Mehrere Modi kombiniert mit Alpha
+$pdf setAlpha 0.7
+$pdf setBlendMode Screen
+$pdf rectangle 100 150 200 100 -filled 1
+
+# Aktuellen Modus abfragen
+set modus [$pdf getBlendMode]   ;# --> "Screen"
+
+# Zurueck auf Normal
+$pdf setBlendMode Normal
+$pdf setAlpha 1.0
+```
+
+Unterstuetzte Modi: `Normal Multiply Screen Overlay Darken Lighten
+ColorDodge ColorBurn HardLight SoftLight Difference Exclusion
+Hue Saturation Color Luminosity`
+
+Hinweis: Blend Modes erfordern PDF 1.4 oder hoeher. pdf4tcl setzt die
+PDF-Version automatisch auf mindestens 1.4, wenn `setBlendMode` aufgerufen
+wird. ExtGState-Objekte werden pro Modus+Alpha-Kombination gecacht.
+
+## Farbverlaeufe (0.9.4.13)
+
+### linearGradient
+
+Axialer Verlauf von Farbe A nach Farbe B entlang einer Linie zwischen
+zwei Punkten (PDF ShadingType 2, FunctionType 2).
+
+```tcl
+# Horizontaler Verlauf: Rot nach Blau
+$pdf linearGradient 50 100 250 100 \
+    {1.0 0.0 0.0} {0.0 0.0 1.0}
+
+# Diagonaler Verlauf: Weiss nach Dunkelgrau, mit Extend
+$pdf linearGradient 50 200 300 350 \
+    {1.0 1.0 1.0} {0.2 0.2 0.2} -extend 1
+
+# Hex-Farbnotation (via _colorToRGB intern)
+$pdf linearGradient 50 400 350 400 \
+    {#ff6600} {#0066ff}
+```
+
+Optionen:
+- `-extend 1` — Verlauf ausserhalb der Endpunkte fortsetzen (Standard: 0)
+
+### radialGradient
+
+Radialer Verlauf zwischen zwei Kreisen (PDF ShadingType 3, FunctionType 2).
+
+```tcl
+# Einfacher Kreisverlauf: heller Kern, dunkler Rand
+$pdf radialGradient \
+    150 300 0  \
+    150 300 80 \
+    {1.0 1.0 0.8} {0.6 0.3 0.0}
+
+# Verschobene Mittelpunkte (Spotlight-Effekt)
+$pdf radialGradient \
+    120 480 10 \
+    150 500 100 \
+    {1.0 1.0 1.0} {0.1 0.1 0.3} -extend 1
+```
+
+Argumente: `x0 y0 r0 x1 y1 r1 farbe0 farbe1 ?-extend bool?`
+- `x0 y0 r0` — Startkreis (Mittelpunkt + Radius)
+- `x1 y1 r1` — Endkreis
+
+Farbangaben: `{r g b}` (0.0–1.0), `{r g b a}` mit Alpha, oder `#rrggbb`.

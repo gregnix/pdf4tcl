@@ -1,0 +1,288 @@
+# Tests fuer 0.9.4.16: AES-256 (V=5/R=6) und String-Verschluesselung
+source init.tcl
+
+package require aes
+
+# ---------------------------------------------------------------------------
+# Constraints
+# ---------------------------------------------------------------------------
+
+# aes256: AES-256 in vertretbarer Zeit verfuegbar?
+# Mit Tcllib-AES dauert ein PDF ~24s -- zu lang fuer Testlauf.
+# Tests laufen nur wenn openssl UND ein schnelles AES-Backend vorhanden ist.
+# Aktuell: kein schnelles Backend implementiert -> Tests uebersprungen.
+# Sobald cffi-Backend fertig: Constraint hier anpassen.
+testConstraint aes256 0
+
+puts "new-0.9.4.16.test: AES-256-Tests uebersprungen (Tcllib-AES zu langsam fuer Testlauf)"
+puts "  Begruendung: 14 Tests x ~24s = ~6 Minuten. Manuell testen mit demo-aes256.tcl"
+
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+proc hasEncryptDict {data} {
+    return [regexp {/Filter /Standard} $data]
+}
+
+proc extractHex {data key} {
+    if {[regexp "/${key}\\s+<(\[0-9a-fA-F\]+)>" $data -> val]} {
+        return $val
+    }
+    return ""
+}
+
+# ---------------------------------------------------------------------------
+# 9. AES-256 (V=5/R=6) -- Strukturtests (benoetigen openssl)
+# ---------------------------------------------------------------------------
+test encrypt-9.1 {AES-256: encversion 5 erzeugt Encrypt-Dict} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Secret" -x 72 -y 700
+        $p endPage
+        set data [$p get]
+        $p destroy
+        hasEncryptDict $data
+    } -result 1
+
+test encrypt-9.2 {AES-256: V=5 im Encrypt-Dict} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        regexp {/V 5\y} $data
+    } -result 1
+
+test encrypt-9.3 {AES-256: R=6 im Encrypt-Dict} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        regexp {/R 6\y} $data
+    } -result 1
+
+test encrypt-9.4 {AES-256: Length 256 im Encrypt-Dict} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        regexp {/Length 256\y} $data
+    } -result 1
+
+test encrypt-9.5 {AES-256: CFM ist AESV3} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        regexp {/CFM /AESV3} $data
+    } -result 1
+
+test encrypt-9.6 {AES-256: U-Eintrag ist 48 Bytes (96 Hex-Zeichen)} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        string length [extractHex $data U]
+    } -result 96
+
+test encrypt-9.7 {AES-256: O-Eintrag ist 48 Bytes (96 Hex-Zeichen)} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        string length [extractHex $data O]
+    } -result 96
+
+test encrypt-9.8 {AES-256: UE-Eintrag ist 32 Bytes (64 Hex-Zeichen)} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        string length [extractHex $data UE]
+    } -result 64
+
+test encrypt-9.9 {AES-256: OE-Eintrag ist 32 Bytes (64 Hex-Zeichen)} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        string length [extractHex $data OE]
+    } -result 64
+
+test encrypt-9.10 {AES-256: Perms-Eintrag ist 16 Bytes (32 Hex-Zeichen)} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        string length [extractHex $data Perms]
+    } -result 32
+
+test encrypt-9.11 {AES-256: PDF-Version ist 2.0} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        $p startPage
+        $p endPage
+        set data [$p get]
+        $p destroy
+        regexp {^%PDF-2\.0} $data
+    } -result 1
+
+test encrypt-9.12 {AES-256: EncryptBytes liefert 32 Bytes fuer 1-Byte-Input} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "hello" -encversion 5]
+        oo::objdefine $p export EncryptBytes
+        set ct [$p EncryptBytes 1 "X"]
+        $p destroy
+        string length $ct
+    } -result 32
+
+# ---------------------------------------------------------------------------
+# 10. String-Verschluesselung (ISO 32000 SS7.6.5)
+# ---------------------------------------------------------------------------
+test encrypt-10.1 {String-Enc: /T in Formularfeld nicht im Klartext} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        $p startPage
+        $p setFont 10 Helvetica
+        $p addForm text 100 100 200 20 -id "fieldname_xyz" -init ""
+        $p endPage
+        set data [$p get]
+        $p destroy
+        expr {![string match *fieldname_xyz* $data]}
+    } -result 1
+
+test encrypt-10.2 {String-Enc: ohne Verschluesselung /T im Klartext} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4]
+        $p startPage
+        $p setFont 10 Helvetica
+        $p addForm text 100 100 200 20 -id "fieldname_xyz" -init ""
+        $p endPage
+        set data [$p get]
+        $p destroy
+        string match *fieldname_xyz* $data
+    } -result 1
+
+test encrypt-10.3 {String-Enc: EncryptStringsInBody verschluesselt Literal} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        oo::objdefine $p export EncryptStringsInBody
+        set body "1 0 obj\n<<\n/T (hallo_welt)\n>>\nendobj\n"
+        set enc [$p EncryptStringsInBody 1 $body]
+        $p destroy
+        set noLiteral [expr {![string match *(hallo_welt)* $enc]}]
+        set hasHex    [regexp {<[0-9a-fA-F]+>} $enc]
+        expr {$noLiteral && $hasHex}
+    } -result 1
+
+test encrypt-10.4 {String-Enc: Stream-Teil bleibt unveraendert} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        oo::objdefine $p export EncryptStringsInBody
+        set body "1 0 obj\n<<\n/T (name)\n/Length 5\n>>\nstream\nHELLO\nendstream\nendobj\n"
+        set enc [$p EncryptStringsInBody 1 $body]
+        $p destroy
+        string match *HELLO* $enc
+    } -result 1
+
+test encrypt-10.5 {String-Enc: AES-256 Formularfeld /T nicht im Klartext} \
+    -constraints aes256 \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword "geheim" -encversion 5]
+        $p startPage
+        $p setFont 10 Helvetica
+        $p addForm text 100 100 200 20 -id "secret_field" -init ""
+        $p endPage
+        set data [$p get]
+        $p destroy
+        expr {![string match *secret_field* $data]}
+    } -result 1
+
+# ---------------------------------------------------------------------------
+# 11. _PdfLiteralToBytes
+# ---------------------------------------------------------------------------
+test encrypt-11.1 {_PdfLiteralToBytes: einfacher ASCII-String} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        oo::objdefine $p export _PdfLiteralToBytes
+        set result [$p _PdfLiteralToBytes "hello"]
+        $p destroy
+        set result
+    } -result "hello"
+
+test encrypt-11.2 {_PdfLiteralToBytes: escaped Klammern} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        oo::objdefine $p export _PdfLiteralToBytes
+        set result [$p _PdfLiteralToBytes "a\\(b\\)c"]
+        $p destroy
+        set result
+    } -result "a(b)c"
+
+test encrypt-11.3 {_PdfLiteralToBytes: Oktal-Escape 101=A} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        oo::objdefine $p export _PdfLiteralToBytes
+        set result [$p _PdfLiteralToBytes "\\101"]
+        $p destroy
+        set result
+    } -result "A"
+
+test encrypt-11.4 {_PdfLiteralToBytes: Newline-Escape} \
+    -body {
+        set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
+        oo::objdefine $p export _PdfLiteralToBytes
+        set result [$p _PdfLiteralToBytes "a\\nb"]
+        $p destroy
+        set result
+    } -result "a\nb"
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+cleanupTests

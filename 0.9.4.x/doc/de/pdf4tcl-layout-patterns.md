@@ -367,3 +367,38 @@ wie pdfdoclib, pdfgrid oder pdftextboxlib.
 | pdfdoclib         | Dokument-Abstraktion, Styles, Layouts  |
 | pdfgrid           | Tabellen mit Summen, Formatierung      |
 | pdftextboxlib     | Erweiterte TextBox mit Optionen        |
+
+## Eingebettete Dateien (0.9.4.14)
+
+`addEmbeddedFile` bettet eine Datei unsichtbar in das PDF ein — ohne
+sichtbare Seitenannotation. Die Datei ist ueber den PDF-Katalog unter
+`/Names /EmbeddedFiles` erreichbar.
+
+Hauptanwendungsfall: ZUGFeRD/Factur-X-Rechnungen, bei denen eine
+XML-Datei zusammen mit dem PDF ausgeliefert werden muss.
+
+```tcl
+# Einfaches Einbetten
+$pdf addEmbeddedFile "rechnung.xml" \
+    [file join $scriptDir rechnung.xml]
+
+# Mit Metadaten
+$pdf addEmbeddedFile "ZUGFeRD-invoice.xml" \
+    [file join $scriptDir zugferd.xml] \
+    -mimetype    "application/xml" \
+    -description "ZUGFeRD 2.1 Rechnung" \
+    -afrelationship "Alternative"
+```
+
+Optionen:
+
+| Option | Standard | Beschreibung |
+|--------|----------|-------------|
+| `-contents` | Dateiinhalt | Alternativer Dateiinhalt als String |
+| `-mimetype` | `application/octet-stream` | MIME-Typ |
+| `-description` | `""` | Beschreibung der Datei |
+| `-afrelationship` | `Unspecified` | `Alternative Data Source Supplement Unspecified` |
+
+Einschraenkung: Bei `-pdfa 1b` ist `addEmbeddedFile` nicht erlaubt
+(ISO 19005-1 §6.1.7). Bei PDF/A-3 (`-pdfa 3b`) ist es ausdruecklich
+vorgesehen.
