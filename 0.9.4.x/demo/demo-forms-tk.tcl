@@ -104,9 +104,9 @@ proc ::demo::openPDF {path} {
     }
 }
 
-# ══════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # Generate PDF
-# ══════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 proc ::demo::generatePDF {} {
     variable paper;      variable orient;     variable compress
@@ -290,7 +290,7 @@ proc ::demo::generatePDF {} {
             $id [expr {int($fx)}] [expr {int($fy)}] [expr {int($fw)}] [expr {int($fh)}] $ex]
     }
 
-    # ══ TEXT ══
+    # \u2550\u2550 TEXT \u2550\u2550
     if {"text" in $selectedTypes} {
         log "--- Text ---"
         set y [_sec $pdf $x $y "Text Fields" $areaW $labelSize]
@@ -325,7 +325,7 @@ proc ::demo::generatePDF {} {
         set y [expr {$y + $fH + $sG}]
     }
 
-    # ══ PASSWORD ══
+    # \u2550\u2550 PASSWORD \u2550\u2550
     if {"password" in $selectedTypes} {
         log "--- Password ---"
         set y [_sec $pdf $x $y "Password Fields" $areaW $labelSize]
@@ -344,7 +344,7 @@ proc ::demo::generatePDF {} {
         set y [expr {$y + $fH + $sG}]
     }
 
-    # ══ CHECKBOX ══
+    # \u2550\u2550 CHECKBOX \u2550\u2550
     if {"checkbox" in $selectedTypes} {
         log "--- Checkbox ---"
         set y [_sec $pdf $x $y "Checkbox Fields" $areaW $labelSize]
@@ -363,7 +363,7 @@ proc ::demo::generatePDF {} {
         set y [expr {$y + $cbS + $sG}]
     }
 
-    # ══ COMBOBOX + LISTBOX (side by side) ══
+    # \u2550\u2550 COMBOBOX + LISTBOX (side by side) \u2550\u2550
     if {"combobox" in $selectedTypes || "listbox" in $selectedTypes} {
         set bothTypes [expr {"combobox" in $selectedTypes && "listbox" in $selectedTypes}]
         if {$bothTypes} {
@@ -387,7 +387,7 @@ proc ::demo::generatePDF {} {
         set yL     $y
         set yR     $y
 
-        # ── Left column: Combobox ──
+        # \u2500\u2500 Left column: Combobox \u2500\u2500
         if {"combobox" in $selectedTypes} {
             _lbl $pdf $lX $yL "Standard:" $labelFont $labelSize $showCoords
             $pdf addForm combobox $fX $yL $cW $fH -id cmb_std \
@@ -414,7 +414,7 @@ proc ::demo::generatePDF {} {
             set yL [expr {$yL + $fH}]
         }
 
-        # ── Right column: Listbox ──
+        # \u2500\u2500 Right column: Listbox \u2500\u2500
         if {"listbox" in $selectedTypes} {
             set rlX $rX
             set rlFX [expr {$rX + 50}]
@@ -435,7 +435,7 @@ proc ::demo::generatePDF {} {
         set y [expr {max($yL, $yR) + $sG}]
     }
 
-    # ══ RADIOBUTTON ══
+    # \u2550\u2550 RADIOBUTTON \u2550\u2550
     if {"radiobutton" in $selectedTypes} {
         log "--- Radiobutton ---"
         set y [_sec $pdf $x $y "Radiobutton Fields" $areaW $labelSize]
@@ -465,7 +465,7 @@ proc ::demo::generatePDF {} {
         set y [expr {$y + $rS + $sG}]
     }
 
-    # ══ PUSHBUTTON ══
+    # \u2550\u2550 PUSHBUTTON \u2550\u2550
     if {"pushbutton" in $selectedTypes} {
         log "--- Pushbutton ---"
         set y [_sec $pdf $x $y "Pushbutton Fields" $areaW $labelSize]
@@ -485,7 +485,7 @@ proc ::demo::generatePDF {} {
         set y [expr {$y + $bH + $sG}]
     }
 
-    # ══ SIGNATURE ══
+    # \u2550\u2550 SIGNATURE \u2550\u2550
     if {"signature" in $selectedTypes} {
         log "--- Signature ---"
         set y [_sec $pdf $x $y "Signature Field" $areaW $labelSize]
@@ -535,9 +535,9 @@ proc ::demo::generatePDF {} {
     if {$openAfter} { openPDF $outputPath }
 }
 
-# ══════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # Debug Tools
-# ══════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 proc ::demo::calcArea {} {
     variable W; variable paper
@@ -626,9 +626,9 @@ proc ::demo::fflagCalc {} {
     log "  Text+ML+RO:          4097 (MULTILINE|READONLY)"
 }
 
-# ══════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # Build GUI
-# ══════════════════════════════════════════
+# \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
 proc ::demo::buildGUI {} {
     variable W; variable fontList; variable sizeList
@@ -646,7 +646,7 @@ proc ::demo::buildGUI {} {
     set top [ttk::frame .pw.top]; .pw add $top -weight 0
     set bot [ttk::frame .pw.bot]; .pw add $bot -weight 1
 
-    # ── Notebook ──
+    # \u2500\u2500 Notebook \u2500\u2500
     ttk::notebook $top.nb
     pack $top.nb -fill both -expand 1 -padx 2 -pady 2
 
@@ -821,7 +821,7 @@ proc ::demo::buildGUI {} {
     ttk::button $df.flags  -text "Ff-Flag Calculator"     -command ::demo::fflagCalc
     pack $df.info $df.fonts $df.coords $df.flags -side left -padx 4
 
-    # ── Action Bar ──
+    # \u2500\u2500 Action Bar \u2500\u2500
     set af [ttk::frame $top.actions]
     pack $af -fill x -padx 4 -pady {4 2}
     ttk::button $af.gen   -text "  Generate PDF  " -command ::demo::generatePDF
@@ -833,7 +833,7 @@ proc ::demo::buildGUI {} {
     pack $af.sep -side left -fill y -padx 4
     pack $af.open $af.clear -side left -padx 4
 
-    # ── Log ──
+    # \u2500\u2500 Log \u2500\u2500
     ttk::label $bot.lbl -text "Log:" -font TkSmallCaptionFont
     set W(log) [text $bot.log -height 12 -width 80 -font {Courier 9} \
         -state disabled -wrap none -relief sunken -bd 1 \

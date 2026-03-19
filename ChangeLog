@@ -1,3 +1,9 @@
+2026-03-19 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.17
+	* Windows twapi-Fix, Demo-Unicode, tcl-sha Tcl9
+
+# placeholder - edit manually
 2026-03-18 Gregor  <gregnix@github>
 
 	* src/main.tcl: Combobox /AP-Stream entfernt. Statischer AP-Stream
@@ -42,15 +48,11 @@
 	  _PdfLiteralToBytes).
 	* tests/canvas.test: graceful skip wenn Tk/Display fehlt.
 	* tests/README.md: Testumgebungs-Voraussetzungen dokumentiert.
-	* nogit/scripts/pdflab/pdflab2.tcl: AES-256-Support (showEncDict,
 	  showEncryptVerify, H4/KRITISCH-2).
-	* nogit/scripts/pdflab/verify_enc3.py: neues Verifikationsskript AES-256.
 	* src/encrypt.tcl.orig: geloescht.
 	* AES-128-Referenz: PDF 1.6 (V=4 R=4) statt 1.5+.
 	* Dokumentation vollstaendig aktualisiert: doc/de/, doc/en/,
-	  nogit/docs/de/ (setBlendMode, linearGradient, radialGradient,
 	  addEmbeddedFile, OTF/CFF, tooltip, tabindex, String-Enc, AES-256).
-	* nogit/docs/de: 13 veraltete Protokoll- und Uebergabe-Dateien geloescht.
 
 2026-03-16 Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.15
@@ -62,7 +64,6 @@
 	  New internal flag BFA($name,isCFF) for TTF/CFF distinction.
 	  25 new tests in tests/new-0.9.4.15.test.
 	  Demo: 0.9.4.x/demo/demo-otf.tcl (3 pages).
-
 
 	* New method addEmbeddedFile: embeds a file silently in the PDF
 	  Catalog /Names /EmbeddedFiles NameTree (ISO 32000 SS7.11.4).
@@ -93,7 +94,6 @@
 	  development; rectangle calls would have thrown "unknown method DrawRect".
 	* Fix: set pdf(blendMode) was missing in setBlendMode body; getBlendMode
 	  always returned "Normal" regardless of the mode set.
-
 
 	* Fix ticket #X: Standard Type1 fonts (Helvetica, Times-Roman, Courier
 	  and variants) now include a ToUnicode CMap stream with full WinAnsi
@@ -136,7 +136,6 @@
 	  strings for SMP codepoints (e.g. <1F600> instead of <D83DDE00>).
 	  PDF viewers and validators could not map SMP glyphs to Unicode.
 	* util.test: new tests util-8.1..8.4 for SMP/surrogate encoding.
-
 
 	  "A CMap has too many code maps" when PDF contains fonts with full
 	  WinAnsi encoding. PDF spec §9.10.3 allows max 100 entries per

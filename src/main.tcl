@@ -1018,7 +1018,7 @@ Use -pdfa-icc to specify a profile path."
             }
         }
 
-        fconfigure $chan -translation binary
+        fconfigure $chan -translation binary -encoding iso8859-1
         puts -nonewline $chan [my get]
         if {$outfile} {
             close $chan
@@ -1392,7 +1392,10 @@ Use -pdfa-icc to specify a profile path."
     # Returns normalised D:... string or throws PDF4TCL BADDATE.
     method _ValidatePdfDate {value option} {
         # Integer: convert via clock format
-        if {[string is integer -strict $value]} {
+        # Nur akzeptieren wenn plausibeler Unix-Timestamp (< 10^12 Sekunden)
+        # Groessere Zahlen wie "20260315120000" sind versehentlich als
+        # Datum-Strings gemeint -- Tcl 9 akzeptiert beliebig grosse integers.
+        if {[string is integer -strict $value] && $value < 1000000000000} {
             set c [clock format $value -format {D:%Y%m%d%H%M%S%z} -gmt 0]
             return [string range $c 0 end-2]
         }

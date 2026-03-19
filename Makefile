@@ -1,9 +1,9 @@
 # Makefile for pdf4tcl
 
-VERSION = 09416
+VERSION = 09417
 
 # TOOL paths
-TCLSH    = tclsh8.6
+TCLSH    ?= tclsh8.6
 NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
 NAGELFAR90 = nagelfar -encoding iso8859-1 -s syntaxdb90.tcl
 ESKIL    = eskil
