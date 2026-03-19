@@ -204,7 +204,7 @@ proc makeCIDCmap {codepoint} {
     $pdf write -file $tmp
     $pdf destroy
     set fd [open $tmp r]
-    fconfigure $fd -encoding binary
+    fconfigure $fd -translation binary
     set raw [read $fd]
     close $fd
     file delete $tmp

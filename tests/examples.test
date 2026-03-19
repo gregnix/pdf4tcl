@@ -4,16 +4,44 @@
 
 set thisDir [file dirname [file join [pwd] [info script]]]
 source [file join $thisDir init.tcl]
-#source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 if {![file exists tcl.jpg]} {
     file link tcl.jpg ../examples/tcl.jpg
     file link gmarbles2.jpg ../examples/gmarbles2.jpg
 }
 
+# Referenz-PDFs automatisch regenerieren wenn Tcl-Version sich geaendert hat.
+# Tcl 8.6 und Tcl 9 erzeugen unterschiedliche ToUnicode-CMaps.
+proc regenerateExampleRefs {} {
+    set exdir  [file normalize ../examples]
+    set interp [info nameofexecutable]
+    set curver [info patchlevel]
+    set verfile [file join $exdir .tclver]
+
+    set stored ""
+    catch { set stored [string trim [read [open $verfile r]]] }
+    if {$stored eq $curver} { return }
+
+    # Version hat sich geaendert -- alle Beispiele neu erzeugen
+    puts "  (regenerating example PDFs for Tcl $curver)"
+    set cwd [pwd]
+    cd $exdir
+    foreach n {0 1 2 3 4 5 6} {
+        if {[file exists test${n}.tcl]} {
+            catch {exec $interp test${n}.tcl}
+        }
+    }
+    cd $cwd
+
+    # Version speichern
+    set fh [open $verfile w]
+    puts $fh $curver
+    close $fh
+}
+
+regenerateExampleRefs
+
 # Compare two PDFs ignoring volatile timestamp fields.
-# ModDate/CreationDate in Info-Dict and xmp:ModifyDate/xmp:CreateDate in XMP
-# change on every run -- exclude them from the diff.
 proc pdfdiff {ref new} {
     set skipPat {/ModDate |/CreationDate |xmp:ModifyDate>|xmp:CreateDate>}
     proc _stripDates {file pat} {

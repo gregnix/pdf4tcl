@@ -34,3 +34,4 @@ tools/next.tcl
 
 # Personal workflow files (never commit)
 0.9.4.x/nogit/
+examples/*.tclver

@@ -24,7 +24,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     ###########################################################################
     # SHA abstraction layer
-    # Priority: twapi (Windows) → tcl-sha package → openssl exec → error
+    # Priority: tcl-sha → openssl exec
     #
     # Das SHA-Backend wird einmalig in _InitSHABackend ermittelt und in
     # der Namespace-Variable ::pdf4tcl::_shaBackend gecacht.
@@ -34,35 +34,43 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     method _InitSHABackend {} {
         if {[info exists ::pdf4tcl::_shaBackend]} { return }
-        # 1. twapi (Windows)
-        if {![catch {package require twapi_crypto}] &&
-            [llength [info commands ::twapi::sha384]]} {
-            set ::pdf4tcl::_shaBackend twapi
-            return
+        # twapi hat kein SHA-384/512 (nur md5/sha1/sha256) -- nicht versuchen.
+        # 1. tcl-sha -- Tcl 9 benoetigt anderen Pfad als Tcl 8.6
+        if {[package vsatisfies [info tclversion] 9.0-]} {
+            # Unter Tcl 9: tcl8.6-Pfad aus auto_path entfernen,
+            # tcl9.0-Pfad vorne einsetzen (analog zu demo01.tcl)
+            set _p86 [file join $::env(HOME) lib share tcl8.6]
+            set _p90 [file join $::env(HOME) lib share tcl9.0]
+            set ::auto_path [lsearch -all -inline -not -exact $::auto_path $_p86]
+            set ::auto_path [linsert $::auto_path 0 $_p90]
         }
-        # 2. tcl-sha
         if {![catch {package require sha}]} {
             set ::pdf4tcl::_shaBackend tcl-sha
             return
         }
-        # 3. openssl
+        # 2. openssl im PATH (plattformuebergreifend)
         if {[auto_execok openssl] ne ""} {
             set ::pdf4tcl::_shaBackend openssl
             return
         }
-        throw {PDF4TCL} {AES-256: SHA-384/512 nicht verfuegbar. Bitte tcl-sha oder openssl installieren.}
+        set _msg "pdf4tcl AES-256: SHA-384/512 nicht verfuegbar"
+        append _msg " (Tcl [info patchlevel], $::tcl_platform(os)).\n"
+        append _msg "Bitte eines der folgenden installieren:\n"
+        append _msg "  - tcl-sha (https://sourceforge.net/projects/tcl-sha/)\n"
+        append _msg "  - openssl im PATH (Linux/macOS: meist vorhanden,"
+        append _msg " Windows: https://slproweb.com/products/Win32OpenSSL.html)"
+        throw {PDF4TCL} $_msg
     }
 
     method _SHA256 {data} {
         package require sha256
-        sha2::sha256 -bin $data
+        binary decode hex [sha2::sha256 $data]
     }
 
     method _SHA384 {data} {
         my _InitSHABackend
         switch $::pdf4tcl::_shaBackend {
-            twapi   { return [::twapi::sha384 -bin $data] }
-            tcl-sha { return [sha -bits 384 -output binary -databin $data] }
+            tcl-sha { return [binary decode hex [sha -bits 384 -output hex -databin $data]] }
             default {
                 set ch [open "|openssl dgst -sha384 -binary" w+b]
                 puts -nonewline $ch $data
@@ -77,8 +85,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     method _SHA512 {data} {
         my _InitSHABackend
         switch $::pdf4tcl::_shaBackend {
-            twapi   { return [::twapi::sha512 -bin $data] }
-            tcl-sha { return [sha -bits 512 -output binary -databin $data] }
+            tcl-sha { return [binary decode hex [sha -bits 512 -output hex -databin $data]] }
             default {
                 set ch [open "|openssl dgst -sha512 -binary" w+b]
                 puts -nonewline $ch $data
@@ -248,18 +255,42 @@ oo::define ::pdf4tcl::pdf4tcl {
     #   2. Hash selector:       sum(E[0:16]) % 3       (ISO says E[1] % 3)
     #   3. K length: K keeps full SHA-384 (48B) or SHA-512 (64B) size in loop
     # Only these three deviations produce PDFs accepted by qpdf and Adobe Reader.
+
+    # _AesCbc: AES-CBC-Wrapper mit Tcl-9-kompatibler Byte-Konvertierung
+    # Tcllib aes erwartet unter Tcl 9 iso8859-1-kodierte Strings (reine Bytes).
+    method _AesCbc {mode key iv data} {
+        if {[info tclversion] >= 9} {
+            set key  [encoding convertto iso8859-1 $key]
+            set iv   [encoding convertto iso8859-1 $iv]
+            set data [encoding convertto iso8859-1 $data]
+            set r [aes::aes -mode cbc -dir $mode -key $key -iv $iv $data]
+            return [encoding convertfrom iso8859-1 $r]
+        }
+        return [aes::aes -mode cbc -dir $mode -key $key -iv $iv $data]
+    }
+
+    method _AesEcb {mode key data} {
+        if {[info tclversion] >= 9} {
+            set key  [encoding convertto iso8859-1 $key]
+            set data [encoding convertto iso8859-1 $data]
+            set r [aes::aes -mode ecb -dir $mode -key $key $data]
+            return [encoding convertfrom iso8859-1 $r]
+        }
+        return [aes::aes -mode ecb -dir $mode -key $key $data]
+    }
+
     method _Alg2B {password salt ukey} {
         # Alg. 2.B (ISO 32000-2 §7.6.4.3.3), qpdf-kompatibel.
         # Implementierung mit Tcllib aes (pure Tcl).
         # Bekannte Einschraenkung: AES-256-Erzeugung dauert ~20-25s
         # (Tcllib-AES auf grossen Bloecken in enger Schleife).
+        # Tcl 9: aes::aes benoetigt Byte-Strings (encoding convertto iso8859-1)
         set K [my _SHA256 "${password}${salt}${ukey}"]
         set i 0
         while {1} {
             set seq [string repeat "${password}${K}${ukey}" 64]
-            set E [aes::aes -mode cbc -dir encrypt \
-                -key [string range $K 0 15] \
-                -iv  [string range $K 16 31] $seq]
+            set E [my _AesCbc encrypt \
+                [string range $K 0 15] [string range $K 16 31] $seq]
             set esum 0
             for {set b 0} {$b < 16} {incr b} {
                 incr esum [scan [string index $E $b] %c]
@@ -286,8 +317,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set U "${hashU}${uvs}${uks}"
         set encKeyU [my _Alg2B $password $uks ""]
         set nullIV [string repeat \x00 16]
-        set UE [aes::aes -mode cbc -dir encrypt \
-            -key $encKeyU -iv $nullIV $fileKey]
+        set UE [my _AesCbc encrypt $encKeyU $nullIV $fileKey]
         return [list $U $UE]
     }
 
@@ -300,8 +330,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set O "${hashO}${ovs}${oks}"
         set encKeyO [my _Alg2B $password $oks $U]
         set nullIV [string repeat \x00 16]
-        set OE [aes::aes -mode cbc -dir encrypt \
-            -key $encKeyO -iv $nullIV $fileKey]
+        set OE [my _AesCbc encrypt $encKeyO $nullIV $fileKey]
         return [list $O $OE]
     }
 
@@ -315,7 +344,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         append perms "T"                  ;# byte 8: EncryptMetadata = true
         append perms "adb"               ;# bytes 9-11: pad
         append perms [my _EncRandBytes 4] ;# bytes 12-15: random
-        return [aes::aes -mode ecb -dir encrypt -key $fileKey $perms]
+        return [my _AesEcb encrypt $fileKey $perms]
     }
 
     ###########################################################################
@@ -331,7 +360,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             set padlen [expr {16 - ($dlen % 16)}]
             append data [string repeat [format %c $padlen] $padlen]
             set iv [my _EncRandBytes 16]
-            set ct [aes::aes -mode cbc -dir encrypt -key $key -iv $iv $data]
+            set ct [my _AesCbc encrypt $key $iv $data]
             return "${iv}${ct}"
         } else {
             # AES-128-CBC: per-object key, IV || ciphertext
@@ -340,7 +369,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             set padlen [expr {16 - ($dlen % 16)}]
             append data [string repeat [format %c $padlen] $padlen]
             set iv [my _EncRandBytes 16]
-            set ct [aes::aes -mode cbc -dir encrypt -key $key -iv $iv $data]
+            set ct [my _AesCbc encrypt $key $iv $data]
             return "${iv}${ct}"
         }
     }

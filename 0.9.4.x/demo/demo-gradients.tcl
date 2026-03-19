@@ -18,7 +18,7 @@ if {[file isdirectory $outdir]} {
 
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient false -compress 1]
 
-# Helper: zeichnet einen gefüllten Gradient-Streifen mit Rahmen
+# Helper: zeichnet einen gef\u00FCllten Gradient-Streifen mit Rahmen
 # clip x y w h, dann gradient-command als block
 proc gradRect {pdf x y w h gradcmd} {
     $pdf gsave
@@ -28,7 +28,7 @@ proc gradRect {pdf x y w h gradcmd} {
     $pdf rectangle $x $y $w $h
 }
 
-# ── Page 1: linearGradient ──────────────────────────────────────────────────
+# \u2500\u2500 Page 1: linearGradient \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf startPage
 
 $pdf setFont 14 Helvetica-Bold
@@ -64,7 +64,7 @@ gradRect $pdf 50 250 500 60 {
     $pdf linearGradient 150 280 450 280 red blue -extend {0 0}
 }
 
-# ── Page 2: radialGradient ──────────────────────────────────────────────────
+# \u2500\u2500 Page 2: radialGradient \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf startPage
 
 $pdf setFont 14 Helvetica-Bold
@@ -119,7 +119,7 @@ $pdf setFillColor 1 1 1
 $pdf text "Centered Text" -x 175 -y 292
 $pdf setFillColor 0 0 0
 
-# ── Page 3: setBlendMode ────────────────────────────────────────────────────
+# \u2500\u2500 Page 3: setBlendMode \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf startPage
 
 $pdf setFont 14 Helvetica-Bold
@@ -166,7 +166,7 @@ foreach mode $modes {
     if {$col >= 2} { set col 0; incr row }
 }
 
-# ── Ausgabe ──────────────────────────────────────────────────────────────────
+# \u2500\u2500 Ausgabe \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf write -file $outfile
 $pdf destroy
 puts "Written: $outfile"

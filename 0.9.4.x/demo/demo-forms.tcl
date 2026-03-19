@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# demo-forms.tcl — Bestellformular ohne Verschluesselung
+# demo-forms.tcl \u2014 Bestellformular ohne Verschluesselung
 # Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/0.9.4.x/demo/
 # Aufruf:    tclsh demo-forms.tcl
 

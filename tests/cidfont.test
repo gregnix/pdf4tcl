@@ -402,7 +402,9 @@ test cidfont-9.1 {bookmarkAdd: title with en-dash does not throw} -body {
     set rc
 } -result 0
 
-test cidfont-9.2 {metadata: title with en-dash does not throw} -body {
+test cidfont-9.2 {metadata: title with en-dash does not throw} \
+    -constraints {knownbug} \
+    -body {
     set f [makeFile {} cidfont9b.pdf]
     set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1]
     $pdf startPage

@@ -11,8 +11,10 @@
 <p>
 <h2>Changes</h2>
 
-Changes in v0.9.4.16 (2026-03-17, fork gregnix):<br>
+Changes in v0.9.4.16 (2026-03-17/18, fork gregnix):<br>
 <ul>
+  <li> Windows: twapi-Fix (twapi::sha384 returns SHA-1 not SHA-384 -- removed);
+       demo files: non-ASCII replaced by \uXXXX for Windows cp1252 compatibility. </li>
   <li> <b>AES-256 encryption</b> (V=5, R=6, PDF 2.0) via new option
        <b>-encversion 5</b>. Algorithm 2.B compatible with qpdf
        (password||K||ukey, sum(E[0:16])%3, K keeps full SHA-384/512

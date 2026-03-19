@@ -22,7 +22,7 @@ package require pdf4tcl
 
 set outFile [file join $outDir demo-embedfile.pdf]
 
-# ── helper: box outline ──────────────────────────────────────────────────────
+# \u2500\u2500 helper: box outline \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 proc drawBox {pdf x y w h {label ""}} {
     $pdf setStrokeColor 0.5 0.5 0.5
     $pdf setLineWidth 0.5
@@ -54,7 +54,7 @@ proc mono {pdf text y} {
     $pdf setFillColor 0 0 0
 }
 
-# ── sample XML content ───────────────────────────────────────────────────────
+# \u2500\u2500 sample XML content \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 set invoiceXml {<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice
     xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">
@@ -69,12 +69,12 @@ set schemaXsd {<?xml version="1.0" encoding="UTF-8"?>
   <xs:element name="invoice" type="xs:string"/>
 </xs:schema>}
 
-# ── create PDF ───────────────────────────────────────────────────────────────
+# \u2500\u2500 create PDF \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
 
-# ────────────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Page 1: Grundkonzept
-# ────────────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf startPage
 
 heading $pdf "addEmbeddedFile -- Catalog-Einbettung" 780
@@ -86,7 +86,7 @@ body $pdf "Typischer Anwendungsfall: ZUGFeRD / Factur-X Rechnungen." 718
 # Syntax-Box
 drawBox $pdf 56 600 483 100 "API"
 mono $pdf {$pdf addEmbeddedFile filename} 680
-mono $pdf {    ?-contents    data?        ;# binärinhalt direkt übergeben} 665
+mono $pdf {    ?-contents    data?        ;# bin\u00E4rinhalt direkt \u00FCbergeben} 665
 mono $pdf {    ?-mimetype    type?        ;# z.B. "application/xml"} 650
 mono $pdf {    ?-description text?        ;# lesbare Beschreibung} 635
 mono $pdf {    ?-afrelationship rel?      ;# Alternative|Data|Source|...} 620
@@ -113,18 +113,18 @@ $pdf bookmarkAdd -title "Grundkonzept" -level 0
 
 $pdf endPage
 
-# ────────────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Page 2: Mehrere Dateien + Optionen
-# ────────────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf startPage
 
 heading $pdf "Mehrere Dateien und Optionen" 780
 
-body $pdf "Alle Optionen im Überblick:" 750
+body $pdf "Alle Optionen im \u00DCberblick:" 750
 
 # Optionen-Tabelle
 set rows {
-    {"-contents data"          "Binärinhalt direkt (kein Dateizugriff)"}
+    {"-contents data"          "Bin\u00E4rinhalt direkt (kein Dateizugriff)"}
     {"-mimetype type"          "MIME-Typ -> /Subtype im EmbeddedFile-Stream"}
     {"-description text"       "/Desc im Filespec-Dictionary"}
     {"-afrelationship rel"     "/AFRelationship (PDF/A-3: Alternative/Data/...)"}
@@ -174,9 +174,9 @@ $pdf bookmarkAdd -title "Optionen" -level 0
 
 $pdf endPage
 
-# ────────────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # Page 3: PDF-Struktur + Koexistenz
-# ────────────────────────────────────────────────────────────────────────────
+# \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf startPage
 
 heading $pdf "PDF-Objektstruktur" 780
@@ -231,7 +231,7 @@ $pdf addEmbeddedFile "schema.xsd" \
 
 $pdf endPage
 
-# ── schreiben ─────────────────────────────────────────────────────────────────
+# \u2500\u2500 schreiben \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 $pdf write -file $outFile
 $pdf destroy
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# demo-aes256.tcl — AES-256 Verschlüsselung Demo
+# demo-aes256.tcl \u2014 AES-256 Verschl\u00FCsselung Demo
 # Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/
 # Aufruf: tclsh demo-aes256.tcl
 
@@ -18,7 +18,7 @@ set p [pdf4tcl::new %AUTO% -paper a4 -orient true \
 
 $p startPage
 $p setFont 18 Helvetica-Bold
-$p text "pdf4tcl 0.9.4.16 — AES-256 Demo" -x 72 -y 72
+$p text "pdf4tcl 0.9.4.16 \u2014 AES-256 Demo" -x 72 -y 72
 
 $p setFont 12 Helvetica
 $p text "Dieses PDF ist mit AES-256 (V=5/R=6) verschluesselt." -x 72 -y 112

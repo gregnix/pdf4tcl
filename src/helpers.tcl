@@ -394,7 +394,17 @@ proc ::pdf4tcl::CleanText {in fn} {
             append out [dict get $FontsAttrs($fn,encoding) $uchar]
         }
     } else {
-        set out [encoding convertto $FontsAttrs($fn,encoding) $in]
+        # Tcl 9: encoding convertto wirft Fehler fuer nicht-darstellbare Zeichen.
+        # Zeichenweise konvertieren mit catch -- unmappbare Zeichen als '?' ausgeben.
+        if {[catch {set out [encoding convertto $FontsAttrs($fn,encoding) $in]}]} {
+            set out ""
+            set enc $FontsAttrs($fn,encoding)
+            foreach uchar [split $in {}] {
+                if {[catch {append out [encoding convertto $enc $uchar]}]} {
+                    append out "?"
+                }
+            }
+        }
     }
     # map special characters
     return [string map {
