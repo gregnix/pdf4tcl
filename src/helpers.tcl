@@ -429,7 +429,7 @@ proc ::pdf4tcl::SafeQuoteString {string} {
     return [QuoteString $safe]
 }
 
-# ── Unit conversion helpers (0.9.4.12) ────────────────────────────────────────
+# -- Unit conversion helpers (0.9.4.12) ----------------------------------------
 # Convert common units to PDF points (1 pt = 1/72 inch)
 
 namespace eval pdf4tcl {

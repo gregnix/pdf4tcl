@@ -12,7 +12,7 @@ proc pdfContains {file pattern} {
     expr {[string first $pattern $content] >= 0}
 }
 
-# ── _colorToRGB (indirekt ueber linearGradient) ───────────────────────────────
+# -- _colorToRGB (indirekt ueber linearGradient) -------------------------------
 
 test colortorgb-1.1 {_colorToRGB: named color red -> C0} {
     set f [makeFile {} test-c2rgb1.pdf]
@@ -81,7 +81,7 @@ test colortorgb-1.7 {_colorToRGB: {r g b} triple pass-through} {
     pdfContains $f "/C0 \[1.0 0.5 0.0\]"
 } 1
 
-# ── setBlendMode / getBlendMode ───────────────────────────────────────────────
+# -- setBlendMode / getBlendMode -----------------------------------------------
 
 test blendmode-1.1 {getBlendMode: default is Normal} {
     set f [makeFile {} test-bm1.pdf]
@@ -166,7 +166,7 @@ test blendmode-1.8 {setBlendMode Normal resets mode} {
     set result
 } Normal
 
-# ── linearGradient ────────────────────────────────────────────────────────────
+# -- linearGradient ------------------------------------------------------------
 
 test lineargradient-1.1 {linearGradient: creates valid PDF} {
     set f [makeFile {} test-lg1.pdf]
@@ -231,7 +231,7 @@ test lineargradient-1.7 {linearGradient: /Shading dict in page resources} {
     pdfContains $f "/Shading <<"
 } 1
 
-# ── radialGradient ────────────────────────────────────────────────────────────
+# -- radialGradient ------------------------------------------------------------
 
 test radialgradient-1.1 {radialGradient: creates valid PDF} {
     set f [makeFile {} test-rg1.pdf]
@@ -287,7 +287,7 @@ test radialgradient-1.6 {radialGradient: unknown option throws} {
     set err
 } 1
 
-# ── addForm -tooltip / -tabindex ──────────────────────────────────────────────
+# -- addForm -tooltip / -tabindex ----------------------------------------------
 
 test addform-tooltip-1.1 {addForm -tooltip: creates PDF without error} {
     set f [makeFile {} test-tooltip1.pdf]
@@ -353,7 +353,7 @@ test addform-tabindex-1.4 {addForm -tabindex: non-integer throws} {
     set err
 } 1
 
-# ── /Tabs /R ──────────────────────────────────────────────────────────────────
+# -- /Tabs /R ------------------------------------------------------------------
 
 test tabsr-1.1 {/Tabs /R present when form fields exist} {
     set f [makeFile {} test-tabsr1.pdf]
@@ -374,6 +374,6 @@ test tabsr-1.2 {/Tabs /R absent without annotations} {
     expr {![pdfContains $f "/Tabs /R"]}
 } 1
 
-# ── Cleanup ───────────────────────────────────────────────────────────────────
+# -- Cleanup -------------------------------------------------------------------
 
 cleanupTests

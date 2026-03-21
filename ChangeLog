@@ -1,9 +1,59 @@
+2026-03-21 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.18
+	* aes256
+
 2026-03-19 Gregor  <gregnix@github>
 
-	* Bumped revision to 0.9.4.17
-	* Windows twapi-Fix, Demo-Unicode, tcl-sha Tcl9
+	* Bumped revision to 0.9.4.18
+	* aes256
 
-# placeholder - edit manually
+# 2026-03-19 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.18
+
+	* Tcl 9 Kompatibilitaet: pdf4tcl laeuft jetzt unter Tcl 8.6 und Tcl 9.
+
+	* src/encrypt.tcl: _InitSHABackend setzt unter Tcl 9 den tcl9.0-Pfad
+	  in ::auto_path damit die korrekte sha.so geladen wird.
+
+	* src/encrypt.tcl: SHA-Rueckgabe von tcl-sha via -output hex und
+	  binary decode hex statt -output binary -- vermeidet beschaedigte
+	  Binaerdaten unter Tcl 9.
+
+	* src/encrypt.tcl: Neue Methoden _AesCbc und _AesEcb kapseln alle
+	  aes::aes-Aufrufe. binary format a* erzeugt garantierte Bytearrays
+	  fuer Tcllib aes unter Tcl 8.6 und Tcl 9.
+
+	* src/helpers.tcl: CleanText behandelt nicht-konvertierbare Zeichen
+	  zeichenweise mit catch -- Tcl 9 wirft Fehler statt zu ersetzen.
+
+	* src/main.tcl: write-Methode setzt -encoding iso8859-1 zusaetzlich
+	  zu -translation binary -- behebt EILSEQ-Fehler unter Tcl 9.
+
+	* src/main.tcl: _ValidatePdfDate prueft Unix-Timestamp-Bereich
+	  (< 10^12) -- Tcl 9 akzeptiert beliebig grosse Integers in
+	  string is integer.
+
+	* Makefile: TCLSH ?= statt hardcodiert -- make test nutzt $TCLSH
+	  aus der Umgebung (tclsh8.6 oder tclsh9.0).
+
+	* tests/util.test: fconfigure -encoding binary ersetzt durch
+	  -translation binary (encoding binary nicht mehr in Tcl 9).
+
+	* tests/cidfont.test: cidfont-9.2 als knownbug markiert.
+
+	* tests/examples.test: Automatische Regenerierung der Referenz-PDFs
+	  wenn Tcl-Version sich aendert (.tclver-Datei als Fingerprint).
+
+	* tests/init.tcl: knownbug-Constraint definiert.
+
+	* tools/bump.tcl: Neu geschrieben -- schlank, liest Version/Msg
+	  aus tools/next.tcl, kein blockierender Konsistenzcheck.
+
+	* tools/tcl9env.sh: Neue Datei -- setzt Tcl-9-Umgebung
+	  fuer make test, make example usw.
+
 2026-03-18 Gregor  <gregnix@github>
 
 	* src/main.tcl: Combobox /AP-Stream entfernt. Statischer AP-Stream

@@ -175,11 +175,11 @@ set pdf [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 1 -unit mm]
 
 # --- Titelseite ---
 $pdf startPage
-$pdf setFont 16 Helvetica-Bold
+$pdf setFont 9 Helvetica-Bold
 $pdf text "pdf4tcl 0.9.4.9: Standard-Type1-Fonts" -x 15 -y 40
-$pdf setFont 11 Helvetica-Bold
+$pdf setFont 6 Helvetica-Bold
 $pdf text "WinAnsi-Zeichentabelle (cp1252) fuer alle 14 eingebauten Fonts" -x 15 -y 56
-$pdf setFont 9 Helvetica
+$pdf setFont 5 Helvetica
 $pdf text "Jede Seite zeigt: Hex-Byte  |  Glyph  |  Unicode-Codepoint  |  Glyphname" -x 15 -y 70
 $pdf line 15 76 195 76
 
@@ -192,9 +192,9 @@ foreach {attr val} {
     "PDF/A-1b"       "NICHT erlaubt (fehlende Einbettung, ISO 6.3.4) -- TTF verwenden"
     "Undefiniert"    "0x81 0x8D 0x8F 0x90 0x9D -> U+FFFD (kein Glyph in cp1252)"
 } {
-    $pdf setFont 8 Helvetica-Bold
+    $pdf setFont 4 Helvetica-Bold
     $pdf text $attr -x 15 -y $y
-    $pdf setFont 8 Helvetica
+    $pdf setFont 4 Helvetica
     $pdf text $val  -x 55 -y $y
     incr y 12
 }
@@ -206,7 +206,7 @@ $pdf text "Enthaltene Fonts:" -x 15 -y $y
 incr y 10
 set col 0; set fx 15
 foreach f [concat $latinFonts $specialFonts] {
-    $pdf setFont 8 $f
+    $pdf setFont 6 $f
     $pdf text $f -x $fx -y $y
     incr col
     if {$col == 2} { set col 0; incr y 10; set fx 15 } else { set fx 110 }

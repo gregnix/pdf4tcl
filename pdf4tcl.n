@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.17 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.18 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.17?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.18?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1680,10 +1680,11 @@ Set the encryption version\&. Must be \fB4\fR (AES-128, default) or
 .sp
 \fB4\fR: AES-128, V=4/R=4, PDF 1\&.5+\&. Pure Tcl, no external programs\&.
 .sp
-\fB5\fR: AES-256, V=5/R=6, PDF 2\&.0\&. Requires \fBopenssl\fR in PATH
-for SHA-384/SHA-512 computation\&. Generates approximately 2-4 seconds
-of processing time per document due to multiple \fBopenssl\fR subprocess
-invocations\&.
+\fB5\fR: AES-256, V=5/R=6, PDF 2\&.0\&. SHA-384/SHA-512 is selected
+automatically from three backends in priority order:
+\fBtcl-sha\fR (C extension, fastest, optional),
+\fBopenssl\fR (if in PATH), or a pure-Tcl fallback (always available,
+approx\&. 24 seconds per document)\&. No external program is required\&.
 .sp
 This option can only be set at object creation\&.
 .PP
@@ -1760,11 +1761,71 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.18"
+.IP \(bu
+Tcl 9 compatibility: pdf4tcl runs under both Tcl 8\&.6 and Tcl 9\&.0\&.
+.IP \(bu
+"\fIsrc/encrypt\&.tcl\fR": \fB_InitSHABackend\fR selects the correct
+SHA library path under Tcl 9\&. SHA output uses hex encoding and
+\fBbinary decode hex\fR for binary-safe results on all platforms\&.
+.IP \(bu
+"\fIsrc/encrypt\&.tcl\fR": New methods \fB_AesCbc\fR and
+\fB_AesEcb\fR wrap all \fBaes::aes\fR calls with
+\fBbinary format a*\fR to guarantee bytearrays under Tcl 8\&.6 and Tcl 9\&.
+.IP \(bu
+"\fIsrc/helpers\&.tcl\fR": \fBCleanText\fR handles non-convertible
+characters one by one using \fBcatch\fR -- Tcl 9 throws instead of
+substituting\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBwrite\fR sets \fB-encoding iso8859-1\fR
+in addition to \fB-translation binary\fR to prevent EILSEQ errors
+under Tcl 9\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fB_ValidatePdfDate\fR checks Unix timestamp
+range (below 10^12) -- Tcl 9 accepts arbitrarily large integers in
+\fBstring is integer\fR\&.
+.IP \(bu
+Makefile: \fBTCLSH ?=\fR allows override via environment\&.
+.IP \(bu
+"\fItests/util\&.test\fR": \fB-translation binary\fR replaces
+\fB-encoding binary\fR (removed in Tcl 9)\&.
+.IP \(bu
+"\fItests/examples\&.test\fR": example PDFs are auto-regenerated when
+the Tcl version changes ("\fI\&.tclver\fR" fingerprint file)\&.
+.IP \(bu
+"\fItests/cidfont\&.test\fR": test cidfont-9\&.2 marked as knownbug\&.
+.IP \(bu
+"\fItools/tcl9env\&.sh\fR": new file -- sets Tcl 9 environment for
+\fBmake test\fR and \fBmake example\fR\&.
+.PP
+.SS "VERSION 0\&.9\&.4\&.17"
+.IP \(bu
+"\fIsrc/encrypt\&.tcl\fR": AES-256 string encryption
+(\fBEncryptStringsInBody\fR, \fB_PdfLiteralToBytes\fR) wired into
+four call sites in "\fIsrc/main\&.tcl\fR": FlushObjects, radio group parent,
+info dictionary, and bookmarks\&. Fixes AcroForm field corruption in
+encrypted documents\&.
+.IP \(bu
+"\fIsrc/encrypt\&.tcl\fR": SHA-384/512 pure-Tcl implementation
+(\fB::pdf4tcl::sha2pure\fR, NIST FIPS 180-4 compliant)\&. AES-256
+no longer requires any external program\&.
+.IP \(bu
+SHA backend priority: \fBtcl-sha\fR (C extension) >
+\fBopenssl\fR (if in PATH) > pure-Tcl fallback (always available)\&.
+.IP \(bu
+Combobox and listbox generate their own appearance streams\&.
+\fBNeedAppearances\fR is never set; all field types coexist correctly
+with signature fields\&.
+.IP \(bu
+New options \fB-required\fR and \fB-label\fR in
+\fBaddForm\fR\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.16"
 .IP \(bu
 AES-256 encryption (V=5, R=6, PDF 2\&.0, ISO 32000-2 §7\&.6\&.4)\&.
 New option \fB-encversion\fR: \fB4\fR (AES-128, default) or
-\fB5\fR (AES-256)\&. AES-256 requires \fBopenssl\fR in PATH\&.
+\fB5\fR (AES-256)\&. SHA-384/512 via openssl subprocess (superseded
+by pure-Tcl fallback in 0\&.9\&.4\&.17)\&.
 Algorithm 2\&.B implemented after pypdf/qpdf reference
 ("\fIlibqpdf/QPDF_encryption\&.cc\fR")\&.
 .IP \(bu

@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.17
+package provide pdf4tcl 0.9.4.18
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -725,10 +725,15 @@ space instead of the usual empty rectangle."
     # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) map to U+FFFD.
     # Result is a complete CMap stream string ready for MakeStream.
     proc MakeStdToUnicodeCMap {fontname} {
-        # Build cp1252 -> Unicode table byte-by-byte (Tcl 9.0 safe)
+        # Build cp1252 -> Unicode table byte-by-byte (Tcl 8.6 + 9.0 safe)
+        # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) -> 0xFFFD
+        # in beiden Versionen -- Tcl 8.6 gibt sonst C1-Controls (U+0081 etc.)
+        set undefinedCp1252 {0x81 0x8D 0x8F 0x90 0x9D}
         set subset {}
         for {set i 0} {$i < 256} {incr i} {
-            if {[catch {
+            if {$i in $undefinedCp1252} {
+                lappend subset 0xFFFD
+            } elseif {[catch {
                 set ch [encoding convertfrom cp1252 [binary format cu $i]]
                 lappend subset [scan $ch %c]
             }]} {
@@ -790,7 +795,7 @@ space instead of the usual empty rectangle."
         append cmap "1 begincodespacerange\n"
         append cmap "<00> <[format %02X [expr {$len-1}]]>\n"
         append cmap "endcodespacerange\n"
-        # PDF spec §9.10.3: max 100 entries per beginbfchar block.
+        # PDF spec ss.9.10.3: max 100 entries per beginbfchar block.
         set f 0
         set remaining $len
         while {$remaining > 0} {
@@ -1813,7 +1818,7 @@ proc ::pdf4tcl::SafeQuoteString {string} {
     return [QuoteString $safe]
 }
 
-# ── Unit conversion helpers (0.9.4.12) ────────────────────────────────────────
+# -- Unit conversion helpers (0.9.4.12) ----------------------------------------
 # Convert common units to PDF points (1 pt = 1/72 inch)
 
 namespace eval pdf4tcl {
@@ -2220,7 +2225,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             set pdf(version) 1.4
         }
         my Pdfout "%PDF-$pdf(version)\n"
-        # PDF spec §7.5.2: comment with ≥4 bytes > 0x7F marks file as binary.
+        # PDF spec ss.7.5.2: comment with >=4 bytes > 0x7F marks file as binary.
         # PDF/A also requires this. Use 4 high bytes.
         my Pdfout "%\xE5\xE4\xF6\xE7\n"
     }
@@ -2875,7 +2880,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Always written so the /Metadata reference in the Catalog is valid.
         # Synchronises Info Dict fields into XMP properties.
         my StoreXref $xmp_oid
-        # XMP-Stream-Länge als UTF-8-Bytes (nicht Tcl-Zeichen),
+        # XMP-Stream-Laenge als UTF-8-Bytes (nicht Tcl-Zeichen),
         # da der Binary-Channel non-ASCII-Chars als UTF-8 schreibt.
         set xmp [my _BuildXMPStream]
         set xmpLen [string length [encoding convertto utf-8 $xmp]]
@@ -2937,7 +2942,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Encrypt dictionary (V=4/R=4) written before xref.
-        # The dict itself is NOT encrypted (ISO 32000 §7.6.1).
+        # The dict itself is NOT encrypted (ISO 32000 ss.7.6.1).
         set encdict_oid ""
         if {$pdf(encrypt)} {
             set encdict_oid [my WriteEncryptDict]
@@ -2955,7 +2960,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Document trailer
-        # /ID is required by PDF spec (ISO 32000 §7.5.5) and PDF/A.
+        # /ID is required by PDF spec (ISO 32000 ss.7.5.5) and PDF/A.
         # Encrypted documents use a random ID (computed in InitEncrypt).
         # Unencrypted documents use a deterministic content-based ID.
         if {$pdf(encrypt)} {
@@ -3232,7 +3237,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # XMP packet -- kein BOM im xpacket-Attribut (vermeidet UTF-8/Latin-1-Laengenproblem)
-        # Gemäss ISO 32000 SS7.11.3: encoding="UTF-8" reicht als Deklaration.
+        # Gemaess ISO 32000 SS7.11.3: encoding="UTF-8" reicht als Deklaration.
         set x "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
         append x "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
         append x " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
@@ -3294,7 +3299,7 @@ Use -pdfa-icc to specify a profile path."
         append x "   <pdf:Producer>$producer</pdf:Producer>\n"
         # pdfaid Identification (ISO 19005-1 SS6.7.11) -- nur wenn -pdfa gesetzt
         if {$options(-pdfa) ne ""} {
-            # pdfaid:part = "1" für 1b/1a, "2" für 2b/2a
+            # pdfaid:part = "1" fuer 1b/1a, "2" fuer 2b/2a
             set pdfaid_part [string index $options(-pdfa) 0]
             # pdfaid:conformance = "B" oder "A" (uppercase)
             set pdfaid_conf [string toupper [string index $options(-pdfa) 1]]
@@ -3874,7 +3879,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # 1. Font binary data (full original font file)
-        # TTF: /Length1 = uncompressed size (required by PDF spec §9.9)
+        # TTF: /Length1 = uncompressed size (required by PDF spec ss.9.9)
         # CFF/OTF: /Subtype /OpenType (FontFile3, no /Length1)
         set rawttf $BFP($BFN,rawttf)
         set lc [string length $rawttf]
@@ -3943,7 +3948,7 @@ Use -pdfa-icc to specify a profile path."
                     lassign $entry glyph ucode
                     # PDF ToUnicode CMap: BMP codepoints as <XXXX>,
                     # SMP codepoints (U+10000..U+10FFFF) as UTF-16BE
-                    # surrogate pair <XXXXXXXX> (PDF spec §9.10.3).
+                    # surrogate pair <XXXXXXXX> (PDF spec ss.9.10.3).
                     if {$ucode <= 0xFFFF} {
                         set ucstr [format "%04X" $ucode]
                     } else {
@@ -4979,7 +4984,7 @@ Use -pdfa-icc to specify a profile path."
         return [list $pdf(fillAlpha) $pdf(strokeAlpha)]
     }
 
-    # ── setBlendMode (0.9.4.13) ──────────────────────────────────────────────
+    # -- setBlendMode (0.9.4.13) ----------------------------------------------
     # Set the blend mode for subsequent graphics operations.
     # Valid modes (PDF 1.4+):
     #   Normal Multiply Screen Overlay Darken Lighten ColorDodge ColorBurn
@@ -5018,7 +5023,7 @@ Use -pdfa-icc to specify a profile path."
         return $pdf(blendMode)
     }
 
-    # ── linearGradient (0.9.4.13) ────────────────────────────────────────────
+    # -- linearGradient (0.9.4.13) --------------------------------------------
     # Paint a linear gradient between two points.
     # x1 y1 x2 y2: start and end coordinates (in user units)
     # color1 color2: colors as {r g b} lists or named colors
@@ -5055,7 +5060,7 @@ Use -pdfa-icc to specify a profile path."
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
     }
 
-    # ── radialGradient (0.9.4.13) ────────────────────────────────────────────
+    # -- radialGradient (0.9.4.13) --------------------------------------------
     # Paint a radial gradient between two circles.
     # cx1 cy1 r1: center and radius of start circle
     # cx2 cy2 r2: center and radius of end circle
@@ -5094,7 +5099,7 @@ Use -pdfa-icc to specify a profile path."
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
     }
 
-    # ── _colorToRGB helper ───────────────────────────────────────────────────
+    # -- _colorToRGB helper ---------------------------------------------------
     # Accept {r g b} list (0.0-1.0) or named color or #rrggbb hex.
     method _colorToRGB {color} {
         if {[llength $color] == 3} {
@@ -6315,7 +6320,7 @@ Use -pdfa-icc to specify a profile path."
         set fsid $files($fid)
 
         # Create annotation
-        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 §6.5.3)
+        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 ss.6.5.3)
         set andict "<< /Type /Annot\n"
         append andict "  /Subtype /FileAttachment\n"
         append andict "  /F 4\n"
@@ -6337,7 +6342,7 @@ Use -pdfa-icc to specify a profile path."
 
     # Embed a file silently in the PDF Catalog NameTree (no visible annotation).
     # For electronic invoices (ZUGFeRD, Factur-X) and other attachments.
-    # NOT allowed in PDF/A-1 (ISO 19005-1 §6.1.7); allowed in PDF/A-3.
+    # NOT allowed in PDF/A-1 (ISO 19005-1 ss.6.1.7); allowed in PDF/A-3.
     #
     # addEmbeddedFile filename ?options?
     #
@@ -6349,10 +6354,10 @@ Use -pdfa-icc to specify a profile path."
     #   -afrelationship rel  PDF/A-3 AFRelationship: Alternative|Data|Source|
     #                        Supplement|Unspecified (default: "")
     method addEmbeddedFile {filename args} {
-        # PDF/A-1 guard (ISO 19005-1 §6.1.7 forbids EmbeddedFiles)
+        # PDF/A-1 guard (ISO 19005-1 ss.6.1.7 forbids EmbeddedFiles)
         if {[string match "1*" $options(-pdfa)]} {
             throw {PDF4TCL} \
-                "addEmbeddedFile: embedded files are not allowed in PDF/A-1 (ISO 19005-1 §6.1.7)"
+                "addEmbeddedFile: embedded files are not allowed in PDF/A-1 (ISO 19005-1 ss.6.1.7)"
         }
 
         set contents       ""
@@ -6611,7 +6616,7 @@ Use -pdfa-icc to specify a profile path."
     method _BuildRadioAP {width height} {
         my SetupZaDbFont
         set obj [my _FormXObjHeader $width $height]
-        # On state: filled circle (bullet char 108 in ZapfDingbats = ●)
+        # On state: filled circle (bullet char 108 in ZapfDingbats = (bullet))
         set fs [expr {$height * 0.8}]
         set cX [expr {($width - $fs * 0.52) / 2.0}]
         set cY [expr {$height * 0.15}]
@@ -6839,7 +6844,7 @@ Use -pdfa-icc to specify a profile path."
             if {$radioValue eq ""} {
                 throw {PDF4TCL} "-value is required for radiobutton"
             }
-            # Group and value are used as PDF names — must be alphanumeric
+            # Group and value are used as PDF names -- must be alphanumeric
             my CheckWord -group $groupName
             my CheckWord -value $radioValue
             if {$idStr eq ""} {
@@ -8220,30 +8225,128 @@ Use -pdfa-icc to specify a profile path."
 ###############################################################################
 # pdf4tcl - Encryption support
 #
-# AES-128: Standard Security Handler V=4 R=4 (PDF 1.5+, ISO 32000-1 §7.6)
-# AES-256: Standard Security Handler V=5 R=6 (PDF 2.0, ISO 32000-2 §7.6.4)
+# AES-128: Standard Security Handler V=4 R=4 (PDF 1.5+, ISO 32000-1 ss.7.6)
+# AES-256: Standard Security Handler V=5 R=6 (PDF 2.0, ISO 32000-2 ss.7.6.4)
 #
 # AES-128 algorithms:
-#   Alg 1  - Encrypt data per object  (§7.6.2)
-#   Alg 2  - Derive encryption key    (§7.6.3.3)
-#   Alg 3  - Compute O entry          (§7.6.3.4)
-#   Alg 5  - Compute U entry (R≥3)    (§7.6.3.4)
+#   Alg 1  - Encrypt data per object  (ss.7.6.2)
+#   Alg 2  - Derive encryption key    (ss.7.6.3.3)
+#   Alg 3  - Compute O entry          (ss.7.6.3.4)
+#   Alg 5  - Compute U entry (R>=3)    (ss.7.6.3.4)
 #
 # AES-256 algorithms:
-#   Alg 2.B - Iterative hash (SHA-256/384/512)    (§7.6.4.3.3)
-#   Alg 3   - Compute O and OE entries            (§7.6.4.4.3)
-#   Alg 4   - Compute U and UE entries            (§7.6.4.4.4)
-#   Alg 5   - Compute Perms entry                 (§7.6.4.4.5)
-#   Alg 6   - Authenticate user password          (§7.6.4.4.6)
-#   Alg 7   - Authenticate owner password         (§7.6.4.4.7)
-#   Alg 9   - Recover file key via U/UE           (§7.6.4.4.9)
+#   Alg 2.B - Iterative hash (SHA-256/384/512)    (ss.7.6.4.3.3)
+#   Alg 3   - Compute O and OE entries            (ss.7.6.4.4.3)
+#   Alg 4   - Compute U and UE entries            (ss.7.6.4.4.4)
+#   Alg 5   - Compute Perms entry                 (ss.7.6.4.4.5)
+#   Alg 6   - Authenticate user password          (ss.7.6.4.4.6)
+#   Alg 7   - Authenticate owner password         (ss.7.6.4.4.7)
+#   Alg 9   - Recover file key via U/UE           (ss.7.6.4.4.9)
 ###############################################################################
+
+
+# ---------------------------------------------------------------------------
+# SHA-384/512 pure Tcl -- kein externes Backend noetig
+# NIST FIPS 180-4 konform. Tcl 8.6 und Tcl 9, alle Plattformen.
+# ---------------------------------------------------------------------------
+namespace eval ::pdf4tcl::sha2pure {
+    variable MASK64 0xFFFFFFFFFFFFFFFF
+    variable K {
+        0x428a2f98d728ae22 0x7137449123ef65cd 0xb5c0fbcfec4d3b2f 0xe9b5dba58189dbbc
+        0x3956c25bf348b538 0x59f111f1b605d019 0x923f82a4af194f9b 0xab1c5ed5da6d8118
+        0xd807aa98a3030242 0x12835b0145706fbe 0x243185be4ee4b28c 0x550c7dc3d5ffb4e2
+        0x72be5d74f27b896f 0x80deb1fe3b1696b1 0x9bdc06a725c71235 0xc19bf174cf692694
+        0xe49b69c19ef14ad2 0xefbe4786384f25e3 0x0fc19dc68b8cd5b5 0x240ca1cc77ac9c65
+        0x2de92c6f592b0275 0x4a7484aa6ea6e483 0x5cb0a9dcbd41fbd4 0x76f988da831153b5
+        0x983e5152ee66dfab 0xa831c66d2db43210 0xb00327c898fb213f 0xbf597fc7beef0ee4
+        0xc6e00bf33da88fc2 0xd5a79147930aa725 0x06ca6351e003826f 0x142929670a0e6e70
+        0x27b70a8546d22ffc 0x2e1b21385c26c926 0x4d2c6dfc5ac42aed 0x53380d139d95b3df
+        0x650a73548baf63de 0x766a0abb3c77b2a8 0x81c2c92e47edaee6 0x92722c851482353b
+        0xa2bfe8a14cf10364 0xa81a664bbc423001 0xc24b8b70d0f89791 0xc76c51a30654be30
+        0xd192e819d6ef5218 0xd69906245565a910 0xf40e35855771202a 0x106aa07032bbd1b8
+        0x19a4c116b8d2d0c8 0x1e376c085141ab53 0x2748774cdf8eeb99 0x34b0bcb5e19b48a8
+        0x391c0cb3c5c95a63 0x4ed8aa4ae3418acb 0x5b9cca4f7763e373 0x682e6ff3d6b2b8a3
+        0x748f82ee5defb2fc 0x78a5636f43172f60 0x84c87814a1f0ab72 0x8cc702081a6439ec
+        0x90befffa23631e28 0xa4506cebde82bde9 0xbef9a3f7b2c67915 0xc67178f2e372532b
+        0xca273eceea26619c 0xd186b8c721c0c207 0xeada7dd6cde0eb1e 0xf57d4f7fee6ed178
+        0x06f067aa72176fba 0x0a637dc5a2c898a6 0x113f9804bef90dae 0x1b710b35131c471b
+        0x28db77f523047d84 0x32caab7b40c72493 0x3c9ebe0a15c9bebc 0x431d67c49c100d4c
+        0x4cc5d4becb3e42b6 0x597f299cfc657e2a 0x5fcb6fab3ad6faec 0x6c44198c4a475817
+    }
+
+    proc _rotr {x n} { variable MASK64
+        expr {((($x >> $n) | (($x << (64-$n)) & $MASK64)) & $MASK64)} }
+    proc _shr  {x n} { variable MASK64; expr {($x >> $n) & $MASK64} }
+    proc _ch   {x y z} { variable MASK64
+        expr {(($x & $y) ^ ((~$x) & $z)) & $MASK64} }
+    proc _maj  {x y z} { variable MASK64
+        expr {(($x & $y) ^ ($x & $z) ^ ($y & $z)) & $MASK64} }
+    proc _bsig0 {x} { expr {[_rotr $x 28] ^ [_rotr $x 34] ^ [_rotr $x 39]} }
+    proc _bsig1 {x} { expr {[_rotr $x 14] ^ [_rotr $x 18] ^ [_rotr $x 41]} }
+    proc _ssig0 {x} { expr {[_rotr $x  1] ^ [_rotr $x  8] ^ [_shr  $x  7]} }
+    proc _ssig1 {x} { expr {[_rotr $x 19] ^ [_rotr $x 61] ^ [_shr  $x  6]} }
+
+    proc _digest {data initH outWords} {
+        variable K
+        variable MASK64
+        set bytes [binary encode hex $data]
+        set bitLen [expr {[string length $bytes] * 4}]
+        append bytes "80"
+        while {(([string length $bytes] / 2) % 128) != 112} { append bytes "00" }
+        append bytes [format "%016llx" 0][format "%016llx" $bitLen]
+        set H $initH
+        set total [string length $bytes]
+        for {set off 0} {$off < $total} {incr off 256} {
+            set blk [string range $bytes $off [expr {$off+255}]]
+            for {set i 0} {$i < 16} {incr i} {
+                set s [expr {$i * 16}]
+                binary scan [binary decode hex [string range $blk $s [expr {$s+15}]]] W W($i)
+                set W($i) [expr {$W($i) & $MASK64}]
+            }
+            for {set i 16} {$i < 80} {incr i} {
+                set W($i) [expr {
+                    ([_ssig1 $W([expr {$i-2}])]  + $W([expr {$i-7}]) +
+                     [_ssig0 $W([expr {$i-15}])] + $W([expr {$i-16}])) & $MASK64}]
+            }
+            lassign $H a b c d e f g h
+            for {set i 0} {$i < 80} {incr i} {
+                set T1 [expr {($h+[_bsig1 $e]+[_ch $e $f $g]+[lindex $K $i]+$W($i))&$MASK64}]
+                set T2 [expr {([_bsig0 $a]+[_maj $a $b $c])&$MASK64}]
+                set h $g; set g $f; set f $e
+                set e [expr {($d+$T1)&$MASK64}]
+                set d $c; set c $b; set b $a
+                set a [expr {($T1+$T2)&$MASK64}]
+            }
+            lassign $H h0 h1 h2 h3 h4 h5 h6 h7
+            set H [list                 [expr {($h0+$a)&$MASK64}] [expr {($h1+$b)&$MASK64}]                 [expr {($h2+$c)&$MASK64}] [expr {($h3+$d)&$MASK64}]                 [expr {($h4+$e)&$MASK64}] [expr {($h5+$f)&$MASK64}]                 [expr {($h6+$g)&$MASK64}] [expr {($h7+$h)&$MASK64}]]
+        }
+        set out ""
+        for {set i 0} {$i < $outWords} {incr i} {
+            append out [format "%016llx" [lindex $H $i]]
+        }
+        binary decode hex $out
+    }
+
+    proc sha512bin {data} {
+        _digest $data {
+            0x6a09e667f3bcc908 0xbb67ae8584caa73b 0x3c6ef372fe94f82b 0xa54ff53a5f1d36f1
+            0x510e527fade682d1 0x9b05688c2b3e6c1f 0x1f83d9abfb41bd6b 0x5be0cd19137e2179
+        } 8
+    }
+
+    proc sha384bin {data} {
+        _digest $data {
+            0xcbbb9d5dc1059ed8 0x629a292a367cd507 0x9159015a3070dd17 0x152fecd8f70e5939
+            0x67332667ffc00b31 0x8eb44a8768581511 0xdb0c2e0d64f98fa7 0x47b5481dbefa4fa4
+        } 6
+    }
+}
 
 oo::define ::pdf4tcl::pdf4tcl {
 
     ###########################################################################
     # SHA abstraction layer
-    # Priority: tcl-sha → openssl exec
+    # Priority: tcl-sha -> openssl exec
     #
     # Das SHA-Backend wird einmalig in _InitSHABackend ermittelt und in
     # der Namespace-Variable ::pdf4tcl::_shaBackend gecacht.
@@ -8272,13 +8375,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             set ::pdf4tcl::_shaBackend openssl
             return
         }
-        set _msg "pdf4tcl AES-256: SHA-384/512 nicht verfuegbar"
-        append _msg " (Tcl [info patchlevel], $::tcl_platform(os)).\n"
-        append _msg "Bitte eines der folgenden installieren:\n"
-        append _msg "  - tcl-sha (https://sourceforge.net/projects/tcl-sha/)\n"
-        append _msg "  - openssl im PATH (Linux/macOS: meist vorhanden,"
-        append _msg " Windows: https://slproweb.com/products/Win32OpenSSL.html)"
-        throw {PDF4TCL} $_msg
+        # 3. pure-Tcl Fallback -- immer verfuegbar, kein externes Backend noetig
+        set ::pdf4tcl::_shaBackend pure-tcl
     }
 
     method _SHA256 {data} {
@@ -8289,10 +8387,13 @@ oo::define ::pdf4tcl::pdf4tcl {
     method _SHA384 {data} {
         my _InitSHABackend
         switch $::pdf4tcl::_shaBackend {
-            tcl-sha { return [binary decode hex [sha -bits 384 -output hex -databin $data]] }
+            tcl-sha  { return [binary decode hex [sha -bits 384 -output hex -databin $data]] }
+            pure-tcl { return [::pdf4tcl::sha2pure::sha384bin $data] }
             default {
-                set ch [open "|openssl dgst -sha384 -binary" w+b]
+                set ch [open "|openssl dgst -sha384 -binary" r+]
+                fconfigure $ch -translation binary -encoding iso8859-1
                 puts -nonewline $ch $data
+                flush $ch
                 catch {chan close $ch write}
                 set result [read $ch]
                 close $ch
@@ -8304,10 +8405,13 @@ oo::define ::pdf4tcl::pdf4tcl {
     method _SHA512 {data} {
         my _InitSHABackend
         switch $::pdf4tcl::_shaBackend {
-            tcl-sha { return [binary decode hex [sha -bits 512 -output hex -databin $data]] }
+            tcl-sha  { return [binary decode hex [sha -bits 512 -output hex -databin $data]] }
+            pure-tcl { return [::pdf4tcl::sha2pure::sha512bin $data] }
             default {
-                set ch [open "|openssl dgst -sha512 -binary" w+b]
+                set ch [open "|openssl dgst -sha512 -binary" r+]
+                fconfigure $ch -translation binary -encoding iso8859-1
                 puts -nonewline $ch $data
+                flush $ch
                 catch {chan close $ch write}
                 set result [read $ch]
                 close $ch
@@ -8317,12 +8421,12 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     ###########################################################################
-    # PDF password padding string (ISO 32000 §7.6.3.3 step a)
+    # PDF password padding string (ISO 32000 ss.7.6.3.3 step a)
     # Used only for AES-128 (R=4).
     ###########################################################################
     method _EncPadStr {} {
-        # NOTE: PDF spec §7.6.3.3 byte 31 = 0x72, but qpdf/pikepdf use 0x7a
-        # (de-facto standard) – use 0x7a for interoperability.
+        # NOTE: PDF spec ss.7.6.3.3 byte 31 = 0x72, but qpdf/pikepdf use 0x7a
+        # (de-facto standard) -- use 0x7a for interoperability.
         return [binary format H64 \
             28BF4E5E4E758A4164004E56FFFA01082E2E00B6D0683E802F0CA9FE6453697A]
     }
@@ -8452,7 +8556,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # ===== AES-256 (V=5 R=6) algorithms =====
     ###########################################################################
 
-    # Algorithm 2.B: Key derivation for AES-256 (ISO 32000-2 §7.6.4.3.3)
+    # Algorithm 2.B: Key derivation for AES-256 (ISO 32000-2 ss.7.6.4.3.3)
     # password : UTF-8 bytes, max 127
     # salt     : 8 random bytes (validation-salt or key-salt)
     # ukey     : U entry (48 bytes) for owner hash, "" for user hash
@@ -8463,7 +8567,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     # only the first step: SHA-256(password || salt || ukey).
     # The full iterative loop produces ISO-correct but qpdf-incompatible PDFs.
     # We use SHA-256 directly for interoperability.
-    # Algorithm 2.B: Key derivation for AES-256 (ISO 32000-2 §7.6.4.3.3)
+    # Algorithm 2.B: Key derivation for AES-256 (ISO 32000-2 ss.7.6.4.3.3)
     # password : UTF-8 bytes, max 127
     # salt     : 8 random bytes (validation-salt or key-salt from U/O)
     # ukey     : U entry (48 bytes) when computing O-hash, "" for U-hash
@@ -8499,7 +8603,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     method _Alg2B {password salt ukey} {
-        # Alg. 2.B (ISO 32000-2 §7.6.4.3.3), qpdf-kompatibel.
+        # Alg. 2.B (ISO 32000-2 ss.7.6.4.3.3), qpdf-kompatibel.
         # Implementierung mit Tcllib aes (pure Tcl).
         # Bekannte Einschraenkung: AES-256-Erzeugung dauert ~20-25s
         # (Tcllib-AES auf grossen Bloecken in enger Schleife).
@@ -8554,7 +8658,7 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     # Algorithm 5: Compute Perms entry (AES-256, 16 bytes)
-    # ISO 32000-2 §7.6.4.4.5: encrypt with AES-256 in ECB mode (no IV).
+    # ISO 32000-2 ss.7.6.4.4.5: encrypt with AES-256 in ECB mode (no IV).
     # Note: CBC with IV=0 produces the same result for exactly one 16-byte
     # block, but ECB is the spec-correct mode and must be used explicitly.
     method _Alg5_256 {fileKey P} {
@@ -8718,7 +8822,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     ###########################################################################
     # Encrypt all PDF literal strings (...)  in the dictionary part of a body.
-    # Replaces (plaintext) with <encrypted-hex> per ISO 32000 §7.6.5.
+    # Replaces (plaintext) with <encrypted-hex> per ISO 32000 ss.7.6.5.
     # The stream content is not touched here (EncryptStreamBody handles that).
     # Called from FlushObjects for every non-Encrypt-Dict object.
     ###########################################################################

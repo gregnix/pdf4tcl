@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09417
+VERSION = 09418
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -24,7 +24,7 @@ pdf4tcl.html pdf4tcl.n : pdf4tcl.man mkdoc.tcl
 
 # Generate pdf4tcl.md from pdf4tcl.n via nroff2md.tcl
 md : pdf4tcl.n
-	$(TCLSH) tools/nroff2md.tcl pdf4tcl.n pdf4tcl.md
+	nroff2md.tcl pdf4tcl.n pdf4tcl.md
 
 checkdoc: pdf4tcl.tcl
 	@egrep 'method [a-z]' pdf4tcl.man | grep '\[call' | egrep -v 'method configure' | sed 's/[]["]/ /g' | sed 's/ arg / /g' | sed 's/  */ /g' | sed 's/call objectName/ /g' | sort > _docmeth

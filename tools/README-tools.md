@@ -1,5 +1,27 @@
 # tools/ -- Entwicklungswerkzeuge fuer pdf4tcl
 
+## Qualitätsprüfung
+
+### check-ascii.tcl
+Prüft alle Dateien in `src/` und `tests/` auf nicht-ASCII-Bytes.
+Nicht-ASCII in Tcl-Quellcode führt unter Windows Tcl 8.6 (ohne UTF-8-BOM)
+zu Syntaxfehlern (`missing close-brace`).
+
+```bash
+tclsh tools/check-ascii.tcl             # prüfen
+tclsh tools/check-ascii.tcl --verbose   # alle Dateien anzeigen
+tclsh tools/check-ascii.tcl --fix       # bekannte Symbole automatisch ersetzen
+                                        # (── -> --, — -> --, ä -> ae usw.)
+```
+
+Whitelist (absichtliche Unicode-Testdaten, werden übersprungen):
+`tests/regression.test`, `tests/tounicode.test`, `tests/nist-tests.tcl`
+
+Exit-Code 0 = sauber, 1 = Probleme gefunden.
+Kann in `make-release.tcl` als Schritt 0 eingebunden werden.
+
+---
+
 ## Versionsverwaltung
 
 ### bump.tcl
@@ -66,29 +88,6 @@ tclsh tools/extract-metrics.tcl font.afm >> src/stdmetrics.tcl
 ### glyphlist.txt
 Adobe Glyph List 2.0 -- Datendatei fuer `extract-glyphnames.tcl`.
 Nicht direkt ausfuehren.
-
----
-
-## tcl-sha Tcl-9-Portierung
-
-### tclsha-tcl9.patch
-Patch fuer tcl-sha 2.1.1 -- Tcl 9 Kompatibilitaet.
-Anwenden auf den entpackten Quellcode von tcl-sha 2.1.1:
-
-```bash
-cd sha-src-2.1.1
-patch -p1 < /pfad/zu/pdf4tcl/tools/tclsha-tcl9.patch
-```
-
-Aenderungen:
-- `tclsha.c`: Tcl_Size-Shim nach `#include <tcl.h>` (Tcl 8.6/9 kompatibel)
-- `tclsha.c`: `int` → `Tcl_Size` fuer alle OUT-Parameter von
-  `Tcl_GetStringFromObj` und `Tcl_GetUnicodeFromObj`
-- `pkgIndex.tcl`: `string totitle sha` fuer Tcl 9 Init-Funktionsname
-
-Vollstaendige Build-Anleitung:
-- Linux:   `doc/en/tcl-sha-tcl9-linux-build-anleitung.md`
-- Windows: `doc/en/tcl-sha-tcl9-windows-build-anleitung.md`
 
 ---
 

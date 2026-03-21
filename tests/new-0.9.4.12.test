@@ -3,7 +3,7 @@
 
 source init.tcl
 
-# ── Unit conversion procs ────────────────────────────────────────────────────
+# -- Unit conversion procs ----------------------------------------------------
 
 test unit-1.1 {pdf4tcl::mm: 25.4mm = 72pt} {
     expr {abs([pdf4tcl::mm 25.4] - 72.0) < 0.001}
@@ -29,7 +29,7 @@ test unit-1.6 {pdf4tcl::cm: 10cm} {
     expr {abs([pdf4tcl::cm 10] - 283.46) < 0.01}
 } 1
 
-# ── roundedRect ──────────────────────────────────────────────────────────────
+# -- roundedRect --------------------------------------------------------------
 
 test roundedrect-1.1 {roundedRect: creates PDF without error} {
     set f [makeFile {} test-roundedrect.pdf]
@@ -86,7 +86,7 @@ test roundedrect-1.6 {roundedRect: radius clamped to half shorter side} {
     file exists $f
 } 1
 
-# ── _ValidatePdfDate / metadata DateTime-Validierung ────────────────────────
+# -- _ValidatePdfDate / metadata DateTime-Validierung ------------------------
 
 test metadata-date-1.1 {metadata -creationdate: integer accepted} {
     set f [makeFile {} test-meta-date.pdf]
@@ -133,6 +133,6 @@ test metadata-date-1.5 {metadata: title + author in info dict} {
           [string match *Test* $content]}
 } 1
 
-# ── Cleanup ──────────────────────────────────────────────────────────────────
+# -- Cleanup ------------------------------------------------------------------
 
 cleanupTests

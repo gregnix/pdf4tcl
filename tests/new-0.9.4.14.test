@@ -35,7 +35,7 @@ proc makeTempXml {content} {
     return $f
 }
 
-# ── Grundfunktion ─────────────────────────────────────────────────────────────
+# -- Grundfunktion -------------------------------------------------------------
 
 test embedfile-1.1 {addEmbeddedFile: EmbeddedFile stream im PDF} {
     set f [makeFile {} test-emb1.pdf]
@@ -101,7 +101,7 @@ test embedfile-1.7 {addEmbeddedFile: kein EmbeddedFiles ohne Aufruf} {
     expr {![pdfContains $f "/EmbeddedFiles"]}
 } 1
 
-# ── Optionen ──────────────────────────────────────────────────────────────────
+# -- Optionen ------------------------------------------------------------------
 
 test embedfile-2.1 {addEmbeddedFile: -mimetype wird als /Subtype gesetzt} {
     set f [makeFile {} test-emb-mime.pdf]
@@ -143,7 +143,7 @@ test embedfile-2.4 {addEmbeddedFile: ohne -mimetype kein MIME-Subtype} {
     $pdf addEmbeddedFile "data.xml" -contents "<x/>"
     $pdf destroy
     # Fonts haben /Subtype /Name (kein String-Literal).
-    # MIME wäre /Subtype (application/...) -- PDF-String in Klammern.
+    # MIME waere /Subtype (application/...) -- PDF-String in Klammern.
     expr {![pdfContains $f "/Subtype ("]}
 } 1
 
@@ -156,7 +156,7 @@ test embedfile-2.5 {addEmbeddedFile: /Params /Size gesetzt} {
     pdfContains $f "/Params << /Size 5 >>"
 } 1
 
-# ── Mehrere Dateien ───────────────────────────────────────────────────────────
+# -- Mehrere Dateien -----------------------------------------------------------
 
 test embedfile-3.1 {addEmbeddedFile: zwei Dateien -- beide im NameTree} {
     set f [makeFile {} test-emb-multi.pdf]
@@ -178,7 +178,7 @@ test embedfile-3.2 {addEmbeddedFile: zwei /Type /EmbeddedFile Streams} {
     expr {[pdfCount $f "/Type /EmbeddedFile"] == 2}
 } 1
 
-# ── Datei von Disk lesen ──────────────────────────────────────────────────────
+# -- Datei von Disk lesen ------------------------------------------------------
 
 test embedfile-4.1 {addEmbeddedFile: ohne -contents liest Datei von Disk} {
     set xmlf [makeTempXml "<invoice>from-disk</invoice>"]
@@ -200,7 +200,7 @@ test embedfile-4.2 {addEmbeddedFile: basename aus Pfad wird als Name benutzt} {
     pdfContains $f "([file tail $xmlf])"
 } 1
 
-# ── Fehlerbehandlung ──────────────────────────────────────────────────────────
+# -- Fehlerbehandlung ----------------------------------------------------------
 
 test embedfile-5.1 {addEmbeddedFile: unbekannte Option -> throw} {
     set f [makeFile {} test-emb-err1.pdf]
@@ -211,7 +211,7 @@ test embedfile-5.1 {addEmbeddedFile: unbekannte Option -> throw} {
     string match "*unknown option*" $err
 } 1
 
-test embedfile-5.2 {addEmbeddedFile: ungültiger -afrelationship -> throw} {
+test embedfile-5.2 {addEmbeddedFile: ungueltiger -afrelationship -> throw} {
     set f [makeFile {} test-emb-err2.pdf]
     set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
     $pdf startPage
@@ -248,7 +248,7 @@ test embedfile-5.5 {addEmbeddedFile: PDF/A-2b -> kein Fehler} {
     expr {$rc == 0}
 } 1
 
-# ── Coexistenz mit anderen Features ──────────────────────────────────────────
+# -- Coexistenz mit anderen Features ------------------------------------------
 
 test embedfile-6.1 {addEmbeddedFile: zusammen mit Lesezeichen} {
     set f [makeFile {} test-emb-bm.pdf]
@@ -279,6 +279,6 @@ test embedfile-6.3 {addEmbeddedFile: /UF (Unicode filename) gesetzt} {
     pdfContains $f "/UF"
 } 1
 
-# ── Cleanup ───────────────────────────────────────────────────────────────────
+# -- Cleanup -------------------------------------------------------------------
 
 cleanupTests
