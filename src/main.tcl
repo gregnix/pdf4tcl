@@ -865,11 +865,15 @@ oo::define ::pdf4tcl::pdf4tcl {
         # XMP-Stream-Laenge als UTF-8-Bytes (nicht Tcl-Zeichen),
         # da der Binary-Channel non-ASCII-Chars als UTF-8 schreibt.
         set xmp [my _BuildXMPStream]
-        set xmpLen [string length [encoding convertto utf-8 $xmp]]
+        # Tcl 9: encoding convertto utf-8 liefert einen Bytearray-String.
+        # Diesen direkt in pdf(ob) akkumulieren verhindert EILSEQ beim
+        # Schreiben auf den iso8859-1-Channel in write/get.
+        set xmpBytes [encoding convertto utf-8 $xmp]
+        set xmpLen [string length $xmpBytes]
         my Pdfout "$xmp_oid 0 obj\n"
         my Pdfout "<< /Type /Metadata /Subtype /XML /Length $xmpLen >>\n"
         my Pdfout "stream\n"
-        my Pdfout $xmp
+        my Pdfout $xmpBytes
         my Pdfout "\nendstream\nendobj\n\n"
 
         # PDF/A OutputIntent objects (ISO 19005-1 SS6.2.2)

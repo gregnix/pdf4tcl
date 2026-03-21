@@ -1,0 +1,250 @@
+# new-0.9.4.18.test -- Tests fuer pdf4tcl 0.9.4.18
+# Tcl-9-Kompatibilitaet: write, _ValidatePdfDate, CleanText, SHA pure-Tcl
+#
+# Diese Tests pruefen Verhalten das unter Tcl 8.6 und Tcl 9 identisch
+# sein muss. Kein spezifischer Tcl-9-Constraint noetig -- alle Tests
+# laufen auf beiden Versionen.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+proc makePdf {body} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    uplevel 1 [list apply [list {p} $body] $p]
+    $p endPage
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+proc makePdfToFile {fname body} {
+    set f [makeFile {} $fname]
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    uplevel 1 [list apply [list {p} $body] $p]
+    $p endPage
+    $p write -file $f
+    $p destroy
+    removeFile $f
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# 18-1.x  write: Ausgabe enthaelt gueltige PDF-Struktur
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.18-1.1 {write: Ergebnis von get() ist nicht leer} -body {
+    set data [makePdf {$p text "Hello" -x 50 -y 50}]
+    expr {[string length $data] > 100}
+} -result 1
+
+test new-0.9.4.18-1.2 {write: PDF-Header vorhanden} -body {
+    set data [makePdf {$p text "Hello" -x 50 -y 50}]
+    string match "%PDF-*" $data
+} -result 1
+
+test new-0.9.4.18-1.3 {write: PDF endet mit %%EOF} -body {
+    set data [makePdf {$p text "Hello" -x 50 -y 50}]
+    string match "*%%EOF*" $data
+} -result 1
+
+test new-0.9.4.18-1.4 {write -file: Datei wird korrekt geschrieben} -body {
+    makePdfToFile new18_write.pdf {$p text "Hello" -x 50 -y 50}
+} -result 0
+
+test new-0.9.4.18-1.5 {write: Latin-1 Sonderzeichen (ae oe ue) kein Fehler} -body {
+    makePdfToFile new18_latin1.pdf {
+        $p text "Gruss aus Muenchen: ae oe ue ss" -x 50 -y 50
+    }
+} -result 0
+
+# ---------------------------------------------------------------------------
+# 18-2.x  _ValidatePdfDate: Timestamp-Bereich
+# Tcl 9 akzeptiert beliebig grosse integers in string is integer.
+# Werte >= 10^12 sollen als Datum-String interpretiert werden, nicht
+# als Unix-Timestamp.
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.18-2.1 {_ValidatePdfDate: Unix-Timestamp wird akzeptiert} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    set rc [catch {$p metadata -creationdate 1000000000} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 0
+
+test new-0.9.4.18-2.2 {_ValidatePdfDate: Grosse Zahl (>= 10^12) wird abgelehnt} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    set rc [catch {$p metadata -creationdate 20260315120000} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 1
+
+test new-0.9.4.18-2.3 {_ValidatePdfDate: D:-Format wird akzeptiert} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    set rc [catch {$p metadata -creationdate "D:20260315120000"} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 0
+
+test new-0.9.4.18-2.4 {_ValidatePdfDate: Ungueltige Zeichenkette wirft Fehler} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    set rc [catch {$p metadata -creationdate "kein-datum"} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 18-3.x  CleanText: nicht-darstellbare Zeichen
+# Tcl 9 wirft Fehler bei encoding convertto fuer Zeichen ausserhalb
+# des Font-Encodings. CleanText muss zeichenweise konvertieren.
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.18-3.1 {CleanText: ASCII-Text unveraendert} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    set rc [catch {$p text "Hello World" -x 50 -y 50} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 0
+
+test new-0.9.4.18-3.2 {CleanText: Zeichen ausserhalb WinAnsi kein Fehler} -body {
+    # U+4E2D (chinesisches Zeichen) ist ausserhalb WinAnsi --
+    # kein Fehler, aber als '?' gerendert
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    set rc [catch {$p text "\u4e2d\u6587" -x 50 -y 50} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 0
+
+test new-0.9.4.18-3.3 {CleanText: Gemischter ASCII + nicht-WinAnsi kein Fehler} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    set rc [catch {$p text "A\u4e2dB\u6587C" -x 50 -y 50} err]
+    $p endPage
+    $p destroy
+    set rc
+} -result 0
+
+# ---------------------------------------------------------------------------
+# 18-4.x  metadata mit Unicode > U+00FF
+# cidfont-9.2: metadata -title mit En-Dash darf keinen EILSEQ werfen.
+# SafeQuoteString ersetzt > U+00FF durch '?'; XMP-Stream wird als
+# UTF-8-Bytes akkumuliert.
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.18-4.1 {metadata: title mit En-Dash (U+2013) kein Fehler} -body {
+    makePdfToFile new18_meta_dash.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Bericht 2026 \u2013 Zusammenfassung"
+    }
+} -result 0
+
+test new-0.9.4.18-4.2 {metadata: title mit Umlaut kein Fehler} -body {
+    makePdfToFile new18_meta_uml.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Jahresbericht Muenchen"
+    }
+} -result 0
+
+test new-0.9.4.18-4.3 {metadata: author und title gemeinsam kein Fehler} -body {
+    makePdfToFile new18_meta_multi.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Bericht \u2013 2026" -author "Mueller"
+    }
+} -result 0
+
+test new-0.9.4.18-4.4 {metadata: XMP-Stream enthaelt UTF-8 fuer En-Dash} -body {
+    set data [makePdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "T \u2013 S"
+    }]
+    # En-Dash U+2013 = UTF-8 E2 80 93
+    # Im XMP-Stream muss die UTF-8-Sequenz stehen (als Bytes)
+    set utf8_endash "\xe2\x80\x93"
+    expr {[string first $utf8_endash $data] >= 0}
+} -result 1
+
+test new-0.9.4.18-4.5 {metadata: Info-Dict enthaelt ? fuer En-Dash (SafeQuoteString)} -body {
+    set data [makePdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "A \u2013 B"
+    }]
+    # Im Info-Dict (ausserhalb XMP) muss ? stehen, nicht U+2013
+    regexp {/Title\s*\(([^)]*)\)} $data -> infoTitle
+    # SafeQuoteString: En-Dash -> ?
+    string match "*?*" $infoTitle
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 18-5.x  SHA pure-Tcl Backend
+# sha2pure muss als Fallback-Backend immer verfuegbar sein.
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.18-5.1 {sha2pure: Namespace existiert} -body {
+    namespace exists ::pdf4tcl::sha2pure
+} -result 1
+
+test new-0.9.4.18-5.2 {sha2pure::sha512bin: Ausgabe ist 64 Bytes} -body {
+    string length [::pdf4tcl::sha2pure::sha512bin "test"]
+} -result 64
+
+test new-0.9.4.18-5.3 {sha2pure::sha384bin: Ausgabe ist 48 Bytes} -body {
+    string length [::pdf4tcl::sha2pure::sha384bin "test"]
+} -result 48
+
+test new-0.9.4.18-5.4 {sha2pure::sha512bin: NIST-Vektor abc} -body {
+    binary encode hex [::pdf4tcl::sha2pure::sha512bin "abc"]
+} -result "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+
+test new-0.9.4.18-5.5 {sha2pure::sha384bin: NIST-Vektor abc} -body {
+    binary encode hex [::pdf4tcl::sha2pure::sha384bin "abc"]
+} -result "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7"
+
+test new-0.9.4.18-5.6 {sha2pure::sha512bin: Binaerdaten kein Fehler} -body {
+    set data [binary format H16 deadbeef00ff807f]
+    string length [::pdf4tcl::sha2pure::sha512bin $data]
+} -result 64
+
+test new-0.9.4.18-5.7 {_shaBackend: pure-tcl Fallback setzbar} -body {
+    set old [expr {[info exists ::pdf4tcl::_shaBackend] ? \
+        $::pdf4tcl::_shaBackend : ""}]
+    set ::pdf4tcl::_shaBackend pure-tcl
+    set p [pdf4tcl::new %AUTO% -paper a4 \
+        -userpassword "t" -encversion 5]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "SHA pure-tcl" -x 50 -y 50
+    $p endPage
+    set data [$p get]
+    $p destroy
+    if {$old ne ""} { set ::pdf4tcl::_shaBackend $old } else {
+        unset ::pdf4tcl::_shaBackend
+    }
+    expr {[regexp {/V 5} $data] && [regexp {/R 6} $data]}
+} -constraints {aes256} -result 1
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests

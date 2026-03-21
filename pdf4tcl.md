@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.18?**
+package require **pdf4tcl ?0****.9****.4****.19?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -992,6 +992,12 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 ```
 
 ## CHANGES
+
+### VERSION 0.9.4.19
+
+- (**encoding convertto utf-8** before **Pdfout**). Fixes EILSEQ when **metadata** **-title** contains codepoints above U+00FF under Tcl 9. Resolves knownbug cidfont-9.2.
+- cidfont-9.2.
+- **write**, **_ValidatePdfDate**, **CleanText**, metadata Unicode handling, and **::pdf4tcl::sha2pure** NIST vectors.
 
 ### VERSION 0.9.4.18
 

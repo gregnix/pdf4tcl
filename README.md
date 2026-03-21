@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.18)
+# pdf4tcl fork (0.9.4.19)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -15,8 +15,6 @@ The focus is on extending the 0.9.4.x line with practical features:
 full Unicode via CID fonts, PDF/A-1b/2b support, transparency, and
 AES-256 encryption -- covering real-world PDF generation needs in Tcl.
 
-There are no plans to diverge from the upstream versioning scheme or
-to replace the official project.
 
 ## Requirements
 

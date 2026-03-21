@@ -1,14 +1,69 @@
 2026-03-21 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.19
+
+	* src/main.tcl: XMP-Stream wird als UTF-8-Bytes akkumuliert
+	  (encoding convertto utf-8 vor Pdfout). Behebt EILSEQ-Fehler
+	  bei metadata -title mit Unicode > U+00FF unter Tcl 9.
+	  (knownbug cidfont-9.2 behoben)
+
+	* tests/cidfont.test: knownbug-Constraint aus cidfont-9.2 entfernt.
+
+	* tests/new-0.9.4.18.test: 24 neue Tests (write, _ValidatePdfDate,
+	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
+
+
+2026-03-21 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.19
+
+	* src/main.tcl: XMP-Stream wird als UTF-8-Bytes akkumuliert
+	  (encoding convertto utf-8 vor Pdfout). Behebt EILSEQ-Fehler
+	  bei metadata -title mit Unicode > U+00FF unter Tcl 9.
+	  (knownbug cidfont-9.2 behoben)
+
+	* tests/cidfont.test: knownbug-Constraint aus cidfont-9.2 entfernt.
+
+	* tests/new-0.9.4.18.test: 24 neue Tests (write, _ValidatePdfDate,
+	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
+
+
+2026-03-21 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.19
+
+	* src/main.tcl: XMP-Stream wird als UTF-8-Bytes akkumuliert
+	  (encoding convertto utf-8 vor Pdfout). Behebt EILSEQ-Fehler
+	  bei metadata -title mit Unicode > U+00FF unter Tcl 9.
+	  (knownbug cidfont-9.2 behoben)
+
+	* tests/cidfont.test: knownbug-Constraint aus cidfont-9.2 entfernt.
+
+	* tests/new-0.9.4.18.test: 24 neue Tests (write, _ValidatePdfDate,
+	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
+
+
+2026-03-21 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.19
+
+	* src/main.tcl: XMP-Stream wird als UTF-8-Bytes akkumuliert
+	  (encoding convertto utf-8 vor Pdfout). Behebt EILSEQ-Fehler
+	  bei metadata -title mit Unicode > U+00FF unter Tcl 9.
+	  (knownbug cidfont-9.2 behoben)
+
+	* tests/cidfont.test: knownbug-Constraint aus cidfont-9.2 entfernt.
+
+	* tests/new-0.9.4.18.test: 24 neue Tests (write, _ValidatePdfDate,
+	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
+
+
+2026-03-21 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.18
 	* aes256
 
-2026-03-19 Gregor  <gregnix@github>
-
-	* Bumped revision to 0.9.4.18
-	* aes256
-
-# 2026-03-19 Gregor  <gregnix@github>
+2026-03-21 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.18
 
