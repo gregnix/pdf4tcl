@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# diagnose.tcl — Check which pdf4tcl is loaded and verify v2.1 features.
+# diagnose.tcl -- Check which pdf4tcl is loaded and verify v2.1 features.
 # Run from the tests/ directory:  tclsh diagnose.tcl
 
 set tmp [file join [pwd] ..]
@@ -36,7 +36,7 @@ set fail 0
 proc check {desc script} {
     upvar pass pass fail fail
     if {[catch {uplevel 1 $script} err]} {
-        puts "  FAIL: $desc — $err"
+        puts "  FAIL: $desc -- $err"
         incr fail
     } else {
         puts "  OK:   $desc"

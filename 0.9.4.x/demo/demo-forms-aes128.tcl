@@ -10,7 +10,7 @@ set scriptDir [file dirname [file normalize [info script]]]
 set auto_path  [linsert $auto_path 0 $scriptDir]
 package require pdf4tcl 0.9.4.16
 
-set outfile [file join $scriptDir demo-forms-ase128.pdf]
+set outfile [file join $scriptDir demo-forms-aes128.pdf]
 set user    "geheim"
 set owner   "admin"
 

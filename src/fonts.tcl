@@ -617,10 +617,15 @@ space instead of the usual empty rectangle."
     # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) map to U+FFFD.
     # Result is a complete CMap stream string ready for MakeStream.
     proc MakeStdToUnicodeCMap {fontname} {
-        # Build cp1252 -> Unicode table byte-by-byte (Tcl 9.0 safe)
+        # Build cp1252 -> Unicode table byte-by-byte (Tcl 8.6 + 9.0 safe)
+        # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) -> 0xFFFD
+        # in beiden Versionen -- Tcl 8.6 gibt sonst C1-Controls (U+0081 etc.)
+        set undefinedCp1252 {0x81 0x8D 0x8F 0x90 0x9D}
         set subset {}
         for {set i 0} {$i < 256} {incr i} {
-            if {[catch {
+            if {$i in $undefinedCp1252} {
+                lappend subset 0xFFFD
+            } elseif {[catch {
                 set ch [encoding convertfrom cp1252 [binary format cu $i]]
                 lappend subset [scan $ch %c]
             }]} {
@@ -682,7 +687,7 @@ space instead of the usual empty rectangle."
         append cmap "1 begincodespacerange\n"
         append cmap "<00> <[format %02X [expr {$len-1}]]>\n"
         append cmap "endcodespacerange\n"
-        # PDF spec §9.10.3: max 100 entries per beginbfchar block.
+        # PDF spec ss.9.10.3: max 100 entries per beginbfchar block.
         set f 0
         set remaining $len
         while {$remaining > 0} {

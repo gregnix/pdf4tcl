@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.17]
+[manpage_begin pdf4tcl n 0.9.4.18]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.17]]
+[require pdf4tcl [opt 0.9.4.18]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1325,10 +1325,11 @@ Set the encryption version. Must be [const 4] (AES-128, default) or
 [para]
 [const 4]: AES-128, V=4/R=4, PDF 1.5+. Pure Tcl, no external programs.
 [para]
-[const 5]: AES-256, V=5/R=6, PDF 2.0. Requires [cmd openssl] in PATH
-for SHA-384/SHA-512 computation. Generates approximately 2-4 seconds
-of processing time per document due to multiple [cmd openssl] subprocess
-invocations.
+[const 5]: AES-256, V=5/R=6, PDF 2.0. SHA-384/SHA-512 is selected
+automatically from three backends in priority order:
+[const tcl-sha] (C extension, fastest, optional),
+[cmd openssl] (if in PATH), or a pure-Tcl fallback (always available,
+approx. 24 seconds per document). No external program is required.
 [para]
 This option can only be set at object creation.
 
@@ -1414,11 +1415,59 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 [section CHANGES]
 
+[subsection {Version 0.9.4.18}]
+[list_begin itemized]
+[item] Tcl 9 compatibility: pdf4tcl runs under both Tcl 8.6 and Tcl 9.0.
+[item] [file src/encrypt.tcl]: [method _InitSHABackend] selects the correct
+SHA library path under Tcl 9. SHA output uses hex encoding and
+[cmd {binary decode hex}] for binary-safe results on all platforms.
+[item] [file src/encrypt.tcl]: New methods [method _AesCbc] and
+[method _AesEcb] wrap all [cmd {aes::aes}] calls with
+[cmd {binary format a*}] to guarantee bytearrays under Tcl 8.6 and Tcl 9.
+[item] [file src/helpers.tcl]: [method CleanText] handles non-convertible
+characters one by one using [cmd catch] -- Tcl 9 throws instead of
+substituting.
+[item] [file src/main.tcl]: [method write] sets [option {-encoding iso8859-1}]
+in addition to [option {-translation binary}] to prevent EILSEQ errors
+under Tcl 9.
+[item] [file src/main.tcl]: [method _ValidatePdfDate] checks Unix timestamp
+range (below 10^12) -- Tcl 9 accepts arbitrarily large integers in
+[cmd {string is integer}].
+[item] Makefile: [var {TCLSH ?=}] allows override via environment.
+[item] [file tests/util.test]: [option {-translation binary}] replaces
+[option {-encoding binary}] (removed in Tcl 9).
+[item] [file tests/examples.test]: example PDFs are auto-regenerated when
+the Tcl version changes ([file .tclver] fingerprint file).
+[item] [file tests/cidfont.test]: test cidfont-9.2 marked as knownbug.
+[item] [file tools/tcl9env.sh]: new file -- sets Tcl 9 environment for
+[cmd {make test}] and [cmd {make example}].
+[list_end]
+
+[subsection {Version 0.9.4.17}]
+[list_begin itemized]
+[item] [file src/encrypt.tcl]: AES-256 string encryption
+([method EncryptStringsInBody], [method _PdfLiteralToBytes]) wired into
+four call sites in [file src/main.tcl]: FlushObjects, radio group parent,
+info dictionary, and bookmarks. Fixes AcroForm field corruption in
+encrypted documents.
+[item] [file src/encrypt.tcl]: SHA-384/512 pure-Tcl implementation
+([cmd {::pdf4tcl::sha2pure}], NIST FIPS 180-4 compliant). AES-256
+no longer requires any external program.
+[item] SHA backend priority: [const tcl-sha] (C extension) >
+[cmd openssl] (if in PATH) > pure-Tcl fallback (always available).
+[item] Combobox and listbox generate their own appearance streams.
+[const NeedAppearances] is never set; all field types coexist correctly
+with signature fields.
+[item] New options [option -required] and [option -label] in
+[method addForm].
+[list_end]
+
 [subsection {Version 0.9.4.16}]
 [list_begin itemized]
 [item] AES-256 encryption (V=5, R=6, PDF 2.0, ISO 32000-2 §7.6.4).
 New option [option -encversion]: [const 4] (AES-128, default) or
-[const 5] (AES-256). AES-256 requires [cmd openssl] in PATH.
+[const 5] (AES-256). SHA-384/512 via openssl subprocess (superseded
+by pure-Tcl fallback in 0.9.4.17).
 Algorithm 2.B implemented after pypdf/qpdf reference
 ([file libqpdf/QPDF_encryption.cc]).
 [item] Fixed [file src/main.tcl]: Makefile dependency

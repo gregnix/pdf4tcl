@@ -98,5 +98,10 @@ if {[auto_execok openssl] ne ""} {
     incr skip
 }
 
-puts "\n=== Ergebnis: $pass bestanden, $fail fehlgeschlagen, $skip uebersprungen ===\n"
+# --- pure-tcl testen (immer verfuegbar) ---
+testWithBackend pure-tcl
+
+puts ""
+puts "=== Ergebnis: $pass bestanden, $fail fehlgeschlagen, $skip uebersprungen ==="
+puts ""
 exit $fail

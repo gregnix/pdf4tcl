@@ -11,6 +11,34 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.18 (2026-03-21, fork gregnix):<br>
+<ul>
+  <li>Tcl 9 compatibility: pdf4tcl runs under both Tcl 8.6 and Tcl 9.0</li>
+  <li>encrypt.tcl: SHA backend auto-selects correct path under Tcl 9</li>
+  <li>encrypt.tcl: SHA output via hex + binary decode hex (Tcl 9 binary-safe)</li>
+  <li>encrypt.tcl: _AesCbc/_AesEcb use binary format a* for guaranteed bytearrays</li>
+  <li>helpers.tcl: CleanText char-by-char fallback for encoding convertto (Tcl 9)</li>
+  <li>main.tcl: write adds -encoding iso8859-1 to fix EILSEQ under Tcl 9</li>
+  <li>main.tcl: _ValidatePdfDate checks Unix timestamp range (Tcl 9 big-int)</li>
+  <li>Makefile: TCLSH ?= allows override via environment</li>
+  <li>tests: -encoding binary replaced by -translation binary (Tcl 9)</li>
+  <li>tests: example PDFs auto-regenerated when Tcl version changes</li>
+  <li>tools: bump.tcl rewritten, tcl9env.sh added</li>
+</ul>
+
+Changes in v0.9.4.17 (2026-03-19, fork gregnix):<br>
+<ul>
+  <li><b>String encryption</b> (ISO 32000 §7.6.5): EncryptStringsInBody
+       encrypts all PDF literal strings in object dictionaries (/T, /DA,
+       /V, /TU, /CA). Fixes AcroForm field corruption in encrypted documents.</li>
+  <li><b>SHA-384/512 pure-Tcl</b> (::pdf4tcl::sha2pure, NIST FIPS 180-4).
+       AES-256 no longer requires any external program. SHA backend priority:
+       tcl-sha (C extension) &gt; openssl (if in PATH) &gt; pure-Tcl fallback.</li>
+  <li>Combobox and listbox generate own appearance streams; NeedAppearances
+       is never set. All field types coexist correctly with signature fields.</li>
+  <li>New addForm options: -required, -label.</li>
+</ul>
+
 Changes in v0.9.4.16 (2026-03-17/18, fork gregnix):<br>
 <ul>
   <li> Windows: twapi-Fix (twapi::sha384 returns SHA-1 not SHA-384 -- removed);
@@ -18,13 +46,10 @@ Changes in v0.9.4.16 (2026-03-17/18, fork gregnix):<br>
   <li> <b>AES-256 encryption</b> (V=5, R=6, PDF 2.0) via new option
        <b>-encversion 5</b>. Algorithm 2.B compatible with qpdf
        (password||K||ukey, sum(E[0:16])%3, K keeps full SHA-384/512
-       length in loop). SHA-384/512 via openssl stdin pipe. </li>
+       length in loop). SHA-384/512 via openssl stdin pipe
+       (pure-Tcl fallback added in 0.9.4.17). </li>
   <li> Bugfix: Algorithm 2.B K-truncation: K now keeps full 48/64 byte
        length after SHA-384/512 within the iteration loop. </li>
-  <li> <b>String encryption</b> (ISO 32000 §7.6.5): new method
-       EncryptStringsInBody encrypts all PDF literal strings in object
-       dictionaries. Fixes AcroForm field corruption in encrypted
-       documents (/T, /DA, /V, /TU, /CA). </li>
   <li> pdflab2.tcl: AES-256 support (showEncDict, showEncryptVerify,
        H4/KRITISCH-2). New verify_enc3.py for AES-256 verification. </li>
   <li> tests: new-0.9.4.16.test with 29 tests for AES-256 and

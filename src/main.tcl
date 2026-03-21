@@ -207,7 +207,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             set pdf(version) 1.4
         }
         my Pdfout "%PDF-$pdf(version)\n"
-        # PDF spec §7.5.2: comment with ≥4 bytes > 0x7F marks file as binary.
+        # PDF spec ss.7.5.2: comment with >=4 bytes > 0x7F marks file as binary.
         # PDF/A also requires this. Use 4 high bytes.
         my Pdfout "%\xE5\xE4\xF6\xE7\n"
     }
@@ -862,7 +862,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Always written so the /Metadata reference in the Catalog is valid.
         # Synchronises Info Dict fields into XMP properties.
         my StoreXref $xmp_oid
-        # XMP-Stream-Länge als UTF-8-Bytes (nicht Tcl-Zeichen),
+        # XMP-Stream-Laenge als UTF-8-Bytes (nicht Tcl-Zeichen),
         # da der Binary-Channel non-ASCII-Chars als UTF-8 schreibt.
         set xmp [my _BuildXMPStream]
         set xmpLen [string length [encoding convertto utf-8 $xmp]]
@@ -924,7 +924,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Encrypt dictionary (V=4/R=4) written before xref.
-        # The dict itself is NOT encrypted (ISO 32000 §7.6.1).
+        # The dict itself is NOT encrypted (ISO 32000 ss.7.6.1).
         set encdict_oid ""
         if {$pdf(encrypt)} {
             set encdict_oid [my WriteEncryptDict]
@@ -942,7 +942,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Document trailer
-        # /ID is required by PDF spec (ISO 32000 §7.5.5) and PDF/A.
+        # /ID is required by PDF spec (ISO 32000 ss.7.5.5) and PDF/A.
         # Encrypted documents use a random ID (computed in InitEncrypt).
         # Unencrypted documents use a deterministic content-based ID.
         if {$pdf(encrypt)} {
@@ -1219,7 +1219,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # XMP packet -- kein BOM im xpacket-Attribut (vermeidet UTF-8/Latin-1-Laengenproblem)
-        # Gemäss ISO 32000 SS7.11.3: encoding="UTF-8" reicht als Deklaration.
+        # Gemaess ISO 32000 SS7.11.3: encoding="UTF-8" reicht als Deklaration.
         set x "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
         append x "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n"
         append x " <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n"
@@ -1281,7 +1281,7 @@ Use -pdfa-icc to specify a profile path."
         append x "   <pdf:Producer>$producer</pdf:Producer>\n"
         # pdfaid Identification (ISO 19005-1 SS6.7.11) -- nur wenn -pdfa gesetzt
         if {$options(-pdfa) ne ""} {
-            # pdfaid:part = "1" für 1b/1a, "2" für 2b/2a
+            # pdfaid:part = "1" fuer 1b/1a, "2" fuer 2b/2a
             set pdfaid_part [string index $options(-pdfa) 0]
             # pdfaid:conformance = "B" oder "A" (uppercase)
             set pdfaid_conf [string toupper [string index $options(-pdfa) 1]]
@@ -1861,7 +1861,7 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # 1. Font binary data (full original font file)
-        # TTF: /Length1 = uncompressed size (required by PDF spec §9.9)
+        # TTF: /Length1 = uncompressed size (required by PDF spec ss.9.9)
         # CFF/OTF: /Subtype /OpenType (FontFile3, no /Length1)
         set rawttf $BFP($BFN,rawttf)
         set lc [string length $rawttf]
@@ -1930,7 +1930,7 @@ Use -pdfa-icc to specify a profile path."
                     lassign $entry glyph ucode
                     # PDF ToUnicode CMap: BMP codepoints as <XXXX>,
                     # SMP codepoints (U+10000..U+10FFFF) as UTF-16BE
-                    # surrogate pair <XXXXXXXX> (PDF spec §9.10.3).
+                    # surrogate pair <XXXXXXXX> (PDF spec ss.9.10.3).
                     if {$ucode <= 0xFFFF} {
                         set ucstr [format "%04X" $ucode]
                     } else {
@@ -2966,7 +2966,7 @@ Use -pdfa-icc to specify a profile path."
         return [list $pdf(fillAlpha) $pdf(strokeAlpha)]
     }
 
-    # ── setBlendMode (0.9.4.13) ──────────────────────────────────────────────
+    # -- setBlendMode (0.9.4.13) ----------------------------------------------
     # Set the blend mode for subsequent graphics operations.
     # Valid modes (PDF 1.4+):
     #   Normal Multiply Screen Overlay Darken Lighten ColorDodge ColorBurn
@@ -3005,7 +3005,7 @@ Use -pdfa-icc to specify a profile path."
         return $pdf(blendMode)
     }
 
-    # ── linearGradient (0.9.4.13) ────────────────────────────────────────────
+    # -- linearGradient (0.9.4.13) --------------------------------------------
     # Paint a linear gradient between two points.
     # x1 y1 x2 y2: start and end coordinates (in user units)
     # color1 color2: colors as {r g b} lists or named colors
@@ -3042,7 +3042,7 @@ Use -pdfa-icc to specify a profile path."
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
     }
 
-    # ── radialGradient (0.9.4.13) ────────────────────────────────────────────
+    # -- radialGradient (0.9.4.13) --------------------------------------------
     # Paint a radial gradient between two circles.
     # cx1 cy1 r1: center and radius of start circle
     # cx2 cy2 r2: center and radius of end circle
@@ -3081,7 +3081,7 @@ Use -pdfa-icc to specify a profile path."
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
     }
 
-    # ── _colorToRGB helper ───────────────────────────────────────────────────
+    # -- _colorToRGB helper ---------------------------------------------------
     # Accept {r g b} list (0.0-1.0) or named color or #rrggbb hex.
     method _colorToRGB {color} {
         if {[llength $color] == 3} {
@@ -4302,7 +4302,7 @@ Use -pdfa-icc to specify a profile path."
         set fsid $files($fid)
 
         # Create annotation
-        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 §6.5.3)
+        # /F 4 = Print flag set, Hidden/Invisible/NoView = 0 (PDF/A-1 ss.6.5.3)
         set andict "<< /Type /Annot\n"
         append andict "  /Subtype /FileAttachment\n"
         append andict "  /F 4\n"
@@ -4324,7 +4324,7 @@ Use -pdfa-icc to specify a profile path."
 
     # Embed a file silently in the PDF Catalog NameTree (no visible annotation).
     # For electronic invoices (ZUGFeRD, Factur-X) and other attachments.
-    # NOT allowed in PDF/A-1 (ISO 19005-1 §6.1.7); allowed in PDF/A-3.
+    # NOT allowed in PDF/A-1 (ISO 19005-1 ss.6.1.7); allowed in PDF/A-3.
     #
     # addEmbeddedFile filename ?options?
     #
@@ -4336,10 +4336,10 @@ Use -pdfa-icc to specify a profile path."
     #   -afrelationship rel  PDF/A-3 AFRelationship: Alternative|Data|Source|
     #                        Supplement|Unspecified (default: "")
     method addEmbeddedFile {filename args} {
-        # PDF/A-1 guard (ISO 19005-1 §6.1.7 forbids EmbeddedFiles)
+        # PDF/A-1 guard (ISO 19005-1 ss.6.1.7 forbids EmbeddedFiles)
         if {[string match "1*" $options(-pdfa)]} {
             throw {PDF4TCL} \
-                "addEmbeddedFile: embedded files are not allowed in PDF/A-1 (ISO 19005-1 §6.1.7)"
+                "addEmbeddedFile: embedded files are not allowed in PDF/A-1 (ISO 19005-1 ss.6.1.7)"
         }
 
         set contents       ""
@@ -4598,7 +4598,7 @@ Use -pdfa-icc to specify a profile path."
     method _BuildRadioAP {width height} {
         my SetupZaDbFont
         set obj [my _FormXObjHeader $width $height]
-        # On state: filled circle (bullet char 108 in ZapfDingbats = ●)
+        # On state: filled circle (bullet char 108 in ZapfDingbats = (bullet))
         set fs [expr {$height * 0.8}]
         set cX [expr {($width - $fs * 0.52) / 2.0}]
         set cY [expr {$height * 0.15}]
@@ -4826,7 +4826,7 @@ Use -pdfa-icc to specify a profile path."
             if {$radioValue eq ""} {
                 throw {PDF4TCL} "-value is required for radiobutton"
             }
-            # Group and value are used as PDF names — must be alphanumeric
+            # Group and value are used as PDF names -- must be alphanumeric
             my CheckWord -group $groupName
             my CheckWord -value $radioValue
             if {$idStr eq ""} {
