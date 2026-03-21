@@ -124,6 +124,12 @@ NIST test vectors (nist-tests.tcl, 25/25). No external tool or package
 install required. Performance: SHA itself < 1 s; the bottleneck is
 Tcllib AES (~24 s/PDF).
 
+**Metadata Unicode fix (0.9.4.19):**
+`metadata -title` with characters above U+00FF (e.g. en-dash `–`) no
+longer causes EILSEQ under Tcl 9. The XMP stream is accumulated as
+UTF-8 bytes; the Info dictionary uses `SafeQuoteString` which replaces
+codepoints above U+00FF with `?`.
+
 ## Limitations
 
 - AES-256 is a write-only implementation. pdf4tcl cannot read or decrypt

@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09418
+VERSION = 09419
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -128,6 +128,14 @@ release: pdf4tcl.tcl doc
 	@cp release/pdf4tcl.tar.gz release/pdf4tcl`date +%Y%m%d`.tar.gz
 	@mv release/pdf4tcl.tar.gz release/pdf4tcl$(VERSION).tar.gz
 	@ls -lh release/pdf4tcl$(VERSION).tar.gz
+
+zip: pdf4tcl.tcl doc
+	@mkdir -p release
+	@rm -f release/pdf4tcl$(VERSION).zip
+	@ln -s pkg pdf4tcl$(VERSION)
+	@zip -r release/pdf4tcl$(VERSION).zip pdf4tcl$(VERSION) --exclude "*.svn*"
+	@rm -f pdf4tcl$(VERSION)
+	@ls -lh release/pdf4tcl$(VERSION).zip
 
 upload:
 	rsync -e ssh README release/pdf4tcl$(VERSION).tar.gz pspjuth@frs.sourceforge.net:/home/frs/project/pdf4tcl/

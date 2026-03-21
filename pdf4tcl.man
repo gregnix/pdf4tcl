@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.18]
+[manpage_begin pdf4tcl n 0.9.4.19]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.18]]
+[require pdf4tcl [opt 0.9.4.19]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1414,6 +1414,20 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.19}]
+[list_begin itemized]
+[item] [file src/main.tcl]: XMP stream is now accumulated as UTF-8 bytes
+([cmd {encoding convertto utf-8}] before [method Pdfout]). Fixes
+EILSEQ when [method metadata] [option -title] contains codepoints
+above U+00FF under Tcl 9. Resolves knownbug cidfont-9.2.
+[item] [file tests/cidfont.test]: knownbug constraint removed from
+cidfont-9.2.
+[item] [file tests/new-0.9.4.18.test]: 24 new tests covering
+[method write], [method _ValidatePdfDate], [method CleanText],
+metadata Unicode handling, and [cmd {::pdf4tcl::sha2pure}]
+NIST vectors.
+[list_end]
 
 [subsection {Version 0.9.4.18}]
 [list_begin itemized]

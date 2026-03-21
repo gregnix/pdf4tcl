@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.18 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.19 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.18?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.19?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1761,6 +1761,21 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.19"
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": XMP stream is now accumulated as UTF-8 bytes
+(\fBencoding convertto utf-8\fR before \fBPdfout\fR)\&. Fixes
+EILSEQ when \fBmetadata\fR \fB-title\fR contains codepoints
+above U+00FF under Tcl 9\&. Resolves knownbug cidfont-9\&.2\&.
+.IP \(bu
+"\fItests/cidfont\&.test\fR": knownbug constraint removed from
+cidfont-9\&.2\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.18\&.test\fR": 24 new tests covering
+\fBwrite\fR, \fB_ValidatePdfDate\fR, \fBCleanText\fR,
+metadata Unicode handling, and \fB::pdf4tcl::sha2pure\fR
+NIST vectors\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.18"
 .IP \(bu
 Tcl 9 compatibility: pdf4tcl runs under both Tcl 8\&.6 and Tcl 9\&.0\&.

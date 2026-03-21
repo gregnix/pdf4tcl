@@ -9,7 +9,7 @@ who want to generate PDF documents.
 ### Requirements
 
 pdf4tcl requires Tcl/Tk 8.6 or Tcl 9.0. The recommended version of pdf4tcl
-is 0.9.4.18. The following tools can optionally be installed:
+is 0.9.4.19. The following tools can optionally be installed:
 
 - poppler-utils: `pdfinfo` and `pdftotext` for PDF validation
 - mupdf: lightweight PDF viewer
