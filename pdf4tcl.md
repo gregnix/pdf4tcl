@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.22?**
+package require **pdf4tcl ?0****.9****.4****.23?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -41,6 +41,8 @@ package require **pdf4tcl ?0****.9****.4****.22?**
 **::pdf4tcl::catPdf** *infile* ?*infile **.**.**.*? *outfile*
 
 **::pdf4tcl::getForms** *infile*
+
+**::pdf4tcl::exportForms** *infile* *outfile* ?*options*?
 
 **objectName** **method** ?*arg arg **.**.**.*?
 
@@ -86,15 +88,35 @@ package require **pdf4tcl ?0****.9****.4****.22?**
 
 *objectName* **hyperlinkAdd** *x* *y* *width* *height* *url* ?*option value*...?
 
+*objectName* **addAnnotNote** *x* *y* *width* *height* ?*option value*...?
+
+*objectName* **addAnnotFreeText** *x* *y* *width* *height* *text* ?*option value*...?
+
+*objectName* **addAnnotHighlight** *x* *y* *width* *height* ?*option value*...?
+
+*objectName* **addAnnotUnderline** *x* *y* *width* *height* ?*option value*...?
+
+*objectName* **addAnnotStrikeOut** *x* *y* *width* *height* ?*option value*...?
+
+*objectName* **addAnnotStamp** *x* *y* *width* *height* ?*option value*...?
+
+*objectName* **addAnnotLine** *x1* *y1* *x2* *y2* ?*option value*...?
+
 *objectName* **viewerPreferences** ?*option value*...?
 
 *objectName* **pageLabel** *pageIndex* ?*option value*...?
 
 *objectName* **setFont** *size* ?*fontname*?
 
-*objectName* **getStringWidth** *str*
+*objectName* **getStringWidth** *str* ?*options*?
 
 *objectName* **getCharWidth** *char*
+
+*objectName* **inPage**
+
+*objectName* **currentPage**
+
+*objectName* **pageCount**
 
 *objectName* **setTextPosition** *x* *y*
 
@@ -199,6 +221,8 @@ package require **pdf4tcl ?0****.9****.4****.22?**
 *objectName* **scale** *sx* *sy*
 
 *objectName* **getPageSize**
+
+*objectName* **addEmbeddedFile** *filename* ?*options*?
 
 *objectName* **addLayer** *name* ?**-visible bool**?
 
@@ -323,6 +347,12 @@ mypdf destroy
 **default**
 : Default value, if any.
 
+**-format fdf|xfdf**
+: Output format. **fdf** (default): Forms Data Format (ISO 32000 SS12.7.7), a compact text format supported by most PDF viewers. **xfdf**: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
+
+**-password string**
+: Password for encrypted PDFs.
+
 **::pdf4tcl::getFonts**
 : This call returns the list of known font names, i.e. those accepted in a call to **setFont**. This includes the default fonts and fonts created by e.g. **::pdf4tcl::createFont**.
 
@@ -337,6 +367,16 @@ mypdf destroy
 
 **::pdf4tcl::getForms infile**
 : This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields:
+
+**::pdf4tcl::exportForms infile outfile ?options?**
+: Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+). Returns the number of exported fields.
+
+```tcl
+# Export as FDF
+pdf4tcl::exportForms filled.pdf data.fdf
+# Export as XFDF
+pdf4tcl::exportForms filled.pdf data.xfdf -format xfdf
+```
 
 ### OBJECT COMMAND
 
@@ -561,6 +601,69 @@ $pdfobject hyperlinkAdd 50 130 200 20 "https://github.com/gregnix/pdf4tcl"  -bor
 $pdfobject hyperlinkAdd 50 160 200 20 "https://www.tcl.tk"  -borderwidth 1 -bordercolor {0 0.6 0} -borderdash {5 3} -borderradius 4
 ```
 
+**-content string**
+: Note text shown in the popup.
+
+**-author string**
+: Author name shown in the popup header.
+
+**-subject string**
+: Subject line.
+
+**-icon name**
+: Icon type: **Note** (default), **Comment**, **Key**, **Help**, **NewParagraph**, **Paragraph**, **Insert**.
+
+**-color color**
+: Background color (default: **1 1 0** = yellow).
+
+**-open bool**
+: Show popup open by default (default: **0**).
+
+**-fontsize n**
+: Font size in points (default: **10**).
+
+**-color color**
+: Text color (default: **0 0 0**).
+
+**-bgcolor color**
+: Background fill color (default: **1 1 0****.8**).
+
+**-borderwidth n**
+: Border width in points (default: **1**).
+
+**-align n**
+: Text alignment: **0**=left (default), **1**=center, **2**=right.
+
+**-color color**
+: Markup color. Defaults: yellow for Highlight, black for Underline, red for StrikeOut.
+
+**-content string**
+: Optional comment text.
+
+**-author string**
+: Author name.
+
+**-name name**
+: Predefined stamp name (default: **Draft**). Valid names: **Approved**, **Confidential**, **Draft**, **Experimental**, **Expired**, **Final**, **ForPublicRelease**, **NotApproved**, **NotForPublicRelease**, **Sold**, **TopSecret**.
+
+**-color color**
+: Stamp color (default: **1 0 0**).
+
+**-content string**
+: Optional popup content.
+
+**-color color**
+: Line color (default: **0 0 0**).
+
+**-width n**
+: Line width in points (default: **1**).
+
+**-startend list**
+: Two-element list of arrowhead styles for start and end of the line (default: **None None**). Valid styles: **None**, **OpenArrow**, **ClosedArrow**, **Square**, **Circle**, **Diamond**, **Butt**, **Slash**.
+
+**-content string**
+: Optional popup content.
+
 **-pagelayout layout**
 : Set the page layout on open. Valid values: **SinglePage**, **OneColumn**, **TwoColumnLeft**, **TwoColumnRight**, **TwoPageLeft**, **TwoPageRight**.
 
@@ -597,6 +700,27 @@ $pdfobject hyperlinkAdd 50 160 200 20 "https://www.tcl.tk"  -borderwidth 1 -bord
 **-duplex mode**
 : Paper handling when printing. Valid values: **None**, **Simplex**, **DuplexFlipShortEdge**, **DuplexFlipLongEdge**.
 
+**objectName addAnnotNote x y width height ?option value...?**
+: Add a **/Text** sticky note annotation (0.9.4.23+). The annotation appears as a small icon; clicking it opens a popup window. *Note:* Popup behaviour varies between PDF viewers -- some keep the popup open, others do not show a close button. For consistent cross-viewer display use **addAnnotFreeText** instead.
+
+**objectName addAnnotFreeText x y width height text ?option value...?**
+: Add a **/FreeText** annotation -- a visible text box directly on the page (0.9.4.23+). No click required; always visible in all viewers.
+
+**objectName**
+: **addAnnotHighlight** *x* *y* *width* *height* ?*option value*...?
+
+**objectName**
+: **addAnnotUnderline** *x* *y* *width* *height* ?*option value*...?
+
+**objectName addAnnotStrikeOut x y width height ?option value...?**
+: Text markup annotations (0.9.4.23+). The rectangle defines the text area to mark.
+
+**objectName addAnnotStamp x y width height ?option value...?**
+: Add a **/Stamp** annotation -- a rubber stamp visible on the page (0.9.4.23+).
+
+**objectName addAnnotLine x1 y1 x2 y2 ?option value...?**
+: Add a **/Line** annotation with optional arrowheads (0.9.4.23+).
+
 **objectName viewerPreferences ?option value...?**
 : Set viewer preference flags in the PDF catalog. These control how a PDF viewer displays the document when it is opened. Options can be combined freely.
 
@@ -628,6 +752,22 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 
 ### OBJECT METHODS, TEXT
 
+**-font fontName**
+: Use *fontName* instead of the current font.
+
+**-size fontSize**
+: Use *fontSize* instead of the current font size.
+
+**-internal bool**
+: Return width in points instead of current unit.
+
+**objectName setFont size ?fontname?**
+: This method sets the font used by text drawing routines. If *fontname* is not provided, the previously set *fontname* is kept.
+
+**objectName getStringWidth str ?options?**
+: This method returns the width of *str* in the current unit. Options (0.9.4.23+):
+
+- Without options the method behaves as before. If no font has been set and **-font** is not given, an error is raised.
 **-align**
 : *left|right|center* (default left)
 
@@ -661,6 +801,14 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 **-linesvar var**
 : Gives the name of a variable which will be set to the number of lines written.
 
+**-newyvar var**
+: Gives the name of a variable which will be set to the Y position after the last rendered line, in the current unit (0.9.4.23+). Allows the caller to continue drawing below the text box:
+
+```tcl
+$pdf drawTextBox $x $y $w $h $text -newyvar nextY
+$pdf line $x $nextY [expr {$x+$w}] $nextY
+```
+
 **-dryrun bool**
 : If true, no changes will be made to the PDF document. The return value and **-linesvar** gives information of what would happen with the given text.
 
@@ -682,14 +830,17 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 **height**
 : Height of font's Bounding Box.
 
-**objectName setFont size ?fontname?**
-: This method sets the font used by text drawing routines. If *fontname* is not provided, the previously set *fontname* is kept.
-
-**objectName getStringWidth str**
-: This method returns the width of a string under the current font.
-
 **objectName getCharWidth char**
 : This method returns the width of a character under the current font.
+
+**objectName inPage**
+: Returns **1** if a page is currently open, **0** otherwise. Useful for library code managing page state without accessing internals.
+
+**objectName currentPage**
+: Returns the current page number (1-based). Returns **0** before the first **startPage** call.
+
+**objectName pageCount**
+: Returns the number of completed pages (**endPage** called). A currently open page is not counted until **endPage**.
 
 **objectName setTextPosition x y**
 : Set coordinate for next text command.
@@ -949,6 +1100,9 @@ $pdf grestore
 **objectName getPageSize**
 : Return the full page dimensions as **{width height}** in the current unit (set via **-unit** at creation time). For A4 with **-unit mm**: approximately **210****.0 297****.0**. For A4 with **-unit p**: approximately **595****.0 842****.0** (pdf4tcl rounds MediaBox to integer points). Complements **getDrawableArea** which excludes margins.
 
+**objectName addEmbeddedFile filename ?options?**
+: Embed a file in the PDF. When **-pdfa 3b** is active the FileSpec OID is automatically added to the document-level **/AF** array in the Catalog (ISO 19005-3 SS6.2.11.4). Options: **-contents**, **-mimetype**, **-description**, **-afrelationship** (Alternative|Data|Source|Supplement|Unspecified). *Note:* Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).
+
 **objectName addLayer name ?-visible bool?**
 : Add an Optional Content Group (OCG / layer) to the document. Returns a layer ID for use with **beginLayer**. *name* is the visible label shown in the viewer's layer panel. **-visible** controls default visibility (1 = shown, 0 = hidden, default: 1). Use cases: debug grids (**-visible 0**), letterhead variants, watermarks (**-visible 0**). *Note:* **addLayer** must be called before **finish**. All layers are shared across all pages of the document.
 
@@ -1080,6 +1234,19 @@ foreach w $::pdf4tcl::warnings { puts "WARNING: $w" }
 Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is generated regardless of any warnings in this list. **::pdf4tcl::_md5Backend** Set by **_InitMD5Backend** on first use. Values: **tcllib**, **openssl**, **pure-tcl**. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.23
+
+- keyword arguments **-font** and **-size** (0.9.4.23+). Text width can now be measured without a prior **setFont** call. CIDFont metrics are supported. Legacy positional call unchanged.
+- page is currently open, **0** otherwise.
+- page number (1-based, **0** before first **startPage**). **pageCount** added -- returns the number of completed pages.
+- option. The named variable receives the Y position after the last rendered line in the current unit. Allows flowing text without manual recalculation.
+- **addAnnotNote**, **addAnnotFreeText**, **addAnnotHighlight**, **addAnnotUnderline**, **addAnnotStrikeOut**, **addAnnotStamp**, **addAnnotLine**.
+- Exports form field data from a filled PDF as FDF (ISO 32000 SS12.7.7) or XFDF (SS12.7.8). Returns the number of exported fields.
+- PDF/A-3b allows embedded files with associated file relationships.
+- for the document-level **/AF** array when **-pdfa 3b** is active. The **/AF** array in the Catalog associates embedded files with the document as a whole (ISO 19005-3 SS6.2.11.4).
+- **/AS** array added to the OCG **/D** dictionary when **-pdfa 2b** or **-pdfa 3b** is active (ISO 19005-2 SS6.2.10). Defines layer state for Print and View events. Standard PDFs and PDF/A-1b are not affected.
+- **-pdfa 3b** validation (3), **/AF** array (4), **/AS** array (5).
 
 ### VERSION 0.9.4.22
 

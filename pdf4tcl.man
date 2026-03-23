@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.21]
+[manpage_begin pdf4tcl n 0.9.4.23]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.21]]
+[require pdf4tcl [opt 0.9.4.23]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -246,6 +246,28 @@ The info is a dictionary with the following fields:
 [opt_def flags] Value of form flags field.
 [opt_def default] Default value, if any.
 [list_end]
+
+[call [cmd ::pdf4tcl::exportForms] [arg "infile"] [arg "outfile"] [opt [arg "options"]]]
+
+Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+).
+Returns the number of exported fields.
+
+[list_begin options]
+[opt_def -format [arg "fdf|xfdf"]]
+Output format. [const fdf] (default): Forms Data Format (ISO 32000 SS12.7.7),
+a compact text format supported by most PDF viewers.
+[const xfdf]: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
+[opt_def -password [arg "string"]]
+Password for encrypted PDFs.
+[list_end]
+
+[example {
+# Export as FDF
+pdf4tcl::exportForms filled.pdf data.fdf
+
+# Export as XFDF
+pdf4tcl::exportForms filled.pdf data.xfdf -format xfdf
+}]
 
 [list_end]
 
@@ -704,6 +726,78 @@ $pdfobject hyperlinkAdd 50 160 200 20 "https://www.tcl.tk" \
     -borderwidth 1 -bordercolor {0 0.6 0} -borderdash {5 3} -borderradius 4
 }]
 
+[call [arg objectName] [method addAnnotNote] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+
+Add a [const /Text] sticky note annotation (0.9.4.23+).
+The annotation appears as a small icon; clicking it opens a popup window.
+
+[emph Note:] Popup behaviour varies between PDF viewers -- some keep the popup
+open, others do not show a close button. For consistent cross-viewer display
+use [method addAnnotFreeText] instead.
+
+[list_begin options]
+[opt_def -content [arg "string"]] Note text shown in the popup.
+[opt_def -author  [arg "string"]] Author name shown in the popup header.
+[opt_def -subject [arg "string"]] Subject line.
+[opt_def -icon    [arg "name"]]   Icon type: [const Note] (default), [const Comment],
+[const Key], [const Help], [const NewParagraph], [const Paragraph], [const Insert].
+[opt_def -color   [arg "color"]]  Background color (default: [const {1 1 0}] = yellow).
+[opt_def -open    [arg "bool"]]   Show popup open by default (default: [const 0]).
+[list_end]
+
+[call [arg objectName] [method addAnnotFreeText] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [arg "text"] [opt [arg "option value"]...]]
+
+Add a [const /FreeText] annotation -- a visible text box directly on the page (0.9.4.23+).
+No click required; always visible in all viewers.
+
+[list_begin options]
+[opt_def -fontsize    [arg "n"]]      Font size in points (default: [const 10]).
+[opt_def -color       [arg "color"]]  Text color (default: [const {0 0 0}]).
+[opt_def -bgcolor     [arg "color"]]  Background fill color (default: [const {1 1 0.8}]).
+[opt_def -borderwidth [arg "n"]]      Border width in points (default: [const 1]).
+[opt_def -align       [arg "n"]]      Text alignment: [const 0]=left (default), [const 1]=center, [const 2]=right.
+[list_end]
+
+[call [arg objectName] [method addAnnotHighlight] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+[call [arg objectName] [method addAnnotUnderline]  [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+[call [arg objectName] [method addAnnotStrikeOut]  [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+
+Text markup annotations (0.9.4.23+). The rectangle defines the text area to mark.
+
+[list_begin options]
+[opt_def -color   [arg "color"]] Markup color. Defaults: yellow for Highlight,
+black for Underline, red for StrikeOut.
+[opt_def -content [arg "string"]] Optional comment text.
+[opt_def -author  [arg "string"]] Author name.
+[list_end]
+
+[call [arg objectName] [method addAnnotStamp] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [opt [arg "option value"]...]]
+
+Add a [const /Stamp] annotation -- a rubber stamp visible on the page (0.9.4.23+).
+
+[list_begin options]
+[opt_def -name    [arg "name"]]   Predefined stamp name (default: [const Draft]).
+Valid names: [const Approved], [const Confidential], [const Draft], [const Experimental],
+[const Expired], [const Final], [const ForPublicRelease], [const NotApproved],
+[const NotForPublicRelease], [const Sold], [const TopSecret].
+[opt_def -color   [arg "color"]] Stamp color (default: [const {1 0 0}]).
+[opt_def -content [arg "string"]] Optional popup content.
+[list_end]
+
+[call [arg objectName] [method addAnnotLine] [arg "x1"] [arg "y1"] [arg "x2"] [arg "y2"] [opt [arg "option value"]...]]
+
+Add a [const /Line] annotation with optional arrowheads (0.9.4.23+).
+
+[list_begin options]
+[opt_def -color     [arg "color"]] Line color (default: [const {0 0 0}]).
+[opt_def -width     [arg "n"]]     Line width in points (default: [const 1]).
+[opt_def -startend  [arg "list"]]  Two-element list of arrowhead styles for
+start and end of the line (default: [const {None None}]).
+Valid styles: [const None], [const OpenArrow], [const ClosedArrow], [const Square],
+[const Circle], [const Diamond], [const Butt], [const Slash].
+[opt_def -content   [arg "string"]] Optional popup content.
+[list_end]
+
 [call [arg objectName] [method viewerPreferences] [opt [arg "option value"]...]]
 
 Set viewer preference flags in the PDF catalog. These control how a PDF viewer
@@ -801,13 +895,36 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 This method sets the font used by text drawing routines. If [arg "fontname"]
 is not provided, the previously set [arg "fontname"] is kept.
 
-[call [arg objectName] [method getStringWidth] [arg "str"]]
+[call [arg objectName] [method getStringWidth] [arg "str"] [opt [arg options]]]
 
-This method returns the width of a string under the current font.
+This method returns the width of [arg str] in the current unit.
+Options (0.9.4.23+):
+[list_begin options]
+[opt_def -font [arg fontName]] Use [arg fontName] instead of the current font.
+[opt_def -size [arg fontSize]] Use [arg fontSize] instead of the current font size.
+[opt_def -internal [arg bool]] Return width in points instead of current unit.
+[list_end]
+Without options the method behaves as before.
+If no font has been set and [option -font] is not given, an error is raised.
 
 [call [arg objectName] [method getCharWidth] [arg "char"]]
 
 This method returns the width of a character under the current font.
+
+[call [arg objectName] [method inPage]]
+
+Returns [const 1] if a page is currently open, [const 0] otherwise.
+Useful for library code managing page state without accessing internals.
+
+[call [arg objectName] [method currentPage]]
+
+Returns the current page number (1-based).
+Returns [const 0] before the first [method startPage] call.
+
+[call [arg objectName] [method pageCount]]
+
+Returns the number of completed pages ([method endPage] called).
+A currently open page is not counted until [method endPage].
 
 [call [arg objectName] [method setTextPosition] [arg "x"] [arg "y"]]
 
@@ -874,6 +991,14 @@ a new line in the output. If [arg "str"] is too long to fit in the specified box
          Specifies the justification. If not given, the text is left justified.
       [opt_def -linesvar "[arg var]"]
          Gives the name of a variable which will be set to the number of lines written.
+      [opt_def -newyvar "[arg var]"]
+         Gives the name of a variable which will be set to the Y position after
+         the last rendered line, in the current unit (0.9.4.23+).
+         Allows the caller to continue drawing below the text box:
+[example {
+$pdf drawTextBox $x $y $w $h $text -newyvar nextY
+$pdf line $x $nextY [expr {$x+$w}] $nextY
+}]
       [opt_def -dryrun "[arg bool]"]
          If true, no changes will be made to the PDF document. The return
          value and [option -linesvar] gives information of what would happen
@@ -1272,6 +1397,17 @@ For A4 with [option {-unit p}]: approximately [const {595.0 842.0}]
 (pdf4tcl rounds MediaBox to integer points).
 Complements [method getDrawableArea] which excludes margins.
 
+[call [arg objectName] [method addEmbeddedFile] [arg filename] [opt [arg options]]]
+   Embed a file in the PDF.
+When [option {-pdfa 3b}] is active the FileSpec OID is automatically
+added to the document-level [const /AF] array in the Catalog
+(ISO 19005-3 SS6.2.11.4).
+[para]
+Options: [option -contents], [option -mimetype], [option -description],
+[option -afrelationship] (Alternative|Data|Source|Supplement|Unspecified).
+[para]
+[emph Note:] Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).
+
 [call [arg objectName] [method addLayer] [arg name] [opt [option {-visible bool}]]]
    Add an Optional Content Group (OCG / layer) to the document.
 Returns a layer ID for use with [method beginLayer].
@@ -1552,6 +1688,55 @@ Values: [const tcllib], [const openssl], [const pure-tcl].
 Read-only; for diagnostics only.
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.23}]
+
+[list_begin itemized]
+
+[item] [file src/main.tcl]: [method getStringWidth] extended with optional
+keyword arguments [option -font] and [option -size] (0.9.4.23+).
+Text width can now be measured without a prior [method setFont] call.
+CIDFont metrics are supported. Legacy positional call unchanged.
+
+[item] [file src/main.tcl]: [method inPage] added. Returns [const 1] if a
+page is currently open, [const 0] otherwise.
+
+[item] [file src/main.tcl]: [method currentPage] added. Returns the current
+page number (1-based, [const 0] before first [method startPage]).
+[method pageCount] added -- returns the number of completed pages.
+
+[item] [file src/main.tcl]: [method drawTextBox] gains [option -newyvar]
+option. The named variable receives the Y position after the last rendered
+line in the current unit. Allows flowing text without manual recalculation.
+
+[item] [file src/main.tcl]: Annotation methods added (ISO 32000 SS12.5):
+[method addAnnotNote], [method addAnnotFreeText],
+[method addAnnotHighlight], [method addAnnotUnderline],
+[method addAnnotStrikeOut], [method addAnnotStamp], [method addAnnotLine].
+
+[item] [file src/cat.tcl]: [cmd ::pdf4tcl::exportForms] added.
+Exports form field data from a filled PDF as FDF (ISO 32000 SS12.7.7)
+or XFDF (SS12.7.8). Returns the number of exported fields.
+
+[item] [file src/options.tcl]: [option {-pdfa 3b}] added as valid value.
+PDF/A-3b allows embedded files with associated file relationships.
+
+[item] [file src/main.tcl]: [method addEmbeddedFile] now tracks FileSpec OIDs
+for the document-level [const /AF] array when [option {-pdfa 3b}] is active.
+The [const /AF] array in the Catalog associates embedded files with the
+document as a whole (ISO 19005-3 SS6.2.11.4).
+
+[item] [file src/main.tcl]: [method addLayer] / [method beginLayer]:
+[const /AS] array added to the OCG [const /D] dictionary when
+[option {-pdfa 2b}] or [option {-pdfa 3b}] is active (ISO 19005-2 SS6.2.10).
+Defines layer state for Print and View events. Standard PDFs and
+PDF/A-1b are not affected.
+
+[item] [file tests/new-0.9.4.23.test]: 12 new tests --
+[option {-pdfa 3b}] validation (3), [const /AF] array (4),
+[const /AS] array (5).
+
+[list_end]
 
 [subsection {Version 0.9.4.22}]
 

@@ -1,0 +1,298 @@
+# new-0.9.4.23.test -- Tests fuer pdf4tcl 0.9.4.23
+# AF-Array (PDF/A-3b), AS-Array (PDF/A-2b+3b Layer), -pdfa 3b Option
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# 23-1.x  -pdfa 3b Option
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.23-1.1 {-pdfa 3b: Option akzeptiert} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b]
+    set v [$p cget -pdfa]
+    $p destroy
+    set v
+} -result "3b"
+
+test new-0.9.4.23-1.2 {-pdfa 3b: PDF-Version 1.7} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    regexp {%PDF-([0-9.]+)} $d -> ver
+    set ver
+} -result "1.7"
+
+test new-0.9.4.23-1.3 {-pdfa 4b: ungueltig} -body {
+    catch {pdf4tcl::new %AUTO% -pdfa 4b} err
+    string match "*invalid*" $err
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 23-2.x  AF-Array (PDF/A-3 SS6.2.11.4)
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.23-2.1 {AF-Array: bei -pdfa 3b + addEmbeddedFile vorhanden} -setup {
+    set tmpf [makeFile "test data" af_test.txt]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    $p addEmbeddedFile $tmpf -mimetype "text/plain" -afrelationship Data
+    set d [$p get]; $p destroy
+    expr {[string first "/AF \[" $d] >= 0}
+} -cleanup { removeFile af_test.txt } -result 1
+
+test new-0.9.4.23-2.2 {AF-Array: bei -pdfa 2b NICHT vorhanden} -setup {
+    set tmpf [makeFile "test data" af_test2.txt]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    $p addEmbeddedFile $tmpf -mimetype "text/plain"
+    set d [$p get]; $p destroy
+    expr {[string first "/AF \[" $d] < 0}
+} -cleanup { removeFile af_test2.txt } -result 1
+
+test new-0.9.4.23-2.3 {AF-Array: ohne embfile kein AF im Catalog} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/AF \[" $d] < 0}
+} -result 1
+
+test new-0.9.4.23-2.4 {AF-Array: AFRelationship Option akzeptiert} -setup {
+    set tmpf [makeFile "test data" af_test3.txt]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    # kein Fehler = Option akzeptiert
+    $p addEmbeddedFile $tmpf -afrelationship Data
+    set d [$p get]; $p destroy
+    # AF-Array im Catalog beweist korrekte Verarbeitung
+    expr {[string first "/AF \[" $d] >= 0}
+} -cleanup { removeFile af_test3.txt } -result 1
+
+# ---------------------------------------------------------------------------
+# 23-3.x  AS-Array (PDF/A-2b SS6.2.10)
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.23-3.1 {AS-Array: bei -pdfa 2b + Layer vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    set l [$p addLayer "Test"]
+    $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/AS \[" $d] >= 0}
+} -result 1
+
+test new-0.9.4.23-3.2 {AS-Array: Print und View Events vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    set l [$p addLayer "Test"]
+    $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/Print" $d] >= 0 && [string first "/View" $d] >= 0}
+} -result 1
+
+test new-0.9.4.23-3.3 {AS-Array: bei normalem PDF NICHT vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    set l [$p addLayer "Test"]
+    $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/AS \[" $d] < 0}
+} -result 1
+
+test new-0.9.4.23-3.4 {AS-Array: bei -pdfa 1b NICHT vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 0]
+    set l [$p addLayer "Test"]
+    $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/AS \[" $d] < 0}
+} -result 1
+
+test new-0.9.4.23-3.5 {AS-Array: bei -pdfa 3b + Layer vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    set l [$p addLayer "Test"]
+    $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/AS \[" $d] >= 0}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests
+
+# ---------------------------------------------------------------------------
+# 23-4.x  getStringWidth -font -size (SS keine -- API-Erweiterung)
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.23-4.1 {getStringWidth: -font -size ohne setFont} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    set w [$p getStringWidth "Hello" -font Helvetica -size 10]
+    $p destroy
+    expr {$w > 0}
+} -result 1
+
+test new-0.9.4.23-4.2 {getStringWidth: -font -size andere Groesse} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    set w12 [$p getStringWidth "Hello" -font Helvetica -size 12]
+    set w24 [$p getStringWidth "Hello" -font Helvetica -size 24]
+    $p destroy
+    expr {abs($w24 - 2*$w12) < 0.01}
+} -result 1
+
+test new-0.9.4.23-4.3 {getStringWidth: Legacy-Aufruf bleibt kompatibel} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    set w1 [$p getStringWidth "Hello"]
+    set w2 [$p getStringWidth "Hello" -font Helvetica -size 12]
+    $p endPage; $p destroy
+    expr {abs($w1 - $w2) < 0.001}
+} -result 1
+
+test new-0.9.4.23-4.4 {getStringWidth: kein Font gesetzt wirft Fehler} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    set err [catch {$p getStringWidth "Hello"} msg]
+    $p destroy
+    set err
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 23-5.x  inPage, currentPage, pageCount
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.23-5.1 {inPage: false vor startPage} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set r [$p inPage]
+    $p destroy
+    set r
+} -result 0
+
+test new-0.9.4.23-5.2 {inPage: true nach startPage} -body {
+    set p [pdf4tcl::new %AUTO%]
+    $p startPage
+    set r [$p inPage]
+    $p endPage; $p destroy
+    set r
+} -result 1
+
+test new-0.9.4.23-5.3 {inPage: false nach endPage} -body {
+    set p [pdf4tcl::new %AUTO%]
+    $p startPage; $p endPage
+    set r [$p inPage]
+    $p destroy
+    set r
+} -result 0
+
+test new-0.9.4.23-5.4 {currentPage: zaehlt Seiten} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set r0 [$p currentPage]
+    $p startPage; $p endPage
+    set r1 [$p currentPage]
+    $p startPage; $p endPage
+    set r2 [$p currentPage]
+    $p destroy
+    list $r0 $r1 $r2
+} -result {0 1 2}
+
+test new-0.9.4.23-5.5 {pageCount: abgeschlossene Seiten} -body {
+    set p [pdf4tcl::new %AUTO%]
+    $p startPage; $p endPage
+    $p startPage; $p endPage
+    $p startPage; $p endPage
+    set r [$p pageCount]
+    $p destroy
+    set r
+} -result 3
+
+# ---------------------------------------------------------------------------
+# 23-6.x  drawTextBox -newyvar
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.23-6.1 {drawTextBox: -newyvar liefert Y-Position} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    set newY 0
+    $p drawTextBox 50 700 400 200 "Kurztext" -newyvar newY
+    $p endPage; $p destroy
+    expr {$newY > 0 && $newY < 700}
+} -result 1
+
+test new-0.9.4.23-6.2 {drawTextBox: ohne -newyvar unveraendert} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    set overflow [$p drawTextBox 50 700 400 200 "Test" -align left]
+    $p endPage; $p destroy
+    string length $overflow
+} -result 0
+
+::tcltest::cleanupTests
+
+# ---------------------------------------------------------------------------
+# 23-7.x  exportForms (FDF/XFDF)
+# ---------------------------------------------------------------------------
+
+proc makeTestFormPdf {} {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text     50 100 200 20 -id f_name  -init "Alice"
+    $p addForm text     50 130 200 20 -id f_city  -init "Berlin"
+    $p addForm checkbutton 50 160 15 15 -id f_ok -init 1
+    $p endPage
+    set tmp [makeFile {} testform_export.pdf]
+    $p write -file $tmp
+    $p destroy
+    return $tmp
+}
+
+test new-0.9.4.23-7.1 {exportForms: FDF erzeugt korrekte Datei} -setup {
+    set pdf [makeTestFormPdf]
+    set fdf [makeFile {} out.fdf]
+} -body {
+    set n [pdf4tcl::exportForms $pdf $fdf -format fdf]
+    set c [read [set h [open $fdf r]]][close $h]
+    list $n \
+        [expr {[string first "%FDF-1.2" $c] >= 0}] \
+        [expr {[string first "f_name" $c] >= 0}] \
+        [expr {[string first "Alice" $c] >= 0}]
+} -cleanup { removeFile testform_export.pdf; removeFile out.fdf } \
+  -result {3 1 1 1}
+
+test new-0.9.4.23-7.2 {exportForms: XFDF erzeugt korrektes XML} -setup {
+    set pdf [makeTestFormPdf]
+    set xfdf [makeFile {} out.xfdf]
+} -body {
+    set n [pdf4tcl::exportForms $pdf $xfdf -format xfdf]
+    set c [read [set h [open $xfdf r]]][close $h]
+    list $n \
+        [expr {[string first "<?xml" $c] >= 0}] \
+        [expr {[string first "<field name=\"f_name\">" $c] >= 0}] \
+        [expr {[string first "<value>Alice</value>" $c] >= 0}]
+} -cleanup { removeFile testform_export.pdf; removeFile out.xfdf } \
+  -result {3 1 1 1}
+
+test new-0.9.4.23-7.3 {exportForms: FDF gibt Feldanzahl zurueck} -setup {
+    set pdf [makeTestFormPdf]
+    set fdf [makeFile {} out2.fdf]
+} -body {
+    pdf4tcl::exportForms $pdf $fdf -format fdf
+} -cleanup { removeFile testform_export.pdf; removeFile out2.fdf } \
+  -result 3
+
+test new-0.9.4.23-7.4 {exportForms: ungueltige -format Option} -body {
+    catch {pdf4tcl::exportForms /tmp/x.pdf /tmp/x.out -format csv} err
+    string match "*invalid*" $err
+} -result 1
+
+test new-0.9.4.23-7.5 {exportForms: fehlende Datei wirft Fehler} -body {
+    catch {pdf4tcl::exportForms /tmp/nonexistent_xyz.pdf /tmp/out.fdf} err
+    string match "*No such file*" $err
+} -result 1
+
+::tcltest::cleanupTests
