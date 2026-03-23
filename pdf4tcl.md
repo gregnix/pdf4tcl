@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.20?**
+package require **pdf4tcl ?0****.9****.4****.21?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -199,6 +199,12 @@ package require **pdf4tcl ?0****.9****.4****.20?**
 *objectName* **scale** *sx* *sy*
 
 *objectName* **getPageSize**
+
+*objectName* **addLayer** *name* ?**-visible bool**?
+
+*objectName* **beginLayer** *layerId*
+
+*objectName* **endLayer**
 
 ## DESCRIPTION
 
@@ -939,6 +945,27 @@ $pdf grestore
 **objectName getPageSize**
 : Return the full page dimensions as **{width height}** in the current unit (set via **-unit** at creation time). For A4 with **-unit mm**: approximately **210****.0 297****.0**. For A4 with **-unit p**: approximately **595****.0 842****.0** (pdf4tcl rounds MediaBox to integer points). Complements **getDrawableArea** which excludes margins.
 
+**objectName addLayer name ?-visible bool?**
+: Add an Optional Content Group (OCG / layer) to the document. Returns a layer ID for use with **beginLayer**. *name* is the visible label shown in the viewer's layer panel. **-visible** controls default visibility (1 = shown, 0 = hidden, default: 1). Use cases: debug grids (**-visible 0**), letterhead variants, watermarks (**-visible 0**). *Note:* **addLayer** must be called before **finish**. All layers are shared across all pages of the document.
+
+**objectName beginLayer layerId**
+: Open an Optional Content Group block. All drawing commands until **endLayer** belong to this layer. *layerId* is the OID returned by **addLayer**. Inserts a **BDC** operator into the content stream.
+
+**objectName endLayer**
+: Close the current Optional Content Group block. Inserts an **EMC** operator into the content stream.
+
+```tcl
+set lGrid [$pdf addLayer "Debug-Raster" -visible 0]
+set lKopf [$pdf addLayer "Briefkopf"   -visible 1]
+$pdf beginLayer $lGrid
+  $pdf setStrokeColor 0.9 0.9 0.9
+  for {set x 0} {$x <= 595} {incr x 50} { $pdf line $x 0 $x 842 }
+$pdf endLayer
+$pdf beginLayer $lKopf
+  $pdf text "Musterfirma GmbH" -x 40 -y 28
+$pdf endLayer
+```
+
 ### OBJECT CONFIGURATION
 
 All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which defines default page settings when used with a pdf4tcl object. The objects also understand the following configuration options:
@@ -1027,6 +1054,14 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 ```
 
 ## CHANGES
+
+### VERSION 0.9.4.21
+
+- **FlateDecode** when **-compress** is active. Previously written as raw uncompressed stream. Saves approximately 2 KB per PDF/A document.
+- **beginLayer**, **endLayer** implement Optional Content Groups (OCG / Layers, ISO 32000 SS8.11). Supports debug grids, letterhead variants, watermarks. Layer visibility controlled by **-visible** (default: 1).
+- as part of **make test** via a tcltest wrapper.
+- ICC compression (5) and OCG/Layer (8).
+- 
 
 ### VERSION 0.9.4.20
 

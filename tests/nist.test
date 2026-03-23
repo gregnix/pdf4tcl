@@ -1,0 +1,46 @@
+# nist.test -- NIST-Referenztests fuer SHA und AES via tcltest
+#
+# Fuehrt tests/nist-tests.tcl als Subprocess aus.
+# Besteht wenn Exit-Code 0 (alle NIST-Vektoren korrekt).
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# nist-1.1  Alle NIST-Vektoren (SHA-512, SHA-384, AES-128, AES-256, Alg-2B)
+# ---------------------------------------------------------------------------
+
+test nist-1.1 {NIST SHA/AES: alle Referenzvektoren korrekt} -body {
+    set scriptdir [file dirname [file normalize [info script]]]
+    set nistscript [file join $scriptdir nist-tests.tcl]
+    set encryptscript [file join $scriptdir .. src encrypt.tcl]
+
+    if {![file exists $nistscript]} {
+        return "SKIP: nist-tests.tcl nicht gefunden"
+    }
+    if {![file exists $encryptscript]} {
+        return "SKIP: src/encrypt.tcl nicht gefunden"
+    }
+
+    set rc [catch {
+        exec [info nameofexecutable] $nistscript $encryptscript
+    } out]
+
+    if {$rc == 0} {
+        return "OK"
+    } else {
+        # Fehlgeschlagene Vektoren aus Output extrahieren
+        set fails {}
+        foreach line [split $out \n] {
+            if {[string match "  FAIL*" $line]} {
+                lappend fails [string trim $line]
+            }
+        }
+        return "FAIL: [join $fails {; }]"
+    }
+} -result "OK"
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests

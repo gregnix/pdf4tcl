@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.20
+package provide pdf4tcl 0.9.4.21
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2138,6 +2138,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(viewer) {}
         set pdf(pagelabels) {}
         set pdf(embfiles) {}
+        set pdf(layers)   {}    ;# list of {oid name visible}
         set pdf(compress) $options(-compress)
         set pdf(finished) false
         set pdf(inPage) false
@@ -2703,6 +2704,32 @@ oo::define ::pdf4tcl::pdf4tcl {
             set embnames_oid [my GetOid 1]
             my Pdfout "/Names << /EmbeddedFiles $embnames_oid 0 R >>\n"
         }
+        # Optional Content (Layers) -- ISO 32000 SS8.11
+        if {[llength $pdf(layers)] > 0} {
+            set on_list  {}
+            set off_list {}
+            set ocg_refs {}
+            foreach layer $pdf(layers) {
+                lassign $layer oid name visible
+                lappend ocg_refs "$oid 0 R"
+                if {$visible} {
+                    lappend on_list "$oid 0 R"
+                } else {
+                    lappend off_list "$oid 0 R"
+                }
+            }
+            my Pdfout "/OCProperties <<\n"
+            my Pdfout "/OCGs \[[join $ocg_refs { }]\]\n"
+            my Pdfout "/D <<\n"
+            my Pdfout "/Order \[[join $ocg_refs { }]\]\n"
+            if {[llength $on_list] > 0} {
+                my Pdfout "/ON \[[join $on_list { }]\]\n"
+            }
+            if {[llength $off_list] > 0} {
+                my Pdfout "/OFF \[[join $off_list { }]\]\n"
+            }
+            my Pdfout ">>\n>>\n"
+        }
         my Pdfout ">>\n"
         my Pdfout "endobj\n\n"
 
@@ -2782,6 +2809,16 @@ oo::define ::pdf4tcl::pdf4tcl {
             foreach key [array names grads] {
                 set oid [lindex $grads($key) 2]
                 my Pdfout "/$key $oid 0 R\n"
+            }
+            my Pdfout ">>\n"
+        }
+
+        # OCG /Properties in Resources (required for BDC operator)
+        if {[llength $pdf(layers)] > 0} {
+            my Pdfout "/Properties <<\n"
+            foreach layer $pdf(layers) {
+                lassign $layer oid name visible
+                my Pdfout "/Lyr$oid $oid 0 R\n"
             }
             my Pdfout ">>\n"
         }
@@ -2950,6 +2987,15 @@ Use -pdfa-icc to specify a profile path."
                 my Pdfout "[QuoteString $basename] $fsid 0 R\n"
             }
             my Pdfout "\] >>\n"
+            my Pdfout "endobj\n\n"
+        }
+
+        # OCG objects (Optional Content Groups / Layers)
+        foreach layer $pdf(layers) {
+            lassign $layer oid name visible
+            my StoreXref $oid
+            my Pdfout "$oid 0 obj\n"
+            my Pdfout "<< /Type /OCG /Name [QuoteString $name] >>\n"
             my Pdfout "endobj\n\n"
         }
 
@@ -3404,15 +3450,13 @@ Use -pdfa-icc to specify a profile path."
         set iccdata [read $fh]
         close $fh
 
-        # Write the ICC profile as a raw (uncompressed) stream object
+        # Write the ICC profile stream object (compressed if -compress 1)
         set icc_oid [my GetOid]
         my StoreXref $icc_oid
-        set iccLen [string length $iccdata]
+        set iccbody [MakeStream "<< /N 3" $iccdata $pdf(compress)]
         my Pdfout "$icc_oid 0 obj\n"
-        my Pdfout "<< /N 3 /Length $iccLen >>\n"
-        my Pdfout "stream\n"
-        my Pdfout $iccdata
-        my Pdfout "\nendstream\nendobj\n\n"
+        my Pdfout "$iccbody\n"
+        my Pdfout "endobj\n\n"
 
         set pdf(outputintent_oid) $icc_oid
     }
@@ -5329,6 +5373,37 @@ Use -pdfa-icc to specify a profile path."
                 }
             }
         }
+    }
+
+    # Add an Optional Content Group (layer) to the document.
+    # Returns a layer ID for use with beginLayer/endLayer.
+    # -name string   Visible name in viewer (required positional arg)
+    # -visible bool  Initial visibility (default: 1)
+    method addLayer {name args} {
+        set visible 1
+        foreach {opt val} $args {
+            switch -- $opt {
+                -visible { set visible [expr {$val ? 1 : 0}] }
+                default  { throw {PDF4TCL ARGS} "addLayer: unknown option $opt" }
+            }
+        }
+        set oid [my GetOid 1]
+        lappend pdf(layers) [list $oid $name $visible]
+        return $oid
+    }
+
+    # Begin an optional content group (layer) block.
+    # All drawing commands until endLayer belong to this layer.
+    # layerId is the OID returned by addLayer.
+    method beginLayer {layerId} {
+        my EndTextObj
+        my Pdfout "/OC /Lyr$layerId BDC\n"
+    }
+
+    # End an optional content group block.
+    method endLayer {} {
+        my EndTextObj
+        my Pdfout "EMC\n"
     }
 
     # Apply a transformation matrix to the current graphics state.

@@ -492,3 +492,85 @@ $pdf radialGradient \
 Arguments: `x0 y0 r0 x1 y1 r1 color0 color1 ?-extend bool?`
 
 Colors accept `{r g b}` (0.0–1.0), `{r g b a}` with alpha, or `#rrggbb`.
+
+## Layers / Optional Content Groups (0.9.4.21)
+
+Layers (Optional Content Groups, OCG) let viewers toggle groups of drawing
+commands on and off. Common uses: debug grids, letterhead variants,
+watermarks.
+
+**Important:** layers affect drawing commands (`line`, `rectangle`,
+`circle` etc.). `text` commands with absolute `Tm` positioning are also
+hidden when their layer is off — the whole content stream block is
+suppressed by the viewer.
+
+### addLayer
+
+```tcl
+set layerId [$pdf addLayer "Debug-Grid" -visible 0]
+set layerId [$pdf addLayer "Letterhead" -visible 1]
+```
+
+Returns a layer ID used with `beginLayer`/`endLayer`.
+`-visible` sets the default state (0 = hidden, 1 = shown).
+
+### beginLayer / endLayer
+
+```tcl
+$pdf beginLayer $layerId
+  ... drawing commands ...
+$pdf endLayer
+```
+
+All commands between `beginLayer` and `endLayer` belong to that layer.
+Layers can be nested if needed. Always pair them.
+
+### Practical example: debug grid
+
+```tcl
+set lGrid [$pdf addLayer "Debug-Grid" -visible 0]
+
+$pdf beginLayer $lGrid
+$pdf setStrokeColor 0.85 0.85 0.85
+$pdf setLineWidth 0.25
+for {set x 0} {$x <= 595} {incr x 50} { $pdf line $x 0 $x 842 }
+for {set y 0} {$y <= 842} {incr y 50} { $pdf line 0 $y 595 $y }
+$pdf endLayer
+
+# Content outside any layer -- always visible
+$pdf text "Hello" -x 50 -y 100
+```
+
+### Practical example: letterhead variants
+
+```tcl
+set lHeader [$pdf addLayer "Letterhead" -visible 1]
+set lWmark  [$pdf addLayer "Watermark"  -visible 0]
+
+$pdf startPage
+
+$pdf beginLayer $lHeader
+  $pdf rectangle 0 0 595 45 -filled 1    ;# header bar (orient 1)
+  $pdf text "Acme Corp" -x 40 -y 28
+$pdf endLayer
+
+$pdf beginLayer $lWmark
+  $pdf setFont 52 Helvetica-Bold
+  $pdf setFillColor 0.88 0.88 0.88
+  $pdf text "DRAFT" -x 150 -y 450
+  $pdf setFillColor 0 0 0
+$pdf endLayer
+```
+
+### PDF structure
+
+Each layer creates one OCG object. `addLayer` reserves the OID;
+`finish` writes `/OCProperties` into the Catalog and
+`/Properties` into the Resources object.
+
+```
+Catalog: /OCProperties << /OCGs [N 0 R ...]
+                           /D << /ON [...]  /OFF [...] >> >>
+Resources: /Properties << /LyrN  N 0 R >>
+Content:   /OC /LyrN BDC  ... drawing ...  EMC
+```

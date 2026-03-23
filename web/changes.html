@@ -11,6 +11,19 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.21 (2026-03-23, fork gregnix):<br>
+<ul>
+  <li>src/main.tcl: ICC profile stream compressed with FlateDecode (-compress 1);
+      saves ~2 KB per PDF/A document</li>
+  <li>src/main.tcl: new methods addLayer, beginLayer, endLayer --
+      Optional Content Groups (OCG/Layers, ISO 32000 SS8.11);
+      supports debug grids, letterhead variants, watermarks</li>
+  <li>tests/nist.test: NIST SHA/AES reference vectors integrated into make test</li>
+  <li>tests/nist-tests.tcl: AES blocks skip gracefully without Tcllib aes package</li>
+  <li>tests/new-0.9.4.21.test: 13 new tests (ICC compression 5, OCG/Layer 8)</li>
+  <li>demo/demo-layers.tcl: new 3-page demo for OCG/Layer feature</li>
+</ul>
+
 Changes in v0.9.4.20 (2026-03-23, fork gregnix):<br>
 <ul>
   <li>src/main.tcl: new methods transform, translate, rotate, scale --

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.20 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.21 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.20?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.21?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -469,6 +469,12 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.20?\fR
 \fIobjectName\fR \fBscale\fR \fIsx\fR \fIsy\fR
 .sp
 \fIobjectName\fR \fBgetPageSize\fR
+.sp
+\fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR?
+.sp
+\fIobjectName\fR \fBbeginLayer\fR \fIlayerId\fR
+.sp
+\fIobjectName\fR \fBendLayer\fR
 .sp
 .BE
 .SH DESCRIPTION
@@ -1651,6 +1657,44 @@ For A4 with \fB-unit mm\fR: approximately \fB210\&.0 297\&.0\fR\&.
 For A4 with \fB-unit p\fR: approximately \fB595\&.0 842\&.0\fR
 (pdf4tcl rounds MediaBox to integer points)\&.
 Complements \fBgetDrawableArea\fR which excludes margins\&.
+.TP
+\fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR?
+Add an Optional Content Group (OCG / layer) to the document\&.
+Returns a layer ID for use with \fBbeginLayer\fR\&.
+.sp
+\fIname\fR is the visible label shown in the viewer's layer panel\&.
+\fB-visible\fR controls default visibility (1 = shown, 0 = hidden, default: 1)\&.
+Use cases: debug grids (\fB-visible 0\fR), letterhead variants,
+watermarks (\fB-visible 0\fR)\&.
+.sp
+\fINote:\fR \fBaddLayer\fR must be called before \fBfinish\fR\&.
+All layers are shared across all pages of the document\&.
+.TP
+\fIobjectName\fR \fBbeginLayer\fR \fIlayerId\fR
+Open an Optional Content Group block\&. All drawing commands until
+\fBendLayer\fR belong to this layer\&.
+\fIlayerId\fR is the OID returned by \fBaddLayer\fR\&.
+Inserts a \fBBDC\fR operator into the content stream\&.
+.TP
+\fIobjectName\fR \fBendLayer\fR
+Close the current Optional Content Group block\&.
+Inserts an \fBEMC\fR operator into the content stream\&.
+.CS
+
+
+set lGrid [$pdf addLayer "Debug-Raster" -visible 0]
+set lKopf [$pdf addLayer "Briefkopf"   -visible 1]
+
+$pdf beginLayer $lGrid
+  $pdf setStrokeColor 0\&.9 0\&.9 0\&.9
+  for {set x 0} {$x <= 595} {incr x 50} { $pdf line $x 0 $x 842 }
+$pdf endLayer
+
+$pdf beginLayer $lKopf
+  $pdf text "Musterfirma GmbH" -x 40 -y 28
+$pdf endLayer
+
+.CE
 .PP
 .SS "OBJECT CONFIGURATION"
 All pdf4tcl objects understand the options from \fBPAGE CONFIGURATION\fR,
@@ -1835,6 +1879,27 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.21"
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": ICC profile stream compressed with
+\fBFlateDecode\fR when \fB-compress\fR is active\&.
+Previously written as raw uncompressed stream\&.
+Saves approximately 2 KB per PDF/A document\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": New public methods \fBaddLayer\fR,
+\fBbeginLayer\fR, \fBendLayer\fR implement Optional Content Groups
+(OCG / Layers, ISO 32000 SS8\&.11)\&.
+Supports debug grids, letterhead variants, watermarks\&.
+Layer visibility controlled by \fB-visible\fR (default: 1)\&.
+.IP \(bu
+"\fItests/nist\&.test\fR": NIST SHA/AES reference vectors now run
+as part of \fBmake test\fR via a tcltest wrapper\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.21\&.test\fR": 13 new tests --
+ICC compression (5) and OCG/Layer (8)\&.
+.IP \(bu
+"\fIdemo/demo-layers\&.tcl\fR": New 3-page demo for OCG/Layer\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.20"
 .IP \(bu
 "\fIsrc/main\&.tcl\fR": New public methods \fBtransform\fR,
