@@ -1308,6 +1308,18 @@ $pdf beginLayer $lKopf
 $pdf endLayer
 }]
 
+[call [arg objectName] [method _WriteXrefTable] [arg idHash] [arg encdict_oid] [arg metadata_oid]]
+[call [arg objectName] [method _WriteXrefStream] [arg idHash] [arg encdict_oid] [arg metadata_oid]]
+   Internal methods for writing the cross-reference section.
+[method _WriteXrefTable] writes the classic text-based xref table and trailer dict.
+[method _WriteXrefStream] writes a binary XRef stream object (PDF 1.5+,
+required for PDF/A-2b+). The XRef stream object contains all trailer entries
+([const /Root], [const /Info], [const /ID]) eliminating the need for a
+separate trailer dictionary.
+[para]
+Selection is automatic: [option {-pdfa 2b}] uses [method _WriteXrefStream],
+all other modes use [method _WriteXrefTable].
+
 [list_end]
 
 
@@ -1511,7 +1523,76 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 }]
 
 
+[section {PACKAGE VARIABLES}]
+
+[var ::pdf4tcl::warnings]
+
+A list of non-fatal compliance warnings accumulated during PDF generation.
+Currently populated by [method setAlpha] when called with a value less
+than 1.0 under [option {-pdfa 1b}] (transparency forbidden by
+ISO 19005-1 SS6.1.3).
+
+[example {
+set ::pdf4tcl::warnings {}
+set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+$pdf startPage
+$pdf setAlpha 0.5      ;# appends warning -- no exception raised
+$pdf endPage
+$pdf destroy
+foreach w $::pdf4tcl::warnings { puts "WARNING: $w" }
+}]
+
+Reset before each document with [cmd {set ::pdf4tcl::warnings {}}].
+The PDF is generated regardless of any warnings in this list.
+
+[var ::pdf4tcl::_md5Backend]
+
+Set by [method _InitMD5Backend] on first use.
+Values: [const tcllib], [const openssl], [const pure-tcl].
+Read-only; for diagnostics only.
+
 [section CHANGES]
+
+[subsection {Version 0.9.4.22}]
+
+[list_begin itemized]
+
+[item] [file src/main.tcl]: PDF/A-2b now writes a cross-reference stream
+([method _WriteXrefStream]) instead of a classic xref table.
+Required by ISO 19005-2 SS6.1.4. PDF/A-1b continues to use the classic
+table (XRef streams forbidden by ISO 19005-1 SS6.1.3).
+Classic xref table extracted into [method _WriteXrefTable].
+
+[item] [file src/main.tcl]: PDF version set to 1.7 for [option {-pdfa 2b}]
+(ISO 19005-2 SS4.1 requires PDF 1.7 as base format).
+PDF/A-1b and standard PDFs remain at PDF 1.4.
+
+[item] [file src/main.tcl]: [method setAlpha] with a value less than 1.0
+under [option {-pdfa 1b}] appends a warning to [var ::pdf4tcl::warnings]
+(transparency forbidden by ISO 19005-1 SS6.1.3).
+No exception is raised -- the PDF is generated regardless.
+
+[item] [file src/prologue.tcl]: [var ::pdf4tcl::warnings] list added.
+Accumulates non-fatal compliance warnings. Check after document creation;
+reset with [cmd {set ::pdf4tcl::warnings {}}].
+
+[item] [file src/encrypt.tcl]: MD5 backend chain added ([method _InitMD5Backend],
+[method _MD5], [method _MD5Init], [method _MD5Update], [method _MD5Final],
+[method _MD5PureTcl]).
+Priority: Tcllib md5 -> openssl -> pure-Tcl implementation (RFC 1321).
+AES-128 encryption now works on FIPS systems without Tcllib.
+
+[item] [file tests/new-0.9.4.22.test]: 17 new tests --
+XRef-Stream (7), PDF version (3), setAlpha warning (2), MD5 pure-Tcl (5).
+
+[item] [file demo/demo-pdfa.tcl]: New page 4 documenting XRef-Stream
+structure, PDF/A-2b implementation, and 0.9.4.22 fixes.
+PDF version on page 1 now dynamically reflects actual document version.
+
+[item] [file demo/demo-alpha.tcl]: New section 8 showing the
+[option {-pdfa 1b}] + [method setAlpha] warning mechanism.
+
+[list_end]
 
 [subsection {Version 0.9.4.21}]
 

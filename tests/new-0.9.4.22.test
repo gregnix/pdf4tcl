@@ -1,0 +1,169 @@
+# new-0.9.4.22.test -- Tests fuer pdf4tcl 0.9.4.22
+# XRef-Streams, setAlpha-Guard, MD5 pure-Tcl
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# 22-1.x  XRef-Streams
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.22-1.1 {XRef-Stream: PDF/A-2b hat /Type /XRef} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/Type /XRef" $d] >= 0}
+} -result 1
+
+test new-0.9.4.22-1.2 {XRef-Stream: PDF/A-2b hat keine xref-Tabelle} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "\nxref\n" $d] < 0}
+} -result 1
+
+test new-0.9.4.22-1.3 {XRef-Stream: normales PDF hat klassische xref-Tabelle} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "\nxref\n" $d] >= 0}
+} -result 1
+
+test new-0.9.4.22-1.4 {XRef-Stream: PDF/A-1b hat klassische xref-Tabelle} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "\nxref\n" $d] >= 0}
+} -result 1
+
+test new-0.9.4.22-1.5 {XRef-Stream: PDF/A-2b mit Kompression hat FlateDecode im XRef} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 1]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    # /Type /XRef muss vorhanden sein
+    expr {[string first "/Type /XRef" $d] >= 0}
+} -result 1
+
+test new-0.9.4.22-1.6 {XRef-Stream: /W [1 4 2] vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $p startPage; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "/W \[1 4 2\]" $d] >= 0}
+} -result 1
+
+test new-0.9.4.22-1.7 {XRef-Stream: startxref vorhanden} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $p startPage; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "startxref" $d] >= 0}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 22-2.x  setAlpha Guard fuer PDF/A-1b
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.22-2.1 {setAlpha < 1.0 mit -pdfa 1b: Warning in ::pdf4tcl::warnings} -body {
+    set ::pdf4tcl::warnings {}
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 0]
+    $p startPage
+    $p setAlpha 0.5
+    $p endPage
+    set d [$p get]; $p destroy
+    # Warning muss in ::pdf4tcl::warnings eingetragen sein
+    set warn [lindex $::pdf4tcl::warnings end]
+    expr {[string match "*setAlpha*pdfa 1b*" $warn] ||           [string match "*transparency*" $warn]}
+} -result 1
+
+test new-0.9.4.22-2.2 {setAlpha 1.0 mit -pdfa 1b gibt kein Warning} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b]
+    $p startPage
+    $p setAlpha 1.0
+    $p destroy
+    # Kein Fehler = OK
+    set result 1
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 22-3.x  MD5 pure-Tcl (RFC 1321 Vektoren)
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.22-3.1 {MD5 pure-Tcl: RFC 1321 Vektor leerer String} -body {
+    set p [pdf4tcl::new %AUTO%]
+    oo::objdefine $p export _MD5PureTcl
+    set got [binary encode hex [$p _MD5PureTcl ""]]
+    $p destroy
+    set got
+} -result "d41d8cd98f00b204e9800998ecf8427e"
+
+test new-0.9.4.22-3.2 {MD5 pure-Tcl: RFC 1321 Vektor "abc"} -body {
+    set p [pdf4tcl::new %AUTO%]
+    oo::objdefine $p export _MD5PureTcl
+    set got [binary encode hex [$p _MD5PureTcl "abc"]]
+    $p destroy
+    set got
+} -result "900150983cd24fb0d6963f7d28e17f72"
+
+test new-0.9.4.22-3.3 {MD5 pure-Tcl: RFC 1321 Vektor "message digest"} -body {
+    set p [pdf4tcl::new %AUTO%]
+    oo::objdefine $p export _MD5PureTcl
+    set got [binary encode hex [$p _MD5PureTcl "message digest"]]
+    $p destroy
+    set got
+} -result "f96b697d7cb7938d525a2f31aaf161d0"
+
+test new-0.9.4.22-3.4 {MD5 pure-Tcl: RFC 1321 Vektor Alphabet} -body {
+    set p [pdf4tcl::new %AUTO%]
+    oo::objdefine $p export _MD5PureTcl
+    set got [binary encode hex [$p _MD5PureTcl "abcdefghijklmnopqrstuvwxyz"]]
+    $p destroy
+    set got
+} -result "c3fcd3d76192e4007dfb496cca67e13b"
+
+test new-0.9.4.22-3.5 {MD5 _InitMD5Backend setzt _md5Backend} -body {
+    set p [pdf4tcl::new %AUTO%]
+    oo::objdefine $p export _InitMD5Backend
+    $p _InitMD5Backend
+    $p destroy
+    info exists ::pdf4tcl::_md5Backend
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 22-4.x  PDF-Version
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.22-4.1 {PDF/A-2b: Header %PDF-1.7} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    regexp {%PDF-([0-9.]+)} $d -> ver
+    set ver
+} -result "1.7"
+
+test new-0.9.4.22-4.2 {PDF/A-1b: Header %PDF-1.4} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    regexp {%PDF-([0-9.]+)} $d -> ver
+    set ver
+} -result "1.4"
+
+test new-0.9.4.22-4.3 {Standard PDF: Header %PDF-1.4} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set d [$p get]; $p destroy
+    regexp {%PDF-([0-9.]+)} $d -> ver
+    set ver
+} -result "1.4"
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests

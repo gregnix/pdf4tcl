@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.21
+package provide pdf4tcl 0.9.4.22
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -21,6 +21,11 @@ namespace eval pdf4tcl {
     variable paper_sizes
     variable units
     variable dir [file dirname [file join [pwd] [info script]]]
+
+    # Accumulated warnings (e.g. PDF/A violations). Check with:
+    #   $::pdf4tcl::warnings
+    # Reset with: set ::pdf4tcl::warnings {}
+    variable warnings {}
 
     # Make mathops available
     namespace import ::tcl::mathop::*

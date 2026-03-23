@@ -144,6 +144,34 @@ $pdf setFillColor 0.8 0.6 0.2
 $pdf rectangle 220 230 [pdf4tcl::in 0.5] 20 -filled 1
 $pdf text "0.5in" -x 220 -y 220
 
+
+# -----------------------------------------------------------------------
+# Section 8: PDF/A-1b + setAlpha Warning (0.9.4.22)
+# -----------------------------------------------------------------------
+$pdf setAlpha 1.0
+$pdf setFillColor 0 0 0
+$pdf setFont 11 Helvetica
+$pdf text "8) PDF/A-1b + setAlpha: Warning-Mechanismus (0.9.4.22)" -x 50 -y 200
+
+$pdf setFont 9 Helvetica
+$pdf setFillColor 0.3 0.3 0.3
+$pdf text "PDF/A-1 verbietet Transparenz (ISO 19005-1 SS6.1.3)." -x 60 -y 185
+$pdf text "setAlpha < 1.0 mit -pdfa 1b schreibt einen Eintrag in" -x 60 -y 172
+$pdf text "::pdf4tcl::warnings (kein throw, PDF wird erzeugt)." -x 60 -y 159
+$pdf setFillColor 0 0 0
+
+# Zeige Warning-Box
+$pdf setFillColor 1.0 0.95 0.85
+$pdf rectangle 60 118 440 30 -filled 1
+$pdf setFillColor 0.6 0.3 0.0
+$pdf setFont 8 Helvetica
+$pdf text "WARNING: setAlpha 0.5 with -pdfa 1b violates" -x 66 -y 137
+$pdf text "         ISO 19005-1 SS6.1.3 (transparency forbidden in PDF/A-1)" -x 66 -y 125
+$pdf setFillColor 0 0 0
+
+$pdf setFont 9 Helvetica
+$pdf text "Abfragen: lindex \$::pdf4tcl::warnings end" -x 60 -y 110
+
 $pdf endPage
 $pdf write -file $outfile
 $pdf destroy

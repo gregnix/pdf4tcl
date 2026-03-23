@@ -157,7 +157,7 @@ $pdf text "Note: rotate/scale/translate affect graphics (line, rectangle, circle
     -x 50 -y $y; incr y 13
 $pdf text "Text uses absolute positioning (Tm operator) and is NOT affected by cm transforms." \
     -x 50 -y $y; incr y 13
-$pdf text "For rotated text, use pdf4tcllib::drawing::textRotated." \
+$pdf text "For rotated text: gsave / translate x y / rotate angle / text str -x 0 -y 0 / grestore" \
     -x 50 -y $y; incr y 25
 $pdf setFillColor 0 0 0
 

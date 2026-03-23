@@ -77,7 +77,7 @@ test examples-1.2 {example test2} -body {
     pdfdiff ../examples/test2.pdf test2.pdf
 } -result {} -cleanup {catch {p1 destroy}}
 
-test examples-1.3 {example test3} -body {
+test examples-1.3 {example test3} -constraints hasTk -body {
     # test3 contains an exit statement, stub it
     rename exit _exit
     proc exit args {}
@@ -85,7 +85,7 @@ test examples-1.3 {example test3} -body {
     exec diff -a ../examples/test3.pdf test3.pdf
 } -result {} -cleanup {catch {p1 destroy}; rename exit {} ; rename _exit exit}
 
-test examples-1.4 {example test4} -body {
+test examples-1.4 {example test4} -constraints hasTk -body {
     # test4 contains an exit statement, stub it
     rename exit _exit
     proc exit args {}

@@ -448,6 +448,3 @@ test canvas-20.1 {demo} -constraints "demo" -body {
 } -cleanup {destroy .items .goldberg} -result 1
 
 ::tcltest::cleanupTests
-
-# To make sure we exit even though Tk is loaded
-exit

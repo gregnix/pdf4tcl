@@ -124,6 +124,3 @@ test png-1.4 {png, bad file} -body {
 } -result {}
 
 ::tcltest::cleanupTests
-
-# To make sure we exit even though Tk is loaded
-exit
