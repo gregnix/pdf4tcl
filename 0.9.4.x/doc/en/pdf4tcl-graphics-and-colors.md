@@ -248,76 +248,122 @@ Parameters: start point, control point 1, control point 2, end point.
 
 ## Transformations
 
-### Basic Concept
+`translate`, `rotate`, `scale`, and `transform` (all added in 0.9.4.20)
+apply PDF coordinate transformations via the `cm` operator. Always wrap
+with `gsave`/`grestore` to limit the effect.
 
-In pdf4tcl, individual objects are not transformed — the entire
-coordinate system is. All subsequent drawing commands are affected.
-`gsave`/`grestore` is therefore essential.
+**Important:** after any of these calls, drawing commands (`line`,
+`rectangle`, `circle` etc.) work in **raw PDF coordinates**: y points
+upward, no margin offset, no orient flip. Text commands (`text`,
+`setFont`) use absolute `Tm` positioning and are **not affected** by
+transformations.
 
-### gsave and grestore
+### Raw-coordinate mode and the y offset
 
-```tcl
-# Save coordinate system
-$pdf gsave
-
-# Apply transformation
-$pdf rotate 45
-$pdf text "Rotated" -x 0 -y 0
-
-# Restore coordinate system
-$pdf grestore
-
-# Back to normal
-$pdf text "Normal" -x 100 -y 100
-```
-
-Without `gsave`/`grestore` all further drawing operations would also be
-rotated.
-
-### Rotation
+After `translate tx ty`, `rectangle 0 0 w h` draws `h` points
+**upward** from the new origin. To place the bottom edge of a rectangle
+at user-y, add the height to the y argument:
 
 ```tcl
+set y 200; set rh 20
 $pdf gsave
-$pdf translate 200 400    ;# move to the rotation point first
-$pdf rotate 45            ;# rotate 45 degrees
-$pdf text "45 degrees" -x 0 -y 0
+$pdf translate 100 [expr {$y + $rh}]  ;# bottom edge lands at y=200
+$pdf rectangle 0 0 50 $rh
 $pdf grestore
 ```
 
-Rotation always happens around the current origin. The coordinate system
-must therefore be translated to the desired pivot point first.
-
-### Scaling
-
-```tcl
-$pdf gsave
-$pdf scale 2.0 2.0        ;# 200% enlargement
-$pdf text "Large" -x 50 -y 50
-$pdf grestore
-```
+The `translate` point itself is converted from user-space (orient + margin)
+correctly. Only subsequent drawing commands are raw.
 
 ### Translation (Offset)
 
 ```tcl
 $pdf gsave
-$pdf translate 100 200    ;# move origin
-$pdf text "Offset" -x 0 -y 0
+$pdf translate 100 [expr {200 + 20}]  ;# bottom of 20pt rect at y=200
+$pdf rectangle 0 0 50 20
+$pdf grestore
+```
+
+### Rotation
+
+Rotation is around the current origin. Translate to the pivot first.
+
+```tcl
+$pdf gsave
+$pdf translate 200 400    ;# 1. move origin to pivot point
+$pdf rotate 45            ;# 2. rotate 45 degrees clockwise
+$pdf line 0 0 50 0        ;# 3. draw (graphics only, not text)
+$pdf grestore
+```
+
+### Scaling
+
+```tcl
+$pdf gsave
+$pdf translate 50 [expr {300 + 40}]   ;# position (40 = 20*scale)
+$pdf scale 2.0 2.0
+$pdf rectangle 0 0 30 20 -filled 1
 $pdf grestore
 ```
 
 ### Combined Transformations
 
-Transformations can be combined. The order matters because each one
-builds on the previous.
+Transformations accumulate. Order matters.
 
 ```tcl
 $pdf gsave
-$pdf translate 300 400    ;# 1. move to point
+$pdf translate 300 400    ;# 1. move origin
 $pdf rotate 30            ;# 2. rotate
-$pdf scale 0.5 0.5        ;# 3. shrink
-$pdf text "Combined" -x 0 -y 0
+$pdf scale 0.5 0.5        ;# 3. scale
+$pdf line 0 0 60 0        ;# draws along rotated+scaled x-axis
 $pdf grestore
 ```
+
+### transform (low-level matrix)
+
+```tcl
+$pdf gsave
+$pdf transform a b c d e f    ;# raw PDF cm matrix
+... drawing commands ...
+$pdf grestore
+```
+
+Common matrices:
+
+| Effect | a | b | c | d | e | f |
+|---|---|---|---|---|---|---|
+| Translate tx ty | 1 | 0 | 0 | 1 | tx | ty |
+| Scale sx sy | sx | 0 | 0 | sy | 0 | 0 |
+| Rotate θ | cos θ | sin θ | −sin θ | cos θ | 0 | 0 |
+
+### gsave and grestore
+
+`gsave` saves the complete graphics state (coordinate system, colors,
+line width, font). `grestore` restores it. Always pair them.
+
+```tcl
+$pdf gsave
+$pdf setFillColor 1 0 0
+$pdf translate 50 [expr {200 + 20}]
+$pdf rectangle 0 0 50 20 -filled 1
+$pdf grestore
+# Back to original coordinate system and color
+$pdf rectangle 50 200 50 20    ;# same position, user-coords
+```
+
+### getPageSize
+
+Returns the full page dimensions as `{width height}` in the current unit.
+
+```tcl
+set sz [$pdf getPageSize]
+set w [lindex $sz 0]
+set h [lindex $sz 1]
+# A4 at -unit mm: approx {210.0 297.0}
+# A4 at -unit p:  approx {595.0 842.0}
+```
+
+Use `getDrawableArea` for the printable area (excluding margins).
 
 ## Drawing Command Reference
 
@@ -350,9 +396,7 @@ $pdf setLineDash $dash $gap
 
 # Transformation
 $pdf gsave
-$pdf translate $dx $dy
-$pdf rotate $degrees
-$pdf scale $sx $sy
+$pdf translate $dx $dy    ;# or rotate/scale/transform
 $pdf grestore
 ```
 

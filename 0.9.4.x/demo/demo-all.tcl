@@ -189,7 +189,7 @@ foreach {rgb label} $colors {
     p rectangle $cx $y 35 20 -filled 1
     p setFillColor 0 0 0
     p setFont 7 Helvetica
-    p text $label -x $cx -y [expr {$y + 24}]
+    p text $label -x $cx -y [expr {$y + 27}]
     incr cx 45
 }
 incr y 40
@@ -319,19 +319,19 @@ if {[file exists [file join $imgdir smile.png]]} {
     p addImage [file join $imgdir smile.png] -id smile
     p putImage smile 50 $y -width 60 -height 60
     p setFont 8 Helvetica
-    p text "PNG (smile.png)" -x 50 -y [expr {$y + 64}]
+    p text "PNG (smile.png)" -x 50 -y [expr {$y + 68}]
 }
 if {[file exists [file join $imgdir tcl.jpg]]} {
     p addImage [file join $imgdir tcl.jpg] -id tcllogo
     p putImage tcllogo 130 $y -width 90 -height 60
     p setFont 8 Helvetica
-    p text "JPEG (tcl.jpg)" -x 130 -y [expr {$y + 64}]
+    p text "JPEG (tcl.jpg)" -x 130 -y [expr {$y + 68}]
 }
 if {[file exists [file join $imgdir gmarbles2.jpg]]} {
     p addImage [file join $imgdir gmarbles2.jpg] -id marbles
     p putImage marbles 240 $y -width 110 -height 75
     p setFont 8 Helvetica
-    p text "JPEG (gmarbles2.jpg)" -x 240 -y [expr {$y + 79}]
+    p text "JPEG (gmarbles2.jpg)" -x 240 -y [expr {$y + 83}]
 }
 
 incr y 100
@@ -351,7 +351,7 @@ foreach cx {50 160 270 380} {
     drawLogo p $cx $y
 }
 p setFont 8 Helvetica
-p text "Same logo proc called 4 times" -x 50 -y [expr {$y + 40}]
+p text "Same logo proc called 4 times" -x 50 -y [expr {$y + 46}]
 
 # ==================================================================
 # PAGE 4: Forms (addForm)
@@ -577,9 +577,9 @@ p setFillColor 0.20 0.40 0.70
 p rectangle 50 [expr {$y - 2}] 505 18 -filled 1
 p setFillColor 1 1 1
 p setFont 9 Helvetica-Bold
-p text "Feature"            -x  55 -y $y
-p text "PDF/A-1b"           -x 260 -y $y
-p text "PDF/A-2b"           -x 380 -y $y
+p text "Feature"            -x  55 -y [expr {$y + 7}]
+p text "PDF/A-1b"           -x 260 -y [expr {$y + 7}]
+p text "PDF/A-2b"           -x 380 -y [expr {$y + 7}]
 p setFillColor 0 0 0
 incr y 20
 
@@ -597,10 +597,10 @@ foreach {feat v1b v2b} {
         p setFillColor 0 0 0
     }
     p setFont 9 Helvetica-Bold
-    p text $feat -x  55 -y $y
+    p text $feat -x  55 -y [expr {$y + 7}]
     p setFont 9 Helvetica
-    p text $v1b  -x 260 -y $y
-    p text $v2b  -x 380 -y $y
+    p text $v1b  -x 260 -y [expr {$y + 7}]
+    p text $v2b  -x 380 -y [expr {$y + 7}]
     incr y 16
     set alt [expr {!$alt}]
 }

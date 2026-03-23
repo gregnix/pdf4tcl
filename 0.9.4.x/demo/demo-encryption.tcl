@@ -1,10 +1,11 @@
 #!/usr/bin/env tclsh
 # demo-encryption.tcl -- demonstrate AES-128 PDF encryption
 #
-# Creates three encrypted PDFs:
-#   demo-encryption-user.pdf    -- user password only
-#   demo-encryption-owner.pdf   -- owner password (printing restricted)
-#   demo-encryption-both.pdf    -- user + owner password
+# Creates four encrypted PDFs:
+#   demo-encryption-user.pdf        -- user password only
+#   demo-encryption-owner.pdf       -- owner password only
+#   demo-encryption-both.pdf        -- user + owner password
+#   demo-encryption-permissions.pdf -- restricted permissions
 #
 # Usage: tclsh demo-encryption.tcl [outputdir]
 
@@ -30,6 +31,7 @@ proc makePage {pdf title info} {
     }
 
     $pdf setFont 10 Helvetica
+    $pdf setFont 9 Helvetica
     $pdf text "pdf4tcl AES-128 Encryption Demo (V=4 R=4)" -x 50 -y 100
     $pdf endPage
 }
@@ -103,6 +105,57 @@ makePage $pdf "AES-128: User + Owner Password" {
     "Encryption: AES-128 (V=4, R=4)"
 }
 
+$pdf write -file $outfile
+$pdf destroy
+puts "Written: $outfile"
+
+
+# ---------------------------------------------------------------------------
+# 4) Eingeschraenkte Berechtigungen
+# ---------------------------------------------------------------------------
+
+set outfile [file join $outdir demo-encryption-permissions.pdf]
+
+set pdf [::pdf4tcl::new %AUTO% \
+    -paper a4 -orient 1 -compress 1 \
+    -userpassword  "readonly" \
+    -ownerpassword "admin" \
+    -permissions   {print}]
+
+$pdf startPage
+$pdf setFont 16 Helvetica-Bold
+$pdf text "AES-128: Restricted Permissions" -x 50 -y 60
+
+$pdf setFont 11 Helvetica
+set y 100
+foreach line {
+    "This PDF has restricted permissions."
+    ""
+    "User password:  readonly"
+    "Owner password: admin"
+    ""
+    "Permissions: print only"
+    "  print          allowed"
+    "  copy           NOT allowed"
+    "  modify         NOT allowed"
+    "  fill-forms     NOT allowed"
+    "  annotate       NOT allowed"
+    ""
+    "Encryption: AES-128 (V=4, R=4)"
+    "/P value: -4092"
+    ""
+    "Other preset examples:"
+    "  -permissions all       -> -196  (default)"
+    "  -permissions none      -> -4096 (no rights)"
+    "  -permissions readonly  -> -4092 (print only)"
+    "  -permissions {print copy fill-forms}"
+    "  -permissions -196      (integer direct)"
+} {
+    $pdf text $line -x 50 -y $y
+    incr y 18
+}
+
+$pdf endPage
 $pdf write -file $outfile
 $pdf destroy
 puts "Written: $outfile"

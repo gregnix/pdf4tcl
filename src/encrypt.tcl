@@ -5,6 +5,83 @@
 # AES-256: Standard Security Handler V=5 R=6 (PDF 2.0, ISO 32000-2 ss.7.6.4)
 #
 # AES-128 algorithms:
+
+# ---------------------------------------------------------------------------
+# _ParsePermissions -- /P-Wert aus Benutzer-Eingabe berechnen (0.9.4.20)
+#
+# Akzeptiert:
+#   Integer    z.B. -196  (direkt als /P-Wert)
+#   "all"      alle Rechte (-196, Default)
+#   "none"     alle Rechte gesperrt (-3904)
+#   "readonly" nur anzeigen, kein Drucken, kein Kopieren (-3392)
+#   Liste      z.B. {print copy fill-forms}
+#
+# Erlaubte Flags:
+#   print        Bit 3  Drucken (niedrige Qualitaet)
+#   modify       Bit 4  Inhalt aendern
+#   copy         Bit 5  Kopieren / Extrahieren
+#   annotate     Bit 6  Anmerkungen + Formulare
+#   fill-forms   Bit 9  Formularfelder ausfuellen
+#   accessibility Bit 10 Barrierefreiheit
+#   assemble     Bit 11 Zusammenstellen
+#   hq-print     Bit 12 Hochaufloesendes Drucken
+#
+# Rueckgabe: Integer (negativer 32-bit-Wert) fuer /P-Eintrag
+# ---------------------------------------------------------------------------
+proc ::pdf4tcl::_ParsePermissions {value} {
+    # Bit-Positionen (1-basiert wie in ISO 32000)
+    array set BITS {
+        print         3
+        modify        4
+        copy          5
+        annotate      6
+        fill-forms    9
+        accessibility 10
+        assemble      11
+        hq-print      12
+    }
+
+    # Presets
+    switch -- $value {
+        all      { return -196   }
+        none     { return -4096  }
+        readonly { return -4092  }
+    }
+
+    # Integer direkt
+    if {[string is integer -strict $value]} {
+        set v [expr {int($value)}]
+        # Muss negative 32-bit-Zahl sein (Bits 1+2 muessen 0 sein)
+        if {$v > 0} {
+            throw {PDF4TCL ARGS} \
+                "permissions: Wert muss negativ sein (PDF /P-Konvention): $value"
+        }
+        return $v
+    }
+
+    # Symbolische Liste
+    # Basis: -196 = 0xFFFFFF3C
+    # Bits 1,2,7,8 bleiben immer 0 (reserviert laut ISO 32000).
+    # Bits 13-32 bleiben immer 1.
+    # Starte mit 0 fuer Permission-Bits (3-12), dann gesetzte Flags eintragen.
+    set p [expr {-196 & ~0xFFF}]  ;# = 0xFFFFF000 als signed: -4096
+    # Bits 1,2,7,8 explizit loeschen
+    set p [expr {$p & ~0b11000011}]
+
+    foreach flag $value {
+        set flag [string tolower $flag]
+        if {![info exists BITS($flag)]} {
+            throw {PDF4TCL ARGS} \
+                "permissions: unbekanntes Flag \"$flag\" (erlaubt: [array names BITS])"
+        }
+        set bit $BITS($flag)
+        set p [expr {$p | (1 << ($bit - 1))}]
+    }
+
+    # Als signed 32-bit-Integer zurueckgeben
+    return [expr {int($p)}]
+}
+
 #   Alg 1  - Encrypt data per object  (ss.7.6.2)
 #   Alg 2  - Derive encryption key    (ss.7.6.3.3)
 #   Alg 3  - Compute O entry          (ss.7.6.3.4)

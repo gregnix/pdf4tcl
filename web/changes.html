@@ -11,31 +11,24 @@
 <p>
 <h2>Changes</h2>
 
-Changes in v0.9.4.19 (2026-03-21, fork gregnix):<br>
+Changes in v0.9.4.20 (2026-03-23, fork gregnix):<br>
 <ul>
-  <li>main.tcl: XMP stream accumulated as UTF-8 bytes -- fixes EILSEQ for
-      metadata -title with Unicode > U+00FF under Tcl 9 (cidfont-9.2)</li>
-  <li>tests/cidfont.test: cidfont-9.2 knownbug constraint removed</li>
-  <li>tests/new-0.9.4.18.test: 24 new tests (write, _ValidatePdfDate,
-      CleanText, metadata Unicode, sha2pure NIST vectors)</li>
-</ul>
-
-Changes in v0.9.4.19 (2026-03-21, fork gregnix):<br>
-<ul>
-  <li>main.tcl: XMP stream accumulated as UTF-8 bytes -- fixes EILSEQ for
-      metadata -title with Unicode > U+00FF under Tcl 9 (cidfont-9.2)</li>
-  <li>tests/cidfont.test: cidfont-9.2 knownbug constraint removed</li>
-  <li>tests/new-0.9.4.18.test: 24 new tests (write, _ValidatePdfDate,
-      CleanText, metadata Unicode, sha2pure NIST vectors)</li>
-</ul>
-
-Changes in v0.9.4.19 (2026-03-21, fork gregnix):<br>
-<ul>
-  <li>main.tcl: XMP stream accumulated as UTF-8 bytes -- fixes EILSEQ for
-      metadata -title with Unicode > U+00FF under Tcl 9 (cidfont-9.2)</li>
-  <li>tests/cidfont.test: cidfont-9.2 knownbug constraint removed</li>
-  <li>tests/new-0.9.4.18.test: 24 new tests (write, _ValidatePdfDate,
-      CleanText, metadata Unicode, sha2pure NIST vectors)</li>
+  <li>src/main.tcl: new methods transform, translate, rotate, scale --
+      apply PDF coordinate transformations (cm operator);
+      use with gsave/grestore; drawing commands only, text is not affected</li>
+  <li>src/main.tcl: new method getPageSize -- returns {width height} in current
+      unit; complements getDrawableArea (excludes margins)</li>
+  <li>src/main.tcl: rawcoords state flag -- set by translate/rotate/scale,
+      saved/restored by gsave/grestore via stateToGSave stack</li>
+  <li>src/encrypt.tcl: new option -permissions -- controls user rights after
+      opening; presets: all/none/readonly; requires -userpassword</li>
+  <li>tools/bump.tcl: consolidated -- handles pdf4tcl.man, web/changes.html,
+      README.md, web/index.html</li>
+  <li>tests/new-0.9.4.20.test: 23 new tests (getPageSize 7, transform 7,
+      rotate/scale/translate/rawcoords 9)</li>
+  <li>demo/demo-transform.tcl, demo/demo-permissions.tcl: new demos</li>
+  <li>doc/en/: pdf4tcl-basics.md and pdf4tcl-graphics-and-colors.md updated
+      for 0.9.4.20 (transformations, rawcoords, -permissions)</li>
 </ul>
 
 Changes in v0.9.4.19 (2026-03-21, fork gregnix):<br>

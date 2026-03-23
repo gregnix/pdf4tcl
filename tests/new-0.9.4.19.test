@@ -1,0 +1,150 @@
+# new-0.9.4.19.test -- Tests fuer pdf4tcl 0.9.4.19
+#
+# 0.9.4.19: XMP-Stream als UTF-8-Bytes (cidfont-9.2 behoben)
+#
+# new-0.9.4.18.test 18-4.x testet bereits den Kern des Fixes
+# (En-Dash, Umlaut, XMP-Bytes, Info-Dict SafeQuoteString).
+# Dieses File ergaenzt:
+#   19-1.x  Weitere Unicode-Bereiche im XMP-Stream
+#   19-2.x  Mehrere Metadaten-Felder mit Unicode kombiniert
+#   19-3.x  cidfont-9.2 Regression (Smoke-Test)
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+proc makePdf {body} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    uplevel 1 [list apply [list {p} $body] $p]
+    $p endPage
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+proc makePdfToFile {fname body} {
+    set f [makeFile {} $fname]
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    uplevel 1 [list apply [list {p} $body] $p]
+    $p endPage
+    $p write -file $f
+    $p destroy
+    removeFile $f
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# 19-1.x  XMP-Stream: verschiedene Unicode-Bereiche
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.19-1.1 {XMP: Em-Dash U+2014 in title kein Fehler} -body {
+    makePdfToFile new19_emdash.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Bericht \u2014 2026"
+    }
+} -result 0
+
+test new-0.9.4.19-1.2 {XMP: Pfeil U+2192 in subject kein Fehler} -body {
+    makePdfToFile new19_arrow.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -subject "A \u2192 B"
+    }
+} -result 0
+
+test new-0.9.4.19-1.3 {XMP: Euro-Zeichen U+20AC in keywords kein Fehler} -body {
+    makePdfToFile new19_euro.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -keywords "Preis \u20ac 25"
+    }
+} -result 0
+
+test new-0.9.4.19-1.4 {XMP: Em-Dash UTF-8-Sequenz E2 80 94 im Stream} -body {
+    set data [makePdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "A \u2014 B"
+    }]
+    # U+2014 Em-Dash = UTF-8 E2 80 94
+    expr {[string first "\xe2\x80\x94" $data] >= 0}
+} -result 1
+
+test new-0.9.4.19-1.5 {XMP: Euro UTF-8-Sequenz E2 82 AC im Stream} -body {
+    set data [makePdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -subject "EUR \u20ac"
+    }]
+    # U+20AC Euro = UTF-8 E2 82 AC
+    expr {[string first "\xe2\x82\xac" $data] >= 0}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 19-2.x  Kombinierte Metadaten-Felder mit Unicode
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.19-2.1 {XMP: alle Felder mit Unicode kein Fehler} -body {
+    makePdfToFile new19_allfields.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata \
+            -title    "Bericht \u2013 2026" \
+            -author   "Mueller" \
+            -subject  "Analyse \u2192 Ergebnis" \
+            -keywords "pdf tcl \u20ac" \
+            -creator  "pdf4tcl"
+    }
+} -result 0
+
+test new-0.9.4.19-2.2 {XMP: Unicode in author kein Fehler} -body {
+    makePdfToFile new19_author.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -author "M\u00fcller"
+    }
+} -result 0
+
+test new-0.9.4.19-2.3 {XMP: reiner ASCII in allen Feldern -- Vergleich} -body {
+    # Kontrolltest: reines ASCII funktioniert ebenfalls
+    set data [makePdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Report 2026" -author "Smith"
+    }]
+    # XMP-Stream muss da sein
+    expr {[string first "/Type /Metadata" $data] >= 0}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 19-3.x  cidfont-9.2 Regression
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.19-3.1 {cidfont-9.2: metadata -title mit En-Dash kein Fehler} -body {
+    # Direkte Regression fuer den gemeldeten Bug
+    makePdfToFile new19_regression.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Report 2026 \u2013 Summary"
+    }
+} -result 0
+
+test new-0.9.4.19-3.2 {cidfont-9.2: bookmarkAdd mit En-Dash weiterhin OK} -body {
+    # bookmarkAdd war schon in 0.9.4.18 ok (cidfont-9.1) -- sicherstellen
+    makePdfToFile new19_bookmark.pdf {
+        $p text "Test" -x 50 -y 50
+        $p bookmarkAdd -title "Chapter 1 \u2013 Introduction"
+    }
+} -result 0
+
+test new-0.9.4.19-3.3 {cidfont-9.2: metadata + bookmarkAdd kombiniert kein Fehler} -body {
+    makePdfToFile new19_combined.pdf {
+        $p text "Test" -x 50 -y 50
+        $p metadata -title "Bericht \u2013 2026"
+        $p bookmarkAdd -title "Kapitel 1 \u2013 Einleitung"
+    }
+} -result 0
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests

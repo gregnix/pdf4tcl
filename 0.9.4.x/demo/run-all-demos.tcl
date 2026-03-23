@@ -50,7 +50,9 @@ set DEMOS {
     {demo-api-vergleich.tcl      0  none       "API-Vergleich (Font-Demo)"}
     {demo-cidfont.tcl            0  none       "CIDFont Unicode-Support"}
     {demo-embedfile.tcl          0  --out      "Eingebettete Dateien (addEmbeddedFile)"}
-    {demo-encryption.tcl         0  dir        "AES-128 Verschluesselung"}
+    {demo-encryption.tcl         0  dir        "AES-128 Verschluesselung + -permissions"}
+    {demo-transform.tcl          0  dir        "transform + getPageSize (0.9.4.20)"}
+    {demo-permissions.tcl        0  dir        "PDF-Berechtigungen (-permissions)"}
     {demo-pdfa.tcl               0  --out      "PDF/A direkt"}
     {demo-pdfa-gs.tcl            0  --out      "PDF/A via Ghostscript"}
     {demo-stdfonts-tabelle.tcl   0  none       "Standard-Fonts Tabelle"}
