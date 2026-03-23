@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# demo-pdfa.tcl -- PDF/A-Features Demonstration (pdf4tcl 0.9.4.20)
+# demo-pdfa.tcl -- PDF/A-Features Demonstration (pdf4tcl 0.9.4.22)
 #
 # Zeigt: -pdfa Option, XMP-Metadaten, pdfaid-Schema, OutputIntent,
 #        /Group-Unterdrueckung, Metadaten-Synchronisation.
@@ -172,8 +172,10 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
 
     set y [info_line $pdf "-pdfa Option:" \
         [expr {$pdfa_variant eq "" ? "(nicht gesetzt)" : $pdfa_variant}] 50 $y]
+    # pdf(version) is set internally -- read via DebugGetInternalState
+    set pdfver [dict get [$pdf DebugGetInternalState] version]
     set y [info_line $pdf "PDF-Standard:" \
-        [expr {$pdfa_variant eq "" ? "PDF 1.4 (Standard)" : "PDF 1.4 (ISO 19005)"}] 50 $y]
+        [expr {$pdfa_variant eq "" ? "PDF $pdfver (Standard)" : "PDF $pdfver (ISO 19005)"}] 50 $y]
     set y [info_line $pdf "XMP-Metadaten:" \
         [expr {$pdfa_variant ne "" ? "ja (pdfaid-Schema)" : "nein"}] 50 $y]
     set y [info_line $pdf "OutputIntent:" \
@@ -384,6 +386,89 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
         "6.3.9"   "ToUnicode CMap fehlt"                        "0.9.4.9"
         "6.1.3"   "/Group /S /Transparency bei PDF/A-1"         "0.9.4.8"
         "6.1.7"   "/Length falsch berechnet"                    "0.9.4.8"
+    } {
+        $pdf setFont 10 cidSans
+        $pdf text "SS$regel" -x 50 -y $y
+        $pdf text $beschreibung -x 120 -y $y
+        $pdf text "v$version" -x 460 -y $y
+        incr y -16
+    }
+
+    $pdf endPage
+
+    # -----------------------------------------------------------------------
+    # Seite 4: XRef-Stream und PDF/A-2b (0.9.4.22)
+    # -----------------------------------------------------------------------
+    $pdf startPage
+
+    $pdf setFillColor 0.10 0.25 0.50
+    $pdf rectangle 0 797 595 45 -filled 1
+    $pdf setFillColor 1 1 1
+    $pdf setFont 14 cidSans
+    $pdf text "XRef-Streams und PDF/A-2b (0.9.4.22)" -x 40 -y 816
+    $pdf setFillColor 0 0 0
+
+    set y 755
+    set y [section_header $pdf "XRef-Streams (ISO 32000 SS7.5.8)" $y]
+
+    $pdf setFont 10 cidSans
+    foreach line {
+        "Klassische PDFs verwenden eine Texttabelle fuer Objekt-Offsets (xref-Tabelle)."
+        "Ab PDF 1.5 erlaubt der Standard XRef-Streams -- kompaktere binaere Form."
+        ""
+        "PDF/A-1b  -->  klassische xref-Tabelle (XRef-Streams verboten)"
+        "PDF/A-2b  -->  XRef-Stream (SS6.1.4 der ISO 19005-2)"
+    } {
+        $pdf text $line -x 50 -y $y
+        incr y -15
+    }
+    incr y -10
+
+    set y [section_header $pdf "Struktur im PDF" $y]
+
+    $pdf setFillColor 0.95 0.95 0.95
+    $pdf rectangle 50 [expr {$y - 84}] 495 96 -filled 1
+    $pdf setFont 9 cidSans
+    $pdf setFillColor 0.20 0.20 0.20
+    foreach line {
+        "Klassisch:             XRef-Stream:"
+        "xref                   10 0 obj"
+        "0 6                    << /Type /XRef"
+        "0000000000 65535 f         /Size 11"
+        "0000000017 00000 n         /Root 1 0 R"
+        "...                        /W \[1 4 2\]"
+        "trailer                    /Length ..."
+        "<< /Size 6  /Root 1 0 R >> >>"
+    } {
+        $pdf text $line -x 55 -y $y
+        incr y -12
+    }
+    $pdf setFillColor 0 0 0
+    incr y -16
+
+    set y [section_header $pdf "Implementierung in pdf4tcl" $y]
+
+    $pdf setFont 10 cidSans
+    foreach line {
+        "pdf4tcl waehlt automatisch den richtigen Modus:"
+        "  -pdfa 1b  -->  _WriteXrefTable  (xref + trailer)"
+        "  -pdfa 2b  -->  _WriteXrefStream (/Type /XRef Objekt)"
+        "  Standard  -->  _WriteXrefTable  (maximale Kompatibilitaet)"
+        ""
+        "Das XRef-Stream-Objekt enthaelt Catalog-Eintraege (/Root, /Info, /ID)."
+        "Ein separates trailer-Dict entfaellt vollstaendig."
+    } {
+        $pdf text $line -x 50 -y $y
+        incr y -15
+    }
+    incr y -10
+
+    set y [section_header $pdf "Behoben in pdf4tcl 0.9.4.22" $y]
+
+    foreach {regel beschreibung version} {
+        "6.1.4"  "XRef-Streams fuer PDF/A-2b"                    "0.9.4.22"
+        "6.1.6"  "setAlpha < 1.0 bei PDF/A-1b: Warning"           "0.9.4.22"
+        "--"     "MD5 pure-Tcl Fallback (FIPS-Systeme)"            "0.9.4.22"
     } {
         $pdf setFont 10 cidSans
         $pdf text "SS$regel" -x 50 -y $y

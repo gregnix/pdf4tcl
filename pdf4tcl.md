@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.21?**
+package require **pdf4tcl ?0****.9****.4****.22?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -205,6 +205,10 @@ package require **pdf4tcl ?0****.9****.4****.21?**
 *objectName* **beginLayer** *layerId*
 
 *objectName* **endLayer**
+
+*objectName* **_WriteXrefTable** *idHash* *encdict_oid* *metadata_oid*
+
+*objectName* **_WriteXrefStream** *idHash* *encdict_oid* *metadata_oid*
 
 ## DESCRIPTION
 
@@ -966,6 +970,12 @@ $pdf beginLayer $lKopf
 $pdf endLayer
 ```
 
+**objectName**
+: **_WriteXrefTable** *idHash* *encdict_oid* *metadata_oid*
+
+**objectName _WriteXrefStream idHash encdict_oid metadata_oid**
+: Internal methods for writing the cross-reference section. **_WriteXrefTable** writes the classic text-based xref table and trailer dict. **_WriteXrefStream** writes a binary XRef stream object (PDF 1.5+, required for PDF/A-2b+). The XRef stream object contains all trailer entries (**/Root**, **/Info**, **/ID**) eliminating the need for a separate trailer dictionary. Selection is automatic: **-pdfa 2b** uses **_WriteXrefStream**, all other modes use **_WriteXrefTable**.
+
 ### OBJECT CONFIGURATION
 
 All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which defines default page settings when used with a pdf4tcl object. The objects also understand the following configuration options:
@@ -1053,7 +1063,34 @@ $pdf text "Hello" -x [pdf4tcl::mm 20] -y [pdf4tcl::mm 267]
 $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm 80] [pdf4tcl::mm 30]                  -radius [pdf4tcl::mm 5] -filled 1
 ```
 
+## PACKAGE VARIABLES
+
+**::pdf4tcl::warnings** A list of non-fatal compliance warnings accumulated during PDF generation. Currently populated by **setAlpha** when called with a value less than 1.0 under **-pdfa 1b** (transparency forbidden by ISO 19005-1 SS6.1.3).
+
+```tcl
+set ::pdf4tcl::warnings {}
+set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
+$pdf startPage
+$pdf setAlpha 0.5      ;# appends warning -- no exception raised
+$pdf endPage
+$pdf destroy
+foreach w $::pdf4tcl::warnings { puts "WARNING: $w" }
+```
+
+Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is generated regardless of any warnings in this list. **::pdf4tcl::_md5Backend** Set by **_InitMD5Backend** on first use. Values: **tcllib**, **openssl**, **pure-tcl**. Read-only; for diagnostics only.
+
 ## CHANGES
+
+### VERSION 0.9.4.22
+
+- (**_WriteXrefStream**) instead of a classic xref table. Required by ISO 19005-2 SS6.1.4. PDF/A-1b continues to use the classic table (XRef streams forbidden by ISO 19005-1 SS6.1.3). Classic xref table extracted into **_WriteXrefTable**.
+- (ISO 19005-2 SS4.1 requires PDF 1.7 as base format). PDF/A-1b and standard PDFs remain at PDF 1.4.
+- under **-pdfa 1b** appends a warning to **::pdf4tcl::warnings** (transparency forbidden by ISO 19005-1 SS6.1.3). No exception is raised -- the PDF is generated regardless.
+- Accumulates non-fatal compliance warnings. Check after document creation; reset with **set ::pdf4tcl::warnings {}**.
+- **_MD5**, **_MD5Init**, **_MD5Update**, **_MD5Final**, **_MD5PureTcl**). Priority: Tcllib md5 -> openssl -> pure-Tcl implementation (RFC 1321). AES-128 encryption now works on FIPS systems without Tcllib.
+- XRef-Stream (7), PDF version (3), setAlpha warning (2), MD5 pure-Tcl (5).
+- structure, PDF/A-2b implementation, and 0.9.4.22 fixes. PDF version on page 1 now dynamically reflects actual document version.
+- **-pdfa 1b** + **setAlpha** warning mechanism.
 
 ### VERSION 0.9.4.21
 

@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.21
+package provide pdf4tcl 0.9.4.22
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -21,6 +21,11 @@ namespace eval pdf4tcl {
     variable paper_sizes
     variable units
     variable dir [file dirname [file join [pwd] [info script]]]
+
+    # Accumulated warnings (e.g. PDF/A violations). Check with:
+    #   $::pdf4tcl::warnings
+    # Reset with: set ::pdf4tcl::warnings {}
+    variable warnings {}
 
     # Make mathops available
     namespace import ::tcl::mathop::*
@@ -2225,11 +2230,16 @@ oo::define ::pdf4tcl::pdf4tcl {
         # collect output in memory
         set pdf(pdf) ""
 
-        # Version: 1.5+ for AES-128, 2.0 for AES-256
+        # Version: 1.5+ for AES-128, 2.0 for AES-256, 1.7 for PDF/A-2b+
         if {$pdf(encrypt) && $pdf(encVersion) == 5} {
             set pdf(version) 2.0
         } elseif {$pdf(encrypt)} {
             set pdf(version) 1.5
+        } elseif {[string match "2*" $options(-pdfa)] || \
+                  [string match "3*" $options(-pdfa)]} {
+            # PDF/A-2 requires PDF 1.7 (ISO 19005-2 SS4.1)
+            # PDF/A-3 requires PDF 1.7 (ISO 19005-3 SS4.1)
+            set pdf(version) 1.7
         } else {
             set pdf(version) 1.4
         }
@@ -3007,24 +3017,11 @@ Use -pdfa-icc to specify a profile path."
             my Flush
         }
 
-        # Cross reference table
-        set xref_pos $pdf(out_pos)
-        my Pdfout "xref\n"
-        my Pdfout "0 [my NextOid]\n"
-        my Pdfout "0000000000 65535 f \n"
-        for {set a 1} {$a<[my NextOid]} {incr a} {
-            set xref $pdf(xref,$a)
-            my Pdfout [format "%010ld 00000 n \n" $xref]
-        }
-
-        # Document trailer
+        # Compute /ID (needed by both xref modes)
         # /ID is required by PDF spec (ISO 32000 ss.7.5.5) and PDF/A.
-        # Encrypted documents use a random ID (computed in InitEncrypt).
-        # Unencrypted documents use a deterministic content-based ID.
         if {$pdf(encrypt)} {
             binary scan $pdf(encFileId) H* idHash
         } else {
-            # Deterministic: two 32-bit accumulators over PDF bytes.
             set _h1 0x811C9DC5
             set _h2 0xCBF29CE4
             binary scan $pdf(pdf) "Iu*" _words
@@ -3038,21 +3035,17 @@ Use -pdfa-icc to specify a profile path."
             unset _h1 _h2 _h3 _h4 _words
         }
 
-        my Pdfout "trailer\n"
-        my Pdfout "<<\n"
-        my Pdfout "/Size [my NextOid]\n"
-        my Pdfout "/Root 1 0 R\n"
-        if {[info exists metadata_oid]} {
-            my Pdfout "/Info $metadata_oid 0 R\n"
+        # Write xref + trailer: stream for PDF/A-2b+, classic otherwise.
+        # PDF/A-1 forbids XRef streams (ISO 19005-1 SS6.1); PDF/A-2+ requires them.
+        set useXrefStream 0
+        if {$options(-pdfa) in {2b 3b}} {
+            set useXrefStream 1
         }
-        if {$encdict_oid ne ""} {
-            my Pdfout "/Encrypt $encdict_oid 0 R\n"
+        if {$useXrefStream} {
+            my _WriteXrefStream $idHash $encdict_oid [expr {[info exists metadata_oid] ? $metadata_oid : ""}]
+        } else {
+            my _WriteXrefTable  $idHash $encdict_oid [expr {[info exists metadata_oid] ? $metadata_oid : ""}]
         }
-        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
-        my Pdfout ">>\n"
-        my Pdfout "\nstartxref\n"
-        my Pdfout "$xref_pos\n"
-        my Pdfout "%%EOF\n"
         my Flush
 
         if {$dryRun} {
@@ -4999,6 +4992,15 @@ Use -pdfa-icc to specify a profile path."
     method setAlpha {args} {
         if {!$pdf(inPage)} { my startPage }
 
+        # PDF/A-1 forbids transparency (ISO 19005-1 SS6.1.3).
+        # Warn when setAlpha < 1.0 is used with -pdfa 1b.
+        if {[string match "1*" $options(-pdfa)]} {
+            set val [lindex $args 0]
+            if {[string is double -strict $val] && $val < 1.0} {
+                lappend ::pdf4tcl::warnings                     "setAlpha $val with -pdfa 1b violates ISO 19005-1 SS6.1.3 (transparency forbidden in PDF/A-1)"
+            }
+        }
+
         set newFill   $pdf(fillAlpha)
         set newStroke $pdf(strokeAlpha)
 
@@ -5404,6 +5406,100 @@ Use -pdfa-icc to specify a profile path."
     method endLayer {} {
         my EndTextObj
         my Pdfout "EMC\n"
+    }
+
+    # ---------------------------------------------------------------------------
+    # XRef writing -- classic table and XRef-Stream
+    # ---------------------------------------------------------------------------
+
+    # Classic cross-reference table + trailer (PDF 1.4, PDF/A-1).
+    method _WriteXrefTable {idHash encdict_oid metadata_oid} {
+        set xref_pos $pdf(out_pos)
+        my Pdfout "xref\n"
+        my Pdfout "0 [my NextOid]\n"
+        my Pdfout "0000000000 65535 f \n"
+        for {set a 1} {$a < [my NextOid]} {incr a} {
+            my Pdfout [format "%010ld 00000 n \n" $pdf(xref,$a)]
+        }
+        my Pdfout "trailer\n"
+        my Pdfout "<<\n"
+        my Pdfout "/Size [my NextOid]\n"
+        my Pdfout "/Root 1 0 R\n"
+        if {$metadata_oid ne ""} {
+            my Pdfout "/Info $metadata_oid 0 R\n"
+        }
+        if {$encdict_oid ne ""} {
+            my Pdfout "/Encrypt $encdict_oid 0 R\n"
+        }
+        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
+        my Pdfout ">>\n"
+        my Pdfout "\nstartxref\n"
+        my Pdfout "$xref_pos\n"
+        my Pdfout "%%EOF\n"
+    }
+
+    # XRef stream (PDF 1.5+, required for PDF/A-2b+).
+    # Replaces the classic xref table + trailer entirely.
+    # Binary format: /W [1 4 2] = 1-byte type, 4-byte offset, 2-byte generation.
+    method _WriteXrefStream {idHash encdict_oid metadata_oid} {
+        set size [my NextOid]
+
+        # Build binary xref stream data (/W [1 4 2])
+        # Build binary xref entries: /W [1 4 2]
+        # Each entry = 7 bytes: 1-byte type + 4-byte offset + 2-byte generation
+        # Entry 0: free head -- type=0, offset=0, gen=65535
+        # Use manual byte construction to avoid signed/unsigned issues in Tcl 8.6
+        proc _xref_entry {type offset gen} {
+            binary format H2H8H4                 [format %02X $type]                 [format %08X $offset]                 [format %04X $gen]
+        }
+        set streamData [_xref_entry 0 0 65535]
+        for {set a 1} {$a < $size} {incr a} {
+            set off [expr {[info exists pdf(xref,$a)] ? $pdf(xref,$a) : 0}]
+            append streamData [_xref_entry 1 $off 0]
+        }
+        rename _xref_entry {}
+
+        # Compress if enabled
+        set filter ""
+        if {$pdf(compress)} {
+            set compressed [zlib compress $streamData]
+            # Only use compression if it actually helps
+            if {[string length $compressed] + 20 < [string length $streamData]} {
+                set streamData $compressed
+                set filter "/Filter /FlateDecode\n"
+            }
+        }
+
+        set xref_oid [my GetOid 1]
+        set xref_pos $pdf(out_pos)
+        my StoreXref $xref_oid
+
+        my Pdfout "$xref_oid 0 obj\n"
+        my Pdfout "<<\n"
+        my Pdfout "/Type /XRef\n"
+        my Pdfout "/Size $size\n"
+        my Pdfout "/Root 1 0 R\n"
+        if {$metadata_oid ne ""} {
+            my Pdfout "/Info $metadata_oid 0 R\n"
+        }
+        if {$encdict_oid ne ""} {
+            my Pdfout "/Encrypt $encdict_oid 0 R\n"
+        }
+        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
+        my Pdfout "/W \[1 4 2\]\n"
+        my Pdfout "/Index \[0 $size\]\n"
+        if {$filter ne ""} {
+            my Pdfout $filter
+        }
+        my Pdfout "/Length [string length $streamData]\n"
+        my Pdfout ">>\n"
+        my Pdfout "stream\n"
+        my Pdfout $streamData
+        my Pdfout "\nendstream\n"
+        my Pdfout "endobj\n"
+        my Pdfout "\nstartxref\n"
+        my Pdfout "$xref_pos\n"
+        my Pdfout "%%EOF\n"
     }
 
     # Apply a transformation matrix to the current graphics state.
@@ -8706,6 +8802,162 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     ###########################################################################
+    # MD5 abstraction layer
+    # Priority: Tcllib md5 -> openssl exec -> pure-Tcl
+    #
+    # MD5 may be unavailable on FIPS systems. This backend chain ensures
+    # AES-128 encryption works without Tcllib on all platforms.
+    # Cached in ::pdf4tcl::_md5Backend after first call.
+    ###########################################################################
+
+    method _InitMD5Backend {} {
+        if {[info exists ::pdf4tcl::_md5Backend]} { return }
+        # 1. Tcllib md5
+        if {![catch {package require md5}]} {
+            set ::pdf4tcl::_md5Backend tcllib
+            return
+        }
+        # 2. openssl im PATH
+        if {[auto_execok openssl] ne ""} {
+            set ::pdf4tcl::_md5Backend openssl
+            return
+        }
+        # 3. pure-Tcl MD5 -- immer verfuegbar
+        set ::pdf4tcl::_md5Backend pure-tcl
+    }
+
+    # MD5 digest -- returns 16 raw bytes
+    method _MD5 {data} {
+        my _InitMD5Backend
+        switch $::pdf4tcl::_md5Backend {
+            tcllib {
+                return [md5::md5 $data]
+            }
+            openssl {
+                set fd [open "|openssl dgst -md5 -binary" rb+]
+                fconfigure $fd -translation binary
+                puts -nonewline $fd $data
+                flush $fd
+                # openssl reads from stdin until EOF
+                catch {chan configure $fd -blocking 0}
+                set out [read $fd]
+                catch {close $fd}
+                if {[string length $out] == 16} { return $out }
+                # Fallback if pipe fails
+                return [my _MD5PureTcl $data]
+            }
+            pure-tcl {
+                return [my _MD5PureTcl $data]
+            }
+        }
+    }
+
+    # MD5 with streaming context (for incremental hashing)
+    # Returns {ctx} -- use _MD5Update / _MD5Final
+    method _MD5Init {} {
+        my _InitMD5Backend
+        if {$::pdf4tcl::_md5Backend eq "tcllib"} {
+            return [md5::MD5Init]
+        }
+        # For non-tcllib: collect data, hash at end
+        return [list ""]
+    }
+
+    method _MD5Update {ctx data} {
+        if {$::pdf4tcl::_md5Backend eq "tcllib"} {
+            md5::MD5Update $ctx $data
+            return $ctx
+        }
+        return [list [lindex $ctx 0]$data]
+    }
+
+    method _MD5Final {ctx} {
+        if {$::pdf4tcl::_md5Backend eq "tcllib"} {
+            return [md5::MD5Final $ctx]
+        }
+        return [my _MD5 [lindex $ctx 0]]
+    }
+
+    # Pure-Tcl MD5 implementation (RFC 1321)
+    method _MD5PureTcl {msg} {
+        # Per-round shift amounts
+        set S {7 12 17 22  7 12 17 22  7 12 17 22  7 12 17 22
+               5  9 14 20  5  9 14 20  5  9 14 20  5  9 14 20
+               4 11 16 23  4 11 16 23  4 11 16 23  4 11 16 23
+               6 10 15 21  6 10 15 21  6 10 15 21  6 10 15 21}
+        # Precomputed T[i] = floor(abs(sin(i+1)) * 2^32)
+        set T {
+            0xd76aa478 0xe8c7b756 0x242070db 0xc1bdceee
+            0xf57c0faf 0x4787c62a 0xa8304613 0xfd469501
+            0x698098d8 0x8b44f7af 0xffff5bb1 0x895cd7be
+            0x6b901122 0xfd987193 0xa679438e 0x49b40821
+            0xf61e2562 0xc040b340 0x265e5a51 0xe9b6c7aa
+            0xd62f105d 0x02441453 0xd8a1e681 0xe7d3fbc8
+            0x21e1cde6 0xc33707d6 0xf4d50d87 0x455a14ed
+            0xa9e3e905 0xfcefa3f8 0x676f02d9 0x8d2a4c8a
+            0xfffa3942 0x8771f681 0x6d9d6122 0xfde5380c
+            0xa4beea44 0x4bdecfa9 0xf6bb4b60 0xbebfbc70
+            0x289b7ec6 0xeaa127fa 0xd4ef3085 0x04881d05
+            0xd9d4d039 0xe6db99e5 0x1fa27cf8 0xc4ac5665
+            0xf4292244 0x432aff97 0xab9423a7 0xfc93a039
+            0x655b59c3 0x8f0ccc92 0xffeff47d 0x85845dd1
+            0x6fa87e4f 0xfe2ce6e0 0xa3014314 0x4e0811a1
+            0xf7537e82 0xbd3af235 0x2ad7d2bb 0xeb86d391
+        }
+        set M 0xFFFFFFFF
+        # Initial state
+        set a0 0x67452301; set b0 0xefcdab89
+        set c0 0x98badcfe; set d0 0x10325476
+        # Pre-processing: append bit '1', pad to 448 mod 512 bits, append length
+        set msgLen [string length $msg]
+        append msg "\x80"
+        set padLen [expr {(56 - ($msgLen + 1) % 64 + 64) % 64}]
+        append msg [string repeat " " $padLen]
+        # Length in bits as 64-bit little-endian (two 32-bit words)
+        set bitLen [expr {$msgLen * 8}]
+        set loLen  [expr {$bitLen & 0xFFFFFFFF}]
+        set hiLen  0
+        append msg [binary format iuiu $loLen $hiLen]
+        # Process each 512-bit (64-byte) chunk
+        set numChunks [expr {[string length $msg] / 64}]
+        for {set chunk 0} {$chunk < $numChunks} {incr chunk} {
+            set chunk_bytes [string range $msg [expr {$chunk*64}] [expr {$chunk*64+63}]]
+            set w {}
+            for {set j 0} {$j < 16} {incr j} {
+                binary scan [string range $chunk_bytes [expr {$j*4}] [expr {$j*4+3}]] iu val
+                lappend w $val
+            }
+            set A $a0; set B $b0; set C $c0; set D $d0
+            for {set i 0} {$i < 64} {incr i} {
+                if {$i < 16} {
+                    set F [expr {($B & $C) | ((~$B & $M) & $D)}]
+                    set g $i
+                } elseif {$i < 32} {
+                    set F [expr {($D & $B) | ((~$D & $M) & $C)}]
+                    set g [expr {(5*$i + 1) % 16}]
+                } elseif {$i < 48} {
+                    set F [expr {$B ^ $C ^ $D}]
+                    set g [expr {(3*$i + 5) % 16}]
+                } else {
+                    set F [expr {$C ^ ($B | (~$D & $M))}]
+                    set g [expr {(7*$i) % 16}]
+                }
+                set F [expr {($F + $A + [lindex $T $i] + [lindex $w $g]) & $M}]
+                set s [lindex $S $i]
+                set A $D
+                set D $C
+                set C $B
+                set B [expr {($B + (($F << $s) | ($F >> (32-$s)))) & $M}]
+            }
+            set a0 [expr {($a0 + $A) & $M}]
+            set b0 [expr {($b0 + $B) & $M}]
+            set c0 [expr {($c0 + $C) & $M}]
+            set d0 [expr {($d0 + $D) & $M}]
+        }
+        binary format iuiuiuiu $a0 $b0 $c0 $d0
+    }
+
+    ###########################################################################
     # ===== AES-128 (V=4 R=4) algorithms =====
     ###########################################################################
 
@@ -8713,15 +8965,14 @@ oo::define ::pdf4tcl::pdf4tcl {
     method _EncKey {password O P fileId} {
         set padstr [my _EncPadStr]
         set pwd [string range ${password}${padstr} 0 31]
-        package require md5
-        set ctx [md5::MD5Init]
-        md5::MD5Update $ctx $pwd
-        md5::MD5Update $ctx $O
-        md5::MD5Update $ctx [binary format i $P]
-        md5::MD5Update $ctx $fileId
-        set hash [md5::MD5Final $ctx]
+        set ctx [my _MD5Init]
+        set ctx [my _MD5Update $ctx $pwd]
+        set ctx [my _MD5Update $ctx $O]
+        set ctx [my _MD5Update $ctx [binary format i $P]]
+        set ctx [my _MD5Update $ctx $fileId]
+        set hash [my _MD5Final $ctx]
         for {set i 0} {$i < 50} {incr i} {
-            set hash [md5::md5 [string range $hash 0 15]]
+            set hash [my _MD5 [string range $hash 0 15]]
         }
         return [string range $hash 0 15]
     }
@@ -8729,11 +8980,10 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Algorithm 3: Compute O entry (AES-128)
     method _EncComputeO {ownerPwd userPwd} {
         set padstr [my _EncPadStr]
-        package require md5
         set opwd [expr {$ownerPwd eq {} ? $userPwd : $ownerPwd}]
         set opwd [string range ${opwd}${padstr} 0 31]
-        set hash [md5::md5 $opwd]
-        for {set i 0} {$i < 50} {incr i} { set hash [md5::md5 $hash] }
+        set hash [my _MD5 $opwd]
+        for {set i 0} {$i < 50} {incr i} { set hash [my _MD5 $hash] }
         set rc4key [string range $hash 0 15]
         set upwd [string range ${userPwd}${padstr} 0 31]
         set out [my _RC4 $rc4key $upwd]
@@ -8751,11 +9001,10 @@ oo::define ::pdf4tcl::pdf4tcl {
     # Algorithm 5: Compute U entry (AES-128, R=4)
     method _EncComputeU {encKey fileId} {
         set padstr [my _EncPadStr]
-        package require md5
-        set ctx [md5::MD5Init]
-        md5::MD5Update $ctx $padstr
-        md5::MD5Update $ctx $fileId
-        set hash [md5::MD5Final $ctx]
+        set ctx [my _MD5Init]
+        set ctx [my _MD5Update $ctx $padstr]
+        set ctx [my _MD5Update $ctx $fileId]
+        set hash [my _MD5Final $ctx]
         set out [my _RC4 $encKey $hash]
         for {set i 1} {$i <= 19} {incr i} {
             set xkey ""
@@ -8771,14 +9020,13 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Algorithm 1 (AES variant): Per-object key (AES-128)
     method _ObjKey128 {oid} {
-        package require md5
         set inp "$pdf(encKey)"
         append inp [binary format ccc \
             [expr {$oid & 0xFF}] \
             [expr {($oid >> 8) & 0xFF}] \
             [expr {($oid >> 16) & 0xFF}]]
         append inp "\x00\x00sAlT"
-        return [string range [md5::md5 $inp] 0 15]
+        return [string range [my _MD5 $inp] 0 15]
     }
 
     # Alias for backward compatibility

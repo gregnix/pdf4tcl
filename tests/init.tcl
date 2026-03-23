@@ -159,3 +159,10 @@ proc mytest {args} {
     }
 }
 tcltest::testConstraint knownbug 0
+
+# notRoot: Tests die auf Dateirechten basieren, schlagen als root fehl
+# (root kann alle Dateien schreiben, unabhaengig von Permissions)
+tcltest::testConstraint notRoot [expr {[catch {exec id -u} uid] || $uid != 0}]
+
+# hasTk: Tests die package require Tk benoetigen
+tcltest::testConstraint hasTk [expr {![catch {package require Tk}]}]

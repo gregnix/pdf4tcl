@@ -17,7 +17,7 @@ test errors-1.1 {startPage option errors} -body {
     lappend res [catch {apa startPage -badoption x}]
 } -result {1 1 1 1 1 1 1 1} -cleanup {apa destroy}
 
-test errors-1.2 {write errors} -body {
+test errors-1.2 {write errors} -constraints notRoot -body {
     pdf4tcl::new apa
     set res {}
 
@@ -57,7 +57,7 @@ test errors-1.5 {addImage errors} -body {
 } -match glob -result {1 {*does not contain*} 1 {could not open*}} \
         -cleanup {apa destroy}
 
-test errors-1.6 {write errors} -body {
+test errors-1.6 {write errors} -constraints notRoot -body {
     set f [makeFile {} unwritable.tmp]
     file attributes $f -permissions ugo-w
 

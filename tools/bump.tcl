@@ -140,8 +140,8 @@ set sf 0.9.4.x/nogit/scripts/sync-pdf4tcl.tcl
 if {[file exists $sf]} {
     set c [readFile $sf]
     set c2 [string map [list \
-        "pdf4tcl${oldVersion}src" "pdf4tcl${newVersion}src" \
-        "pdf4tcl${oldNd}src"      "pdf4tcl${newNd}src"] $c]
+        "pdf4tcl${oldVersion}" "pdf4tcl${newVersion}" \
+        "pdf4tcl${oldNd}"      "pdf4tcl${newNd}"] $c]
     if {$c2 ne $c} {
         writeFile $sf $c2
         puts "  OK  $sf"

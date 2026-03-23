@@ -1,5 +1,62 @@
 2026-03-23 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.22
+
+	* src/main.tcl: XRef-Stream support (ISO 32000 SS7.5.8).
+	  New private method _WriteXrefStream -- writes cross-reference as a
+	  binary PDF stream object; replaces classic xref table + trailer for
+	  PDF/A-2b (required by ISO 19005-2 SS6.1.4).
+	  New private method _WriteXrefTable -- classic xref table + trailer,
+	  extracted from finish() for clarity.
+	  Selection is automatic: -pdfa 2b uses stream, all others use table.
+
+	* src/main.tcl: PDF version set to 1.7 for -pdfa 2b and -pdfa 3b.
+	  ISO 19005-2 SS4.1 mandates PDF 1.7 as base format for PDF/A-2.
+	  PDF/A-1b and standard documents remain at PDF 1.4.
+
+	* src/main.tcl: setAlpha guard for PDF/A-1b -- setAlpha < 1.0 with
+	  -pdfa 1b appends a diagnostic entry to ::pdf4tcl::warnings instead
+	  of silently violating ISO 19005-1 SS6.1.3. No exception raised.
+
+	* src/prologue.tcl: ::pdf4tcl::warnings list variable added.
+	  Accumulates non-fatal compliance warnings during PDF generation.
+
+	* src/encrypt.tcl: MD5 backend chain (_InitMD5Backend, _MD5,
+	  _MD5Init, _MD5Update, _MD5Final, _MD5PureTcl).
+	  Priority: Tcllib md5 -> openssl -> pure-Tcl (RFC 1321).
+	  AES-128 encryption now works on FIPS systems without Tcllib.
+	  All four AES-128 MD5 call sites migrated to new _MD5 methods.
+
+	* tests/new-0.9.4.22.test: 17 new tests covering XRef-Stream (7),
+	  PDF version header (3), setAlpha warning (2), MD5 pure-Tcl (5).
+
+	* demo/demo-pdfa.tcl: page 4 added documenting XRef-Stream structure
+	  and PDF/A-2b fixes. Page 1 PDF version now dynamically shown.
+
+	* demo/demo-alpha.tcl: section 8 added for -pdfa 1b setAlpha warning.
+
+	* nogit/scripts/pdflab/pdflab2.tcl: _autoDetectPdfaFlavour proc added.
+	  Reads pdfaid:part from XMP on file open (via pdfinfo -meta) and
+	  sets verapdf_flavour automatically (1b/2b etc.).
+
+	* tests/init.tcl: notRoot constraint added -- skips tests that depend
+	  on Unix file permissions (fail when run as root).
+	  hasTk constraint added -- skips tests that require Tk.
+
+	* tests/errors.test: errors-1.2 and errors-1.6 now use -constraints notRoot.
+
+	* tests/examples.test: examples-1.3 and examples-1.4 now use
+	  -constraints hasTk (require Tk for image generation).
+
+	* tests/png.test, tests/canvas.test: removed trailing "exit" call.
+	  tcltest was hanging when Tk was loaded; cleanupTests is sufficient.
+
+	* demo/demo-transform.tcl: replaced pdf4tcllib::drawing::textRotated
+	  reference with direct gsave/translate/rotate/text/grestore pattern.
+
+
+2026-03-23 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.21
 
 	* src/main.tcl: ICC profile stream now compressed with FlateDecode

@@ -207,11 +207,16 @@ oo::define ::pdf4tcl::pdf4tcl {
         # collect output in memory
         set pdf(pdf) ""
 
-        # Version: 1.5+ for AES-128, 2.0 for AES-256
+        # Version: 1.5+ for AES-128, 2.0 for AES-256, 1.7 for PDF/A-2b+
         if {$pdf(encrypt) && $pdf(encVersion) == 5} {
             set pdf(version) 2.0
         } elseif {$pdf(encrypt)} {
             set pdf(version) 1.5
+        } elseif {[string match "2*" $options(-pdfa)] || \
+                  [string match "3*" $options(-pdfa)]} {
+            # PDF/A-2 requires PDF 1.7 (ISO 19005-2 SS4.1)
+            # PDF/A-3 requires PDF 1.7 (ISO 19005-3 SS4.1)
+            set pdf(version) 1.7
         } else {
             set pdf(version) 1.4
         }
@@ -989,24 +994,11 @@ Use -pdfa-icc to specify a profile path."
             my Flush
         }
 
-        # Cross reference table
-        set xref_pos $pdf(out_pos)
-        my Pdfout "xref\n"
-        my Pdfout "0 [my NextOid]\n"
-        my Pdfout "0000000000 65535 f \n"
-        for {set a 1} {$a<[my NextOid]} {incr a} {
-            set xref $pdf(xref,$a)
-            my Pdfout [format "%010ld 00000 n \n" $xref]
-        }
-
-        # Document trailer
+        # Compute /ID (needed by both xref modes)
         # /ID is required by PDF spec (ISO 32000 ss.7.5.5) and PDF/A.
-        # Encrypted documents use a random ID (computed in InitEncrypt).
-        # Unencrypted documents use a deterministic content-based ID.
         if {$pdf(encrypt)} {
             binary scan $pdf(encFileId) H* idHash
         } else {
-            # Deterministic: two 32-bit accumulators over PDF bytes.
             set _h1 0x811C9DC5
             set _h2 0xCBF29CE4
             binary scan $pdf(pdf) "Iu*" _words
@@ -1020,21 +1012,17 @@ Use -pdfa-icc to specify a profile path."
             unset _h1 _h2 _h3 _h4 _words
         }
 
-        my Pdfout "trailer\n"
-        my Pdfout "<<\n"
-        my Pdfout "/Size [my NextOid]\n"
-        my Pdfout "/Root 1 0 R\n"
-        if {[info exists metadata_oid]} {
-            my Pdfout "/Info $metadata_oid 0 R\n"
+        # Write xref + trailer: stream for PDF/A-2b+, classic otherwise.
+        # PDF/A-1 forbids XRef streams (ISO 19005-1 SS6.1); PDF/A-2+ requires them.
+        set useXrefStream 0
+        if {$options(-pdfa) in {2b 3b}} {
+            set useXrefStream 1
         }
-        if {$encdict_oid ne ""} {
-            my Pdfout "/Encrypt $encdict_oid 0 R\n"
+        if {$useXrefStream} {
+            my _WriteXrefStream $idHash $encdict_oid [expr {[info exists metadata_oid] ? $metadata_oid : ""}]
+        } else {
+            my _WriteXrefTable  $idHash $encdict_oid [expr {[info exists metadata_oid] ? $metadata_oid : ""}]
         }
-        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
-        my Pdfout ">>\n"
-        my Pdfout "\nstartxref\n"
-        my Pdfout "$xref_pos\n"
-        my Pdfout "%%EOF\n"
         my Flush
 
         if {$dryRun} {
@@ -2981,6 +2969,15 @@ Use -pdfa-icc to specify a profile path."
     method setAlpha {args} {
         if {!$pdf(inPage)} { my startPage }
 
+        # PDF/A-1 forbids transparency (ISO 19005-1 SS6.1.3).
+        # Warn when setAlpha < 1.0 is used with -pdfa 1b.
+        if {[string match "1*" $options(-pdfa)]} {
+            set val [lindex $args 0]
+            if {[string is double -strict $val] && $val < 1.0} {
+                lappend ::pdf4tcl::warnings                     "setAlpha $val with -pdfa 1b violates ISO 19005-1 SS6.1.3 (transparency forbidden in PDF/A-1)"
+            }
+        }
+
         set newFill   $pdf(fillAlpha)
         set newStroke $pdf(strokeAlpha)
 
@@ -3386,6 +3383,100 @@ Use -pdfa-icc to specify a profile path."
     method endLayer {} {
         my EndTextObj
         my Pdfout "EMC\n"
+    }
+
+    # ---------------------------------------------------------------------------
+    # XRef writing -- classic table and XRef-Stream
+    # ---------------------------------------------------------------------------
+
+    # Classic cross-reference table + trailer (PDF 1.4, PDF/A-1).
+    method _WriteXrefTable {idHash encdict_oid metadata_oid} {
+        set xref_pos $pdf(out_pos)
+        my Pdfout "xref\n"
+        my Pdfout "0 [my NextOid]\n"
+        my Pdfout "0000000000 65535 f \n"
+        for {set a 1} {$a < [my NextOid]} {incr a} {
+            my Pdfout [format "%010ld 00000 n \n" $pdf(xref,$a)]
+        }
+        my Pdfout "trailer\n"
+        my Pdfout "<<\n"
+        my Pdfout "/Size [my NextOid]\n"
+        my Pdfout "/Root 1 0 R\n"
+        if {$metadata_oid ne ""} {
+            my Pdfout "/Info $metadata_oid 0 R\n"
+        }
+        if {$encdict_oid ne ""} {
+            my Pdfout "/Encrypt $encdict_oid 0 R\n"
+        }
+        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
+        my Pdfout ">>\n"
+        my Pdfout "\nstartxref\n"
+        my Pdfout "$xref_pos\n"
+        my Pdfout "%%EOF\n"
+    }
+
+    # XRef stream (PDF 1.5+, required for PDF/A-2b+).
+    # Replaces the classic xref table + trailer entirely.
+    # Binary format: /W [1 4 2] = 1-byte type, 4-byte offset, 2-byte generation.
+    method _WriteXrefStream {idHash encdict_oid metadata_oid} {
+        set size [my NextOid]
+
+        # Build binary xref stream data (/W [1 4 2])
+        # Build binary xref entries: /W [1 4 2]
+        # Each entry = 7 bytes: 1-byte type + 4-byte offset + 2-byte generation
+        # Entry 0: free head -- type=0, offset=0, gen=65535
+        # Use manual byte construction to avoid signed/unsigned issues in Tcl 8.6
+        proc _xref_entry {type offset gen} {
+            binary format H2H8H4                 [format %02X $type]                 [format %08X $offset]                 [format %04X $gen]
+        }
+        set streamData [_xref_entry 0 0 65535]
+        for {set a 1} {$a < $size} {incr a} {
+            set off [expr {[info exists pdf(xref,$a)] ? $pdf(xref,$a) : 0}]
+            append streamData [_xref_entry 1 $off 0]
+        }
+        rename _xref_entry {}
+
+        # Compress if enabled
+        set filter ""
+        if {$pdf(compress)} {
+            set compressed [zlib compress $streamData]
+            # Only use compression if it actually helps
+            if {[string length $compressed] + 20 < [string length $streamData]} {
+                set streamData $compressed
+                set filter "/Filter /FlateDecode\n"
+            }
+        }
+
+        set xref_oid [my GetOid 1]
+        set xref_pos $pdf(out_pos)
+        my StoreXref $xref_oid
+
+        my Pdfout "$xref_oid 0 obj\n"
+        my Pdfout "<<\n"
+        my Pdfout "/Type /XRef\n"
+        my Pdfout "/Size $size\n"
+        my Pdfout "/Root 1 0 R\n"
+        if {$metadata_oid ne ""} {
+            my Pdfout "/Info $metadata_oid 0 R\n"
+        }
+        if {$encdict_oid ne ""} {
+            my Pdfout "/Encrypt $encdict_oid 0 R\n"
+        }
+        my Pdfout "/ID \[<$idHash> <$idHash>\]\n"
+        my Pdfout "/W \[1 4 2\]\n"
+        my Pdfout "/Index \[0 $size\]\n"
+        if {$filter ne ""} {
+            my Pdfout $filter
+        }
+        my Pdfout "/Length [string length $streamData]\n"
+        my Pdfout ">>\n"
+        my Pdfout "stream\n"
+        my Pdfout $streamData
+        my Pdfout "\nendstream\n"
+        my Pdfout "endobj\n"
+        my Pdfout "\nstartxref\n"
+        my Pdfout "$xref_pos\n"
+        my Pdfout "%%EOF\n"
     }
 
     # Apply a transformation matrix to the current graphics state.
