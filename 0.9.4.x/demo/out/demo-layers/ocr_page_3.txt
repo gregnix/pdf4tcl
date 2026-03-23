@@ -1,7 +1,0 @@
-<< /Type /Catalog
-1 0 obj % Catalog
-
-TECE CAVES EU ETI ERT INT TTT
-Seite 3: Uebersicht und Implementierungsdetails
-
-OCG-Struktur im PDF (ISO 32000 558.11)
