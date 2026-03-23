@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# demo-pdfa.tcl -- PDF/A-Features Demonstration (pdf4tcl 0.9.4.22)
+# demo-pdfa.tcl -- PDF/A-Features Demonstration (pdf4tcl 0.9.4.23)
 #
 # Zeigt: -pdfa Option, XMP-Metadaten, pdfaid-Schema, OutputIntent,
 #        /Group-Unterdrueckung, Metadaten-Synchronisation.
@@ -264,37 +264,40 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
     $pdf setFillColor 1 1 1
     $pdf setFont 10 cidSans
     $pdf text "Merkmal"       -x  46 -y $y
-    $pdf text "PDF/A-1b"     -x 240 -y $y
-    $pdf text "PDF/A-2b"     -x 355 -y $y
-    $pdf text "Standard PDF" -x 460 -y $y
+    $pdf text "PDF/A-1b"     -x 210 -y $y
+    $pdf text "PDF/A-2b"     -x 290 -y $y
+    $pdf text "PDF/A-3b"     -x 370 -y $y
+    $pdf text "Standard"     -x 455 -y $y
     $pdf setFillColor 0 0 0
     incr y -20
 
     set rows {
-        "ISO-Norm"           "19005-1:2005"  "19005-2:2011"  "--"
-        "PDF-Basis"          "PDF 1.4"       "PDF 1.7"       "PDF 1.4"
-        "XMP-Stream"         "Pflicht"       "Pflicht"       "Optional"
-        "pdfaid-Schema"      "Pflicht"       "Pflicht"       "Nein"
-        "OutputIntent"       "Pflicht"       "Pflicht"       "Nein"
-        "Font-Einbettung"    "Pflicht"       "Pflicht"       "Optional"
-        "/Group Transparenz" "Verboten"      "Erlaubt"       "Erlaubt"
-        "Verschluesselung"   "Verboten"      "Verboten"      "Erlaubt"
-        "-pdfa Wert"         "1b"            "2b"            "(leer)"
+        "ISO-Norm"             "19005-1:2005"  "19005-2:2011" "19005-3:2012" "--"
+        "PDF-Basis"            "PDF 1.4"       "PDF 1.7"      "PDF 1.7"      "PDF 1.4"
+        "XMP-Stream"           "Pflicht"       "Pflicht"      "Pflicht"      "Optional"
+        "pdfaid-Schema"        "Pflicht"       "Pflicht"      "Pflicht"      "Nein"
+        "OutputIntent"         "Pflicht"       "Pflicht"      "Pflicht"      "Nein"
+        "Font-Einbettung"      "Pflicht"       "Pflicht"      "Pflicht"      "Optional"
+        "/Group Transparenz"   "Verboten"      "Erlaubt"      "Erlaubt"      "Erlaubt"
+        "Eingebettete Dateien" "Verboten"      "Erlaubt"      "Pflicht*"     "Erlaubt"
+        "Verschluesselung"     "Verboten"      "Verboten"     "Verboten"     "Erlaubt"
+        "-pdfa Wert"           "1b"            "2b"           "3b"           "(leer)"
     }
 
     set alt 0
-    foreach {merkmal v1b v2b vstd} $rows {
+    foreach {merkmal v1b v2b v3b vstd} $rows {
         if {$alt} {
             $pdf setFillColor 0.94 0.94 0.94
             $pdf rectangle 40 [expr {$y - 5}] 515 17 -filled 1
             $pdf setFillColor 0 0 0
         }
-        $pdf setFont 9 cidSans
+        $pdf setFont 8 cidSans
         $pdf text $merkmal -x  46 -y $y
-        $pdf text $v1b     -x 240 -y $y
-        $pdf text $v2b     -x 355 -y $y
-        $pdf text $vstd    -x 460 -y $y
-        incr y -17
+        $pdf text $v1b     -x 210 -y $y
+        $pdf text $v2b     -x 290 -y $y
+        $pdf text $v3b     -x 370 -y $y
+        $pdf text $vstd    -x 455 -y $y
+        incr y -16
         set alt [expr {!$alt}]
     }
 
@@ -466,9 +469,12 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
     set y [section_header $pdf "Behoben in pdf4tcl 0.9.4.22" $y]
 
     foreach {regel beschreibung version} {
-        "6.1.4"  "XRef-Streams fuer PDF/A-2b"                    "0.9.4.22"
-        "6.1.6"  "setAlpha < 1.0 bei PDF/A-1b: Warning"           "0.9.4.22"
-        "--"     "MD5 pure-Tcl Fallback (FIPS-Systeme)"            "0.9.4.22"
+        "6.1.4"    "XRef-Streams fuer PDF/A-2b"                    "0.9.4.22"
+        "6.1.6"    "setAlpha < 1.0 bei PDF/A-1b: Warning"           "0.9.4.22"
+        "--"       "MD5 pure-Tcl Fallback (FIPS-Systeme)"            "0.9.4.22"
+        "6.2.10"   "OCG /AS-Array fuer PDF/A-2b/3b + Layer"         "0.9.4.23"
+        "6.2.11.4" "/AF-Array fuer PDF/A-3b + addEmbeddedFile"      "0.9.4.23"
+        "--"       "-pdfa 3b als gueltiger Wert"                     "0.9.4.23"
     } {
         $pdf setFont 10 cidSans
         $pdf text "SS$regel" -x 50 -y $y
@@ -502,6 +508,7 @@ set results {}
 foreach {variant label} {
     1b  "PDF/A-1b"
     2b  "PDF/A-2b"
+    3b  "PDF/A-3b"
     ""  "Standard PDF"
 } {
     set fname "demo-pdfa-[expr {$variant eq {} ? {none} : $variant}].pdf"

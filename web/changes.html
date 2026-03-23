@@ -11,6 +11,24 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.23 (2026-03-23, fork gregnix):<br>
+<ul>
+  <li>src/options.tcl: -pdfa 3b added as valid value</li>
+  <li>src/main.tcl: addEmbeddedFile: /AF array in Catalog for -pdfa 3b
+      (ISO 19005-3 SS6.2.11.4)</li>
+  <li>src/main.tcl: OCG /AS array in /D dict for -pdfa 2b/3b
+      (ISO 19005-2 SS6.2.10)</li>
+  <li>src/main.tcl: getStringWidth -font/-size options (no prior setFont needed)</li>
+  <li>src/main.tcl: inPage method added</li>
+  <li>src/main.tcl: currentPage + pageCount methods added</li>
+  <li>src/main.tcl: drawTextBox -newyvar option added</li>
+  <li>tests/new-0.9.4.23.test: 23 new tests</li>
+  <li>src/cat.tcl: exportForms added (-format fdf|xfdf)</li>
+  <li>src/main.tcl: addAnnotNote, addAnnotFreeText, addAnnotHighlight,
+      addAnnotUnderline, addAnnotStrikeOut, addAnnotStamp, addAnnotLine</li>
+  <li>tests/new-0.9.4.23-annot.test: 20 annotation tests</li>
+</ul>
+
 Changes in v0.9.4.22 (2026-03-23, fork gregnix):<br>
 <ul>
   <li>src/main.tcl: XRef-Stream support (_WriteXrefStream) for PDF/A-2b;

@@ -562,6 +562,137 @@ proc pdf4tcl::catPdf {args} {
 #   value   : Form value.
 #   flags   : Value of form flags field.
 #   default : Default value, if any.
+# ---------------------------------------------------------------------------
+# exportForms -- FDF/XFDF-Export von Formulardaten (0.9.4.23)
+#
+# Schreibt Formulardaten eines ausgefuellten PDFs als FDF oder XFDF.
+#
+# Usage:
+#   pdf4tcl::exportForms infile outfile ?options?
+#
+# Options:
+#   -format fdf|xfdf    Ausgabeformat (Standard: fdf)
+#   -password pw        Passwort fuer verschluesselte PDFs
+#
+# Rueckgabe: Anzahl exportierter Felder.
+# ---------------------------------------------------------------------------
+
+proc pdf4tcl::exportForms {pdfFile outFile args} {
+    set format   fdf
+    set password {}
+
+    foreach {k v} $args {
+        switch -- $k {
+            -format   { set format   $v }
+            -password { set password $v }
+            default   { throw {PDF4TCL} "unknown option \"$k\"" }
+        }
+    }
+    if {$format ni {fdf xfdf}} {
+        throw {PDF4TCL} "invalid -format \"$format\": must be fdf or xfdf"
+    }
+
+    # Formulardaten einlesen
+    set formData [pdf4tcl::getForms $pdfFile]
+    if {[llength $formData] == 0} {
+        # Leeres Dict -> 0 Felder
+        set ch [open $outFile w]
+        fconfigure $ch -encoding utf-8 -translation lf
+        if {$format eq "fdf"} {
+            puts $ch "%FDF-1.2"
+            puts $ch "1 0 obj<</FDF<</Fields[]>>>endobj"
+            puts $ch "trailer<</Root 1 0 R>>"
+            puts $ch "%%EOF"
+        } else {
+            puts $ch {<?xml version="1.0" encoding="UTF-8"?>}
+            puts $ch {<xfdf xmlns="http://ns.adobe.com/xfdf/" xml:space="preserve">}
+            puts $ch "  <fields/>"
+            puts $ch {</xfdf>}
+        }
+        close $ch
+        return 0
+    }
+
+    if {$format eq "fdf"} {
+        _exportFormsFDF $pdfFile $outFile $formData
+    } else {
+        _exportFormsXFDF $pdfFile $outFile $formData
+    }
+    return [expr {[dict size $formData]}]
+}
+
+proc pdf4tcl::_exportFormsFDF {pdfFile outFile formData} {
+    # FDF: Forms Data Format (ISO 32000 SS12.7.7)
+    # Einfaches Textformat: Objekt 1 enthaelt /Fields-Array
+    set fields {}
+    dict for {id info} $formData {
+        set val [expr {[dict exists $info value] ? [dict get $info value] : {}}]
+        # Wert bereinigen: Klammern entfernen wenn vorhanden
+        set val [string trim $val "()"]
+        # FDF-String-Escaping: Backslash und Klammern
+        set val [regsub -all {[\\\(\)]} $val {\\&}]
+        lappend fields "<</T($id)/V($val)>>"
+    }
+
+    set ch [open $outFile w]
+    fconfigure $ch -encoding utf-8 -translation lf
+    puts $ch "%FDF-1.2"
+    puts $ch "% FDF export from pdf4tcl -- [clock format [clock seconds]]"
+    puts $ch "1 0 obj"
+    puts $ch "<<"
+    puts $ch "  /FDF"
+    puts $ch "  <<"
+    puts $ch "    /F ([file tail $pdfFile])"
+    puts $ch "    /Fields \["
+    foreach f $fields {
+        puts $ch "      $f"
+    }
+    puts $ch "    \]"
+    puts $ch "  >>"
+    puts $ch ">>"
+    puts $ch "endobj"
+    puts $ch "trailer"
+    puts $ch "<</Root 1 0 R>>"
+    puts $ch "%%EOF"
+    close $ch
+}
+
+proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
+    # XFDF: XML Forms Data Format (ISO 32000 SS12.7.8)
+    proc _xesc {s} {
+        set s [string map {& &amp; < &lt; > &gt;} $s]
+        regsub -all {"} $s {&quot;} s
+        regsub -all {'} $s {&apos;} s
+        return $s
+    }
+
+    set ch [open $outFile w]
+    fconfigure $ch -encoding utf-8 -translation lf
+    puts $ch {<?xml version="1.0" encoding="UTF-8"?>}
+    puts $ch {<xfdf xmlns="http://ns.adobe.com/xfdf/" xml:space="preserve">}
+    puts $ch "  <!-- XFDF export from pdf4tcl -- [clock format [clock seconds]] -->"
+    set fname [_xesc [file tail $pdfFile]]
+    puts $ch [format {  <f href="%s"/>} $fname]
+    puts $ch {  <fields>}
+
+    dict for {id info} $formData {
+        set val [expr {[dict exists $info value] ? [dict get $info value] : {}}]
+        set val [string trim $val "()"]
+        set type [expr {[dict exists $info type] ? [dict get $info type] : {}}]
+        set xid  [_xesc $id]
+        set xval [_xesc $val]
+        puts $ch [format {    <field name="%s">} $xid]
+        puts $ch "      <!-- type: $type -->"
+        puts $ch "      <value>$xval</value>"
+        puts $ch "    </field>"
+    }
+
+    puts $ch {  </fields>}
+    puts $ch {</xfdf>}
+    close $ch
+}
+
+
 proc pdf4tcl::getForms {pdfFile} {
     if {![file exists $pdfFile]} {
         throw {PDF4TCL} "No such file: $pdfFile"

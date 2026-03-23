@@ -1,5 +1,63 @@
 2026-03-23 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.23
+
+	* src/options.tcl: -pdfa 3b added as valid value (PDF/A-3b).
+
+	* src/main.tcl: addEmbeddedFile: FileSpec OIDs tracked in
+	  pdf(af_oids) when -pdfa 3b is active. /AF array written to
+	  Catalog in finish() (ISO 19005-3 SS6.2.11.4).
+
+	* src/main.tcl: OCG /D dict: /AS array added when -pdfa 2b or 3b
+	  is active (ISO 19005-2 SS6.2.10). Defines Print and View events
+	  for all layers. Standard PDFs and PDF/A-1b unaffected.
+
+	* tests/new-0.9.4.23.test: 12 new tests covering -pdfa 3b (3),
+	  /AF array (4), and /AS array (5).
+
+	* src/main.tcl: getStringWidth extended with optional keyword arguments
+	  -font fontName and -size fontSize (0.9.4.23+). No prior setFont needed.
+	  Legacy positional call getStringWidth txt ?internal? unchanged.
+	  CIDFont metrics supported via -font option.
+
+	* src/main.tcl: inPage method added. Returns 1 if a page is currently
+	  open, 0 otherwise. Useful for library code managing page state.
+
+	* src/main.tcl: currentPage method added. Returns current page number
+	  (1-based, 0 if no page started). pageCount method added -- returns
+	  number of completed pages (endPage called).
+
+	* src/main.tcl: drawTextBox gains -newyvar option. The named variable
+	  receives the Y position after the last rendered line (in current units).
+	  Allows callers to continue drawing below the text box without
+	  recalculating the position manually.
+
+	* src/main.tcl: Annotation methods added (ISO 32000 SS12.5):
+	  addAnnotNote      -- /Text sticky note with icon, author, popup
+	  addAnnotFreeText  -- /FreeText box directly on page
+	  addAnnotHighlight -- /Highlight markup with QuadPoints
+	  addAnnotUnderline -- /Underline markup
+	  addAnnotStrikeOut -- /StrikeOut markup
+	  addAnnotStamp     -- /Stamp (Draft/Confidential/Approved etc.)
+	  addAnnotLine      -- /Line with optional arrowheads
+	  Internal: _addAnnotMarkup helper for markup annotations.
+
+	* tests/new-0.9.4.23-annot.test: 20 tests for annotation methods.
+
+	* src/cat.tcl: exportForms added (0.9.4.23).
+	  Exports form data from a filled PDF as FDF or XFDF.
+	  Usage: pdf4tcl::exportForms infile outfile ?-format fdf|xfdf?
+	  FDF: ISO 32000 SS12.7.7 -- simple text format, widely supported.
+	  XFDF: ISO 32000 SS12.7.8 -- XML format, human-readable.
+	  Returns number of exported fields.
+	  Internal: _exportFormsFDF, _exportFormsXFDF, _xesc helpers.
+
+	* tests/new-0.9.4.23.test: 11 additional tests + 5 exportForms tests for getStringWidth (3),
+	  inPage/currentPage/pageCount (5), drawTextBox -newyvar (2). Total: 23.
+
+
+2026-03-23 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.22
 
 	* src/main.tcl: XRef-Stream support (ISO 32000 SS7.5.8).

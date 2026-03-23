@@ -1,0 +1,168 @@
+# new-0.9.4.23-annot.test -- Annotation methods
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+proc mkAnnotPdf {args} {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    foreach cmd $args { {*}[linsert $cmd 1 $p] }
+    $p endPage
+    set d [$p get]
+    $p destroy
+    return $d
+}
+
+# --- addAnnotNote ---
+
+test annot-1.1 {addAnnotNote: /Text subtype} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotNote 50 700 20 20
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /Text" $d] >= 0}
+} -result 1
+
+test annot-1.2 {addAnnotNote: -content stored} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotNote 50 700 20 20 -content "UniqueNote99"
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "UniqueNote99" $d] >= 0}
+} -result 1
+
+test annot-1.3 {addAnnotNote: -icon validation error} -body {
+    set p [pdf4tcl::new %AUTO%]; $p startPage
+    set err [catch {$p addAnnotNote 50 700 20 20 -icon BadIcon}]
+    $p endPage; $p destroy
+    set err
+} -result 1
+
+test annot-1.4 {addAnnotNote: default icon /Note} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotNote 50 700 20 20
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Name /Note" $d] >= 0}
+} -result 1
+
+test annot-1.5 {addAnnotNote: -author stored} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotNote 50 700 20 20 -author "GregorTest"
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "GregorTest" $d] >= 0}
+} -result 1
+
+# --- addAnnotFreeText ---
+
+test annot-2.1 {addAnnotFreeText: /FreeText subtype} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotFreeText 50 650 200 40 "TestContent"
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /FreeText" $d] >= 0}
+} -result 1
+
+test annot-2.2 {addAnnotFreeText: text in /Contents} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotFreeText 50 650 200 40 "UniqueFreeTxt42"
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "UniqueFreeTxt42" $d] >= 0}
+} -result 1
+
+test annot-2.3 {addAnnotFreeText: /DA present} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotFreeText 50 650 200 40 "x"
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/DA " $d] >= 0}
+} -result 1
+
+# --- Markup annotations ---
+
+test annot-3.1 {addAnnotHighlight: /Highlight} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotHighlight 50 600 200 15
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /Highlight" $d] >= 0}
+} -result 1
+
+test annot-3.2 {addAnnotHighlight: /QuadPoints} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotHighlight 50 600 200 15
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/QuadPoints" $d] >= 0}
+} -result 1
+
+test annot-3.3 {addAnnotUnderline: /Underline} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotUnderline 50 580 200 15
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /Underline" $d] >= 0}
+} -result 1
+
+test annot-3.4 {addAnnotStrikeOut: /StrikeOut} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotStrikeOut 50 560 200 15
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /StrikeOut" $d] >= 0}
+} -result 1
+
+# --- addAnnotStamp ---
+
+test annot-4.1 {addAnnotStamp: /Stamp subtype} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotStamp 300 650 180 60
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /Stamp" $d] >= 0}
+} -result 1
+
+test annot-4.2 {addAnnotStamp: default /Draft} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotStamp 300 650 180 60
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Name /Draft" $d] >= 0}
+} -result 1
+
+test annot-4.3 {addAnnotStamp: -name Confidential} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotStamp 300 650 180 60 -name Confidential
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Name /Confidential" $d] >= 0}
+} -result 1
+
+test annot-4.4 {addAnnotStamp: invalid name error} -body {
+    set p [pdf4tcl::new %AUTO%]; $p startPage
+    set err [catch {$p addAnnotStamp 50 600 100 50 -name Bogus}]
+    $p endPage; $p destroy
+    set err
+} -result 1
+
+# --- addAnnotLine ---
+
+test annot-5.1 {addAnnotLine: /Line subtype} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotLine 50 500 250 500
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Subtype /Line" $d] >= 0}
+} -result 1
+
+test annot-5.2 {addAnnotLine: /L array present} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotLine 50 500 250 500
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/L \[" $d] >= 0}
+} -result 1
+
+test annot-5.3 {addAnnotLine: -startend OpenArrow} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotLine 50 500 250 500 -startend {None OpenArrow}
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/OpenArrow" $d] >= 0}
+} -result 1
+
+# --- /Annots in page ---
+
+test annot-6.1 {annotations in /Annots page dict} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]; $p startPage
+    $p addAnnotNote  50 700 20 20
+    $p addAnnotStamp 300 650 180 60
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "/Annots \[" $d] >= 0}
+} -result 1
+
+::tcltest::cleanupTests

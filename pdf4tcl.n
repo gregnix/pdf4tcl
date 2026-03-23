@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.22 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.23 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.22?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.23?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -311,6 +311,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.22?\fR
 \fB::pdf4tcl::catPdf\fR \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
 .sp
 \fB::pdf4tcl::getForms\fR \fIinfile\fR
+.sp
+\fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
 .sp
 \fBobjectName\fR \fBmethod\fR ?\fIarg arg \&.\&.\&.\fR?
 .sp
@@ -356,15 +358,35 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.22?\fR
 .sp
 \fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
+\fIobjectName\fR \fBaddAnnotNote\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddAnnotFreeText\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fItext\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddAnnotHighlight\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddAnnotUnderline\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddAnnotStrikeOut\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddAnnotStamp\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBaddAnnotLine\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
 \fIobjectName\fR \fBviewerPreferences\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBpageLabel\fR \fIpageIndex\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBsetFont\fR \fIsize\fR ?\fIfontname\fR?
 .sp
-\fIobjectName\fR \fBgetStringWidth\fR \fIstr\fR
+\fIobjectName\fR \fBgetStringWidth\fR \fIstr\fR ?\fIoptions\fR?
 .sp
 \fIobjectName\fR \fBgetCharWidth\fR \fIchar\fR
+.sp
+\fIobjectName\fR \fBinPage\fR
+.sp
+\fIobjectName\fR \fBcurrentPage\fR
+.sp
+\fIobjectName\fR \fBpageCount\fR
 .sp
 \fIobjectName\fR \fBsetTextPosition\fR \fIx\fR \fIy\fR
 .sp
@@ -469,6 +491,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.22?\fR
 \fIobjectName\fR \fBscale\fR \fIsx\fR \fIsy\fR
 .sp
 \fIobjectName\fR \fBgetPageSize\fR
+.sp
+\fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoptions\fR?
 .sp
 \fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR?
 .sp
@@ -696,6 +720,30 @@ Value of form flags field\&.
 \fBdefault\fR
 Default value, if any\&.
 .RE
+.TP
+\fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
+Export form field data from a filled PDF as FDF or XFDF (0\&.9\&.4\&.23+)\&.
+Returns the number of exported fields\&.
+.RS
+.TP
+\fB-format\fR \fIfdf|xfdf\fR
+Output format\&. \fBfdf\fR (default): Forms Data Format (ISO 32000 SS12\&.7\&.7),
+a compact text format supported by most PDF viewers\&.
+\fBxfdf\fR: XML Forms Data Format (ISO 32000 SS12\&.7\&.8), human-readable XML\&.
+.TP
+\fB-password\fR \fIstring\fR
+Password for encrypted PDFs\&.
+.RE
+.CS
+
+
+# Export as FDF
+pdf4tcl::exportForms filled\&.pdf data\&.fdf
+
+# Export as XFDF
+pdf4tcl::exportForms filled\&.pdf data\&.xfdf -format xfdf
+
+.CE
 .PP
 .SS "OBJECT COMMAND"
 All commands created by \fB::pdf4tcl::new\fR have the following
@@ -1103,6 +1151,111 @@ $pdfobject hyperlinkAdd 50 160 200 20 "https://www\&.tcl\&.tk"  -borderwidth 1 -
 
 .CE
 .TP
+\fIobjectName\fR \fBaddAnnotNote\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+Add a \fB/Text\fR sticky note annotation (0\&.9\&.4\&.23+)\&.
+The annotation appears as a small icon; clicking it opens a popup window\&.
+\fINote:\fR Popup behaviour varies between PDF viewers -- some keep the popup
+open, others do not show a close button\&. For consistent cross-viewer display
+use \fBaddAnnotFreeText\fR instead\&.
+.RS
+.TP
+\fB-content\fR \fIstring\fR
+Note text shown in the popup\&.
+.TP
+\fB-author\fR \fIstring\fR
+Author name shown in the popup header\&.
+.TP
+\fB-subject\fR \fIstring\fR
+Subject line\&.
+.TP
+\fB-icon\fR \fIname\fR
+Icon type: \fBNote\fR (default), \fBComment\fR,
+\fBKey\fR, \fBHelp\fR, \fBNewParagraph\fR, \fBParagraph\fR, \fBInsert\fR\&.
+.TP
+\fB-color\fR \fIcolor\fR
+Background color (default: \fB1 1 0\fR = yellow)\&.
+.TP
+\fB-open\fR \fIbool\fR
+Show popup open by default (default: \fB0\fR)\&.
+.RE
+.TP
+\fIobjectName\fR \fBaddAnnotFreeText\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fItext\fR ?\fIoption value\fR\&.\&.\&.?
+Add a \fB/FreeText\fR annotation -- a visible text box directly on the page (0\&.9\&.4\&.23+)\&.
+No click required; always visible in all viewers\&.
+.RS
+.TP
+\fB-fontsize\fR \fIn\fR
+Font size in points (default: \fB10\fR)\&.
+.TP
+\fB-color\fR \fIcolor\fR
+Text color (default: \fB0 0 0\fR)\&.
+.TP
+\fB-bgcolor\fR \fIcolor\fR
+Background fill color (default: \fB1 1 0\&.8\fR)\&.
+.TP
+\fB-borderwidth\fR \fIn\fR
+Border width in points (default: \fB1\fR)\&.
+.TP
+\fB-align\fR \fIn\fR
+Text alignment: \fB0\fR=left (default), \fB1\fR=center, \fB2\fR=right\&.
+.RE
+.TP
+\fIobjectName\fR \fBaddAnnotHighlight\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.TP
+\fIobjectName\fR \fBaddAnnotUnderline\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+.TP
+\fIobjectName\fR \fBaddAnnotStrikeOut\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+Text markup annotations (0\&.9\&.4\&.23+)\&. The rectangle defines the text area to mark\&.
+.RS
+.TP
+\fB-color\fR \fIcolor\fR
+Markup color\&. Defaults: yellow for Highlight,
+black for Underline, red for StrikeOut\&.
+.TP
+\fB-content\fR \fIstring\fR
+Optional comment text\&.
+.TP
+\fB-author\fR \fIstring\fR
+Author name\&.
+.RE
+.TP
+\fIobjectName\fR \fBaddAnnotStamp\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
+Add a \fB/Stamp\fR annotation -- a rubber stamp visible on the page (0\&.9\&.4\&.23+)\&.
+.RS
+.TP
+\fB-name\fR \fIname\fR
+Predefined stamp name (default: \fBDraft\fR)\&.
+Valid names: \fBApproved\fR, \fBConfidential\fR, \fBDraft\fR, \fBExperimental\fR,
+\fBExpired\fR, \fBFinal\fR, \fBForPublicRelease\fR, \fBNotApproved\fR,
+\fBNotForPublicRelease\fR, \fBSold\fR, \fBTopSecret\fR\&.
+.TP
+\fB-color\fR \fIcolor\fR
+Stamp color (default: \fB1 0 0\fR)\&.
+.TP
+\fB-content\fR \fIstring\fR
+Optional popup content\&.
+.RE
+.TP
+\fIobjectName\fR \fBaddAnnotLine\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR ?\fIoption value\fR\&.\&.\&.?
+Add a \fB/Line\fR annotation with optional arrowheads (0\&.9\&.4\&.23+)\&.
+.RS
+.TP
+\fB-color\fR \fIcolor\fR
+Line color (default: \fB0 0 0\fR)\&.
+.TP
+\fB-width\fR \fIn\fR
+Line width in points (default: \fB1\fR)\&.
+.TP
+\fB-startend\fR \fIlist\fR
+Two-element list of arrowhead styles for
+start and end of the line (default: \fBNone None\fR)\&.
+Valid styles: \fBNone\fR, \fBOpenArrow\fR, \fBClosedArrow\fR, \fBSquare\fR,
+\fBCircle\fR, \fBDiamond\fR, \fBButt\fR, \fBSlash\fR\&.
+.TP
+\fB-content\fR \fIstring\fR
+Optional popup content\&.
+.RE
+.TP
 \fIobjectName\fR \fBviewerPreferences\fR ?\fIoption value\fR\&.\&.\&.?
 Set viewer preference flags in the PDF catalog\&. These control how a PDF viewer
 displays the document when it is opened\&. Options can be combined freely\&.
@@ -1193,11 +1346,38 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 This method sets the font used by text drawing routines\&. If \fIfontname\fR
 is not provided, the previously set \fIfontname\fR is kept\&.
 .TP
-\fIobjectName\fR \fBgetStringWidth\fR \fIstr\fR
-This method returns the width of a string under the current font\&.
+\fIobjectName\fR \fBgetStringWidth\fR \fIstr\fR ?\fIoptions\fR?
+This method returns the width of \fIstr\fR in the current unit\&.
+Options (0\&.9\&.4\&.23+):
+.RS
+.TP
+\fB-font\fR \fIfontName\fR
+Use \fIfontName\fR instead of the current font\&.
+.TP
+\fB-size\fR \fIfontSize\fR
+Use \fIfontSize\fR instead of the current font size\&.
+.TP
+\fB-internal\fR \fIbool\fR
+Return width in points instead of current unit\&.
+.RE
+.IP
+Without options the method behaves as before\&.
+If no font has been set and \fB-font\fR is not given, an error is raised\&.
 .TP
 \fIobjectName\fR \fBgetCharWidth\fR \fIchar\fR
 This method returns the width of a character under the current font\&.
+.TP
+\fIobjectName\fR \fBinPage\fR
+Returns \fB1\fR if a page is currently open, \fB0\fR otherwise\&.
+Useful for library code managing page state without accessing internals\&.
+.TP
+\fIobjectName\fR \fBcurrentPage\fR
+Returns the current page number (1-based)\&.
+Returns \fB0\fR before the first \fBstartPage\fR call\&.
+.TP
+\fIobjectName\fR \fBpageCount\fR
+Returns the number of completed pages (\fBendPage\fR called)\&.
+A currently open page is not counted until \fBendPage\fR\&.
 .TP
 \fIobjectName\fR \fBsetTextPosition\fR \fIx\fR \fIy\fR
 Set coordinate for next text command\&.
@@ -1265,6 +1445,18 @@ Specifies the justification\&. If not given, the text is left justified\&.
 .TP
 \fB-linesvar\fR \fIvar\fR
 Gives the name of a variable which will be set to the number of lines written\&.
+.TP
+\fB-newyvar\fR \fIvar\fR
+Gives the name of a variable which will be set to the Y position after
+the last rendered line, in the current unit (0\&.9\&.4\&.23+)\&.
+Allows the caller to continue drawing below the text box:
+.CS
+
+
+$pdf drawTextBox $x $y $w $h $text -newyvar nextY
+$pdf line $x $nextY [expr {$x+$w}] $nextY
+
+.CE
 .TP
 \fB-dryrun\fR \fIbool\fR
 If true, no changes will be made to the PDF document\&. The return
@@ -1662,6 +1854,17 @@ For A4 with \fB-unit p\fR: approximately \fB595\&.0 842\&.0\fR
 (pdf4tcl rounds MediaBox to integer points)\&.
 Complements \fBgetDrawableArea\fR which excludes margins\&.
 .TP
+\fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoptions\fR?
+Embed a file in the PDF\&.
+When \fB-pdfa 3b\fR is active the FileSpec OID is automatically
+added to the document-level \fB/AF\fR array in the Catalog
+(ISO 19005-3 SS6\&.2\&.11\&.4)\&.
+.sp
+Options: \fB-contents\fR, \fB-mimetype\fR, \fB-description\fR,
+\fB-afrelationship\fR (Alternative|Data|Source|Supplement|Unspecified)\&.
+.sp
+\fINote:\fR Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6\&.1\&.7)\&.
+.TP
 \fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR?
 Add an Optional Content Group (OCG / layer) to the document\&.
 Returns a layer ID for use with \fBbeginLayer\fR\&.
@@ -1920,6 +2123,51 @@ Set by \fB_InitMD5Backend\fR on first use\&.
 Values: \fBtcllib\fR, \fBopenssl\fR, \fBpure-tcl\fR\&.
 Read-only; for diagnostics only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.23"
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBgetStringWidth\fR extended with optional
+keyword arguments \fB-font\fR and \fB-size\fR (0\&.9\&.4\&.23+)\&.
+Text width can now be measured without a prior \fBsetFont\fR call\&.
+CIDFont metrics are supported\&. Legacy positional call unchanged\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBinPage\fR added\&. Returns \fB1\fR if a
+page is currently open, \fB0\fR otherwise\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBcurrentPage\fR added\&. Returns the current
+page number (1-based, \fB0\fR before first \fBstartPage\fR)\&.
+\fBpageCount\fR added -- returns the number of completed pages\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBdrawTextBox\fR gains \fB-newyvar\fR
+option\&. The named variable receives the Y position after the last rendered
+line in the current unit\&. Allows flowing text without manual recalculation\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": Annotation methods added (ISO 32000 SS12\&.5):
+\fBaddAnnotNote\fR, \fBaddAnnotFreeText\fR,
+\fBaddAnnotHighlight\fR, \fBaddAnnotUnderline\fR,
+\fBaddAnnotStrikeOut\fR, \fBaddAnnotStamp\fR, \fBaddAnnotLine\fR\&.
+.IP \(bu
+"\fIsrc/cat\&.tcl\fR": \fB::pdf4tcl::exportForms\fR added\&.
+Exports form field data from a filled PDF as FDF (ISO 32000 SS12\&.7\&.7)
+or XFDF (SS12\&.7\&.8)\&. Returns the number of exported fields\&.
+.IP \(bu
+"\fIsrc/options\&.tcl\fR": \fB-pdfa 3b\fR added as valid value\&.
+PDF/A-3b allows embedded files with associated file relationships\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBaddEmbeddedFile\fR now tracks FileSpec OIDs
+for the document-level \fB/AF\fR array when \fB-pdfa 3b\fR is active\&.
+The \fB/AF\fR array in the Catalog associates embedded files with the
+document as a whole (ISO 19005-3 SS6\&.2\&.11\&.4)\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": \fBaddLayer\fR / \fBbeginLayer\fR:
+\fB/AS\fR array added to the OCG \fB/D\fR dictionary when
+\fB-pdfa 2b\fR or \fB-pdfa 3b\fR is active (ISO 19005-2 SS6\&.2\&.10)\&.
+Defines layer state for Print and View events\&. Standard PDFs and
+PDF/A-1b are not affected\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.23\&.test\fR": 12 new tests --
+\fB-pdfa 3b\fR validation (3), \fB/AF\fR array (4),
+\fB/AS\fR array (5)\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.22"
 .IP \(bu
 "\fIsrc/main\&.tcl\fR": PDF/A-2b now writes a cross-reference stream
