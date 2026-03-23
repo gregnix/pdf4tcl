@@ -53,6 +53,7 @@ set DEMOS {
     {demo-encryption.tcl         0  dir        "AES-128 Verschluesselung + -permissions"}
     {demo-transform.tcl          0  dir        "transform + getPageSize (0.9.4.20)"}
     {demo-permissions.tcl        0  dir        "PDF-Berechtigungen (-permissions)"}
+    {demo-layers.tcl             0  dir        "Layer / OCG (0.9.4.21)"}
     {demo-pdfa.tcl               0  --out      "PDF/A direkt"}
     {demo-pdfa-gs.tcl            0  --out      "PDF/A via Ghostscript"}
     {demo-stdfonts-tabelle.tcl   0  none       "Standard-Fonts Tabelle"}

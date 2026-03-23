@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.20 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.21 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -132,24 +132,25 @@
 </li>
 <li class="doctools_section"><a href="#section6">CHANGES</a>
 <ul>
-<li class="doctools_subsection"><a href="#subsection12">Version 0.9.4.20</a></li>
-<li class="doctools_subsection"><a href="#subsection13">Version 0.9.4.19</a></li>
-<li class="doctools_subsection"><a href="#subsection14">Version 0.9.4.18</a></li>
-<li class="doctools_subsection"><a href="#subsection15">Version 0.9.4.17</a></li>
-<li class="doctools_subsection"><a href="#subsection16">Version 0.9.4.16</a></li>
-<li class="doctools_subsection"><a href="#subsection17">Version 0.9.4.13</a></li>
-<li class="doctools_subsection"><a href="#subsection18">Version 0.9.4.12</a></li>
-<li class="doctools_subsection"><a href="#subsection19">Version 0.9.4.11</a></li>
-<li class="doctools_subsection"><a href="#subsection20">Version 0.9.4.10</a></li>
-<li class="doctools_subsection"><a href="#subsection21">Version 0.9.4.9</a></li>
-<li class="doctools_subsection"><a href="#subsection22">Version 0.9.4.8</a></li>
-<li class="doctools_subsection"><a href="#subsection23">Version 0.9.4.7</a></li>
-<li class="doctools_subsection"><a href="#subsection24">Version 0.9.4.6</a></li>
-<li class="doctools_subsection"><a href="#subsection25">Version 0.9.4.5</a></li>
-<li class="doctools_subsection"><a href="#subsection26">Version 0.9.4.3</a></li>
-<li class="doctools_subsection"><a href="#subsection27">Version 0.9.4.1</a></li>
-<li class="doctools_subsection"><a href="#subsection28">Version 0.9.4.15</a></li>
-<li class="doctools_subsection"><a href="#subsection29">Version 0.9.4.14</a></li>
+<li class="doctools_subsection"><a href="#subsection12">Version 0.9.4.21</a></li>
+<li class="doctools_subsection"><a href="#subsection13">Version 0.9.4.20</a></li>
+<li class="doctools_subsection"><a href="#subsection14">Version 0.9.4.19</a></li>
+<li class="doctools_subsection"><a href="#subsection15">Version 0.9.4.18</a></li>
+<li class="doctools_subsection"><a href="#subsection16">Version 0.9.4.17</a></li>
+<li class="doctools_subsection"><a href="#subsection17">Version 0.9.4.16</a></li>
+<li class="doctools_subsection"><a href="#subsection18">Version 0.9.4.13</a></li>
+<li class="doctools_subsection"><a href="#subsection19">Version 0.9.4.12</a></li>
+<li class="doctools_subsection"><a href="#subsection20">Version 0.9.4.11</a></li>
+<li class="doctools_subsection"><a href="#subsection21">Version 0.9.4.10</a></li>
+<li class="doctools_subsection"><a href="#subsection22">Version 0.9.4.9</a></li>
+<li class="doctools_subsection"><a href="#subsection23">Version 0.9.4.8</a></li>
+<li class="doctools_subsection"><a href="#subsection24">Version 0.9.4.7</a></li>
+<li class="doctools_subsection"><a href="#subsection25">Version 0.9.4.6</a></li>
+<li class="doctools_subsection"><a href="#subsection26">Version 0.9.4.5</a></li>
+<li class="doctools_subsection"><a href="#subsection27">Version 0.9.4.3</a></li>
+<li class="doctools_subsection"><a href="#subsection28">Version 0.9.4.1</a></li>
+<li class="doctools_subsection"><a href="#subsection29">Version 0.9.4.15</a></li>
+<li class="doctools_subsection"><a href="#subsection30">Version 0.9.4.14</a></li>
 </ul>
 </li>
 <li class="doctools_section"><a href="#see-also">See Also</a></li>
@@ -161,7 +162,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.20?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.21?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -259,6 +260,9 @@
 <li><a href="#93"><i class="arg">objectName</i> <b class="method">rotate</b> <i class="arg">degrees</i></a></li>
 <li><a href="#94"><i class="arg">objectName</i> <b class="method">scale</b> <i class="arg">sx</i> <i class="arg">sy</i></a></li>
 <li><a href="#95"><i class="arg">objectName</i> <b class="method">getPageSize</b></a></li>
+<li><a href="#96"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></li>
+<li><a href="#97"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></li>
+<li><a href="#98"><i class="arg">objectName</i> <b class="method">endLayer</b></a></li>
 </ul>
 </div>
 </div>
@@ -1222,6 +1226,35 @@ For A4 with <b class="option">-unit mm</b>: approximately <b class="const">210.0
 For A4 with <b class="option">-unit p</b>: approximately <b class="const">595.0 842.0</b>
 (pdf4tcl rounds MediaBox to integer points).
 Complements <b class="method">getDrawableArea</b> which excludes margins.</p></dd>
+<dt><a name="96"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></dt>
+<dd><p>Add an Optional Content Group (OCG / layer) to the document.
+Returns a layer ID for use with <b class="method">beginLayer</b>.</p>
+<p><i class="arg">name</i> is the visible label shown in the viewer's layer panel.
+<b class="option">-visible</b> controls default visibility (1 = shown, 0 = hidden, default: 1).
+Use cases: debug grids (<b class="option">-visible 0</b>), letterhead variants,
+watermarks (<b class="option">-visible 0</b>).</p>
+<p><em>Note:</em> <b class="method">addLayer</b> must be called before <b class="method">finish</b>.
+All layers are shared across all pages of the document.</p></dd>
+<dt><a name="97"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></dt>
+<dd><p>Open an Optional Content Group block. All drawing commands until
+<b class="method">endLayer</b> belong to this layer.
+<i class="arg">layerId</i> is the OID returned by <b class="method">addLayer</b>.
+Inserts a <b class="cmd">BDC</b> operator into the content stream.</p></dd>
+<dt><a name="98"><i class="arg">objectName</i> <b class="method">endLayer</b></a></dt>
+<dd><p>Close the current Optional Content Group block.
+Inserts an <b class="cmd">EMC</b> operator into the content stream.</p>
+<pre class="doctools_example">
+set lGrid [$pdf addLayer &quot;Debug-Raster&quot; -visible 0]
+set lKopf [$pdf addLayer &quot;Briefkopf&quot;   -visible 1]
+$pdf beginLayer $lGrid
+  $pdf setStrokeColor 0.9 0.9 0.9
+  for {set x 0} {$x &lt;= 595} {incr x 50} { $pdf line $x 0 $x 842 }
+$pdf endLayer
+$pdf beginLayer $lKopf
+  $pdf text &quot;Musterfirma GmbH&quot; -x 40 -y 28
+$pdf endLayer
+</pre>
+</dd>
 </dl>
 </div>
 <div id="subsection9" class="doctools_subsection"><h3><a name="subsection9">OBJECT CONFIGURATION</a></h3>
@@ -1368,7 +1401,25 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 </div>
 </div>
 <div id="section6" class="doctools_section"><h2><a name="section6">CHANGES</a></h2>
-<div id="subsection12" class="doctools_subsection"><h3><a name="subsection12">Version 0.9.4.20</a></h3>
+<div id="subsection12" class="doctools_subsection"><h3><a name="subsection12">Version 0.9.4.21</a></h3>
+<ul class="doctools_itemized">
+<li><p>&quot;<b class="file">src/main.tcl</b>&quot;: ICC profile stream compressed with
+<b class="const">FlateDecode</b> when <b class="option">-compress</b> is active.
+Previously written as raw uncompressed stream.
+Saves approximately 2 KB per PDF/A document.</p></li>
+<li><p>&quot;<b class="file">src/main.tcl</b>&quot;: New public methods <b class="method">addLayer</b>,
+<b class="method">beginLayer</b>, <b class="method">endLayer</b> implement Optional Content Groups
+(OCG / Layers, ISO 32000 SS8.11).
+Supports debug grids, letterhead variants, watermarks.
+Layer visibility controlled by <b class="option">-visible</b> (default: 1).</p></li>
+<li><p>&quot;<b class="file">tests/nist.test</b>&quot;: NIST SHA/AES reference vectors now run
+as part of <b class="cmd">make test</b> via a tcltest wrapper.</p></li>
+<li><p>&quot;<b class="file">tests/new-0.9.4.21.test</b>&quot;: 13 new tests --
+ICC compression (5) and OCG/Layer (8).</p></li>
+<li><p>&quot;<b class="file">demo/demo-layers.tcl</b>&quot;: New 3-page demo for OCG/Layer.</p></li>
+</ul>
+</div>
+<div id="subsection13" class="doctools_subsection"><h3><a name="subsection13">Version 0.9.4.20</a></h3>
 <ul class="doctools_itemized">
 <li><p>&quot;<b class="file">src/main.tcl</b>&quot;: New public methods <b class="method">transform</b>,
 <b class="method">rotate</b>, <b class="method">scale</b>, <b class="method">translate</b> apply PDF coordinate
@@ -1391,7 +1442,7 @@ Added to &quot;<b class="file">tests/examples.test</b>&quot; as <b class="const"
 <b class="method">translate</b>, and <b class="const">rawcoords</b> state management.</p></li>
 </ul>
 </div>
-<div id="subsection13" class="doctools_subsection"><h3><a name="subsection13">Version 0.9.4.19</a></h3>
+<div id="subsection14" class="doctools_subsection"><h3><a name="subsection14">Version 0.9.4.19</a></h3>
 <ul class="doctools_itemized">
 <li><p>&quot;<b class="file">src/main.tcl</b>&quot;: XMP stream is now accumulated as UTF-8 bytes
 (<b class="cmd">encoding convertto utf-8</b> before <b class="method">Pdfout</b>). Fixes
@@ -1405,7 +1456,7 @@ metadata Unicode handling, and <b class="cmd">::pdf4tcl::sha2pure</b>
 NIST vectors.</p></li>
 </ul>
 </div>
-<div id="subsection14" class="doctools_subsection"><h3><a name="subsection14">Version 0.9.4.18</a></h3>
+<div id="subsection15" class="doctools_subsection"><h3><a name="subsection15">Version 0.9.4.18</a></h3>
 <ul class="doctools_itemized">
 <li><p>Tcl 9 compatibility: pdf4tcl runs under both Tcl 8.6 and Tcl 9.0.</p></li>
 <li><p>&quot;<b class="file">src/encrypt.tcl</b>&quot;: <b class="method">_InitSHABackend</b> selects the correct
@@ -1433,7 +1484,7 @@ the Tcl version changes (&quot;<b class="file">.tclver</b>&quot; fingerprint fil
 <b class="cmd">make test</b> and <b class="cmd">make example</b>.</p></li>
 </ul>
 </div>
-<div id="subsection15" class="doctools_subsection"><h3><a name="subsection15">Version 0.9.4.17</a></h3>
+<div id="subsection16" class="doctools_subsection"><h3><a name="subsection16">Version 0.9.4.17</a></h3>
 <ul class="doctools_itemized">
 <li><p>&quot;<b class="file">src/encrypt.tcl</b>&quot;: AES-256 string encryption
 (<b class="method">EncryptStringsInBody</b>, <b class="method">_PdfLiteralToBytes</b>) wired into
@@ -1452,7 +1503,7 @@ with signature fields.</p></li>
 <b class="method">addForm</b>.</p></li>
 </ul>
 </div>
-<div id="subsection16" class="doctools_subsection"><h3><a name="subsection16">Version 0.9.4.16</a></h3>
+<div id="subsection17" class="doctools_subsection"><h3><a name="subsection17">Version 0.9.4.16</a></h3>
 <ul class="doctools_itemized">
 <li><p>AES-256 encryption (V=5, R=6, PDF 2.0, ISO 32000-2 &sect;7.6.4).
 New option <b class="option">-encversion</b>: <b class="const">4</b> (AES-128, default) or
@@ -1467,7 +1518,7 @@ correct build order.</p></li>
 (encrypt-9.1 through encrypt-9.12).</p></li>
 </ul>
 </div>
-<div id="subsection17" class="doctools_subsection"><h3><a name="subsection17">Version 0.9.4.13</a></h3>
+<div id="subsection18" class="doctools_subsection"><h3><a name="subsection18">Version 0.9.4.13</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">setBlendMode</b>: sets the PDF blend mode for
 subsequent graphics operations via ExtGState <b class="const">/BM</b>. Supported modes:
@@ -1498,7 +1549,7 @@ dictionary when annotations are present, enabling correct tab order for
 screen readers.</p></li>
 </ul>
 </div>
-<div id="subsection18" class="doctools_subsection"><h3><a name="subsection18">Version 0.9.4.12</a></h3>
+<div id="subsection19" class="doctools_subsection"><h3><a name="subsection19">Version 0.9.4.12</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">roundedRect</b>: draws a rectangle with rounded
 corners using Bezier approximation. Options <b class="option">-radius</b> (default 5),
@@ -1516,7 +1567,7 @@ demonstrating <b class="method">roundedRect</b> and unit conversion procs.</p></
 <li><p>New test file &quot;<b class="file">tests/new-0.9.4.12.test</b>&quot;: 17 tests.</p></li>
 </ul>
 </div>
-<div id="subsection19" class="doctools_subsection"><h3><a name="subsection19">Version 0.9.4.11</a></h3>
+<div id="subsection20" class="doctools_subsection"><h3><a name="subsection20">Version 0.9.4.11</a></h3>
 <ul class="doctools_itemized">
 <li><p>New module &quot;<b class="file">src/encrypt.tcl</b>&quot;: AES-128 encryption (V=4, R=4)
 per PDF 1.6 specification. New options <b class="option">-userpassword</b> and
@@ -1531,7 +1582,7 @@ AES-128 encryption, O/U-entry calculation, and Encrypt dictionary
 structure.</p></li>
 </ul>
 </div>
-<div id="subsection20" class="doctools_subsection"><h3><a name="subsection20">Version 0.9.4.10</a></h3>
+<div id="subsection21" class="doctools_subsection"><h3><a name="subsection21">Version 0.9.4.10</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="method">setAlpha</b>: sets fill and/or stroke opacity (0.0 transparent,
 1.0 opaque) via PDF ExtGState (/ca, /CA). Supports single value, <b class="option">-fill</b>,
@@ -1543,7 +1594,7 @@ structure.</p></li>
 alpha steps, independent fill/stroke alpha, transparent text, and gsave/grestore.</p></li>
 </ul>
 </div>
-<div id="subsection21" class="doctools_subsection"><h3><a name="subsection21">Version 0.9.4.9</a></h3>
+<div id="subsection22" class="doctools_subsection"><h3><a name="subsection22">Version 0.9.4.9</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="cmd">demo-pdfa.tcl</b>: Demonstration of PDF/A-1b and PDF/A-2b features
 using embedded CIDFont (DejaVuSans). Requires no Ghostscript.</p></li>
@@ -1556,7 +1607,7 @@ covers ASCII passthrough, Latin-1 retention, SMP replacement, PDF special
 character escaping, and mixed input.</p></li>
 </ul>
 </div>
-<div id="subsection22" class="doctools_subsection"><h3><a name="subsection22">Version 0.9.4.8</a></h3>
+<div id="subsection23" class="doctools_subsection"><h3><a name="subsection23">Version 0.9.4.8</a></h3>
 <ul class="doctools_itemized">
 <li><p>PDF/A-1b and PDF/A-2b support via <b class="option">-pdfa</b> option.</p></li>
 <li><p>XMP metadata stream with pdfaid identification schema
@@ -1567,12 +1618,12 @@ character escaping, and mixed input.</p></li>
 <li><p>Fixed <i class="term">/Length</i> calculation to use UTF-8 byte count.</p></li>
 </ul>
 </div>
-<div id="subsection23" class="doctools_subsection"><h3><a name="subsection23">Version 0.9.4.7</a></h3>
+<div id="subsection24" class="doctools_subsection"><h3><a name="subsection24">Version 0.9.4.7</a></h3>
 <ul class="doctools_itemized">
 <li><p>Assembled &quot;<b class="file">pdf4tcl.tcl</b>&quot;, updated examples, manpage and tests.</p></li>
 </ul>
 </div>
-<div id="subsection24" class="doctools_subsection"><h3><a name="subsection24">Version 0.9.4.6</a></h3>
+<div id="subsection25" class="doctools_subsection"><h3><a name="subsection25">Version 0.9.4.6</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="cmd">SafeQuoteString</b>: strips codepoints &gt; U+00FF before PDF encoding
 for Tcl 9.0 compatibility (ticket #17).</p></li>
@@ -1580,20 +1631,20 @@ for Tcl 9.0 compatibility (ticket #17).</p></li>
 <li><p>Improved <b class="cmd">GetCharWidth</b> fallback for unmappable WinAnsi codepoints.</p></li>
 </ul>
 </div>
-<div id="subsection25" class="doctools_subsection"><h3><a name="subsection25">Version 0.9.4.5</a></h3>
+<div id="subsection26" class="doctools_subsection"><h3><a name="subsection26">Version 0.9.4.5</a></h3>
 <ul class="doctools_itemized">
 <li><p>CIDFont Unicode support: <b class="cmd">createFontSpecCID</b> for full TTF embedding.</p></li>
 <li><p>Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.</p></li>
 <li><p>ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.</p></li>
 </ul>
 </div>
-<div id="subsection26" class="doctools_subsection"><h3><a name="subsection26">Version 0.9.4.3</a></h3>
+<div id="subsection27" class="doctools_subsection"><h3><a name="subsection27">Version 0.9.4.3</a></h3>
 <ul class="doctools_itemized">
 <li><p>Added <b class="cmd">hyperlinkAdd</b>: URI annotation links with optional border and color
 (ticket #15).</p></li>
 </ul>
 </div>
-<div id="subsection27" class="doctools_subsection"><h3><a name="subsection27">Version 0.9.4.1</a></h3>
+<div id="subsection28" class="doctools_subsection"><h3><a name="subsection28">Version 0.9.4.1</a></h3>
 <ul class="doctools_itemized">
 <li><p>AcroForm v2.1: extended <b class="cmd">addForm</b> from 2 to 8 field types: <i class="term">text</i>,
 <i class="term">password</i>, <i class="term">checkbutton</i>, <i class="term">combobox</i>, <i class="term">listbox</i>,
@@ -1601,7 +1652,7 @@ for Tcl 9.0 compatibility (ticket #17).</p></li>
 Added <b class="option">-required</b>, <b class="option">-label</b> and radio group support (ticket #9).</p></li>
 </ul>
 </div>
-<div id="subsection28" class="doctools_subsection"><h3><a name="subsection28">Version 0.9.4.15</a></h3>
+<div id="subsection29" class="doctools_subsection"><h3><a name="subsection29">Version 0.9.4.15</a></h3>
 <ul class="doctools_itemized">
 <li><p>OTF/CFF font support in <b class="cmd">pdf4tcl::loadBaseTrueTypeFont</b>:
 OpenType fonts with CFF outlines (&quot;<b class="file">.otf</b>&quot; files, OTTO magic number
@@ -1619,7 +1670,7 @@ The ToUnicode CMap and all other font objects are identical.</p>
 CFF/OTF fonts and <b class="const">0</b> for TrueType fonts.</p></li>
 </ul>
 </div>
-<div id="subsection29" class="doctools_subsection"><h3><a name="subsection29">Version 0.9.4.14</a></h3>
+<div id="subsection30" class="doctools_subsection"><h3><a name="subsection30">Version 0.9.4.14</a></h3>
 <ul class="doctools_itemized">
 <li><p>New method <b class="method">addEmbeddedFile</b>: embeds a file silently into the
 PDF Catalog <b class="const">/Names</b> / <b class="const">/EmbeddedFiles</b> NameTree

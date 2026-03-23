@@ -1,0 +1,8 @@
+Fuer Entwurfs-Ausdruck: Layer 'Wasserzeichen' einschalten.
+
+Der Wasserzeichen-Layer ist standardmaessig UNSICHTBAR.
+Fuer vorgedrucktes Papier: Layer 'Brietkopf' im Viewer ausschalten.
+Der Brietkopt-Layer ist standardmaessig SICHTBAR.
+
+Seite 2: Briefbogen mit Layer-Varianten
+

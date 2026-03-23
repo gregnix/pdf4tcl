@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.20]
+[manpage_begin pdf4tcl n 0.9.4.21]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.20]]
+[require pdf4tcl [opt 0.9.4.21]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1272,6 +1272,42 @@ For A4 with [option {-unit p}]: approximately [const {595.0 842.0}]
 (pdf4tcl rounds MediaBox to integer points).
 Complements [method getDrawableArea] which excludes margins.
 
+[call [arg objectName] [method addLayer] [arg name] [opt [option {-visible bool}]]]
+   Add an Optional Content Group (OCG / layer) to the document.
+Returns a layer ID for use with [method beginLayer].
+[para]
+[arg name] is the visible label shown in the viewer's layer panel.
+[option -visible] controls default visibility (1 = shown, 0 = hidden, default: 1).
+Use cases: debug grids ([option {-visible 0}]), letterhead variants,
+watermarks ([option {-visible 0}]).
+[para]
+[emph Note:] [method addLayer] must be called before [method finish].
+All layers are shared across all pages of the document.
+
+[call [arg objectName] [method beginLayer] [arg layerId]]
+   Open an Optional Content Group block. All drawing commands until
+[method endLayer] belong to this layer.
+[arg layerId] is the OID returned by [method addLayer].
+Inserts a [cmd BDC] operator into the content stream.
+
+[call [arg objectName] [method endLayer]]
+   Close the current Optional Content Group block.
+Inserts an [cmd EMC] operator into the content stream.
+
+[example {
+set lGrid [$pdf addLayer "Debug-Raster" -visible 0]
+set lKopf [$pdf addLayer "Briefkopf"   -visible 1]
+
+$pdf beginLayer $lGrid
+  $pdf setStrokeColor 0.9 0.9 0.9
+  for {set x 0} {$x <= 595} {incr x 50} { $pdf line $x 0 $x 842 }
+$pdf endLayer
+
+$pdf beginLayer $lKopf
+  $pdf text "Musterfirma GmbH" -x 40 -y 28
+$pdf endLayer
+}]
+
 [list_end]
 
 
@@ -1476,6 +1512,31 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.21}]
+
+[list_begin itemized]
+
+[item] [file src/main.tcl]: ICC profile stream compressed with
+[const FlateDecode] when [option -compress] is active.
+Previously written as raw uncompressed stream.
+Saves approximately 2 KB per PDF/A document.
+
+[item] [file src/main.tcl]: New public methods [method addLayer],
+[method beginLayer], [method endLayer] implement Optional Content Groups
+(OCG / Layers, ISO 32000 SS8.11).
+Supports debug grids, letterhead variants, watermarks.
+Layer visibility controlled by [option -visible] (default: 1).
+
+[item] [file tests/nist.test]: NIST SHA/AES reference vectors now run
+as part of [cmd {make test}] via a tcltest wrapper.
+
+[item] [file tests/new-0.9.4.21.test]: 13 new tests --
+ICC compression (5) and OCG/Layer (8).
+
+[item] [file demo/demo-layers.tcl]: New 3-page demo for OCG/Layer.
+
+[list_end]
 
 [subsection {Version 0.9.4.20}]
 [list_begin itemized]

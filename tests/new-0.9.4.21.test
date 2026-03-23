@@ -1,0 +1,145 @@
+# new-0.9.4.21.test -- Tests fuer pdf4tcl 0.9.4.21
+# ICC-Profil FlateDecode-Kompression
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# 21-1.x  ICC-Profil Kompression
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.21-1.1 {ICC FlateDecode: bei -compress 1 enthalten} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 512] icc21_1.icc]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 1 -pdfa-icc $iccfile]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set data [$p get]; $p destroy
+    regexp {/N 3[^>]*FlateDecode|FlateDecode[^>]*/N 3} $data
+} -cleanup { removeFile icc21_1.icc } -result 1
+
+test new-0.9.4.21-1.2 {ICC FlateDecode: bei -compress 0 nicht enthalten} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 512] icc21_2.icc]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 0 -pdfa-icc $iccfile]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set data [$p get]; $p destroy
+    expr {![regexp {FlateDecode} $data]}
+} -cleanup { removeFile icc21_2.icc } -result 1
+
+test new-0.9.4.21-1.3 {ICC FlateDecode: komprimiertes PDF kleiner} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 1024] icc21_3.icc]
+} -body {
+    set pc [pdf4tcl::new %AUTO% -pdfa 1b -compress 1 -pdfa-icc $iccfile]
+    $pc startPage; $pc setFont 10 Helvetica; $pc text "X" -x 50 -y 700
+    $pc endPage; set dc [$pc get]; $pc destroy
+
+    set pu [pdf4tcl::new %AUTO% -pdfa 1b -compress 0 -pdfa-icc $iccfile]
+    $pu startPage; $pu setFont 10 Helvetica; $pu text "X" -x 50 -y 700
+    $pu endPage; set du [$pu get]; $pu destroy
+
+    expr {[string length $dc] < [string length $du]}
+} -cleanup { removeFile icc21_3.icc } -result 1
+
+test new-0.9.4.21-1.4 {ICC FlateDecode: /N 3 bleibt erhalten} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 512] icc21_4.icc]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 1 -pdfa-icc $iccfile]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set data [$p get]; $p destroy
+    regexp {/N 3} $data
+} -cleanup { removeFile icc21_4.icc } -result 1
+
+test new-0.9.4.21-1.5 {ICC FlateDecode: normales PDF (kein pdfa) unveraendert} -body {
+    set p [pdf4tcl::new %AUTO% -compress 1]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700
+    $p endPage
+    set data [$p get]; $p destroy
+    # Kein OutputIntent, kein /N 3
+    expr {![regexp {/N 3} $data]}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 21-2.x  Optional Content Groups (Layer)
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.21-2.1 {addLayer: gibt OID zurueck} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    set id [$p addLayer "Test"]
+    $p destroy
+    string is integer $id
+} -result 1
+
+test new-0.9.4.21-2.2 {addLayer: OCProperties im PDF} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set id [$p addLayer "Ebene1"]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/OCProperties} $data
+} -result 1
+
+test new-0.9.4.21-2.3 {addLayer: OCG-Objekt im PDF} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Mein Layer"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Type /OCG} $data
+} -result 1
+
+test new-0.9.4.21-2.4 {beginLayer/endLayer: BDC/EMC im Stream} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set id [$p addLayer "L"]
+    $p startPage
+    $p beginLayer $id
+    $p line 0 0 100 100
+    $p endLayer
+    $p endPage
+    set data [$p get]; $p destroy
+    expr {[regexp {BDC} $data] && [regexp {EMC} $data]}
+} -result 1
+
+test new-0.9.4.21-2.5 {addLayer -visible 0: Layer in /OFF} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Versteckt" -visible 0
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/OFF} $data
+} -result 1
+
+test new-0.9.4.21-2.6 {addLayer -visible 1: Layer in /ON} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Sichtbar" -visible 1
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/ON} $data
+} -result 1
+
+test new-0.9.4.21-2.7 {addLayer: Properties in Resources} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "L"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Properties} $data
+} -result 1
+
+test new-0.9.4.21-2.8 {mehrere Layer: alle im OCG-Array} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Layer1"
+    $p addLayer "Layer2" -visible 0
+    $p addLayer "Layer3"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/OCGs \[.*0 R.*0 R.*0 R.*\]} $data
+} -result 1
+
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests

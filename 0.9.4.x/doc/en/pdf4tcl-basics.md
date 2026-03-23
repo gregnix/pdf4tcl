@@ -469,6 +469,28 @@ Presets: `all`, `none`, `readonly`. Or a list of rights:
 `print`, `copy`, `modify`, `annotations`, `fill-forms`, `extract`,
 `assemble`, `print-high`.
 
+## Layers / OCG (0.9.4.21)
+
+`addLayer`, `beginLayer`, `endLayer` implement Optional Content Groups —
+named layer groups that viewers can toggle on and off.
+
+```tcl
+set lGrid [$pdf addLayer "Debug-Grid" -visible 0]   ;# hidden by default
+set lKopf [$pdf addLayer "Letterhead" -visible 1]   ;# visible by default
+
+$pdf beginLayer $lGrid
+  # grid lines -- only shown when layer is on
+$pdf endLayer
+
+$pdf beginLayer $lKopf
+  $pdf text "Acme Corp" -x 40 -y 28
+$pdf endLayer
+```
+
+Also in 0.9.4.21: ICC profiles compressed with FlateDecode (~2 KB saved
+per PDF/A document), and NIST SHA/AES reference vectors integrated into
+`make test`.
+
 ## Next Steps
 
 - Text API and fonts: see pdf4tcl-text-and-fonts.md

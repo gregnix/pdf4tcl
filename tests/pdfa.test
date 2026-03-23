@@ -294,5 +294,60 @@ test pdfa-8.2 {-pdfa 2b: multiple pages work} -body {
     expr {[string first {/Count 3} $data] >= 0}
 } -result 1
 
+
+# pdfa-9.x  ICC-Profil Kompression (0.9.4.21)
+# Kein echtes ICC-Profil im Test-Environment noetig:
+# Wir mocken _WriteOutputIntent indem wir ein tmp-Profil erzeugen.
+
+test pdfa-9.1 {ICC-Profil: FlateDecode bei -compress 1} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 512] test_icc.icc]
+} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b -compress 1 -pdfa-icc $iccfile]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "ICC Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # FlateDecode muss im Stream mit /N 3 vorkommen
+    regexp {/N 3[^\>]*FlateDecode|FlateDecode[^\>]*/N 3} $data
+} -cleanup {
+    removeFile test_icc.icc
+} -result 1
+
+test pdfa-9.2 {ICC-Profil: kein FlateDecode bei -compress 0} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 512] test_icc2.icc]
+} -body {
+    set pdf [pdf4tcl::new %AUTO% -pdfa 1b -compress 0 -pdfa-icc $iccfile]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "ICC Test" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    # Kein FlateDecode -- raw
+    expr {![regexp {FlateDecode} $data]}
+} -cleanup {
+    removeFile test_icc2.icc
+} -result 1
+
+test pdfa-9.3 {ICC-Profil: komprimiertes PDF kleiner als unkomprimiertes} -setup {
+    set iccfile [makeFile [string repeat "ICCP" 1024] test_icc3.icc]
+} -body {
+    set pdfc [pdf4tcl::new %AUTO% -pdfa 1b -compress 1 -pdfa-icc $iccfile]
+    $pdfc startPage; $pdfc setFont 10 Helvetica; $pdfc text "X" -x 50 -y 700
+    $pdfc endPage
+    set datac [$pdfc get]; $pdfc destroy
+
+    set pdfu [pdf4tcl::new %AUTO% -pdfa 1b -compress 0 -pdfa-icc $iccfile]
+    $pdfu startPage; $pdfu setFont 10 Helvetica; $pdfu text "X" -x 50 -y 700
+    $pdfu endPage
+    set datau [$pdfu get]; $pdfu destroy
+
+    expr {[string length $datac] < [string length $datau]}
+} -cleanup {
+    removeFile test_icc3.icc
+} -result 1
+
 # Aufraumen
 cleanupTests

@@ -135,7 +135,9 @@ puts "--- AES-128 CBC ---"
 # Wir nutzen einen Dummy-Namespace der die Methode direkt aufrufbar macht
 namespace eval ::pdf4tcl::_nist_test {
     proc aesCbc {mode key iv data} {
-        package require aes
+        if {[catch {package require aes}]} {
+            error "aes package not available"
+        }
         if {$mode eq "encrypt"} {
             return [aes::aes -mode cbc -dir encrypt -key $key -iv $iv -- $data]
         } else {
@@ -144,10 +146,19 @@ namespace eval ::pdf4tcl::_nist_test {
     }
 }
 
+# AES-Verfuegbarkeit pruefen
+if {[catch {package require aes}]} {
+    puts "  SKIP AES-128-CBC (package aes nicht verfuegbar)"
+    set _skip_aes 1
+} else {
+    set _skip_aes 0
+}
+
 set key  [binary decode hex "2b7e151628aed2a6abf7158809cf4f3c"]
 set iv   [binary decode hex "000102030405060708090a0b0c0d0e0f"]
 set pt   [binary decode hex "6bc1bee22e409f96e93d7e117393172a"]
 
+if {!$_skip_aes} {
 check "AES-128-CBC block 1 encrypt" \
     [binary encode hex [::pdf4tcl::_nist_test::aesCbc encrypt $key $iv $pt]] \
     "7649abac8119b246cee98e9b12e9197d"
@@ -162,6 +173,7 @@ set pt4  [binary decode hex \
 check "AES-128-CBC 4 Bloecke encrypt" \
     [binary encode hex [::pdf4tcl::_nist_test::aesCbc encrypt $key $iv $pt4]] \
     "7649abac8119b246cee98e9b12e9197d5086cb9b507219ee95db113a917678b273bed6b8e3c1743b7116e69e222295163ff1caa1681fac09120eca307586e1a7"
+}
 
 puts ""
 
@@ -353,6 +365,10 @@ puts ""
 
 puts "--- AES-256-CBC (NIST SP 800-38A, F.2.5) ---"
 
+if {$_skip_aes} {
+    puts "  SKIP AES-256-CBC (package aes nicht verfuegbar)"
+} else {
+
 # Schluessel (256 Bit = 32 Bytes)
 set _k256 [binary decode hex \
     "603deb1015ca71be2b73aef0857d7781\
@@ -405,6 +421,7 @@ puts ""
 # ------------------------------------------------------------
 # Zusammenfassung
 # ------------------------------------------------------------
+}
 
 set total [expr {$passed + $errors}]
 puts "=== Ergebnis: $passed/$total bestanden, $errors fehlgeschlagen ==="

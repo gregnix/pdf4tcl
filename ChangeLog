@@ -1,3 +1,38 @@
+2026-03-23 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.21
+
+	* src/main.tcl: ICC profile stream now compressed with FlateDecode
+	  when -compress 1 (default). Previously written as raw uncompressed
+	  stream. Saves approx. 2 KB per PDF/A document.
+
+	* src/main.tcl: New public methods addLayer, beginLayer, endLayer --
+	  Optional Content Groups (OCG / Layers, ISO 32000 SS8.11).
+	  addLayer creates an OCG object and returns its ID.
+	  beginLayer/endLayer bracket drawing commands with BDC/EMC operators.
+	  Layer visibility controlled by -visible option (default: 1).
+	  Use cases: debug grids, letterhead variants, watermarks.
+
+	* src/main.tcl: /OCProperties written to Catalog (finish()) when
+	  layers are defined: /OCGs list, /D /ON and /OFF arrays.
+	  /Properties dict added to Resources object for BDC operator.
+
+	* tests/nist.test: NIST SHA/AES reference vectors now run as part of
+	  make test (tcltest wrapper around tests/nist-tests.tcl).
+
+	* tests/nist-tests.tcl: AES-128 and AES-256 blocks skip gracefully
+	  when package aes (Tcllib) is not available.
+
+	* tests/pdfa.test: 3 new tests for ICC FlateDecode (pdfa-9.x).
+
+	* tests/new-0.9.4.21.test: 13 new tests -- ICC compression (5),
+	  OCG/Layer (8).
+
+	* demo/demo-layers.tcl: New 3-page demo showing debug grid,
+	  letterhead variants, and layer overview table.
+
+	* demo/run-all-demos.tcl: demo-layers.tcl added.
+
 2026-03-21 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.20
