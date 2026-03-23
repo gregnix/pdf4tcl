@@ -1,5 +1,5 @@
 #!/usr/bin/env tclsh
-# demo-pdfa.tcl -- PDF/A-Features Demonstration (pdf4tcl 0.9.4.9)
+# demo-pdfa.tcl -- PDF/A-Features Demonstration (pdf4tcl 0.9.4.20)
 #
 # Zeigt: -pdfa Option, XMP-Metadaten, pdfaid-Schema, OutputIntent,
 #        /Group-Unterdrueckung, Metadaten-Synchronisation.
@@ -11,7 +11,7 @@
 #   tclsh demo-pdfa.tcl --font /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
 #
 # Abhaengigkeiten:
-#   pdf4tcl 0.9.4.9 (im uebergeordneten Verzeichnis)
+#   pdf4tcl 0.9.4.20 (im uebergeordneten Verzeichnis)
 #   DejaVuSans.ttf  (Debian/Ubuntu: apt install fonts-dejavu-core)
 #   veraPDF (optional, fuer Validierung): https://verapdf.org
 #
@@ -258,7 +258,7 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
 
     # Tabellenkopf
     $pdf setFillColor 0.20 0.40 0.70
-    $pdf rectangle 40 [expr {$y + 2}] 515 20 -filled 1
+    $pdf rectangle 40 [expr {$y - 2}] 515 20 -filled 1
     $pdf setFillColor 1 1 1
     $pdf setFont 10 cidSans
     $pdf text "Merkmal"       -x  46 -y $y
@@ -308,7 +308,7 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
     # Code-Beispiel
     set y [expr {$y - 40}]
     $pdf setFillColor 0.95 0.95 0.95
-    $pdf rectangle 40 [expr {$y - 100}] 515 120 -filled 1
+    $pdf rectangle 40 [expr {$y - 138}] 515 152 -filled 1
     $pdf setFillColor 0.30 0.30 0.30
     $pdf setFont 10 cidSans
     $pdf text "Code-Beispiel: $variant_label erzeugen" -x 46 -y $y
@@ -366,7 +366,7 @@ proc make_demo_pdf {outfile pdfa_variant icc_file pkgver} {
     }
 
     $pdf setFillColor 0.95 0.95 0.95
-    $pdf rectangle 50 [expr {$y - 32}] 495 52 -filled 1
+    $pdf rectangle 50 [expr {$y - 30}] 495 40 -filled 1
     $pdf setFont 9 cidSans
     $pdf setFillColor 0.20 0.20 0.20
     $pdf text "verapdf --flavour 1b --format text output.pdf" -x 55 -y $y

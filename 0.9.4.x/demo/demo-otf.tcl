@@ -40,13 +40,35 @@ if {$otfFile eq ""} {
         /usr/share/fonts/opentype/tlwg/Loma.otf
         /usr/share/fonts/truetype/baskerville/GFSBaskerville.otf
         /usr/share/fonts/opentype/porson/GFSPorson.otf
+        /usr/share/fonts/opentype/freefont/FreeSans.otf
+        /usr/share/fonts/opentype/freefont/FreeSerif.otf
+        /usr/share/fonts/opentype/freefont/FreeMono.otf
+        /usr/share/fonts/opentype/urw-base35/NimbusSans-Regular.otf
+        /usr/share/fonts/opentype/urw-base35/NimbusRoman-Regular.otf
+        /usr/share/fonts/opentype/unifont/unifont.otf
+        /usr/share/fonts/opentype/cantarell/Cantarell-Regular.otf
+        /usr/share/fonts/opentype/linux-libertine/LinLibertine_R.otf
+        /Library/Fonts/Helvetica.otf
+        /Library/Fonts/Arial.otf
     }]
 }
 if {$otfFile eq ""} {
     puts stderr "No OTF font found. Use --font /path/to/font.otf"
+    puts stderr ""
+    puts stderr "Install one of these packages:"
+    puts stderr "  apt install fonts-tlwg-loma-otf          (Loma)"
+    puts stderr "  apt install fonts-gfs-baskerville         (GFSBaskerville)"
+    puts stderr "  apt install fonts-freefont-otf            (FreeSans/FreeSerif)"
+    puts stderr "  apt install fonts-urw-base35              (Nimbus)"
+    puts stderr "  apt install fonts-cantarell               (Cantarell)"
     exit 1
 }
-set otfBold [findFont {/usr/share/fonts/opentype/tlwg/Loma-Bold.otf}]
+set otfBold [findFont {
+    /usr/share/fonts/opentype/tlwg/Loma-Bold.otf
+    /usr/share/fonts/opentype/freefont/FreeSans.otf
+    /usr/share/fonts/opentype/urw-base35/NimbusSans-Bold.otf
+    /usr/share/fonts/opentype/cantarell/Cantarell-Bold.otf
+}]
 set ttfFile [findFont {
     /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
     /usr/share/fonts/TTF/DejaVuSans.ttf

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.19 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.20 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.19?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.20?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -459,6 +459,16 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.19?\fR
 \fIobjectName\fR \fBgsave\fR
 .sp
 \fIobjectName\fR \fBgrestore\fR
+.sp
+\fIobjectName\fR \fBtransform\fR \fIa\fR \fIb\fR \fIc\fR \fId\fR \fIe\fR \fIf\fR
+.sp
+\fIobjectName\fR \fBtranslate\fR \fItx\fR \fIty\fR
+.sp
+\fIobjectName\fR \fBrotate\fR \fIdegrees\fR
+.sp
+\fIobjectName\fR \fBscale\fR \fIsx\fR \fIsy\fR
+.sp
+\fIobjectName\fR \fBgetPageSize\fR
 .sp
 .BE
 .SH DESCRIPTION
@@ -1591,6 +1601,56 @@ Each call to \fBgsave\fR should be followed by a later call to \fBgrestore\fR in
 .TP
 \fIobjectName\fR \fBgrestore\fR
 Restore graphic/text context\&. (I\&.e\&. insert a raw PDF "Q" command)\&.
+Restores all saved state including the raw-coordinate mode set by
+\fBtranslate\fR, \fBrotate\fR, \fBscale\fR, or \fBtransform\fR\&.
+After \fBgrestore\fR, drawing commands return to user-coordinate mode
+(orient + margin active)\&.
+.TP
+\fIobjectName\fR \fBtransform\fR \fIa\fR \fIb\fR \fIc\fR \fId\fR \fIe\fR \fIf\fR
+Apply a PDF transformation matrix (\fBcm\fR operator) to the current
+graphics state\&. Use with \fBgsave\fR/\fBgrestore\fR\&.
+.sp
+After this call, drawing commands (\fBline\fR, \fBrectangle\fR etc\&.)
+work in raw-coordinate mode: y points upward, no margin, no orient flip\&.
+Text commands (\fBtext\fR) use absolute \fBTm\fR positioning and are
+\fInot\fR affected by transformation matrices\&.
+.TP
+\fIobjectName\fR \fBtranslate\fR \fItx\fR \fIty\fR
+Shift the coordinate origin by \fItx\fR/\fIty\fR in the current unit,
+respecting orient and margins\&. Equivalent to
+\fBtransform\fR \fB1 0 0 1 tx ty\fR (after coordinate conversion)\&.
+.sp
+\fIRaw-coordinate note:\fR after \fBtranslate\fR, drawing commands
+work in raw PDF space (y upward)\&. A \fBrectangle\fR \fB0 0 w h\fR
+draws \fIh\fR points \fIupward\fR from the new origin\&. To place the
+bottom edge of a rectangle at user-y \fIy\fR, pass
+\fB[expr {$y + $h}]\fR as the \fIty\fR argument:
+.CS
+
+
+$pdf gsave
+$pdf translate $x [expr {$y + $h}]  ;# bottom edge at user-y
+$pdf rectangle 0 0 $w $h
+$pdf grestore
+
+.CE
+.TP
+\fIobjectName\fR \fBrotate\fR \fIdegrees\fR
+Rotate the coordinate system clockwise by \fIdegrees\fR\&.
+Typical use: \fBtranslate\fR to the pivot point, then \fBrotate\fR\&.
+Like \fBtranslate\fR, switches to raw-coordinate mode\&.
+.TP
+\fIobjectName\fR \fBscale\fR \fIsx\fR \fIsy\fR
+Scale the coordinate system (\fB1\&.0\fR = unchanged)\&.
+Like \fBtranslate\fR, switches to raw-coordinate mode\&.
+.TP
+\fIobjectName\fR \fBgetPageSize\fR
+Return the full page dimensions as \fB{width height}\fR in the
+current unit (set via \fB-unit\fR at creation time)\&.
+For A4 with \fB-unit mm\fR: approximately \fB210\&.0 297\&.0\fR\&.
+For A4 with \fB-unit p\fR: approximately \fB595\&.0 842\&.0\fR
+(pdf4tcl rounds MediaBox to integer points)\&.
+Complements \fBgetDrawableArea\fR which excludes margins\&.
 .PP
 .SS "OBJECT CONFIGURATION"
 All pdf4tcl objects understand the options from \fBPAGE CONFIGURATION\fR,
@@ -1687,6 +1747,20 @@ automatically from three backends in priority order:
 approx\&. 24 seconds per document)\&. No external program is required\&.
 .sp
 This option can only be set at object creation\&.
+.TP
+\fB-permissions\fR \fIvalue\fR
+Set the access rights for users of an encrypted document\&.
+Only meaningful in combination with \fB-userpassword\fR\&.
+Accepted values: \fBall\fR (default, /P=-196), \fBnone\fR,
+\fBreadonly\fR (print only), a list of flags
+(\fBprint\fR, \fBhq-print\fR, \fBmodify\fR, \fBcopy\fR,
+\fBannotate\fR, \fBfill-forms\fR, \fBaccessibility\fR,
+\fBassemble\fR), or a direct integer /P value\&.
+.sp
+Note: permissions are enforced by conforming viewers only\&.
+The owner password always grants full access\&.
+.sp
+This option can only be set at object creation\&.
 .PP
 .SS "PAGE CONFIGURATION"
 .TP
@@ -1761,6 +1835,33 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 .CE
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.20"
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": New public methods \fBtransform\fR,
+\fBrotate\fR, \fBscale\fR, \fBtranslate\fR apply PDF coordinate
+transformations\&. Drawing commands work correctly in the transformed
+system via the new \fBrawcoords\fR graphics state flag
+(saved/restored by \fBgsave\fR/\fBgrestore\fR)\&.
+\fBtransform\fR, \fBrotate\fR, \fBscale\fR, \fBtranslate\fR
+call \fBEndTextObj\fR before emitting the \fBcm\fR operator\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": New method \fBgetPageSize\fR returns the
+full page dimensions as \fB{width height}\fR in the current unit\&.
+Complements \fBgetDrawableArea\fR (which excludes margins)\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": New option \fB-permissions\fR controls
+the access rights (\fB/P\fR value) for encrypted PDFs\&.
+.IP \(bu
+"\fItools/bump\&.tcl\fR": Version-bump tool consolidated\&.
+.IP \(bu
+"\fIexamples/test-transform\&.tcl\fR": New example for
+\fBtranslate\fR, \fBrotate\fR, \fBscale\fR, \fBgetPageSize\fR\&.
+Added to "\fItests/examples\&.test\fR" as \fBexamples-1\&.7\fR\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.20\&.test\fR": 23 tests covering
+\fBgetPageSize\fR, \fBtransform\fR, \fBrotate\fR, \fBscale\fR,
+\fBtranslate\fR, and \fBrawcoords\fR state management\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.19"
 .IP \(bu
 "\fIsrc/main\&.tcl\fR": XMP stream is now accumulated as UTF-8 bytes

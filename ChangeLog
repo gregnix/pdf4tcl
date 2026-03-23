@@ -1,5 +1,56 @@
 2026-03-21 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.20
+
+	* src/main.tcl: New public method transform -- applies a PDF
+	  transformation matrix (cm operator) to the current graphics state.
+	  Use with gsave/grestore to limit scope. Supports translate,
+	  scale, rotate. Needed by pdf4tcllib::drawing (textRotated etc.).
+
+	* src/main.tcl: New method getPageSize -- returns {width height} of
+	  the full page in the current unit. Complements getDrawableArea
+	  (which excludes margins). Needed by pdf4tcllib::page::context.
+
+	* tools/bump.tcl: Consolidated -- now handles pdf4tcl.man (Doctools
+	  directives), web/changes.html, README.md and web/index.html
+	  automatically. finalize-X.Y.Z.tcl scripts no longer needed.
+	  Idempotent: stub and changelog entry inserted only once.
+
+	* tests/new-0.9.4.19.test: 11 new tests for 0.9.4.19 XMP Unicode
+	  fix (Em-Dash, Euro, combined metadata fields, cidfont-9.2
+	  regression).
+
+	* src/main.tcl: New public methods translate, rotate, scale --
+	  convenience wrappers around transform; translate converts user-space
+	  coords (orient+margin), then sets rawcoords=1 for subsequent drawing.
+	  Text commands (text) are not affected by cm transforms.
+
+	* src/main.tcl: rawcoords state flag -- set by translate/rotate/scale,
+	  saved and restored by gsave/grestore via stateToGSave stack.
+
+	* src/encrypt.tcl: New option -permissions -- controls user access
+	  rights after opening an encrypted PDF. Presets: all, none, readonly.
+	  Individual rights: print, copy, modify, annotations, fill-forms,
+	  extract, assemble, print-high. Requires -userpassword.
+
+	* demo/demo-transform.tcl: New demo -- 2 pages showing translate,
+	  rotate, scale, getPageSize with graphics examples.
+
+	* demo/demo-permissions.tcl: New demo -- 7 PDFs covering all
+	  -permissions presets and combinations.
+
+	* doc/en/pdf4tcl-basics.md: Version bumped to 0.9.4.20; new sections
+	  for coordinate transformations and -permissions.
+
+	* doc/en/pdf4tcl-graphics-and-colors.md: Transformations section
+	  rewritten -- rawcoords explained, text-not-affected noted,
+	  matrix table added, getPageSize documented.
+
+	* tests/new-0.9.4.20.test: 23 new tests (getPageSize 7, transform 7,
+	  rotate/scale/translate/rawcoords 9).
+
+2026-03-21 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.19
 
 	* src/main.tcl: XMP-Stream wird als UTF-8-Bytes akkumuliert

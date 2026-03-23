@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.19
+package provide pdf4tcl 0.9.4.20
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2093,6 +2093,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Option -ownerpassword -default "" -readonly 1
         my Option -encversion    -default 4  -readonly 1 \
             -validatemethod _ValidateEncVersion
+        # Permissions for encrypted PDFs (0.9.4.20).
+        # Symbolic list, preset name, or integer /P value.
+        # Default "all" = -196 (all rights allowed).
+        my Option -permissions   -default all -readonly 1 \
+            -validatemethod _ValidatePermissions
 
         my Configurelist $args
         my InitPdf
@@ -2142,7 +2147,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             $options(-userpassword) ne {} || $options(-ownerpassword) ne {}
         }]
         set pdf(encVersion) $options(-encversion)
-        set pdf(encP)      -196
+        set pdf(encP)      [::pdf4tcl::_ParsePermissions $options(-permissions)]
+        set pdf(rawcoords) 0
         set pdf(encKey)    ""
         set pdf(encO)      ""
         set pdf(encU)      ""
@@ -2187,6 +2193,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             font_size
             # line_spacing is a pdf4tcl thing, but stored for symmetry
             line_spacing
+            # rawcoords: 1 inside translate/rotate/scale block
+            rawcoords
         }
         # Trick to allow comments in above list
         set pdf(stateToGSave) [regsub -all -line "\#.*" $tmp ""]
@@ -3055,12 +3063,18 @@ Use -pdfa-icc to specify a profile path."
         set px [pdf4tcl::getPoints $x $pdf(unit)]
         set py [pdf4tcl::getPoints $y $pdf(unit)]
 
-        set tx [expr {$px + $pdf(marginleft)}]
-        if {$pdf(orient)} {
-            set ty [expr {$py + $pdf(margintop)}]
-            set ty [expr {$pdf(height) - $ty}]
+        if {$pdf(rawcoords)} {
+            # Inside transform context: unit conversion only
+            set tx $px
+            set ty $py
         } else {
-            set ty [expr {$py + $pdf(marginbottom)}]
+            set tx [expr {$px + $pdf(marginleft)}]
+            if {$pdf(orient)} {
+                set ty [expr {$py + $pdf(margintop)}]
+                set ty [expr {$pdf(height) - $ty}]
+            } else {
+                set ty [expr {$py + $pdf(marginbottom)}]
+            }
         }
     }
 
@@ -3072,7 +3086,7 @@ Use -pdfa-icc to specify a profile path."
         set tx [pdf4tcl::getPoints $x $pdf(unit)]
         set ty [pdf4tcl::getPoints $y $pdf(unit)]
 
-        if {$pdf(orient)} {
+        if {!$pdf(rawcoords) && $pdf(orient)} {
             set ty [expr {- $ty}]
         }
     }
@@ -3084,6 +3098,14 @@ Use -pdfa-icc to specify a profile path."
         # Translate to current unit
         set w [expr {$w / $pdf(unit)}]
         set h [expr {$h / $pdf(unit)}]
+        return [list $w $h]
+    }
+
+    # Returns the full page size as {width height} in the current unit.
+    # Includes margins. Use getDrawableArea for the printable area.
+    method getPageSize {} {
+        set w [expr {$pdf(width)  / $pdf(unit)}]
+        set h [expr {$pdf(height) / $pdf(unit)}]
         return [list $w $h]
     }
 
@@ -3401,6 +3423,14 @@ Use -pdfa-icc to specify a profile path."
         if {$value ni {4 5}} {
             throw {PDF4TCL} \
                 "$option: invalid encryption version \"$value\" (must be 4 or 5)"
+        }
+        return $value
+    }
+
+    # Validate -permissions option (0.9.4.20)
+    method _ValidatePermissions {option value} {
+        if {[catch {::pdf4tcl::_ParsePermissions $value} err]} {
+            throw {PDF4TCL ARGS} "$option: $err"
         }
         return $value
     }
@@ -5299,6 +5329,52 @@ Use -pdfa-icc to specify a profile path."
                 }
             }
         }
+    }
+
+    # Apply a transformation matrix to the current graphics state.
+    # Arguments: a b c d e f  (PDF cm operator).
+    # Common uses:
+    #   Translate:  transform 1 0 0 1 tx ty
+    #   Scale:      transform sx 0 0 sy 0 0
+    #   Rotate deg: set r [expr {$deg * 3.14159265 / 180}]
+    #               transform [expr {cos($r)}] [expr {sin($r)}] \
+    #                         [expr {-sin($r)}] [expr {cos($r)}] 0 0
+    # Note: use gsave before and grestore after to limit the effect.
+    method transform {a b c d e f} {
+        my EndTextObj
+        my Pdfoutcmd [Nf $a] [Nf $b] [Nf $c] [Nf $d] [Nf $e] [Nf $f] "cm"
+    }
+
+    # Convenience: rotate around current origin by degrees (clockwise).
+    # Use gsave/grestore + translate to rotate around a specific point:
+    #   $pdf gsave
+    #   $pdf translate $cx $cy
+    #   $pdf rotate $deg
+    #   ... draw ...
+    #   $pdf grestore
+    method rotate {degrees} {
+        my EndTextObj
+        set pdf(rawcoords) 1
+        set r [expr {$degrees * 3.14159265358979 / 180.0}]
+        my Pdfoutcmd [Nf [expr {cos($r)}]] [Nf [expr {sin($r)}]] \
+                     [Nf [expr {-sin($r)}]] [Nf [expr {cos($r)}]] 0 0 "cm"
+    }
+
+    # Convenience: scale the coordinate system.
+    # sx, sy are scale factors (1.0 = no change, 2.0 = double size).
+    method scale {sx sy} {
+        my EndTextObj
+        set pdf(rawcoords) 1
+        my Pdfoutcmd [Nf $sx] 0 0 [Nf $sy] 0 0 "cm"
+    }
+
+    # Convenience: translate (shift) the origin by tx, ty points.
+    # Converts user coordinates to PDF space first, then sets rawcoords.
+    method translate {tx ty} {
+        my EndTextObj
+        my Trans $tx $ty ptx pty
+        set pdf(rawcoords) 1
+        my Pdfoutcmd 1 0 0 1 [Nf $ptx] [Nf $pty] "cm"
     }
 
     #######################################################################
@@ -8233,6 +8309,83 @@ Use -pdfa-icc to specify a profile path."
 # AES-256: Standard Security Handler V=5 R=6 (PDF 2.0, ISO 32000-2 ss.7.6.4)
 #
 # AES-128 algorithms:
+
+# ---------------------------------------------------------------------------
+# _ParsePermissions -- /P-Wert aus Benutzer-Eingabe berechnen (0.9.4.20)
+#
+# Akzeptiert:
+#   Integer    z.B. -196  (direkt als /P-Wert)
+#   "all"      alle Rechte (-196, Default)
+#   "none"     alle Rechte gesperrt (-3904)
+#   "readonly" nur anzeigen, kein Drucken, kein Kopieren (-3392)
+#   Liste      z.B. {print copy fill-forms}
+#
+# Erlaubte Flags:
+#   print        Bit 3  Drucken (niedrige Qualitaet)
+#   modify       Bit 4  Inhalt aendern
+#   copy         Bit 5  Kopieren / Extrahieren
+#   annotate     Bit 6  Anmerkungen + Formulare
+#   fill-forms   Bit 9  Formularfelder ausfuellen
+#   accessibility Bit 10 Barrierefreiheit
+#   assemble     Bit 11 Zusammenstellen
+#   hq-print     Bit 12 Hochaufloesendes Drucken
+#
+# Rueckgabe: Integer (negativer 32-bit-Wert) fuer /P-Eintrag
+# ---------------------------------------------------------------------------
+proc ::pdf4tcl::_ParsePermissions {value} {
+    # Bit-Positionen (1-basiert wie in ISO 32000)
+    array set BITS {
+        print         3
+        modify        4
+        copy          5
+        annotate      6
+        fill-forms    9
+        accessibility 10
+        assemble      11
+        hq-print      12
+    }
+
+    # Presets
+    switch -- $value {
+        all      { return -196   }
+        none     { return -4096  }
+        readonly { return -4092  }
+    }
+
+    # Integer direkt
+    if {[string is integer -strict $value]} {
+        set v [expr {int($value)}]
+        # Muss negative 32-bit-Zahl sein (Bits 1+2 muessen 0 sein)
+        if {$v > 0} {
+            throw {PDF4TCL ARGS} \
+                "permissions: Wert muss negativ sein (PDF /P-Konvention): $value"
+        }
+        return $v
+    }
+
+    # Symbolische Liste
+    # Basis: -196 = 0xFFFFFF3C
+    # Bits 1,2,7,8 bleiben immer 0 (reserviert laut ISO 32000).
+    # Bits 13-32 bleiben immer 1.
+    # Starte mit 0 fuer Permission-Bits (3-12), dann gesetzte Flags eintragen.
+    set p [expr {-196 & ~0xFFF}]  ;# = 0xFFFFF000 als signed: -4096
+    # Bits 1,2,7,8 explizit loeschen
+    set p [expr {$p & ~0b11000011}]
+
+    foreach flag $value {
+        set flag [string tolower $flag]
+        if {![info exists BITS($flag)]} {
+            throw {PDF4TCL ARGS} \
+                "permissions: unbekanntes Flag \"$flag\" (erlaubt: [array names BITS])"
+        }
+        set bit $BITS($flag)
+        set p [expr {$p | (1 << ($bit - 1))}]
+    }
+
+    # Als signed 32-bit-Integer zurueckgeben
+    return [expr {int($p)}]
+}
+
 #   Alg 1  - Encrypt data per object  (ss.7.6.2)
 #   Alg 2  - Derive encryption key    (ss.7.6.3.3)
 #   Alg 3  - Compute O entry          (ss.7.6.3.4)

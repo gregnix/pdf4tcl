@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.19?**
+package require **pdf4tcl ?0****.9****.4****.20?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -189,6 +189,16 @@ package require **pdf4tcl ?0****.9****.4****.19?**
 *objectName* **gsave**
 
 *objectName* **grestore**
+
+*objectName* **transform** *a* *b* *c* *d* *e* *f*
+
+*objectName* **translate** *tx* *ty*
+
+*objectName* **rotate** *degrees*
+
+*objectName* **scale** *sx* *sy*
+
+*objectName* **getPageSize**
 
 ## DESCRIPTION
 
@@ -905,7 +915,29 @@ Colors can be expressed in various formats. First, as a three element list of va
 : Save graphic/text context. (I.e. insert a raw PDF "q" command). This saves the settings of at least these calls: **clip**, **setBgColor**, **setFillColor**, **setStrokeColor**, **setAlpha**, **setLineStyle**, **setLineWidth**, **setLineDash**, **setFont**, and **setLineSpacing**. Each call to **gsave** should be followed by a later call to **grestore** in the same page.
 
 **objectName grestore**
-: Restore graphic/text context. (I.e. insert a raw PDF "Q" command).
+: Restore graphic/text context. (I.e. insert a raw PDF "Q" command). Restores all saved state including the raw-coordinate mode set by **translate**, **rotate**, **scale**, or **transform**. After **grestore**, drawing commands return to user-coordinate mode (orient + margin active).
+
+**objectName transform a b c d e f**
+: Apply a PDF transformation matrix (**cm** operator) to the current graphics state. Use with **gsave**/**grestore**. After this call, drawing commands (**line**, **rectangle** etc.) work in raw-coordinate mode: y points upward, no margin, no orient flip. Text commands (**text**) use absolute **Tm** positioning and are *not* affected by transformation matrices.
+
+**objectName translate tx ty**
+: Shift the coordinate origin by *tx*/*ty* in the current unit, respecting orient and margins. Equivalent to **transform** **1 0 0 1 tx ty** (after coordinate conversion). *Raw-coordinate note:* after **translate**, drawing commands work in raw PDF space (y upward). A **rectangle** **0 0 w h** draws *h* points *upward* from the new origin. To place the bottom edge of a rectangle at user-y *y*, pass **[expr {$y + $h}]** as the *ty* argument:
+
+```tcl
+$pdf gsave
+$pdf translate $x [expr {$y + $h}]  ;# bottom edge at user-y
+$pdf rectangle 0 0 $w $h
+$pdf grestore
+```
+
+**objectName rotate degrees**
+: Rotate the coordinate system clockwise by *degrees*. Typical use: **translate** to the pivot point, then **rotate**. Like **translate**, switches to raw-coordinate mode.
+
+**objectName scale sx sy**
+: Scale the coordinate system (**1****.0** = unchanged). Like **translate**, switches to raw-coordinate mode.
+
+**objectName getPageSize**
+: Return the full page dimensions as **{width height}** in the current unit (set via **-unit** at creation time). For A4 with **-unit mm**: approximately **210****.0 297****.0**. For A4 with **-unit p**: approximately **595****.0 842****.0** (pdf4tcl rounds MediaBox to integer points). Complements **getDrawableArea** which excludes margins.
 
 ### OBJECT CONFIGURATION
 
@@ -941,6 +973,9 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 
 **-encversion integer**
 : Set the encryption version. Must be **4** (AES-128, default) or **5** (AES-256). **4**: AES-128, V=4/R=4, PDF 1.5+. Pure Tcl, no external programs. **5**: AES-256, V=5/R=6, PDF 2.0. SHA-384/SHA-512 is selected automatically from three backends in priority order: **tcl-sha** (C extension, fastest, optional), **openssl** (if in PATH), or a pure-Tcl fallback (always available, approx. 24 seconds per document). No external program is required. This option can only be set at object creation.
+
+**-permissions value**
+: Set the access rights for users of an encrypted document. Only meaningful in combination with **-userpassword**. Accepted values: **all** (default, /P=-196), **none**, **readonly** (print only), a list of flags (**print**, **hq-print**, **modify**, **copy**, **annotate**, **fill-forms**, **accessibility**, **assemble**), or a direct integer /P value. Note: permissions are enforced by conforming viewers only. The owner password always grants full access. This option can only be set at object creation.
 
 ### PAGE CONFIGURATION
 
@@ -992,6 +1027,15 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 ```
 
 ## CHANGES
+
+### VERSION 0.9.4.20
+
+- **rotate**, **scale**, **translate** apply PDF coordinate transformations. Drawing commands work correctly in the transformed system via the new **rawcoords** graphics state flag (saved/restored by **gsave**/**grestore**). **transform**, **rotate**, **scale**, **translate** call **EndTextObj** before emitting the **cm** operator.
+- full page dimensions as **{width height}** in the current unit. Complements **getDrawableArea** (which excludes margins).
+- the access rights (**/P** value) for encrypted PDFs.
+- 
+- **translate**, **rotate**, **scale**, **getPageSize**. Added to "*tests/examples**.test*" as **examples-1****.7**.
+- **getPageSize**, **transform**, **rotate**, **scale**, **translate**, and **rawcoords** state management.
 
 ### VERSION 0.9.4.19
 

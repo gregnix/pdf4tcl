@@ -75,6 +75,11 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Option -ownerpassword -default "" -readonly 1
         my Option -encversion    -default 4  -readonly 1 \
             -validatemethod _ValidateEncVersion
+        # Permissions for encrypted PDFs (0.9.4.20).
+        # Symbolic list, preset name, or integer /P value.
+        # Default "all" = -196 (all rights allowed).
+        my Option -permissions   -default all -readonly 1 \
+            -validatemethod _ValidatePermissions
 
         my Configurelist $args
         my InitPdf
@@ -124,7 +129,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             $options(-userpassword) ne {} || $options(-ownerpassword) ne {}
         }]
         set pdf(encVersion) $options(-encversion)
-        set pdf(encP)      -196
+        set pdf(encP)      [::pdf4tcl::_ParsePermissions $options(-permissions)]
+        set pdf(rawcoords) 0
         set pdf(encKey)    ""
         set pdf(encO)      ""
         set pdf(encU)      ""
@@ -169,6 +175,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             font_size
             # line_spacing is a pdf4tcl thing, but stored for symmetry
             line_spacing
+            # rawcoords: 1 inside translate/rotate/scale block
+            rawcoords
         }
         # Trick to allow comments in above list
         set pdf(stateToGSave) [regsub -all -line "\#.*" $tmp ""]
@@ -1037,12 +1045,18 @@ Use -pdfa-icc to specify a profile path."
         set px [pdf4tcl::getPoints $x $pdf(unit)]
         set py [pdf4tcl::getPoints $y $pdf(unit)]
 
-        set tx [expr {$px + $pdf(marginleft)}]
-        if {$pdf(orient)} {
-            set ty [expr {$py + $pdf(margintop)}]
-            set ty [expr {$pdf(height) - $ty}]
+        if {$pdf(rawcoords)} {
+            # Inside transform context: unit conversion only
+            set tx $px
+            set ty $py
         } else {
-            set ty [expr {$py + $pdf(marginbottom)}]
+            set tx [expr {$px + $pdf(marginleft)}]
+            if {$pdf(orient)} {
+                set ty [expr {$py + $pdf(margintop)}]
+                set ty [expr {$pdf(height) - $ty}]
+            } else {
+                set ty [expr {$py + $pdf(marginbottom)}]
+            }
         }
     }
 
@@ -1054,7 +1068,7 @@ Use -pdfa-icc to specify a profile path."
         set tx [pdf4tcl::getPoints $x $pdf(unit)]
         set ty [pdf4tcl::getPoints $y $pdf(unit)]
 
-        if {$pdf(orient)} {
+        if {!$pdf(rawcoords) && $pdf(orient)} {
             set ty [expr {- $ty}]
         }
     }
@@ -1066,6 +1080,14 @@ Use -pdfa-icc to specify a profile path."
         # Translate to current unit
         set w [expr {$w / $pdf(unit)}]
         set h [expr {$h / $pdf(unit)}]
+        return [list $w $h]
+    }
+
+    # Returns the full page size as {width height} in the current unit.
+    # Includes margins. Use getDrawableArea for the printable area.
+    method getPageSize {} {
+        set w [expr {$pdf(width)  / $pdf(unit)}]
+        set h [expr {$pdf(height) / $pdf(unit)}]
         return [list $w $h]
     }
 
@@ -1383,6 +1405,14 @@ Use -pdfa-icc to specify a profile path."
         if {$value ni {4 5}} {
             throw {PDF4TCL} \
                 "$option: invalid encryption version \"$value\" (must be 4 or 5)"
+        }
+        return $value
+    }
+
+    # Validate -permissions option (0.9.4.20)
+    method _ValidatePermissions {option value} {
+        if {[catch {::pdf4tcl::_ParsePermissions $value} err]} {
+            throw {PDF4TCL ARGS} "$option: $err"
         }
         return $value
     }
@@ -3281,6 +3311,52 @@ Use -pdfa-icc to specify a profile path."
                 }
             }
         }
+    }
+
+    # Apply a transformation matrix to the current graphics state.
+    # Arguments: a b c d e f  (PDF cm operator).
+    # Common uses:
+    #   Translate:  transform 1 0 0 1 tx ty
+    #   Scale:      transform sx 0 0 sy 0 0
+    #   Rotate deg: set r [expr {$deg * 3.14159265 / 180}]
+    #               transform [expr {cos($r)}] [expr {sin($r)}] \
+    #                         [expr {-sin($r)}] [expr {cos($r)}] 0 0
+    # Note: use gsave before and grestore after to limit the effect.
+    method transform {a b c d e f} {
+        my EndTextObj
+        my Pdfoutcmd [Nf $a] [Nf $b] [Nf $c] [Nf $d] [Nf $e] [Nf $f] "cm"
+    }
+
+    # Convenience: rotate around current origin by degrees (clockwise).
+    # Use gsave/grestore + translate to rotate around a specific point:
+    #   $pdf gsave
+    #   $pdf translate $cx $cy
+    #   $pdf rotate $deg
+    #   ... draw ...
+    #   $pdf grestore
+    method rotate {degrees} {
+        my EndTextObj
+        set pdf(rawcoords) 1
+        set r [expr {$degrees * 3.14159265358979 / 180.0}]
+        my Pdfoutcmd [Nf [expr {cos($r)}]] [Nf [expr {sin($r)}]] \
+                     [Nf [expr {-sin($r)}]] [Nf [expr {cos($r)}]] 0 0 "cm"
+    }
+
+    # Convenience: scale the coordinate system.
+    # sx, sy are scale factors (1.0 = no change, 2.0 = double size).
+    method scale {sx sy} {
+        my EndTextObj
+        set pdf(rawcoords) 1
+        my Pdfoutcmd [Nf $sx] 0 0 [Nf $sy] 0 0 "cm"
+    }
+
+    # Convenience: translate (shift) the origin by tx, ty points.
+    # Converts user coordinates to PDF space first, then sets rawcoords.
+    method translate {tx ty} {
+        my EndTextObj
+        my Trans $tx $ty ptx pty
+        set pdf(rawcoords) 1
+        my Pdfoutcmd 1 0 0 1 [Nf $ptx] [Nf $pty] "cm"
     }
 
     #######################################################################

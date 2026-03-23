@@ -31,6 +31,9 @@ proc regenerateExampleRefs {} {
             catch {exec $interp test${n}.tcl}
         }
     }
+    if {[file exists test-transform.tcl]} {
+        catch {exec $interp test-transform.tcl}
+    }
     cd $cwd
 
     # Version speichern
@@ -99,6 +102,11 @@ test examples-1.6 {example test6} -body {
     source ../examples/test6.tcl
     pdfdiff ../examples/test6.pdf test6.pdf
 } -result {} -cleanup {catch {p1 destroy}}
+
+test examples-1.7 {example test-transform} -body {
+    source ../examples/test-transform.tcl
+    pdfdiff ../examples/test-transform.pdf test-transform.pdf
+} -result {} -cleanup {catch {$pdf destroy}}
 
 # Cleanup
 eval file delete [glob -nocomplain test*.pdf]

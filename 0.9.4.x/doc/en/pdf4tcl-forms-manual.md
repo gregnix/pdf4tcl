@@ -406,8 +406,7 @@ set y 40   ;# Start near the top
 ```
 
 Form fields honor the current coordinate system. The `addForm` method
-internally transforms coordinates via `Trans`/`TransR` and normalizes
-height to be positive regardless of orientation.
+transforms coordinates automatically based on the document orientation.
 
 ---
 
@@ -680,7 +679,7 @@ each field with type, flags, and value.
 ### See Also
 
 The demo generates demo-forms-output.pdf in the current directory.
-For implementation details, see pdf4tcl-forms-technical.md.
+
 
 ## Tooltip and Tab Order (0.9.4.13)
 

@@ -431,6 +431,44 @@ verapdf --flavour 1b --format text my.pdf
 ```
 
 
+## Coordinate Transformations (0.9.4.20)
+
+`translate`, `rotate`, `scale`, and `transform` apply PDF coordinate
+transformations. Always use with `gsave`/`grestore`.
+
+```tcl
+set y 200; set h 20
+$pdf gsave
+$pdf translate 100 [expr {$y + $h}]   ;# bottom edge at user-y
+$pdf rotate 45
+$pdf rectangle 0 0 50 $h -filled 1
+$pdf grestore
+```
+
+**Important:** `$pdf text` uses absolute `Tm` positioning and is **not**
+affected by transformations. Only graphics commands (`line`, `rectangle`,
+`circle`) respond to `cm` transforms.
+
+`getPageSize` returns `{width height}` in the current unit:
+
+```tcl
+set sz [$pdf getPageSize]
+# A4 -unit mm: {210.0 297.0}   A4 -unit p: {595.0 842.0}
+```
+
+## Permissions (0.9.4.20)
+
+`-permissions` controls user rights after opening an encrypted PDF.
+Requires `-userpassword`.
+
+```tcl
+set pdf [::pdf4tcl::new %AUTO% -paper a4     -userpassword "readonly"     -ownerpassword "admin"     -permissions  {print}]
+```
+
+Presets: `all`, `none`, `readonly`. Or a list of rights:
+`print`, `copy`, `modify`, `annotations`, `fill-forms`, `extract`,
+`assemble`, `print-high`.
+
 ## Next Steps
 
 - Text API and fonts: see pdf4tcl-text-and-fonts.md

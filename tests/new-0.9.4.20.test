@@ -1,0 +1,343 @@
+# new-0.9.4.20.test -- Tests fuer pdf4tcl 0.9.4.20
+# Neue oeffentliche Methoden: getPageSize, transform
+#
+# getPageSize: gibt {width height} der Seite in aktueller Einheit zurueck.
+# transform:   wendet PDF-Transformationsmatrix (cm-Operator) an.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+proc makePdf {body} {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    uplevel 1 [list apply [list {p} $body] $p]
+    $p endPage
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+proc makePdfToFile {fname body} {
+    set f [makeFile {} $fname]
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    uplevel 1 [list apply [list {p} $body] $p]
+    $p endPage
+    $p write -file $f
+    $p destroy
+    removeFile $f
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# 20-1.x  getPageSize
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.20-1.1 {getPageSize: A4 Breite ca. 210mm} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -unit mm]
+    $p startPage
+    set sz [$p getPageSize]
+    $p endPage
+    $p destroy
+    # A4 Breite = 210mm, Toleranz 0.1mm
+    set w [lindex $sz 0]
+    expr {abs($w - 210.0) < 0.1}
+} -result 1
+
+test new-0.9.4.20-1.2 {getPageSize: A4 Hoehe ca. 297mm} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -unit mm]
+    $p startPage
+    set sz [$p getPageSize]
+    $p endPage
+    $p destroy
+    set h [lindex $sz 1]
+    expr {abs($h - 297.0) < 0.1}
+} -result 1
+
+test new-0.9.4.20-1.3 {getPageSize: Rueckgabe ist Liste mit 2 Elementen} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    $p startPage
+    set sz [$p getPageSize]
+    $p endPage
+    $p destroy
+    llength $sz
+} -result 2
+
+test new-0.9.4.20-1.4 {getPageSize: Letter-Format korrekt} -body {
+    set p [pdf4tcl::new %AUTO% -paper letter -unit mm]
+    $p startPage
+    set sz [$p getPageSize]
+    $p endPage
+    $p destroy
+    # Letter: 215.9 x 279.4 mm
+    set w [lindex $sz 0]
+    expr {abs($w - 215.9) < 0.2}
+} -result 1
+
+test new-0.9.4.20-1.5 {getPageSize: Landscape tauscht Breite und Hoehe} -body {
+    set p  [pdf4tcl::new %AUTO% -paper a4 -unit mm]
+    set pl [pdf4tcl::new %AUTO% -paper a4 -unit mm -landscape 1]
+    $p  startPage
+    $pl startPage
+    set sz  [$p  getPageSize]
+    set szl [$pl getPageSize]
+    $p  endPage
+    $pl endPage
+    $p  destroy
+    $pl destroy
+    # Portrait-Breite = Landscape-Hoehe und umgekehrt
+    expr {abs([lindex $sz 0] - [lindex $szl 1]) < 0.1 &&
+          abs([lindex $sz 1] - [lindex $szl 0]) < 0.1}
+} -result 1
+
+test new-0.9.4.20-1.6 {getPageSize: Einheit p (Points) -- Breite ca. 595} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -unit p]
+    $p startPage
+    set sz [$p getPageSize]
+    $p endPage
+    $p destroy
+    set w [lindex $sz 0]
+    expr {abs($w - 595.28) < 0.5}
+} -result 1
+
+test new-0.9.4.20-1.7 {getPageSize: getDrawableArea kleiner als getPageSize} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -unit mm \
+        -margin {10 10 10 10}]
+    $p startPage
+    set page [    $p getPageSize]
+    set draw [$p getDrawableArea]
+    $p endPage
+    $p destroy
+    expr {[lindex $draw 0] < [lindex $page 0] &&
+          [lindex $draw 1] < [lindex $page 1]}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 20-2.x  transform
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.20-2.1 {transform: Identitaetsmatrix kein Fehler} -body {
+    makePdfToFile new20_identity.pdf {
+        $p gsave
+        $p transform 1 0 0 1 0 0
+        $p text "Hello" -x 50 -y 50
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-2.2 {transform: Translation kein Fehler} -body {
+    makePdfToFile new20_translate.pdf {
+        $p gsave
+        $p transform 1 0 0 1 50 50
+        $p text "Verschoben" -x 0 -y 0
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-2.3 {transform: Rotation 45 Grad kein Fehler} -body {
+    makePdfToFile new20_rotate.pdf {
+        set deg 45
+        set r [expr {$deg * 3.14159265 / 180.0}]
+        set c [expr {cos($r)}]
+        set s [expr {sin($r)}]
+        $p gsave
+        $p transform $c $s [expr {-$s}] $c 200 400
+        $p text "Rotiert" -x 0 -y 0
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-2.4 {transform: Skalierung kein Fehler} -body {
+    makePdfToFile new20_scale.pdf {
+        $p gsave
+        $p transform 2 0 0 2 0 0
+        $p text "Gross" -x 50 -y 50
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-2.5 {transform: cm-Operator im PDF-Stream enthalten} -body {
+    # Unkomprimiertes PDF damit der Stream lesbar ist
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p gsave
+    $p transform 1 0 0 1 10 20
+    $p text "T" -x 0 -y 0
+    $p grestore
+    $p endPage
+    set data [$p get]
+    $p destroy
+    # Nf formatiert Zahlen -- "cm" muss im Stream vorkommen
+    regexp { cm\n} $data
+} -result 1
+
+test new-0.9.4.20-2.6 {transform: gsave/grestore kapseln Status korrekt} -body {
+    # Farbe vor transform setzen, nach grestore muss sie wieder gelten
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p setFillColor 1 0 0
+    $p gsave
+    $p transform 1 0 0 1 50 50
+    $p setFillColor 0 0 1
+    $p grestore
+    # Nach grestore: Farbe sollte wieder rot sein (1 0 0)
+    set rc [catch {$p text "Test" -x 50 -y 50}]
+    $p endPage
+    $p destroy
+    set rc
+} -result 0
+
+test new-0.9.4.20-2.7 {transform: mehrfach hintereinander kein Fehler} -body {
+    makePdfToFile new20_multi.pdf {
+        $p gsave
+        $p transform 1 0 0 1 10 0
+        $p transform 1 0 0 1 0 20
+        $p text "Multi" -x 0 -y 0
+        $p grestore
+    }
+} -result 0
+
+
+# ---------------------------------------------------------------------------
+# 20-3.x  rotate, scale, translate mit rawcoords (0.9.4.20)
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.20-3.1 {rotate: kein Fehler} -body {
+    makePdfToFile new20_rotate2.pdf {
+        $p gsave
+        $p translate 200 400
+        $p rotate 45
+        $p rectangle 0 0 30 20
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-3.2 {rotate: cm-Operator im Stream, kein BT davor} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "vor" -x 50 -y 50
+    $p gsave
+    $p rotate 90
+    $p rectangle 0 0 30 20
+    $p grestore
+    $p endPage
+    set data [$p get]
+    $p destroy
+    # cm muss im Stream vorkommen; kein "BT" direkt davor (EndTextObj wurde aufgerufen)
+    regexp { cm\n} $data
+} -result 1
+
+test new-0.9.4.20-3.3 {scale: rectangle skaliert korrekt} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p gsave
+    $p translate 50 50
+    $p scale 2.0 2.0
+    # Bei scale 2.0: 30pt Breite wird zu 60pt -> im Stream "2 0 0 2" cm
+    $p rectangle 0 0 30 20
+    $p grestore
+    $p endPage
+    set data [$p get]
+    $p destroy
+    regexp {2 0 0 2} $data
+} -result 1
+
+test new-0.9.4.20-3.4 {scale: asymmetrisch kein Fehler} -body {
+    makePdfToFile new20_scale_asym.pdf {
+        $p gsave
+        $p scale 2.0 0.5
+        $p rectangle 0 0 30 20
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-3.5 {translate: rawcoords nach translate gesetzt} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p gsave
+    $p translate 100 150
+    # rawcoords muss jetzt 1 sein
+    set rc [dict get [$p DebugGetInternalState] rawcoords]
+    $p rectangle 0 0 30 20
+    $p grestore
+    # rawcoords nach grestore wieder 0
+    set rc2 [dict get [$p DebugGetInternalState] rawcoords]
+    $p endPage
+    $p destroy
+    list $rc $rc2
+} -result {1 0}
+
+test new-0.9.4.20-3.6 {translate: cm-Operator im Stream} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p gsave
+    $p translate 50 80
+    $p rectangle 0 0 20 15
+    $p grestore
+    $p endPage
+    set data [$p get]
+    $p destroy
+    regexp { cm\n} $data
+} -result 1
+
+test new-0.9.4.20-3.7 {rotate/scale/translate kombiniert: rectangle sichtbar} -body {
+    makePdfToFile new20_combined.pdf {
+        $p gsave
+        $p translate 200 300
+        $p rotate 30
+        $p scale 1.5 1.5
+        $p rectangle 0 0 40 25
+        $p grestore
+    }
+} -result 0
+
+test new-0.9.4.20-3.8 {rawcoords: grestore stellt 0 wieder her} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    # Vor gsave: rawcoords = 0
+    set r0 [dict get [$p DebugGetInternalState] rawcoords]
+    $p gsave
+    $p translate 50 50
+    set r1 [dict get [$p DebugGetInternalState] rawcoords]
+    $p grestore
+    set r2 [dict get [$p DebugGetInternalState] rawcoords]
+    $p endPage
+    $p destroy
+    list $r0 $r1 $r2
+} -result {0 1 0}
+
+test new-0.9.4.20-3.9 {rawcoords: verschachtelt gsave/grestore} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    $p startPage
+    $p gsave
+    $p translate 50 50
+    set r1 [dict get [$p DebugGetInternalState] rawcoords]
+    $p gsave
+    $p rotate 45
+    set r2 [dict get [$p DebugGetInternalState] rawcoords]
+    $p grestore
+    set r3 [dict get [$p DebugGetInternalState] rawcoords]
+    $p grestore
+    set r4 [dict get [$p DebugGetInternalState] rawcoords]
+    $p endPage
+    $p destroy
+    list $r1 $r2 $r3 $r4
+} -result {1 1 1 0}
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+
+::tcltest::cleanupTests
