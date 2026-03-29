@@ -1,3 +1,13 @@
+2026-03-29 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.24
+
+	* src/main.tcl (CanvasDoTkoPathItem): Fixed crash in window item
+	  branch when [$path coords $id] returns an empty list (group items,
+	  items with -matrix set). Added guard: if {[llength _coords] < 2}
+	  return. Affected: tko::path window items with transformation matrix.
+	  Symptom: "can't read x1: no such variable".
+
 2026-03-23 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.23

@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.23]
+[manpage_begin pdf4tcl n 0.9.4.24]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.23]]
+[require pdf4tcl [opt 0.9.4.24]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -570,12 +570,39 @@ in Tk to control the font mapping in detail.
 [para]
 Limitations:
 [para]
-Option -splinesteps for lines/polygons is ignored.
+Option [option -splinesteps] for lines/polygons is not applicable: PDF uses
+exact cubic Bezier curves ([cmd CanvasBezier]), which are mathematically
+equivalent to any number of spline steps. The visual result is equal to or
+better than Tk's screen rendering.
 [para]
-Stipple offset is limited. The form x,y should work.
+[emph {Stipple:}]
+Both offset forms are supported: [option {x,y}] (absolute pixel offset) and
+[option {#x,y}] (bitmap-relative -- aligns bitmap pixel (x,y) with canvas
+origin). Empty offset (no adjustment) is handled correctly. Minor visual
+differences from on-screen rendering may remain due to pattern scaling.
 [para]
-Window items require Img to be present and must be visible on-screen when
-the canvas is drawn.
+[emph {Widget classes supported:}]
+[const tk::canvas] (class [const Canvas]) -- all standard item types:
+rectangle, oval, line, polygon, arc, text, image, bitmap, window.
+[para]
+[const tkpath] ([cmd ::tkp::canvas], class [const PathCanvas]) -- tkpath
+item types: pimage, ptext, pline, polyline, ppolygon, prect, circle,
+ellipse, path, group. Handled via [method itempdf] delegation (C-level).
+[para]
+[const tko::path] (class [const tko::path]) -- tko::path item types:
+image, text, line, polyline, polygon, rect, circle, ellipse, path, group,
+window. Handled via [method itempdf] delegation.
+[para]
+[emph {Window items (tk::canvas):}]
+The embedded widget must be visible on-screen when the canvas is exported.
+Package [package Img] with [option {-format window}] support is required to
+capture the widget as a raster image. If [package Img] is not available or
+the widget is unmapped, a solid black rectangle is drawn in its place.
+[para]
+[emph {Window items (tko::path):}]
+The item is silently skipped -- no crash, no error message (fix in 0.9.4.24,
+BUG-C1). All other items on the same [const tko::path] are exported correctly.
+Raster capture of embedded widgets is not supported for [const tko::path].
 
 [call [arg objectName] [method metadata] [opt [arg "option value"]...]]
 
@@ -1689,6 +1716,18 @@ Read-only; for diagnostics only.
 
 [section CHANGES]
 
+[subsection {Version 0.9.4.24}]
+[para]
+[list_begin itemized]
+[item] [file src/main.tcl] ([cmd CanvasDoTkoPathItem]): Fixed crash when
+[cmd {$path coords $id}] returns an empty list. This happened for
+[const window] items, [const group] items, and items with [option -matrix]
+set. Added length guard: if coords has fewer than 2 elements, the item
+is silently skipped. Symptom was [emph {can't read "x1": no such variable}].
+[item] [file tests/new-0.9.4.24.test]: 3 new tests -- canvas-4.1 (empty
+canvas), canvas-4.2 (tko::path window item), canvas-4.3 (version check).
+[list_end]
+
 [subsection {Version 0.9.4.23}]
 
 [list_begin itemized]
@@ -1732,9 +1771,16 @@ document as a whole (ISO 19005-3 SS6.2.11.4).
 Defines layer state for Print and View events. Standard PDFs and
 PDF/A-1b are not affected.
 
-[item] [file tests/new-0.9.4.23.test]: 12 new tests --
+[item] [file tests/new-0.9.4.23-annot.test]: 20 new tests for
+annotation methods ([method addAnnotNote], [method addAnnotFreeText],
+[method addAnnotHighlight], [method addAnnotUnderline],
+[method addAnnotStrikeOut], [method addAnnotStamp], [method addAnnotLine]).
+
+[item] [file tests/new-0.9.4.23.test]: 23 new tests --
 [option {-pdfa 3b}] validation (3), [const /AF] array (4),
-[const /AS] array (5).
+[const /AS] array (5), [method getStringWidth] with [option -font]/[option -size] (3),
+[method inPage] / [method currentPage] / [method pageCount] (5),
+[method drawTextBox] [option -newyvar] (2), [cmd ::pdf4tcl::exportForms] (5).
 
 [list_end]
 

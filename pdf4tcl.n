@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.23 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.24 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.23?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.24?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1010,12 +1010,39 @@ in Tk to control the font mapping in detail\&.
 .sp
 Limitations:
 .sp
-Option -splinesteps for lines/polygons is ignored\&.
+Option \fB-splinesteps\fR for lines/polygons is not applicable: PDF uses
+exact cubic Bezier curves (\fBCanvasBezier\fR), which are mathematically
+equivalent to any number of spline steps\&. The visual result is equal to or
+better than Tk's screen rendering\&.
 .sp
-Stipple offset is limited\&. The form x,y should work\&.
+\fIStipple:\fR
+Both offset forms are supported: \fBx,y\fR (absolute pixel offset) and
+\fB#x,y\fR (bitmap-relative -- aligns bitmap pixel (x,y) with canvas
+origin)\&. Empty offset (no adjustment) is handled correctly\&. Minor visual
+differences from on-screen rendering may remain due to pattern scaling\&.
 .sp
-Window items require Img to be present and must be visible on-screen when
-the canvas is drawn\&.
+\fIWidget classes supported:\fR
+\fBtk::canvas\fR (class \fBCanvas\fR) -- all standard item types:
+rectangle, oval, line, polygon, arc, text, image, bitmap, window\&.
+.sp
+\fBtkpath\fR (\fB::tkp::canvas\fR, class \fBPathCanvas\fR) -- tkpath
+item types: pimage, ptext, pline, polyline, ppolygon, prect, circle,
+ellipse, path, group\&. Handled via \fBitempdf\fR delegation (C-level)\&.
+.sp
+\fBtko::path\fR (class \fBtko::path\fR) -- tko::path item types:
+image, text, line, polyline, polygon, rect, circle, ellipse, path, group,
+window\&. Handled via \fBitempdf\fR delegation\&.
+.sp
+\fIWindow items (tk::canvas):\fR
+The embedded widget must be visible on-screen when the canvas is exported\&.
+Package \fBImg\fR with \fB-format window\fR support is required to
+capture the widget as a raster image\&. If \fBImg\fR is not available or
+the widget is unmapped, a solid black rectangle is drawn in its place\&.
+.sp
+\fIWindow items (tko::path):\fR
+The item is silently skipped -- no crash, no error message (fix in 0\&.9\&.4\&.24,
+BUG-C1)\&. All other items on the same \fBtko::path\fR are exported correctly\&.
+Raster capture of embedded widgets is not supported for \fBtko::path\fR\&.
 .TP
 \fIobjectName\fR \fBmetadata\fR ?\fIoption value\fR\&.\&.\&.?
 This method sets metadata fields for this document\&.  Supported field options are
@@ -2123,6 +2150,18 @@ Set by \fB_InitMD5Backend\fR on first use\&.
 Values: \fBtcllib\fR, \fBopenssl\fR, \fBpure-tcl\fR\&.
 Read-only; for diagnostics only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.24"
+.PP
+.IP \(bu
+"\fIsrc/main\&.tcl\fR" (\fBCanvasDoTkoPathItem\fR): Fixed crash when
+\fB$path coords $id\fR returns an empty list\&. This happened for
+\fBwindow\fR items, \fBgroup\fR items, and items with \fB-matrix\fR
+set\&. Added length guard: if coords has fewer than 2 elements, the item
+is silently skipped\&. Symptom was \fIcan't read "x1": no such variable\fR\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.24\&.test\fR": 3 new tests -- canvas-4\&.1 (empty
+canvas), canvas-4\&.2 (tko::path window item), canvas-4\&.3 (version check)\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.23"
 .IP \(bu
 "\fIsrc/main\&.tcl\fR": \fBgetStringWidth\fR extended with optional
@@ -2164,9 +2203,16 @@ document as a whole (ISO 19005-3 SS6\&.2\&.11\&.4)\&.
 Defines layer state for Print and View events\&. Standard PDFs and
 PDF/A-1b are not affected\&.
 .IP \(bu
-"\fItests/new-0\&.9\&.4\&.23\&.test\fR": 12 new tests --
+"\fItests/new-0\&.9\&.4\&.23-annot\&.test\fR": 20 new tests for
+annotation methods (\fBaddAnnotNote\fR, \fBaddAnnotFreeText\fR,
+\fBaddAnnotHighlight\fR, \fBaddAnnotUnderline\fR,
+\fBaddAnnotStrikeOut\fR, \fBaddAnnotStamp\fR, \fBaddAnnotLine\fR)\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.23\&.test\fR": 23 new tests --
 \fB-pdfa 3b\fR validation (3), \fB/AF\fR array (4),
-\fB/AS\fR array (5)\&.
+\fB/AS\fR array (5), \fBgetStringWidth\fR with \fB-font\fR/\fB-size\fR (3),
+\fBinPage\fR / \fBcurrentPage\fR / \fBpageCount\fR (5),
+\fBdrawTextBox\fR \fB-newyvar\fR (2), \fB::pdf4tcl::exportForms\fR (5)\&.
 .PP
 .SS "VERSION 0\&.9\&.4\&.22"
 .IP \(bu
