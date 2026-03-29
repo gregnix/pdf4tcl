@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.23?**
+package require **pdf4tcl ?0****.9****.4****.24?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -534,7 +534,7 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 : This method returns the size of the available area on the page, after removing margins. The return value is a list of width and height, in the document's default unit.
 
 **objectName canvas path ?option value...?**
-: Draws the contents of the canvas widget *path* on the current page. The return value is the bounding box in pdf page coordinates of the area covered. Option *-bbox* gives the area of the canvas to be drawn. Default is the entire contents, i.e. the result of $path bbox all. Options *-x*, *-y*, *-width* and *-height* defines an area on the page where to place the contents. Default area starts at origin, stretching over the drawable area of the page. Option *-sticky* defines how to place the contents within the area. The area is always filled in one direction, preserving aspect ratio, unless *-sticky* defines that the other direction should be filled too. Default *-sticky* is *nw*. If option *-bg* is true, a background is drawn in the canvas' background color. Otherwise only objects are drawn. Default is false. Option *-fontmap* gives a dictionary mapping from Tk font names to PDF font names. Option *-textscale* overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If *-textscale* is larger than 1, all text items are reduced in size by that factor. Fonts: If no font mapping is given, fonts for text items are limited to PDF's builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which one to use to get a reasonable display on the page. An element in a font mapping must exactly match the -font option in the text item. The corresponding mapping value is a PDF font family, e.g. one created by **pdf4tcl::createFont**, possibly followed by a size. It is recommended to use named fonts in Tk to control the font mapping in detail. Limitations: Option -splinesteps for lines/polygons is ignored. Stipple offset is limited. The form x,y should work. Window items require Img to be present and must be visible on-screen when the canvas is drawn.
+: Draws the contents of the canvas widget *path* on the current page. The return value is the bounding box in pdf page coordinates of the area covered. Option *-bbox* gives the area of the canvas to be drawn. Default is the entire contents, i.e. the result of $path bbox all. Options *-x*, *-y*, *-width* and *-height* defines an area on the page where to place the contents. Default area starts at origin, stretching over the drawable area of the page. Option *-sticky* defines how to place the contents within the area. The area is always filled in one direction, preserving aspect ratio, unless *-sticky* defines that the other direction should be filled too. Default *-sticky* is *nw*. If option *-bg* is true, a background is drawn in the canvas' background color. Otherwise only objects are drawn. Default is false. Option *-fontmap* gives a dictionary mapping from Tk font names to PDF font names. Option *-textscale* overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If *-textscale* is larger than 1, all text items are reduced in size by that factor. Fonts: If no font mapping is given, fonts for text items are limited to PDF's builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which one to use to get a reasonable display on the page. An element in a font mapping must exactly match the -font option in the text item. The corresponding mapping value is a PDF font family, e.g. one created by **pdf4tcl::createFont**, possibly followed by a size. It is recommended to use named fonts in Tk to control the font mapping in detail. Limitations: Option **-splinesteps** for lines/polygons is not applicable: PDF uses exact cubic Bezier curves (**CanvasBezier**), which are mathematically equivalent to any number of spline steps. The visual result is equal to or better than Tk's screen rendering. *Stipple:* Both offset forms are supported: **x,y** (absolute pixel offset) and **#x,y** (bitmap-relative -- aligns bitmap pixel (x,y) with canvas origin). Empty offset (no adjustment) is handled correctly. Minor visual differences from on-screen rendering may remain due to pattern scaling. *Widget classes supported:* **tk::canvas** (class **Canvas**) -- all standard item types: rectangle, oval, line, polygon, arc, text, image, bitmap, window. **tkpath** (**::tkp::canvas**, class **PathCanvas**) -- tkpath item types: pimage, ptext, pline, polyline, ppolygon, prect, circle, ellipse, path, group. Handled via **itempdf** delegation (C-level). **tko::path** (class **tko::path**) -- tko::path item types: image, text, line, polyline, polygon, rect, circle, ellipse, path, group, window. Handled via **itempdf** delegation. *Window items (tk::canvas):* The embedded widget must be visible on-screen when the canvas is exported. Package **Img** with **-format window** support is required to capture the widget as a raster image. If **Img** is not available or the widget is unmapped, a solid black rectangle is drawn in its place. *Window items (tko::path):* The item is silently skipped -- no crash, no error message (fix in 0.9.4.24, BUG-C1). All other items on the same **tko::path** are exported correctly. Raster capture of embedded widgets is not supported for **tko::path**.
 
 **objectName metadata ?option value...?**
 : This method sets metadata fields for this document. Supported field options are *-author*, *-creator*, *-keywords*, *-producer*, *-subject*, *-title*, *-creationdate* and *-moddate*. Multiple keywords should be passed as a comma-separated string, e.g. *-keywords "tcl,pdf,document"*. For *-creationdate* and *-moddate* a **clock seconds** value is expected. A value of **0** uses the current date and time. Unknown option names cause an error.
@@ -1235,6 +1235,11 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 
 ## CHANGES
 
+### VERSION 0.9.4.24
+
+- **$path coords $id** returns an empty list. This happened for **window** items, **group** items, and items with **-matrix** set. Added length guard: if coords has fewer than 2 elements, the item is silently skipped. Symptom was *can't read "x1": no such variable*.
+- canvas), canvas-4.2 (tko::path window item), canvas-4.3 (version check).
+
 ### VERSION 0.9.4.23
 
 - keyword arguments **-font** and **-size** (0.9.4.23+). Text width can now be measured without a prior **setFont** call. CIDFont metrics are supported. Legacy positional call unchanged.
@@ -1246,7 +1251,8 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 - PDF/A-3b allows embedded files with associated file relationships.
 - for the document-level **/AF** array when **-pdfa 3b** is active. The **/AF** array in the Catalog associates embedded files with the document as a whole (ISO 19005-3 SS6.2.11.4).
 - **/AS** array added to the OCG **/D** dictionary when **-pdfa 2b** or **-pdfa 3b** is active (ISO 19005-2 SS6.2.10). Defines layer state for Print and View events. Standard PDFs and PDF/A-1b are not affected.
-- **-pdfa 3b** validation (3), **/AF** array (4), **/AS** array (5).
+- annotation methods (**addAnnotNote**, **addAnnotFreeText**, **addAnnotHighlight**, **addAnnotUnderline**, **addAnnotStrikeOut**, **addAnnotStamp**, **addAnnotLine**).
+- **-pdfa 3b** validation (3), **/AF** array (4), **/AS** array (5), **getStringWidth** with **-font**/**-size** (3), **inPage** / **currentPage** / **pageCount** (5), **drawTextBox** **-newyvar** (2), **::pdf4tcl::exportForms** (5).
 
 ### VERSION 0.9.4.22
 

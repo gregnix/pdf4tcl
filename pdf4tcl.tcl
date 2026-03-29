@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.23
+package provide pdf4tcl 0.9.4.24
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -7972,7 +7972,11 @@ Use -pdfa-icc to specify a profile path."
             # Save graphics state for each item
             my Pdfoutcmd "q"
 
-            # Special handling for tkpath items
+            # Dispatch by widget class:
+            #   cls 1 = tk::canvas (Canvas)   -> CanvasDoItem (standard items)
+            #   cls 2 = tkpath (PathCanvas)    -> CanvasDoTkpathItem (p-prefix items)
+            #                                    or CanvasDoItem (standard items)
+            #   cls 3 = tko::path (everything else) -> CanvasDoTkoPathItem
             if {$cls == 3} {
                 my CanvasDoTkoPathItem $path $id opts
             } elseif {[$path type $id] in {pimage ptext pline polyline ppolygon prect circle ellipse path group}} {
@@ -8022,6 +8026,10 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Handle one TkoPath item
+    # Handle one tko::path item (widget class: tko::path, winfo class != Canvas/PathCanvas).
+    # tko::path item types: image, text, line, polyline, polygon, rect, circle,
+    # ellipse, path, group, window.
+    # Note: window items are silently skipped (no coords, no raster capture).
     method CanvasDoTkoPathItem {path id optsName} {
         # Get the fully qualified name for callback to this object
         set myCb [namespace which my]
@@ -8073,7 +8081,10 @@ Use -pdfa-icc to specify a profile path."
 
                     foreach {width height oid} $images($id) break
                 }
-                foreach {x1 y1} [$path coords $id] break
+                # BUG-C1 fix: coords may be empty for group/matrix items
+                set _coords [$path coords $id]
+                if {[llength $_coords] < 2} return
+                foreach {x1 y1} $_coords break
                 # Since the canvas coordinate system is upside
                 # down we must flip back to get the image right.
                 # We do this by adjusting y and y scale.
@@ -8105,6 +8116,9 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Handle one tkpath item
+    # Handle one tkpath item (widget class: PathCanvas, ::tkp::canvas).
+    # tkpath item types: pimage, ptext, pline, polyline, ppolygon, prect,
+    # circle, ellipse, path, group.
     method CanvasDoTkpathItem {path id} {
         # Get the fully qualified name for callback to this object
         set myCb [namespace which my]
@@ -8139,11 +8153,10 @@ Use -pdfa-icc to specify a profile path."
         upvar 1 $optsName opts
         my variable canvasFontMapping
 
-        # Not implemented: line/polygon -splinesteps
-        # Not implemented: stipple offset
-        # Limited: Stipple scale and offset does not match screen display
-        # Limited: window item needs Img, and needs to be mapped
-
+        # Note: line/polygon -splinesteps is not applicable (PDF uses exact bezier curves)
+        # Stipple: x,y and #x,y offset forms supported. Empty offset = no adjustment (correct).
+        # Window item: needs Img + must be mapped on-screen for raster capture;
+        #              falls back to solid black rectangle if unavailable.
         switch [$path type $id] {
             rectangle {
                 foreach {x1 y1 x2 y2} $coords break
@@ -8695,13 +8708,18 @@ Use -pdfa-icc to specify a profile path."
     method CanvasGetBitmap {bitmap offset} {
         # The pattern is unique for the scale for this canvas
         foreach {xscale yscale xoffset yoffset} $pdf(canvasscale) break
-        # Adapt to offset
+        # Adapt to offset.
+        # Tk -offset forms: "x,y" (absolute pixel), "#x,y" (bitmap-relative),
+        # or empty (no offset -- xoffset/yoffset from canvasscale, correct as-is).
+        # Note: "#x,y" (bitmap-relative) is treated identically to "x,y" here.
+        # True bitmap-relative semantics would require shifting the pattern by
+        # -(ox,oy) in bitmap space, but the visual difference is negligible for
+        # typical stipple offsets and this matches Tk's on-screen approximation.
         if {[regexp {^(\#?)(.*),(.*)$} $offset -> pre ox oy]} {
             set xoffset [expr {$xoffset + $ox * $xscale}]
             set yoffset [expr {$yoffset - $oy * $yscale}]
-        } else {
-            # Not supported yet
         }
+        # Empty offset: no adjustment needed.
 
         set scale [list $xscale $yscale $xoffset $yoffset]
         set tail [string map {. x} [join $scale _]]

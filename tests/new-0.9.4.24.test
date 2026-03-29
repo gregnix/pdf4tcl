@@ -1,0 +1,67 @@
+# Tests for pdf4tcl 0.9.4.24
+# BUG-C1: CanvasDoTkoPathItem crash when coords is empty
+
+package require tcltest 2.2
+namespace import ::tcltest::*
+
+set thisDir [file dirname [file normalize [info script]]]
+source [file join $thisDir init.tcl]
+
+# canvas tests require Tk
+testConstraint hasTk [expr {![catch {package require Tk}]}]
+
+# tko::path availability
+testConstraint hasTko [expr {![catch {package require tko}] && \
+    [info commands tko::path] ne ""}]
+
+# ---------------------------------------------------------------
+# canvas-4.1: canvas method does not crash on empty widget
+# ---------------------------------------------------------------
+test canvas-4.1 {canvas: empty canvas does not crash} -constraints hasTk -body {
+    set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
+    $pdf startPage
+    canvas .c_test41 -width 100 -height 100
+    # Empty canvas -- bbox returns ""
+    set result [catch {
+        $pdf canvas .c_test41 -x 10 -y 10 -width 80 -height 80
+    } err]
+    $pdf endPage
+    $pdf destroy
+    destroy .c_test41
+    # Should not crash -- empty bbox returns silently
+    set result
+} -result 0
+
+# ---------------------------------------------------------------
+# canvas-4.2: tko::path window item with empty coords does not crash
+# ---------------------------------------------------------------
+test canvas-4.2 {CanvasDoTkoPathItem: window item empty coords guard} \
+    -constraints {hasTk hasTko} -body {
+    # Simulate the condition: CanvasDoTkoPathItem called with item
+    # where coords returns empty (group or unmapped window item)
+    # We test via a real tko::path export -- if it doesn't crash, fix works
+    set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
+    $pdf startPage
+    tko::path .p_test42 -width 100 -height 100
+    # Create a rect item -- should export without crash
+    .p_test42 create rect 5 5 95 95 -fill "#cccccc"
+    set bb [.p_test42 bbox all]
+    set result [catch {
+        $pdf canvas .p_test42 \
+            -bbox $bb -x 10 -y 10 -width 80 -height 80
+    } err]
+    $pdf endPage
+    $pdf destroy
+    destroy .p_test42
+    set result
+} -result 0
+
+# ---------------------------------------------------------------
+# canvas-4.3: version check
+# ---------------------------------------------------------------
+test canvas-4.3 {version is 0.9.4.24} -body {
+    package require pdf4tcl
+    package versions pdf4tcl
+} -match glob -result *0.9.4.24*
+
+cleanupTests

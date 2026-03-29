@@ -390,11 +390,12 @@ $pdf text "Documentation reviewed" -x 116 -y 73
 
 pdf4tcl supports two coordinate orientations:
 
-**`-orient 0` (default):** Origin at bottom-left, y increases upward
-(standard PDF coordinates). This matches the original pdf4tcl behavior.
-
-**`-orient 1` (recommended for forms):** Origin at top-left, y increases
+**`-orient 1` (default, recommended):** Origin at top-left, y increases
 downward. This is more intuitive for building forms top-to-bottom.
+Always set this explicitly to avoid version-dependent behavior.
+
+**`-orient 0`:** Origin at bottom-left, y increases upward
+(standard PDF coordinates). This matches the original PDF specification.
 
 ```tcl
 # Recommended setup for form creation
@@ -404,6 +405,19 @@ pdf startPage
 set y 40   ;# Start near the top
 # ... add fields, incrementing y downward ...
 ```
+
+> **Important:** Always set `-orient` explicitly. When using `pdf4tcllib`
+> and `page::context`, both must use the same orientation:
+>
+> ```tcl
+> # Correct -- both explicit and consistent:
+> set pdf [pdf4tcl::new %AUTO% -paper a4 -orient true]
+> set ctx [pdf4tcllib::page::context a4 -margin 20]  ;# default is orient true
+>
+> # Wrong -- mismatch causes coordinate errors:
+> set pdf [pdf4tcl::new %AUTO% -paper a4 -orient false]
+> set ctx [pdf4tcllib::page::context a4 -margin 20]  ;# still orient true!
+> ```
 
 Form fields honor the current coordinate system. The `addForm` method
 transforms coordinates automatically based on the document orientation.
