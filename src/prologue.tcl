@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.24
+package provide pdf4tcl 0.9.4.25
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -32,13 +32,41 @@ namespace eval pdf4tcl {
 
     # Known paper sizes. These are always in points.
     array set paper_sizes {
-        a0     {2380.0 3368.0}
-        a1     {1684.0 2380.0}
-        a2     {1190.0 1684.0}
-        a3     { 842.0 1190.0}
+        4a0    {4768.0 6741.0}
+        2a0    {3370.0 4768.0}
+        a0     {2384.0 3370.0}
+        a1     {1684.0 2384.0}
+        a2     {1191.0 1684.0}
+        a3     { 842.0 1191.0}
         a4     { 595.0  842.0}
-        a5     { 421.0  595.0}
-        a6     { 297.0  421.0}
+        a5     { 420.0  595.0}
+        a6     { 298.0  420.0}
+        a7     { 210.0  298.0}
+        a8     { 147.0  210.0}
+        a9     { 105.0  147.0}
+        a10    {  74.0  105.0}
+        b0     {2835.0 4008.0}
+        b1     {2004.0 2835.0}
+        b2     {1417.0 2004.0}
+        b3     {1001.0 1417.0}
+        b4     { 709.0 1001.0}
+        b5     { 499.0  709.0}
+        b6     { 354.0  499.0}
+        b7     { 249.0  354.0}
+        b8     { 176.0  249.0}
+        b9     { 125.0  176.0}
+        b10    {  88.0  125.0}
+        c0     {2599.0 3677.0}
+        c1     {1837.0 2599.0}
+        c2     {1298.0 1837.0}
+        c3     { 918.0 1298.0}
+        c4     { 649.0  918.0}
+        c5     { 459.0  649.0}
+        c6     { 323.0  459.0}
+        c7     { 230.0  323.0}
+        c8     { 162.0  230.0}
+        c9     { 113.0  162.0}
+        c10    {  79.0  113.0}
         11x17  { 792.0 1224.0}
         ledger {1224.0  792.0}
         legal  { 612.0 1008.0}

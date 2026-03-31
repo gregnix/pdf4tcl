@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.24 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.25 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.24?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.25?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -338,7 +338,7 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.24?\fR
 .sp
 \fIobjectName\fR \fBget\fR
 .sp
-\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR? ?\fI-dryrun bool\fR?
+\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR? ?\fI-chan channel\fR? ?\fI-dryrun bool\fR?
 .sp
 \fIobjectName\fR \fBaddForm\fR \fItype\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -834,9 +834,9 @@ This method returns the generated pdf\&.
 This will do \fBendPage\fR and \fBfinish\fR if needed\&.
 If the \fB-file\fR option was given at object creation, nothing is returned\&.
 .TP
-\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR? ?\fI-dryrun bool\fR?
-This method writes the generated pdf to the given \fIfilename\fR\&.
-If no \fIfilename\fR is given, it is written to stdout\&.
+\fIobjectName\fR \fBwrite\fR ?\fI-file filename\fR? ?\fI-chan channel\fR? ?\fI-dryrun bool\fR?
+This method writes the generated pdf to the given \fIfilename\fR or \fIchannel\fR\&.
+If neither \fB-file\fR nor \fB-chan\fR is given, output is written to stdout\&.
 This will do \fBendPage\fR and \fBfinish\fR if needed\&.
 If the \fB-file\fR option was given at object creation, an empty file
 is created\&.
@@ -844,6 +844,12 @@ is created\&.
 .TP
 \fB-file\fR \fIfilename\fR
 Write PDF to the given file\&.
+.TP
+\fB-chan\fR \fIchannel\fR
+Write PDF to the given open channel (e\&.g\&. from \fBopen\fR, a socket or a
+memory channel)\&. The channel must be opened for writing; it is not closed
+by this method\&. Added in version 0\&.9\&.4\&.25 (ported from the AndroWish fork,
+contributed by Christian Werner)\&.
 .TP
 \fB-dryrun\fR \fIbool\fR
 If true, return the PDF data as a string without writing to a file and without
@@ -2059,6 +2065,10 @@ This option can only be set at object creation\&.
 The argument of this option defines the paper size\&.
 The paper size may be a string like "a4", where valid values
 are available through \fB::pdf4tcl::getPaperSizeList\fR\&.
+Supported series include ISO A (a0-a10), ISO B (b0-b10), ISO C (c0-c10),
+and the oversize formats \fB4a0\fR and \fB2a0\fR\&.
+North American sizes (\fBletter\fR, \fBlegal\fR, \fBexecutive\fR)
+are also supported\&.
 Paper size may also be a two element list specifying width and height\&.
 .sp
 The default value of this option is "a4"\&.
@@ -2150,6 +2160,29 @@ Set by \fB_InitMD5Backend\fR on first use\&.
 Values: \fBtcllib\fR, \fBopenssl\fR, \fBpure-tcl\fR\&.
 Read-only; for diagnostics only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.25"
+.PP
+.IP \(bu
+"\fIsrc/prologue\&.tcl\fR": Added ISO B-series (b0-b10), ISO C-series
+(c0-c10), and oversize formats \fB4a0\fR and \fB2a0\fR\&.
+Dimensions rounded to the nearest integer point (ISO 216 / ISO 269)\&.
+Ported from the AndroWish fork\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR" (\fBwrite\fR): New option \fB-chan\fR \fIchannel\fR
+writes PDF output to an already-open Tcl channel (file, socket, memory
+channel)\&. The channel is not closed by \fBwrite\fR\&.
+Ported from the AndroWish fork, contributed by Christian Werner\&.
+.IP \(bu
+"\fItests/new-0\&.9\&.4\&.25\&.test\fR": 8 new tests -- write-1\&.1\&.\&.1\&.3
+(channel output) and paper-1\&.1\&.\&.1\&.8 (B/C-series dimensions, backward
+compatibility of a4)\&.
+.IP \(bu
+"\fI0\&.9\&.4\&.x/demo/demo-paper-sizes\&.tcl\fR": new demo showing A/B/C
+paper series (4 pages)\&.
+.IP \(bu
+"\fI0\&.9\&.4\&.x/demo/demo-write-chan\&.tcl\fR": new demo showing three
+\fB-chan\fR use cases (file channel, memory channel, stdout)\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.24"
 .PP
 .IP \(bu
@@ -2572,6 +2605,14 @@ Options: \fB-contents\fR (raw data), \fB-mimetype\fR,
 Calling this method when \fB-pdfa\fR is \fB1b\fR raises an error
 (ISO 19005-1 SS6\&.1\&.7)\&. Intended use: ZUGFeRD / Factur-X electronic
 invoices and other document-level attachments\&.
+.PP
+.SH CREDITS
+.TP
+AndroWish -- write -chan option
+The \fB-chan\fR option for the \fBwrite\fR command was originally
+developed for \fIAndroWish\fR by Christian Werner and was ported to pdf4tcl\&.
+AndroWish is licensed under the Tcl/Tk license\&.
+See: \fIhttps://www\&.androwish\&.org/\fR
 .PP
 .SH "SEE ALSO"
 doctools

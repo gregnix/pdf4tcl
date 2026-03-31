@@ -59,9 +59,9 @@ test canvas-4.2 {CanvasDoTkoPathItem: window item empty coords guard} \
 # ---------------------------------------------------------------
 # canvas-4.3: version check
 # ---------------------------------------------------------------
-test canvas-4.3 {version is 0.9.4.24} -body {
+test canvas-4.3 {version is 0.9.4.25} -body {
     package require pdf4tcl
     package versions pdf4tcl
-} -match glob -result *0.9.4.24*
+} -match glob -result *0.9.4.25*
 
 cleanupTests

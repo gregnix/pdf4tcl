@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.24?**
+package require **pdf4tcl ?0****.9****.4****.25?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -68,7 +68,7 @@ package require **pdf4tcl ?0****.9****.4****.24?**
 
 *objectName* **get**
 
-*objectName* **write** ?*-file filename*? ?*-dryrun bool*?
+*objectName* **write** ?*-file filename*? ?*-chan channel*? ?*-dryrun bool*?
 
 *objectName* **addForm** *type* *x* *y* *width* *height* ?*option value*...?
 
@@ -393,6 +393,9 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **-file filename**
 : Write PDF to the given file.
 
+**-chan channel**
+: Write PDF to the given open channel (e.g. from **open**, a socket or a memory channel). The channel must be opened for writing; it is not closed by this method. Added in version 0.9.4.25 (ported from the AndroWish fork, contributed by Christian Werner).
+
 **-dryrun bool**
 : If true, return the PDF data as a string without writing to a file and without modifying the document state. Useful for previewing or testing the output. Default is false.
 
@@ -502,8 +505,8 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **objectName get**
 : This method returns the generated pdf. This will do **endPage** and **finish** if needed. If the **-file** option was given at object creation, nothing is returned.
 
-**objectName write ?-file filename? ?-dryrun bool?**
-: This method writes the generated pdf to the given *filename*. If no *filename* is given, it is written to stdout. This will do **endPage** and **finish** if needed. If the **-file** option was given at object creation, an empty file is created.
+**objectName write ?-file filename? ?-chan channel? ?-dryrun bool?**
+: This method writes the generated pdf to the given *filename* or *channel*. If neither **-file** nor **-chan** is given, output is written to stdout. This will do **endPage** and **finish** if needed. If the **-file** option was given at object creation, an empty file is created.
 
 **objectName addForm type x y width height ?option value...?**
 : Add an interactive form field at the given position and size. Coordinates are in the document's current unit. Supported types are *text*, *password*, *checkbutton* (alias *checkbox*), *combobox*, *listbox*, *radiobutton*, *pushbutton*, and *signature*.
@@ -1171,7 +1174,7 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 ### PAGE CONFIGURATION
 
 **-paper name**
-: The argument of this option defines the paper size. The paper size may be a string like "a4", where valid values are available through **::pdf4tcl::getPaperSizeList**. Paper size may also be a two element list specifying width and height. The default value of this option is "a4".
+: The argument of this option defines the paper size. The paper size may be a string like "a4", where valid values are available through **::pdf4tcl::getPaperSizeList**. Supported series include ISO A (a0-a10), ISO B (b0-b10), ISO C (c0-c10), and the oversize formats **4a0** and **2a0**. North American sizes (**letter**, **legal**, **executive**) are also supported. Paper size may also be a two element list specifying width and height. The default value of this option is "a4".
 
 **-landscape boolean**
 : If true, paper width and height are switched. The default value of this option is false.
@@ -1234,6 +1237,14 @@ foreach w $::pdf4tcl::warnings { puts "WARNING: $w" }
 Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is generated regardless of any warnings in this list. **::pdf4tcl::_md5Backend** Set by **_InitMD5Backend** on first use. Values: **tcllib**, **openssl**, **pure-tcl**. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.25
+
+- (c0-c10), and oversize formats **4a0** and **2a0**. Dimensions rounded to the nearest integer point (ISO 216 / ISO 269). Ported from the AndroWish fork.
+- writes PDF output to an already-open Tcl channel (file, socket, memory channel). The channel is not closed by **write**. Ported from the AndroWish fork, contributed by Christian Werner.
+- (channel output) and paper-1.1..1.8 (B/C-series dimensions, backward compatibility of a4).
+- paper series (4 pages).
+- **-chan** use cases (file channel, memory channel, stdout).
 
 ### VERSION 0.9.4.24
 
@@ -1395,6 +1406,11 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 ### VERSION 0.9.4.14
 
 - New method **addEmbeddedFile**: embeds a file silently into the PDF Catalog **/Names** / **/EmbeddedFiles** NameTree (ISO 32000 SS7.11.4). No visible page annotation is created. Options: **-contents** (raw data), **-mimetype**, **-description**, **-afrelationship** (**Alternative** | **Data** | **Source** | **Supplement** | **Unspecified**). Calling this method when **-pdfa** is **1b** raises an error (ISO 19005-1 SS6.1.7). Intended use: ZUGFeRD / Factur-X electronic invoices and other document-level attachments.
+
+## CREDITS
+
+**AndroWish -- write -chan option**
+: The **-chan** option for the **write** command was originally developed for *AndroWish* by Christian Werner and was ported to pdf4tcl. AndroWish is licensed under the Tcl/Tk license. See: *https://www**.androwish**.org/*
 
 ## SEE ALSO
 

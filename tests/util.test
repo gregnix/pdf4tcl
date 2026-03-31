@@ -17,8 +17,18 @@ test util-1.3 {getPaperSize} -body {
 } -result {}
 
 test util-1.4 {getPaperSizeList} -body {
-    lsort -dictionary [pdf4tcl::getPaperSizeList]
-} -result {11x17 a0 a1 a2 a3 a4 a5 a6 ledger legal letter}
+    set list [lsort -dictionary [pdf4tcl::getPaperSizeList]]
+    # Check that old formats are still present (backward compat)
+    set ok 1
+    foreach p {11x17 a0 a1 a2 a3 a4 a5 a6 ledger legal letter} {
+        if {$p ni $list} { set ok 0; break }
+    }
+    # Check that new formats are present
+    foreach p {b0 b5 b10 c0 c4 c10 4a0 2a0} {
+        if {$p ni $list} { set ok 0; break }
+    }
+    set ok
+} -result 1
 
 test util-1.5 {getPaperSize, case insensitive} -body {
     lrange [pdf4tcl::getPaperSize A4] 0 end
