@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.24]
+[manpage_begin pdf4tcl n 0.9.4.25]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.24]]
+[require pdf4tcl [opt 0.9.4.25]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -391,10 +391,10 @@ This method returns the generated pdf.
 This will do [method endPage] and [method finish] if needed.
 If the [option -file] option was given at object creation, nothing is returned.
 
-[call [arg objectName] [method write] [opt [arg "-file filename"]] [opt [arg "-dryrun bool"]]]
+[call [arg objectName] [method write] [opt [arg "-file filename"]] [opt [arg "-chan channel"]] [opt [arg "-dryrun bool"]]]
 
-This method writes the generated pdf to the given [arg "filename"].
-If no [arg "filename"] is given, it is written to stdout.
+This method writes the generated pdf to the given [arg "filename"] or [arg "channel"].
+If neither [option -file] nor [option -chan] is given, output is written to stdout.
 This will do [method endPage] and [method finish] if needed.
 If the [option -file] option was given at object creation, an empty file
 is created.
@@ -402,6 +402,11 @@ is created.
 [list_begin options]
 [opt_def -file [arg filename]]
 Write PDF to the given file.
+[opt_def -chan [arg channel]]
+Write PDF to the given open channel (e.g. from [cmd open], a socket or a
+memory channel). The channel must be opened for writing; it is not closed
+by this method. Added in version 0.9.4.25 (ported from the AndroWish fork,
+contributed by Christian Werner).
 [opt_def -dryrun [arg bool]]
 If true, return the PDF data as a string without writing to a file and without
 modifying the document state. Useful for previewing or testing the output.
@@ -1617,6 +1622,10 @@ This option can only be set at object creation.
 The argument of this option defines the paper size.
 The paper size may be a string like "a4", where valid values
 are available through [cmd ::pdf4tcl::getPaperSizeList].
+Supported series include ISO A (a0-a10), ISO B (b0-b10), ISO C (c0-c10),
+and the oversize formats [const 4a0] and [const 2a0].
+North American sizes ([const letter], [const legal], [const executive])
+are also supported.
 Paper size may also be a two element list specifying width and height.
 [para]
 The default value of this option is "a4".
@@ -1715,6 +1724,26 @@ Values: [const tcllib], [const openssl], [const pure-tcl].
 Read-only; for diagnostics only.
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.25}]
+[para]
+[list_begin itemized]
+[item] [file src/prologue.tcl]: Added ISO B-series (b0-b10), ISO C-series
+(c0-c10), and oversize formats [const 4a0] and [const 2a0].
+Dimensions rounded to the nearest integer point (ISO 216 / ISO 269).
+Ported from the AndroWish fork.
+[item] [file src/main.tcl] ([cmd write]): New option [option -chan] [arg channel]
+writes PDF output to an already-open Tcl channel (file, socket, memory
+channel). The channel is not closed by [method write].
+Ported from the AndroWish fork, contributed by Christian Werner.
+[item] [file tests/new-0.9.4.25.test]: 8 new tests -- write-1.1..1.3
+(channel output) and paper-1.1..1.8 (B/C-series dimensions, backward
+compatibility of a4).
+[item] [file 0.9.4.x/demo/demo-paper-sizes.tcl]: new demo showing A/B/C
+paper series (4 pages).
+[item] [file 0.9.4.x/demo/demo-write-chan.tcl]: new demo showing three
+[option -chan] use cases (file channel, memory channel, stdout).
+[list_end]
 
 [subsection {Version 0.9.4.24}]
 [para]
@@ -2116,6 +2145,18 @@ Options: [option -contents] (raw data), [option -mimetype],
 Calling this method when [option -pdfa] is [const 1b] raises an error
 (ISO 19005-1 SS6.1.7). Intended use: ZUGFeRD / Factur-X electronic
 invoices and other document-level attachments.
+[list_end]
+
+[section CREDITS]
+
+[list_begin definitions]
+
+[def {AndroWish -- write -chan option}]
+The [option -chan] option for the [method write] command was originally
+developed for [term AndroWish] by Christian Werner and was ported to pdf4tcl.
+AndroWish is licensed under the Tcl/Tk license.
+See: [uri https://www.androwish.org/]
+
 [list_end]
 
 [see_also doctools]

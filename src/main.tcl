@@ -1064,21 +1064,37 @@ Use -pdfa-icc to specify a profile path."
 
     # Write PDF data to file
     method write {args} {
-        set chan stdout
+        set chan ""
         set outfile 0
+        set haveFile 0
+        set haveChan 0
         foreach {arg value} $args {
             switch -- $arg {
                 "-file" {
+                    set haveFile 1
                     if {[catch {open $value "w"} chan]} {
                         throw {PDF4TCL} "could not open file $value for writing: $chan"
-                    } else {
-                        set outfile 1
                     }
+                    set outfile 1
+                }
+                "-chan" {
+                    # Write to an existing channel (e.g. Memchan, socket, pipe).
+                    # The channel must be open for writing and is NOT closed by pdf4tcl.
+                    # Mutually exclusive with -file.
+                    set haveChan 1
+                    set chan $value
                 }
                 default {
                     throw {PDF4TCL} "unknown option \"$arg\""
                 }
             }
+        }
+
+        if {$haveFile && $haveChan} {
+            throw {PDF4TCL} "write: use either -file or -chan, not both"
+        }
+        if {$chan eq ""} {
+            set chan stdout
         }
 
         fconfigure $chan -translation binary -encoding iso8859-1

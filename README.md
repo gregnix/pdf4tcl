@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.24)
+# pdf4tcl fork (0.9.4.25)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
