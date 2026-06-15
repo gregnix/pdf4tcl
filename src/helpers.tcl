@@ -390,8 +390,15 @@ proc ::pdf4tcl::CleanText {in fn} {
     if {$FontsAttrs($fn,specialencoding)} {
         # Convert using special encoding of font subset:
         set out ""
+        set encDict $FontsAttrs($fn,encoding)
         foreach uchar [split $in {}] {
-            append out [dict get $FontsAttrs($fn,encoding) $uchar]
+            if {[dict exists $encDict $uchar]} {
+                append out [dict get $encDict $uchar]
+            } elseif {[dict exists $encDict "?"]} {
+                append out [dict get $encDict "?"]
+            } else {
+                append out [binary format cu 0]
+            }
         }
     } else {
         # Tcl 9: encoding convertto wirft Fehler fuer nicht-darstellbare Zeichen.

@@ -1,3 +1,8 @@
+2026-06-15 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.26
+	* CleanText: graceful subset degradation -- unmappable glyphs fall back to '?' then .notdef instead of crashing PDF generation
+
 2026-03-30 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.25

@@ -1,0 +1,33 @@
+# build.test -- guard that the generated pdf4tcl.tcl matches src/*.tcl.
+#
+# pdf4tcl.tcl is built by concatenating the source files
+# (Makefile: cat $(CATFILES) > pdf4tcl.tcl). If pdf4tcl.tcl is committed
+# while stale -- e.g. src/helpers.tcl edited without a rebuild -- the
+# shipped single-file would silently run old code. This test catches that
+# drift when the suite is run directly (tclsh tests/all.tcl) or in CI.
+#
+# NOTE: keep $catfiles in sync with the Makefile variable CATFILES.
+
+package require tcltest
+namespace import ::tcltest::*
+
+set repoRoot [file normalize [file join [file dirname [info script]] ..]]
+set catfiles {
+    src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl
+    src/main.tcl src/encrypt.tcl src/cat.tcl
+}
+
+test build-1.0 {pdf4tcl.tcl is in sync with src/*.tcl (cat CATFILES)} -body {
+    set built ""
+    foreach f $catfiles {
+        set fh [open [file join $repoRoot $f] rb]
+        append built [read $fh]
+        close $fh
+    }
+    set fh [open [file join $repoRoot pdf4tcl.tcl] rb]
+    set onDisk [read $fh]
+    close $fh
+    expr {$built eq $onDisk ? "in-sync" : "STALE: run 'make pdf4tcl.tcl'"}
+} -result in-sync
+
+cleanupTests

@@ -105,6 +105,22 @@ foreach f {
 }
 
 # ---------------------------------------------------------------
+# 1b. Versions-Asserts in den Test-Tripwires (tests/new-*.test):
+#     nur die Assert-Muster "version is X" und -result *X* bumpen,
+#     historische "# Tests for pdf4tcl X"-Kommentare bleiben.
+# ---------------------------------------------------------------
+foreach tf [lsort [glob -nocomplain tests/new-*.test]] {
+    set c [readFile $tf]
+    set c2 [string map [list \
+        "version is $oldVersion" "version is $newVersion" \
+        "*$oldVersion*"          "*$newVersion*"] $c]
+    if {$c2 ne $c} {
+        if {!$dryRun} { writeFile $tf $c2 }
+        puts "  OK  $tf (Versions-Assert)"
+    }
+}
+
+# ---------------------------------------------------------------
 # 2. pdf4tcl.man -- Doctools-Direktiven (zwei Stellen)
 # ---------------------------------------------------------------
 set f pdf4tcl.man
@@ -200,6 +216,7 @@ puts "\nFertig. Noch manuell:"
 puts "  - ChangeLog ausformulieren (web/changes.html ggf. praezisieren)"
 puts "  - make doc   (pdf4tcl.html + pdf4tcl.n aus pdf4tcl.man)"
 puts "  - make md    (pdf4tcl.md aus pdf4tcl.n)"
+puts "  - make example (Referenz-PDFs neu generieren -- Version steckt in /Creator + komprimierten Metadaten)"
 puts "  - make test"
 puts "  - make release && make zip"
 puts "  - git add -A && git commit -m \"$newVersion: $newMsg\""
