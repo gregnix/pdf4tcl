@@ -46,7 +46,9 @@ regenerateExampleRefs
 
 # Compare two PDFs ignoring volatile timestamp fields.
 proc pdfdiff {ref new} {
-    set skipPat {/ModDate |/CreationDate |xmp:ModifyDate>|xmp:CreateDate>}
+    # /ID is an FNV hash over the whole file (incl. the dates), so it changes
+    # every run; ignore it like the date lines for content comparison.
+    set skipPat {/ModDate |/CreationDate |xmp:ModifyDate>|xmp:CreateDate>|/ID \[}
     proc _stripDates {file pat} {
         set fh [open $file rb]
         set lines [split [read $fh] \n]

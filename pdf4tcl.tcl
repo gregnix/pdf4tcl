@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.26
+package provide pdf4tcl 0.9.4.27
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2179,6 +2179,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(pagelabels) {}
         set pdf(embfiles) {}    ;# list of {basename fsid} pairs
         set pdf(af_oids)  {}    ;# FileSpec OIDs for PDF/A-3 /AF array
+        set pdf(facturx)  {}    ;# Factur-X/ZUGFeRD XMP metadata (dict; empty = off)
         set pdf(layers)   {}    ;# list of {oid name visible}
         set pdf(compress) $options(-compress)
         set pdf(finished) false
@@ -3061,6 +3062,14 @@ Use -pdfa-icc to specify a profile path."
             my Pdfout "endobj\n\n"
         }
 
+        # Deferred objects added after the last endPage (e.g. embedded files
+        # via addEmbeddedFile / facturx) are still queued in pdf(objects).
+        # Flush them here so their bodies are written and their xref offsets
+        # are recorded before /ID and the xref table/stream are generated.
+        # Without this the FileSpec and EmbeddedFile objects are referenced
+        # (/AF, /EmbeddedFiles) but never emitted -- breaking ZUGFeRD/Factur-X.
+        my FlushObjects
+
         # Encrypt dictionary (V=4/R=4) written before xref.
         # The dict itself is NOT encrypted (ISO 32000 ss.7.6.1).
         set encdict_oid ""
@@ -3461,6 +3470,61 @@ Use -pdfa-icc to specify a profile path."
         }
 
         append x "  </rdf:Description>\n"
+
+        # Factur-X / ZUGFeRD electronic invoice metadata.
+        # Two extra rdf:Description blocks: (1) the PDF/A extension schema that
+        # declares the custom fx: namespace (ISO 19005-1 SS6.7.9 -- mandatory so
+        # the namespace is valid in PDF/A), (2) the fx: invoice fields. Without
+        # both, validators (veraPDF, Mustang, KoSIT) reject the Factur-X file.
+        if {[dict size $pdf(facturx)] > 0} {
+            set fxFile [_XmlEsc [dict get $pdf(facturx) filename]]
+            set fxConf [_XmlEsc [dict get $pdf(facturx) conformance]]
+            set fxType [_XmlEsc [dict get $pdf(facturx) documenttype]]
+            set fxVer  [_XmlEsc [dict get $pdf(facturx) version]]
+            set fxNs   [_XmlEsc [dict get $pdf(facturx) namespace]]
+            set fxPfx  [_XmlEsc [dict get $pdf(facturx) prefix]]
+            # (1) PDF/A extension schema description for the fx: namespace
+            append x "  <rdf:Description rdf:about=\"\"\n"
+            append x "   xmlns:pdfaExtension=\"http://www.aiim.org/pdfa/ns/extension/\"\n"
+            append x "   xmlns:pdfaSchema=\"http://www.aiim.org/pdfa/ns/schema#\"\n"
+            append x "   xmlns:pdfaProperty=\"http://www.aiim.org/pdfa/ns/property#\">\n"
+            append x "   <pdfaExtension:schemas>\n"
+            append x "    <rdf:Bag>\n"
+            append x "     <rdf:li rdf:parseType=\"Resource\">\n"
+            append x "      <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>\n"
+            append x "      <pdfaSchema:namespaceURI>$fxNs</pdfaSchema:namespaceURI>\n"
+            append x "      <pdfaSchema:prefix>$fxPfx</pdfaSchema:prefix>\n"
+            append x "      <pdfaSchema:property>\n"
+            append x "       <rdf:Seq>\n"
+            foreach {pname pdesc} {
+                DocumentFileName  "name of the embedded XML invoice file"
+                DocumentType      "INVOICE"
+                Version           "version of the Factur-X standard"
+                ConformanceLevel  "conformance level of the embedded XML"
+            } {
+                append x "        <rdf:li rdf:parseType=\"Resource\">\n"
+                append x "         <pdfaProperty:name>$pname</pdfaProperty:name>\n"
+                append x "         <pdfaProperty:valueType>Text</pdfaProperty:valueType>\n"
+                append x "         <pdfaProperty:category>external</pdfaProperty:category>\n"
+                append x "         <pdfaProperty:description>$pdesc</pdfaProperty:description>\n"
+                append x "        </rdf:li>\n"
+            }
+            append x "       </rdf:Seq>\n"
+            append x "      </pdfaSchema:property>\n"
+            append x "     </rdf:li>\n"
+            append x "    </rdf:Bag>\n"
+            append x "   </pdfaExtension:schemas>\n"
+            append x "  </rdf:Description>\n"
+            # (2) Factur-X invoice fields in the fx: namespace
+            append x "  <rdf:Description rdf:about=\"\"\n"
+            append x "   xmlns:$fxPfx=\"$fxNs\">\n"
+            append x "   <$fxPfx:DocumentType>$fxType</$fxPfx:DocumentType>\n"
+            append x "   <$fxPfx:DocumentFileName>$fxFile</$fxPfx:DocumentFileName>\n"
+            append x "   <$fxPfx:Version>$fxVer</$fxPfx:Version>\n"
+            append x "   <$fxPfx:ConformanceLevel>$fxConf</$fxPfx:ConformanceLevel>\n"
+            append x "  </rdf:Description>\n"
+        }
+
         append x " </rdf:RDF>\n"
         append x "</x:xmpmeta>\n"
         append x "<?xpacket end=\"w\"?>"
@@ -6779,7 +6843,9 @@ Use -pdfa-icc to specify a profile path."
         # 1. EmbeddedFile stream  (ISO 32000 SS7.11.4)
         set efdict "<< /Type /EmbeddedFile"
         if {$mimetype ne ""} {
-            append efdict "\n   /Subtype [QuoteString $mimetype]"
+            # /Subtype is a PDF name carrying the MIME media type (ISO 19005-3
+            # SS6.8); name-special chars must be hex-escaped (e.g. "/" -> #2F).
+            append efdict "\n   /Subtype /[string map {# #23 / #2F} $mimetype]"
         }
         append efdict "\n   /Params << /Size [string length $contents] >> "
         set efbody [MakeStream $efdict $contents $pdf(compress)]
@@ -6808,6 +6874,96 @@ Use -pdfa-icc to specify a profile path."
         if {[string match "3*" $options(-pdfa)]} {
             lappend pdf(af_oids) $fsid
         }
+    }
+
+    # Declare Factur-X / ZUGFeRD electronic-invoice metadata.
+    # Adds the Factur-X XMP extension schema and the fx: fields to the document
+    # metadata and -- when the invoice XML is supplied -- embeds it as the
+    # associated file (filename kept consistent with the XMP DocumentFileName).
+    # A standards-compliant Factur-X/ZUGFeRD PDF additionally requires PDF/A-3,
+    # i.e. -pdfa 3b; otherwise a warning is recorded.
+    #
+    # facturx ?options?
+    #
+    # Options:
+    #   -contents data       invoice XML content (embeds it; excludes -file)
+    #   -file path           invoice XML file to embed (excludes -contents)
+    #   -filename name       embedded name + DocumentFileName (default factur-x.xml)
+    #   -conformance level   MINIMUM | BASIC WL | BASIC | EN 16931 | EXTENDED |
+    #                        XRECHNUNG  (default "EN 16931")
+    #   -documenttype type   DocumentType (default INVOICE)
+    #   -version v           Factur-X version (default 1.0)
+    #   -afrelationship rel  AFRelationship for the embedded XML (default Alternative)
+    #   -namespace uri       XMP namespace (default Factur-X 1.0 / ZUGFeRD 2.1+)
+    #   -prefix p            XMP prefix (default fx)
+    method facturx {args} {
+        set contents       ""
+        set contentsIsSet  0
+        set file           ""
+        set filename       "factur-x.xml"
+        set conformance    "EN 16931"
+        set documenttype   "INVOICE"
+        set version        "1.0"
+        set afrelationship "Alternative"
+        set namespace      "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"
+        set prefix         "fx"
+        set validConf      {MINIMUM {BASIC WL} BASIC {EN 16931} EXTENDED XRECHNUNG}
+
+        foreach {opt val} $args {
+            switch -- $opt {
+                -contents       { set contents $val ; set contentsIsSet 1 }
+                -file           { set file $val }
+                -filename       { set filename $val }
+                -conformance    { set conformance $val }
+                -documenttype   { set documenttype $val }
+                -version        { set version $val }
+                -afrelationship { set afrelationship $val }
+                -namespace      { set namespace $val }
+                -prefix         { set prefix $val }
+                default { throw {PDF4TCL} "facturx: unknown option \"$opt\"" }
+            }
+        }
+
+        if {$conformance ni $validConf} {
+            throw {PDF4TCL} "facturx: invalid -conformance \"$conformance\":\
+ must be MINIMUM, BASIC WL, BASIC, EN 16931, EXTENDED, or XRECHNUNG"
+        }
+        if {$contentsIsSet && $file ne ""} {
+            throw {PDF4TCL} "facturx: -contents and -file are mutually exclusive"
+        }
+
+        # Factur-X/ZUGFeRD is defined on PDF/A-3; warn loudly if not active.
+        if {![string match "3*" $options(-pdfa)]} {
+            lappend ::pdf4tcl::warnings "facturx: a valid Factur-X/ZUGFeRD\
+ invoice requires -pdfa 3b (PDF/A-3); current -pdfa is \"$options(-pdfa)\""
+        }
+
+        # Embed the invoice XML, if supplied. addEmbeddedFile guards PDF/A-1 and
+        # tracks the /AF array for PDF/A-3.
+        if {$contentsIsSet || $file ne ""} {
+            if {$file ne ""} {
+                if {![file readable $file]} {
+                    throw {PDF4TCL} "facturx: cannot read -file \"$file\""
+                }
+                set ch [open $file rb]
+                set contents [read $ch]
+                close $ch
+            }
+            my addEmbeddedFile $filename -contents $contents \
+                -mimetype      "application/xml" \
+                -afrelationship $afrelationship \
+                -description   "Factur-X/ZUGFeRD invoice"
+        }
+
+        # Record the XMP fields; emitted by _BuildXMPStream at finish.
+        set pdf(facturx) [dict create \
+            filename     $filename \
+            conformance  $conformance \
+            documenttype $documenttype \
+            version      $version \
+            namespace    $namespace \
+            prefix       $prefix]
+        return
     }
 
     # Add a hyperlink annotation (URI link). [SF ticket #15]
