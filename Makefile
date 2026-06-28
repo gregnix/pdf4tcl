@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09426
+VERSION = 09427
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -8,13 +8,19 @@ NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
 NAGELFAR90 = nagelfar -encoding iso8859-1 -s syntaxdb90.tcl
 ESKIL    = eskil
 
-all: doc web pdf4tcl.tcl
+all: pdf4tcl.tcl pkg/pdf4tcl.tcl doc web
 
 # Build from source
 CATFILES = src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl src/main.tcl src/encrypt.tcl src/cat.tcl
 
 pdf4tcl.tcl: $(CATFILES)
 	cat $(CATFILES) > pdf4tcl.tcl
+
+# pkg/pdf4tcl.tcl is a copy of pdf4tcl.tcl (the installed/symlinked layout loads
+# it). Own target so it is (re)built whenever pdf4tcl.tcl changes or it is
+# missing -- mkweb.tcl sources it via "package require pdf4tcl".
+pkg/pdf4tcl.tcl: pdf4tcl.tcl
+	cp pdf4tcl.tcl pkg/pdf4tcl.tcl
 
 # Documentation
 doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
@@ -32,7 +38,7 @@ checkdoc: pdf4tcl.tcl
 	@$(ESKIL) -block _srcmeth _docmeth
 	@rm _srcmeth _docmeth
 
-web/mypdf.pdf: pdf4tcl.tcl mkweb.tcl web/index.html
+web/mypdf.pdf: pkg/pdf4tcl.tcl mkweb.tcl web/index.html
 	./mkweb.tcl
 
 web/pdf4tcl.html: pdf4tcl.html
@@ -54,6 +60,7 @@ example:
 	@cd examples && $(TCLSH) specenc.tcl
 	@cd examples && $(TCLSH) multiout.tcl
 	@cd examples && $(TCLSH) test7.tcl
+	@cd examples && $(TCLSH) test-transform.tcl
 
 # Helpers
 

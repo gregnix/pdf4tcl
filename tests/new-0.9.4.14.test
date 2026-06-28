@@ -103,7 +103,7 @@ test embedfile-1.7 {addEmbeddedFile: kein EmbeddedFiles ohne Aufruf} {
 
 # -- Optionen ------------------------------------------------------------------
 
-test embedfile-2.1 {addEmbeddedFile: -mimetype wird als /Subtype gesetzt} {
+test embedfile-2.1 {addEmbeddedFile: -mimetype wird als /Subtype Name gesetzt} {
     set f [makeFile {} test-emb-mime.pdf]
     set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
     $pdf startPage
@@ -111,7 +111,8 @@ test embedfile-2.1 {addEmbeddedFile: -mimetype wird als /Subtype gesetzt} {
         -contents "<invoice/>" \
         -mimetype "application/xml"
     $pdf destroy
-    pdfContains $f "(application/xml)"
+    # ISO 19005-3 6.8: the MIME media type is a PDF name, "/" escaped as #2F.
+    pdfContains $f "/Subtype /application#2Fxml"
 } 1
 
 test embedfile-2.2 {addEmbeddedFile: -description landet im Filespec} {
@@ -142,9 +143,8 @@ test embedfile-2.4 {addEmbeddedFile: ohne -mimetype kein MIME-Subtype} {
     $pdf startPage
     $pdf addEmbeddedFile "data.xml" -contents "<x/>"
     $pdf destroy
-    # Fonts haben /Subtype /Name (kein String-Literal).
-    # MIME waere /Subtype (application/...) -- PDF-String in Klammern.
-    expr {![pdfContains $f "/Subtype ("]}
+    # Without -mimetype the EmbeddedFile carries no MIME /Subtype name.
+    expr {![pdfContains $f "/Subtype /application#2F"]}
 } 1
 
 test embedfile-2.5 {addEmbeddedFile: /Params /Size gesetzt} {

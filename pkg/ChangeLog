@@ -26,13 +26,7 @@
 	  were never written, producing an invalid embedded-file structure. This
 	  fixes addEmbeddedFile and is required for valid ZUGFeRD/Factur-X output.
 
-	* src/main.tcl: addEmbeddedFile writes the EmbeddedFile /Subtype (MIME
-	  media type) as a PDF name with hex-escaped specials (e.g. application/xml
-	  -> /application#2Fxml) instead of a string. ISO 19005-3 SS6.8 requires a
-	  name; veraPDF rejected the previous string form ("MIME type missing or
-	  invalid"). Needed for valid ZUGFeRD/Factur-X.
-
-	* tests/facturx.test: 19 tests for facturx (XMP extension schema, fx
+	* tests/facturx.test: 18 tests for facturx (XMP extension schema, fx
 	  fields, XML embedding, AFRelationship, -file/-filename, conformance
 	  validation, mutual-exclusion and warning behaviour) plus a guard that a
 	  plain addEmbeddedFile body is now written.

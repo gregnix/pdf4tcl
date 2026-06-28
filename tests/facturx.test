@@ -1,0 +1,199 @@
+# facturx.test -- Factur-X / ZUGFeRD XMP extension and invoice embedding
+#
+# Covers the public method  facturx  (Factur-X/ZUGFeRD XMP extension schema +
+# fx: invoice fields + embedding of the invoice XML), and guards the finish
+# object-flush fix that ensures embedded FileSpec/EmbeddedFile objects are
+# actually written to the document body.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# 1.x  XMP extension schema + fx: invoice fields
+# ---------------------------------------------------------------------------
+
+test facturx-1.1 {fx: namespace declared in XMP} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -conformance {EN 16931}
+    set d [$p get]; $p destroy
+    expr {[string first \
+        "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#" $d] >= 0}
+} -result 1
+
+test facturx-1.2 {pdfaExtension:schemas block present} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx
+    set d [$p get]; $p destroy
+    expr {[string first "pdfaExtension:schemas" $d] >= 0}
+} -result 1
+
+test facturx-1.3 {fx:ConformanceLevel reflects -conformance} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -conformance EXTENDED
+    set d [$p get]; $p destroy
+    expr {[string first \
+        "<fx:ConformanceLevel>EXTENDED</fx:ConformanceLevel>" $d] >= 0}
+} -result 1
+
+test facturx-1.4 {DocumentType/FileName/Version defaults} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx
+    set d [$p get]; $p destroy
+    expr {
+        [string first "<fx:DocumentType>INVOICE</fx:DocumentType>" $d] >= 0 &&
+        [string first "<fx:DocumentFileName>factur-x.xml</fx:DocumentFileName>" $d] >= 0 &&
+        [string first "<fx:Version>1.0</fx:Version>" $d] >= 0
+    }
+} -result 1
+
+test facturx-1.5 {custom prefix/namespace honoured (ZUGFeRD-style)} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -prefix zf \
+        -namespace "urn:zugferd:pdfa:CrossIndustryDocument:invoice:2p0#"
+    set d [$p get]; $p destroy
+    expr {[string first "<zf:DocumentType>INVOICE</zf:DocumentType>" $d] >= 0}
+} -result 1
+
+test facturx-1.6 {no facturx -> no fx namespace} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    set d [$p get]; $p destroy
+    expr {[string first "urn:factur-x" $d] < 0}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 2.x  Invoice XML embedding (and the finish object-flush fix)
+# ---------------------------------------------------------------------------
+
+test facturx-2.1 {-contents embeds the EmbeddedFile stream body} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<rsm:CrossIndustryInvoice/>"
+    set d [$p get]; $p destroy
+    expr {
+        [string first "/Type /EmbeddedFile" $d] >= 0 &&
+        [string first "rsm:CrossIndustryInvoice" $d] >= 0
+    }
+} -result 1
+
+test facturx-2.2 {FileSpec + AFRelationship default Alternative} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<x/>"
+    set d [$p get]; $p destroy
+    expr {
+        [string first "/Type /Filespec" $d] >= 0 &&
+        [string first "/AFRelationship /Alternative" $d] >= 0
+    }
+} -result 1
+
+test facturx-2.3 {-afrelationship override} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<x/>" -afrelationship Data
+    set d [$p get]; $p destroy
+    expr {[string first "/AFRelationship /Data" $d] >= 0}
+} -result 1
+
+test facturx-2.4 {/AF array present when embedding under -pdfa 3b} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<x/>"
+    set d [$p get]; $p destroy
+    expr {[string first "/AF \[" $d] >= 0}
+} -result 1
+
+test facturx-2.5 {-file embeds file content} -setup {
+    set tmpf [makeFile "<rsm:CrossIndustryInvoice>file</rsm:CrossIndustryInvoice>" fx_inv.xml]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -file $tmpf -filename factur-x.xml
+    set d [$p get]; $p destroy
+    expr {[string first "rsm:CrossIndustryInvoice>file" $d] >= 0}
+} -cleanup { removeFile fx_inv.xml } -result 1
+
+test facturx-2.6 {custom -filename used for embedded name and XMP} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<x/>" -filename zugferd-invoice.xml
+    set d [$p get]; $p destroy
+    expr {
+        [string first "(zugferd-invoice.xml)" $d] >= 0 &&
+        [string first "<fx:DocumentFileName>zugferd-invoice.xml</fx:DocumentFileName>" $d] >= 0
+    }
+} -result 1
+
+test facturx-2.7 {plain addEmbeddedFile body is written (finish-flush guard)} -setup {
+    set tmpf [makeFile "embedded payload" af_flush.txt]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p addEmbeddedFile $tmpf -mimetype "text/plain" -afrelationship Data
+    set d [$p get]; $p destroy
+    expr {
+        [string first "/Type /EmbeddedFile" $d] >= 0 &&
+        [string first "embedded payload" $d] >= 0
+    }
+} -cleanup { removeFile af_flush.txt } -result 1
+
+test facturx-2.8 {embedded XML /Subtype is a PDF name, not a string (ISO 19005-3 6.8)} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<x/>"
+    set d [$p get]; $p destroy
+    expr {
+        [string first "/Subtype /application#2Fxml" $d] >= 0 &&
+        [string first "/Subtype (application/xml)" $d] < 0
+    }
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 3.x  Validation and warnings
+# ---------------------------------------------------------------------------
+
+test facturx-3.1 {invalid -conformance throws} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b]
+    set rc [catch {$p facturx -conformance BOGUS} err]
+    $p destroy
+    list $rc [string match "*invalid -conformance*" $err]
+} -result {1 1}
+
+test facturx-3.2 {-contents and -file mutually exclusive} -setup {
+    set tmpf [makeFile "<x/>" fx_excl.xml]
+} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b]
+    set rc [catch {$p facturx -contents "<x/>" -file $tmpf} err]
+    $p destroy
+    list $rc [string match "*mutually exclusive*" $err]
+} -cleanup { removeFile fx_excl.xml } -result {1 1}
+
+test facturx-3.3 {unknown option throws} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b]
+    set rc [catch {$p facturx -bogus 1} err]
+    $p destroy
+    list $rc [string match "*unknown option*" $err]
+} -result {1 1}
+
+test facturx-3.4 {warning recorded when -pdfa is not 3b} -body {
+    set ::pdf4tcl::warnings {}
+    set p [pdf4tcl::new %AUTO%]
+    $p facturx -contents "<x/>"
+    $p destroy
+    expr {[llength $::pdf4tcl::warnings] >= 1}
+} -result 1
+
+test facturx-3.5 {no warning under -pdfa 3b} -body {
+    set ::pdf4tcl::warnings {}
+    set p [pdf4tcl::new %AUTO% -pdfa 3b]
+    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p facturx -contents "<x/>"
+    $p destroy
+    llength $::pdf4tcl::warnings
+} -result 0
+
+::tcltest::cleanupTests
