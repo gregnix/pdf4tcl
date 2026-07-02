@@ -1,0 +1,70 @@
+# new-0.9.4.28.test -- Adam7 interlaced PNG support (addImage)
+#
+# 0.9.4.28 adds de-interlacing for Adam7 (interlace method 1) PNGs. Previously
+# addImage threw "interlaced PNG is not supported". Bit depth >= 8 is handled
+# (RGB, RGBA, grayscale, palette8); sub-8-bit interlaced still reports a clear
+# error.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+package require pdf4tcl
+
+# Small 8x6 Adam7-interlaced fixtures (base64 PNG).
+set fixtures(rgb)  {iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAAEGYHg6AAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBwIANDIQ3ySoAAAAO0lEQVQI123LwQ3AIBDEwDkpHdETPZGa6OnyAASR8M/yrkQSRUcktjXVYqbB855lrKd0xY3f5STIa/gAC4kMByoRdg8AAAAASUVORK5CYII=}
+set fixtures(rgba) {iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAYAAAGJAu9tAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAAAHdElNRQfqBwIANDIQ3ySoAAAAQklEQVQI133MwQ2AIABD0UfiRuzETjoTO9WDgQgm/lPz01aIkFL1QAlPmObU4sWsDI5LszTGdoquLmLnc7FTyO/DDWy4Ff1RAL5sAAAAAElFTkSuQmCC}
+set fixtures(gray) {iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAAAAAGsabCxAAAAAmJLR0QA/4ePzL8AAAAHdElNRQfqBwIANSGNelQ3AAAAI0lEQVQI12NgYGBgPMMAIRnTGKCAMQ0mzmgMFWKBSTL+hzIAobIE1JfsBJMAAAAASUVORK5CYII=}
+set fixtures(pal4) {iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGBAMAAAF7LPJeAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAVUExURf8AAMwAM5kAZmYAmTMAzAAA/////35PSM4AAAABYktHRAZhZrh9AAAAB3RJTUUH6gcCADUhjXpUNwAAACBJREFUCNdjYAACFzBWUgKxgaSLC4MgEDAYAwFDKBAAADFrA/2TP0HcAAAAAElFTkSuQmCC}
+
+proc writeFixture {key} {
+    variable fixtures
+    set path [file join [::tcltest::temporaryDirectory] pdf4tcl-il-$key.png]
+    set ch [open $path wb]
+    puts -nonewline $ch [binary decode base64 $::fixtures($key)]
+    close $ch
+    return $path
+}
+
+# --- success: bit depth >= 8, all colour types embed without error ---
+foreach {n key} {1 rgb 2 rgba 3 gray} {
+    test interlace-1.$n "addImage embeds interlaced $key PNG" -setup {
+        set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+        set f [writeFixture $key]
+    } -body {
+        set id [$pdf addImage $f]
+        expr {$id ne ""}
+    } -cleanup {
+        $pdf destroy
+        file delete -force $f
+    } -result 1
+}
+
+# --- embedded XObject carries the correct dimensions ---
+test interlace-2.1 "interlaced PNG yields correct /Width and /Height" -setup {
+    set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    set f [writeFixture rgb]
+    set out [file join [::tcltest::temporaryDirectory] pdf4tcl-il-out.pdf]
+} -body {
+    $pdf addImage $f -id im
+    $pdf startPage
+    $pdf putImage im 10 10 -width 80
+    $pdf write -file $out
+    set ch [open $out rb] ; set data [read $ch] ; close $ch
+    expr {[string match "*/Width 8*" $data] && [string match "*/Height 6*" $data]}
+} -cleanup {
+    $pdf destroy
+    file delete -force $f $out
+} -result 1
+
+# --- sub-8-bit interlaced: clear, categorised error (no silent failure) ---
+test interlace-3.1 "sub-8-bit interlaced PNG reports a clear error" -setup {
+    set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1]
+    set f [writeFixture pal4]
+} -body {
+    set code [catch {$pdf addImage $f} err opts]
+    list $code [dict get $opts -errorcode]         [string match "*bit depth*" $err]
+} -cleanup {
+    $pdf destroy
+    file delete -force $f
+} -result {1 PDF4TCL 1}
+
+::tcltest::cleanupTests

@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.27]
+[manpage_begin pdf4tcl n 0.9.4.28]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.27]]
+[require pdf4tcl [opt 0.9.4.28]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1122,6 +1122,8 @@ Default value is the document's [option -compress] setting.
 
 Add an image to the document. Returns an id that can be used in subsequent
 calls to [method putImage]. Supported formats are PNG, JPEG and TIFF.
+Both non-interlaced and Adam7-interlaced PNG files are accepted; interlaced
+PNGs are de-interlaced on load and must have a bit depth of at least 8.
 [list_begin options]
 
 [opt_def -id [arg id]]

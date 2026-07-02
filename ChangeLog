@@ -1,4 +1,28 @@
-2026-06-28 Gregor  <gregnix@github>
+2026-07-02 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.28
+	* DeinterlacePng
+
+ Gregor  <gregnix@github>
+
+	* src/main.tcl (DeinterlacePng): new internal method. Adds support
+	for Adam7 interlaced PNGs in addImage. Previously both PNG code
+	paths threw "interlaced PNG is not supported", because pdf4tcl
+	hands the raw compressed IDAT stream to PDF with /Predictor 15 and
+	that scheme cannot express Adam7's seven passes. The new method
+	decompresses, de-filters and de-interlaces the passes into a single
+	non-interlaced raster, re-emits it as a filter-0 zlib stream, and
+	lets the existing /Predictor 15 path proceed unchanged.
+	Supports bit depth >= 8 (RGB, RGBA, grayscale, palette8). Sub-8-bit
+	interlaced reports {PDF4TCL} "interlaced PNG with bit depth < 8 is
+	not supported" instead of the old generic message.
+	Both AddPng code paths (file and data) call the new method.
+
+	* tests/new-0.9.4.28.test: new, 5 tests (interlace-1.1..1.3, 2.1,
+	3.1). Verified pixel-identical to a non-interlaced reference embed
+	(AE 0, RMSE 0). Full suite 713 total / 0 failed on Tcl 8.6 and 9.0
+
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.27
 
@@ -37,12 +61,12 @@
 	  validation, mutual-exclusion and warning behaviour) plus a guard that a
 	  plain addEmbeddedFile body is now written.
 
-2026-06-15 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.26
 	* CleanText: graceful subset degradation -- unmappable glyphs fall back to '?' then .notdef instead of crashing PDF generation
 
-2026-03-30 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.25
 
@@ -62,7 +86,7 @@
 	* 0.9.4.x/demo/demo-paper-sizes.tcl: New demo showing all paper
 	  formats (A, B, C series) scaled to A4 page.
 
-2026-03-29 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.24
 
@@ -72,7 +96,7 @@
 	  return. Affected: tko::path window items with transformation matrix.
 	  Symptom: "can't read x1: no such variable".
 
-2026-03-23 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.23
 
@@ -130,7 +154,7 @@
 	  inPage/currentPage/pageCount (5), drawTextBox -newyvar (2). Total: 23.
 
 
-2026-03-23 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.22
 
@@ -187,7 +211,7 @@
 	  reference with direct gsave/translate/rotate/text/grestore pattern.
 
 
-2026-03-23 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.21
 
@@ -222,7 +246,7 @@
 
 	* demo/run-all-demos.tcl: demo-layers.tcl added.
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.20
 
@@ -273,7 +297,7 @@
 	* tests/new-0.9.4.20.test: 23 new tests (getPageSize 7, transform 7,
 	  rotate/scale/translate/rawcoords 9).
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.19
 
@@ -288,7 +312,7 @@
 	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
 
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.19
 
@@ -303,7 +327,7 @@
 	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
 
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.19
 
@@ -318,7 +342,7 @@
 	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
 
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.19
 
@@ -333,12 +357,12 @@
 	  CleanText, metadata Unicode, sha2pure NIST-Vektoren).
 
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.18
 	* aes256
 
-2026-03-21 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.18
 
@@ -384,7 +408,7 @@
 	* tools/tcl9env.sh: Neue Datei -- setzt Tcl-9-Umgebung
 	  fuer make test, make example usw.
 
-2026-03-18 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* src/main.tcl: Combobox /AP-Stream entfernt. Statischer AP-Stream
 	  verursachte doppelte Textdarstellung (AP-Stream-Rendering +
@@ -401,7 +425,7 @@
 	  Regexp-Fix: \b -> \y (Tcl-Wortgrenze, nicht Backspace).
 	* tests/tounicode.test: Regexp-Fix \b -> \y.
 
-2026-03-17 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.16
 	* src/encrypt.tcl: AES-256 (V=5/R=6, PDF 2.0) via -encversion 5.
@@ -434,7 +458,7 @@
 	* Dokumentation vollstaendig aktualisiert: doc/de/, doc/en/,
 	  addEmbeddedFile, OTF/CFF, tooltip, tabindex, String-Enc, AES-256).
 
-2026-03-16 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.15
 	* OTF/CFF font support in loadBaseTrueTypeFont:
 	  OpenType fonts with CFF outlines (.otf, OTTO magic) are now accepted.
@@ -452,7 +476,7 @@
 	  Supplement|Unspecified). Raises error when -pdfa 1b is set
 	  (ISO 19005-1 SS6.1.7). Intended for ZUGFeRD/Factur-X invoices.
 
-2026-03-15 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.13
 	* New method setBlendMode: sets PDF blend mode via ExtGState /BM.
 	  Supported modes: Normal Multiply Screen Overlay Darken Lighten
@@ -484,7 +508,7 @@
 	  section 9.10.3). Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D)
 	  map to U+FFFD. SMP codepoints use UTF-16BE surrogate pairs.
 
-2026-03-11 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.8
 	* Fix ticket #2: /Length of content streams was systematically off
 	  by one. In endPage, "incr data_len" was called before writing
@@ -508,7 +532,7 @@
 	* validator: CheckPdfa accepts "", "1b", "2b"; rejects all other
 	  values with a clear error message.
 
-2026-03-10 pdf4tcl fork contributor
+pdf4tcl fork contributor
 
 	* Fix: CID ToUnicode CMap -- SMP codepoints (U+10000..U+10FFFF) now
 	  encoded as UTF-16BE surrogate pairs in bfchar entries per PDF spec
@@ -523,7 +547,7 @@
 	  [#24]
 	* util.test: new tests util-7.1..7.3 for chunked beginbfchar.
 
-2026-03-08 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.5
 	* Feature ticket #16: new proc createFontSpecCID enables Unicode/CJK
 	  support via CIDFontType2 (Identity-H encoding). Supports any script
@@ -544,7 +568,7 @@
 	* 26 new tests in tests/cidfont.test.
 	* New demo: 0.9.4.x/demo/demo-cidfont.tcl.
 
-2026-03-08 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.4
 	* Fix ticket #14: createFontSpecEnc now raises an error if the subset
 	  exceeds 256 codepoints (prevents invalid PDF generation). [#14]
@@ -562,7 +586,7 @@
 	  documented; addImage -type valid values listed.
 	* New Manpage entries: getLineHeight, viewerPreferences, pageLabel.
 
-2026-03-08 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.3
 	* Add ticket #15: hyperlinkAdd method for URI link annotations.
 	  hyperlinkAdd x y width height url ?options?
@@ -570,7 +594,7 @@
 	           -borderdash, -highlight.
 	  11 new tests in tests/page.test (page-7.1 to page-7.11).
 
-2026-03-08 Gregor  <gregnix@github>
+Gregor  <gregnix@github>
 	* Bumped revision to 0.9.4.2
 	* Fix ticket #20: removed -format from metadata docs (not in code, not in PDF spec).
 	* Fix ticket #21: documented -keywords as comma-separated string.

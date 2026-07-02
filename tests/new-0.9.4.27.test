@@ -1,0 +1,42 @@
+# new-0.9.4.27.test -- version anchor for facturx (Factur-X / ZUGFeRD)
+#
+# Compact 0.9.4.27 smoke test. Full coverage lives in facturx.test; this file
+# pins the headline contract: the method exists, injects the fx: XMP extension
+# schema, embeds the invoice XML, and is refused on PDF/A-1.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+package require pdf4tcl
+
+proc mkFacturxPdf {conf} {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage ; $p setFont 10 Helvetica ; $p text "X" -x 50 -y 700 ; $p endPage
+    $p facturx -conformance $conf -contents "<Invoice>42</Invoice>" \
+        -filename factur-x.xml
+    set d [$p get] ; $p destroy
+    return $d
+}
+
+test facturx-smoke-1.1 {facturx is a public method} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b]
+    set ok [expr {"facturx" in [info object methods $p -all]}]
+    $p destroy ; set ok
+} -result 1
+
+test facturx-smoke-1.2 {fx: extension namespace is injected into the XMP} -body {
+    expr {[string first "urn:factur-x" [mkFacturxPdf {EN 16931}]] >= 0}
+} -result 1
+
+test facturx-smoke-1.3 {the invoice XML is embedded in the document} -body {
+    expr {[string first "<Invoice>42</Invoice>" [mkFacturxPdf {EN 16931}]] >= 0}
+} -result 1
+
+test facturx-smoke-1.4 {facturx is refused on PDF/A-1} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 1b]
+    $p startPage ; $p setFont 10 Helvetica ; $p text "X" -x 50 -y 700 ; $p endPage
+    set code [catch {$p facturx -conformance {EN 16931} -contents "x"} err opts]
+    $p destroy
+    list $code [dict get $opts -errorcode]
+} -result {1 PDF4TCL}
+
+::tcltest::cleanupTests

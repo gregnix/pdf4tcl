@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.27
+package provide pdf4tcl 0.9.4.28
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -5925,8 +5925,9 @@ Use -pdfa-icc to specify a profile path."
             throw {PDF4TCL} "PNG file is of an unsupported filter type"
         }
         if {$interlace != 0} {
-            # Would need to unpack and repack to do interlaced
-            throw {PDF4TCL} "interlaced PNG is not supported"
+            set img_data \
+                [my DeinterlacePng $img_data $width $height $depth $color]
+            set interlace 0
         }
 
         if {$palette ne ""} {
@@ -5994,6 +5995,113 @@ Use -pdfa-icc to specify a profile path."
         }
         set images($id) [list $width $height $oid 0]
         return $id
+    }
+
+    # De-interlace an Adam7 (interlace method 1) PNG IDAT stream.
+    #
+    # pdf4tcl normally hands the raw compressed IDAT stream to PDF and lets the
+    # viewer de-filter it via /Predictor 15. That trick cannot express Adam7's
+    # seven passes, so for interlaced images we decompress, de-filter and
+    # de-interlace here, then hand back a plain non-interlaced stream whose
+    # scanlines all use filter type 0 (None). The existing /Predictor 15 path
+    # then applies unchanged (filter 0 is a pass-through).
+    #
+    # Supports bit depth >= 8 (the common RGB/RGBA/gray/palette8 case). Sub-byte
+    # depths would need bit-level repacking and are reported as unsupported.
+    method DeinterlacePng {compressed width height depth color} {
+        switch -- $color {
+            0 {set ch 1}
+            2 {set ch 3}
+            3 {set ch 1}
+            4 {set ch 2}
+            6 {set ch 4}
+            default {throw {PDF4TCL} "unsupported PNG color type $color"}
+        }
+        if {$depth < 8} {
+            throw {PDF4TCL} \
+                "interlaced PNG with bit depth < 8 is not supported"
+        }
+        set pixBytes [expr {$ch * ($depth / 8)}]
+        set rowBytes [expr {$width * $pixBytes}]
+        set raw [zlib decompress $compressed]
+
+        # full non-interlaced raster (samples only), zero-initialised
+        set rast [lrepeat [expr {$rowBytes * $height}] 0]
+
+        # Adam7 passes: {xstart ystart xstep ystep}
+        set passes {
+            {0 0 8 8} {4 0 8 8} {0 4 4 8} {2 0 4 4}
+            {0 2 2 4} {1 0 2 2} {0 1 1 2}
+        }
+        set off 0
+        foreach p $passes {
+            lassign $p x0 y0 dx dy
+            set pw [expr {($width  - $x0 + $dx - 1) / $dx}]
+            set ph [expr {($height - $y0 + $dy - 1) / $dy}]
+            if {$pw <= 0 || $ph <= 0} continue
+            set prb [expr {$pw * $pixBytes}]
+            set prev [lrepeat $prb 0]
+            for {set r 0} {$r < $ph} {incr r} {
+                binary scan [string index $raw $off] cu ft
+                incr off
+                binary scan [string range $raw $off \
+                    [expr {$off + $prb - 1}]] cu* cur
+                incr off $prb
+                # de-filter this pass scanline
+                set out {}
+                for {set i 0} {$i < $prb} {incr i} {
+                    set x [lindex $cur $i]
+                    set a [expr {$i >= $pixBytes \
+                        ? [lindex $out [expr {$i - $pixBytes}]] : 0}]
+                    set b [lindex $prev $i]
+                    set c [expr {$i >= $pixBytes \
+                        ? [lindex $prev [expr {$i - $pixBytes}]] : 0}]
+                    switch -- $ft {
+                        0 {set v $x}
+                        1 {set v [expr {($x + $a) & 255}]}
+                        2 {set v [expr {($x + $b) & 255}]}
+                        3 {set v [expr {($x + (($a + $b) >> 1)) & 255}]}
+                        4 {
+                            set pp [expr {$a + $b - $c}]
+                            set pa [expr {abs($pp - $a)}]
+                            set pb [expr {abs($pp - $b)}]
+                            set pc [expr {abs($pp - $c)}]
+                            if {$pa <= $pb && $pa <= $pc} {
+                                set pr $a
+                            } elseif {$pb <= $pc} {
+                                set pr $b
+                            } else {
+                                set pr $c
+                            }
+                            set v [expr {($x + $pr) & 255}]
+                        }
+                        default {throw {PDF4TCL} "bad PNG filter $ft"}
+                    }
+                    lappend out $v
+                }
+                set prev $out
+                # scatter the de-filtered pixels into the full raster
+                set dy0 [expr {$y0 + $r * $dy}]
+                for {set j 0} {$j < $pw} {incr j} {
+                    set dstX [expr {$x0 + $j * $dx}]
+                    set dstBase [expr {$dy0 * $rowBytes + $dstX * $pixBytes}]
+                    set srcBase [expr {$j * $pixBytes}]
+                    for {set k 0} {$k < $pixBytes} {incr k} {
+                        lset rast [expr {$dstBase + $k}] \
+                            [lindex $out [expr {$srcBase + $k}]]
+                    }
+                }
+            }
+        }
+
+        # re-assemble as a non-interlaced stream: filter byte 0 per scanline
+        set outStream ""
+        for {set y 0} {$y < $height} {incr y} {
+            set base [expr {$y * $rowBytes}]
+            append outStream "\x00" [binary format c* \
+                [lrange $rast $base [expr {$base + $rowBytes - 1}]]]
+        }
+        return [zlib compress $outStream]
     }
 
     # Create the Color Space needed to display RGBA as RGB
@@ -6189,8 +6297,9 @@ Use -pdfa-icc to specify a profile path."
             throw {PDF4TCL} "PNG file is of an unsupported filter type"
         }
         if {$interlace != 0} {
-            # Would need to unpack and repack to do interlaced
-            throw {PDF4TCL} "interlaced PNG is not supported"
+            set img_data \
+                [my DeinterlacePng $img_data $width $height $depth $color]
+            set interlace 0
         }
 
         if {$palette ne ""} {

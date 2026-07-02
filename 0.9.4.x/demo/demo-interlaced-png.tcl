@@ -1,0 +1,55 @@
+#!/usr/bin/env tclsh
+# demo-interlaced-png.tcl -- embed an Adam7-interlaced PNG (0.9.4.28)
+#
+# Since 0.9.4.28 addImage accepts Adam7-interlaced PNGs: the compressed IDAT
+# stream is decompressed, de-filtered and de-interlaced into a plain raster,
+# so it can be embedded like any other PNG. Bit depth must be >= 8.
+#
+# The image below is a small interlaced RGBA PNG carried inline as base64, so
+# the demo is self-contained and needs no external files or the Img package.
+#
+# Usage: tclsh demo-interlaced-png.tcl [outputfile.pdf]
+
+set demodir  [file dirname [file normalize [info script]]]
+set reporoot [file normalize [file join $demodir ../..]]
+set auto_path [linsert $auto_path 0 $reporoot]
+
+package require pdf4tcl
+
+set outdir [expr {$argc > 0 ? [lindex $argv 0] : $demodir}]
+if {[file isdirectory $outdir]} {
+    set outfile [file join $outdir demo-interlaced-png.pdf]
+} else {
+    set outfile $outdir
+}
+
+# --- inline Adam7-interlaced RGBA PNG (160x120) ---
+set pngB64 {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}
+
+set pngFile [file join [file dirname $outfile] .demo-interlaced-tmp.png]
+set ch [open $pngFile wb]
+puts -nonewline $ch [binary decode base64 $pngB64]
+close $ch
+
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient false -compress 1]
+$pdf startPage
+
+$pdf setFont 14 Helvetica-Bold
+$pdf text "addImage -- Adam7 interlaced PNG (0.9.4.28)" -x 50 -y 780
+
+$pdf setFont 10 Helvetica
+$pdf text "The picture below is an interlaced PNG. Before 0.9.4.28 addImage"     -x 50 -y 755
+$pdf text "threw \"interlaced PNG is not supported\"; it now de-interlaces on load."     -x 50 -y 742
+
+# embed the interlaced image (de-interlaced automatically)
+$pdf addImage $pngFile -id il
+$pdf putImage il 50 560 -width 320
+
+$pdf setFont 9 Courier
+$pdf text "160x120 RGBA, interlace method 1 (Adam7), bit depth 8" -x 50 -y 545
+
+$pdf finish
+$pdf write -file $outfile
+$pdf destroy
+file delete -force $pngFile
+puts "wrote $outfile"
