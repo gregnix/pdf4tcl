@@ -118,9 +118,9 @@ test paper-1.7 {paper sizes: create PDF with b5} -body {
     string match "*%PDF*" $data
 } -result 1
 
-test paper-1.8 {paper sizes: version is 0.9.4.27} -body {
+test paper-1.8 {paper sizes: version is 0.9.4.28} -body {
     package require pdf4tcl
     package versions pdf4tcl
-} -match glob -result *0.9.4.27*
+} -match glob -result *0.9.4.28*
 
 cleanupTests

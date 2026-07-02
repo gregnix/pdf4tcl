@@ -916,7 +916,7 @@ image create photo img1 -file image.gif
 : Raw data will be zlib compressed if this option is set to true. Default value is the document's **-compress** setting.
 
 **objectName addImage filename ?option value...?**
-: Add an image to the document. Returns an id that can be used in subsequent calls to **putImage**. Supported formats are PNG, JPEG and TIFF.
+: Add an image to the document. Returns an id that can be used in subsequent calls to **putImage**. Supported formats are PNG, JPEG and TIFF. Both non-interlaced and Adam7-interlaced PNG files are accepted; interlaced PNGs are de-interlaced on load and must have a bit depth of at least 8.
 
 **objectName addRawImage data ?option value...?**
 : Add an image to the document. Works like **addImage** except that the raw image data is given directly.

@@ -1,0 +1,35 @@
+# new-0.9.4.26.test -- CleanText graceful subset degradation
+#
+# 0.9.4.26: unmappable glyphs fall back to '?' (standard fonts) / .notdef
+# instead of crashing PDF generation. Width behaviour is covered in util.test
+# (util-6.x); these tests pin the "text renders, generation succeeds" contract.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+package require pdf4tcl
+
+test clean-1.1 {unmappable codepoints do not crash generation} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 20 Helvetica
+    $p text "AB\u4e2d\u6587CD" -x 50 -y 700
+    set d [$p get] ; $p destroy
+    expr {[string length $d] > 0}
+} -result 1
+
+test clean-1.2 {unmappable glyphs degrade to '?' in the content stream} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 20 Helvetica
+    $p text "AB\u4e2d\u6587CD" -x 50 -y 700
+    set d [$p get] ; $p destroy
+    regexp {\(AB\?\?CD\) *Tj} $d
+} -result 1
+
+test clean-1.3 {ASCII around an unmappable char is preserved} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 20 Courier
+    $p text "OK\u4e2dX" -x 50 -y 700
+    set d [$p get] ; $p destroy
+    regexp {\(OK\?X\) *Tj} $d
+} -result 1
+
+::tcltest::cleanupTests

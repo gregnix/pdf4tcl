@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.27 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.28 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.27?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.28?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1574,6 +1574,8 @@ Default value is the document's \fB-compress\fR setting\&.
 \fIobjectName\fR \fBaddImage\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 Add an image to the document\&. Returns an id that can be used in subsequent
 calls to \fBputImage\fR\&. Supported formats are PNG, JPEG and TIFF\&.
+Both non-interlaced and Adam7-interlaced PNG files are accepted; interlaced
+PNGs are de-interlaced on load and must have a bit depth of at least 8\&.
 .RS
 .TP
 \fB-id\fR \fIid\fR
