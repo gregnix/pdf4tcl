@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.28
+package provide pdf4tcl 0.9.4.29
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -7181,13 +7181,13 @@ Use -pdfa-icc to specify a profile path."
                 -subject { set subject $v }
                 -icon {
                     if {$v ni {Note Comment Key Help NewParagraph                                Paragraph Insert}} {
-                        throw {PDF4TCL}                             "invalid -icon "$v""
+                        throw {PDF4TCL}                             "invalid -icon \"$v\""
                     }
                     set icon $v
                 }
                 -color   { set color $v }
                 -open    { set open  $v }
-                default  { throw {PDF4TCL} "unknown option "$k"" }
+                default  { throw {PDF4TCL} "unknown option \"$k\"" }
             }
         }
 
@@ -7254,7 +7254,7 @@ Use -pdfa-icc to specify a profile path."
                 -bgcolor     { set bgcolor     $v }
                 -borderwidth { set borderwidth $v }
                 -align       { set align       $v }
-                default      { throw {PDF4TCL} "unknown option "$k"" }
+                default      { throw {PDF4TCL} "unknown option \"$k\"" }
             }
         }
 
@@ -7324,7 +7324,7 @@ Use -pdfa-icc to specify a profile path."
                 -color   { set color   $v }
                 -content { set content $v }
                 -author  { set author  $v }
-                default  { throw {PDF4TCL} "unknown option "$k"" }
+                default  { throw {PDF4TCL} "unknown option \"$k\"" }
             }
         }
 
@@ -7385,13 +7385,13 @@ Use -pdfa-icc to specify a profile path."
                         AsIs Expired TopSecret Confidential ForPublicRelease
                         EnterpriseConfidential}
                     if {$v ni $validStamps} {
-                        throw {PDF4TCL}                             "invalid stamp name "$v""
+                        throw {PDF4TCL}                             "invalid stamp name \"$v\""
                     }
                     set name $v
                 }
                 -color   { set color   $v }
                 -content { set content $v }
-                default  { throw {PDF4TCL} "unknown option "$k"" }
+                default  { throw {PDF4TCL} "unknown option \"$k\"" }
             }
         }
 
@@ -7448,7 +7448,7 @@ Use -pdfa-icc to specify a profile path."
                 -width    { set lwidth   $v }
                 -startend { set startend $v }
                 -content  { set content  $v }
-                default   { throw {PDF4TCL} "unknown option "$k"" }
+                default   { throw {PDF4TCL} "unknown option \"$k\"" }
             }
         }
 

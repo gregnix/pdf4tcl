@@ -1,3 +1,8 @@
+2026-07-05 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.29
+	* add chceckbuild, bug: extra chars after closing quote
+
 2026-07-02 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.28

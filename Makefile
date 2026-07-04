@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09428
+VERSION = 09429
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -21,6 +21,26 @@ pdf4tcl.tcl: $(CATFILES)
 # missing -- mkweb.tcl sources it via "package require pdf4tcl".
 pkg/pdf4tcl.tcl: pdf4tcl.tcl
 	cp pdf4tcl.tcl pkg/pdf4tcl.tcl
+
+# CI guard: fail if the generated files are stale -- src/ changed but
+# pdf4tcl.tcl not rebuilt, or pkg/pdf4tcl.tcl drifted from pdf4tcl.tcl.
+# Read-only. ('check' is already the Nagelfar target.)
+.PHONY: checkbuild
+checkbuild:
+	@cat $(CATFILES) > pdf4tcl.tcl.chk
+	@if cmp -s pdf4tcl.tcl.chk pdf4tcl.tcl; then \
+	  echo "OK: pdf4tcl.tcl matches src/"; \
+	else \
+	  echo "STALE: pdf4tcl.tcl != cat(src/) -- run 'make pdf4tcl.tcl'"; \
+	  rm -f pdf4tcl.tcl.chk; exit 1; \
+	fi
+	@rm -f pdf4tcl.tcl.chk
+	@if cmp -s pkg/pdf4tcl.tcl pdf4tcl.tcl; then \
+	  echo "OK: pkg/pdf4tcl.tcl matches pdf4tcl.tcl"; \
+	else \
+	  echo "STALE: pkg/pdf4tcl.tcl != pdf4tcl.tcl -- run 'make pkg/pdf4tcl.tcl'"; \
+	  exit 1; \
+	fi
 
 # Documentation
 doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
