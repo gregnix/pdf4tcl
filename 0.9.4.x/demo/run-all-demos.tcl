@@ -63,6 +63,7 @@ set DEMOS {
     {demo-symbole.tcl            0  none       "Symbole"}
     {demo-unicode-tabelle.tcl    0  none       "Unicode-Tabelle"}
     {fonts.tcl                   0  none       "Font-Demo"}
+    {demo-forms-calc.tcl         0  none       "Formular + Summenberechnung (-calculate 0.9.4.32)"}
     {demo-forms-tk.tcl           1  none       "Formulare (Tk-GUI)"}
 }
 

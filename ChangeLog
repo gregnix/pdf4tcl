@@ -1,3 +1,23 @@
+2026-07-06 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.33
+	* addForm -format {number ...} -- numeric field formatting via AFNumber_Format/AFNumber_Keystroke (/AA /F + /K); combinable with -calculate in one /AA; non-ASCII currency emitted as JS escape
+
+2026-07-06 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.32
+	* addForm -calculate {op {fields}} -- calculated fields via AFSimple_Calculate (/AA /C), AcroForm /CO order and /NeedAppearances; hybrid with -init for a static precomputed value
+
+2026-07-06 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.31
+	* addForm -color/-borderwidth/-bordercolor/-bgcolor (per-field text color, border and background via /DA, /BS and /MK) for text/password/combobox/listbox
+
+2026-07-06 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.30
+	* addForm -align option (/Q quadding + aligned appearance) for text/password/combobox/listbox
+
 2026-07-05 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.29

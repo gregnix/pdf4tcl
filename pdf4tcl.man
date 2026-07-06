@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.29]
+[manpage_begin pdf4tcl n 0.9.4.33]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.29]]
+[require pdf4tcl [opt 0.9.4.33]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -451,6 +451,65 @@ Not valid for [arg pushbutton] or [arg signature].
 [list_begin options]
 [opt_def -multiline [arg boolean]]
 Enable multi-line editing (text only). Default [const 0].
+
+[opt_def -align [arg value]]
+Text alignment of the field value: [const left] ([const 0], default),
+[const center] ([const 1]) or [const right] ([const 2]), written as the
+PDF [const /Q] quadding entry. For [arg text] and [arg password] fields the
+generated appearance stream is aligned to match. Also valid for
+[arg combobox] and [arg listbox] fields.
+[list_end]
+
+[def "[emph {Appearance options}]"]
+The following options apply to [arg text], [arg password], [arg combobox] and
+[arg listbox] fields. All are optional; the defaults reproduce the previous
+output unchanged.
+[list_begin options]
+[opt_def -color [arg color]]
+Text color of the field value, written into the PDF [const /DA] default
+appearance string (and the generated appearance stream). Any pdf4tcl color
+(RGB list, CMYK list or [const #rrggbb]; colour names require Tk). Default is
+black.
+
+[opt_def -borderwidth [arg n]]
+Border line width in points, written as [const {/BS << /W n >>}]. [const 0]
+(default) means no border.
+
+[opt_def -bordercolor [arg color]]
+Border color, written as [const {/MK << /BC ... >>}]. Only takes effect when
+[option -borderwidth] is greater than 0. Default [const {0 0 0}].
+
+[opt_def -bgcolor [arg color]]
+Background (fill) color of the field, written as [const {/MK << /BG ... >>}].
+Default is no background.
+[list_end]
+
+[def "[emph {Calculation options}]"]
+[list_begin options]
+[opt_def -calculate [arg spec]]
+Turn a [arg text] field into a calculated field. [arg spec] is a two-element
+list [arg {operation fieldnames}], where [arg operation] is one of
+[const sum], [const product], [const average], [const min] or [const max] and
+[arg fieldnames] is a list of source field ids. Emits an [const {/AA /C}]
+calculate action that calls the viewer's built-in [const AFSimple_Calculate],
+adds the field to the AcroForm [const /CO] calculation order and sets
+[const {/NeedAppearances true}]. Live recalculation requires a
+JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit);
+combine with [option -init] to also show a static, precomputed value in viewers
+without JavaScript. Only valid for [arg text] fields.
+
+[opt_def -format [arg spec]]
+Format a numeric [arg text] field via the viewer's built-in
+[const AFNumber_Format] / [const AFNumber_Keystroke] ([const {/AA /F}] and
+[const {/AA /K}]). [arg spec] is [const number] optionally followed by key/value
+pairs: [const decimals] [arg n] (default 2), [const sep] (thousands/decimal
+style: [const 0]/[const us], [const 1]/[const plain], [const 2]/[const german],
+[const 3]/[const comma]; default 0), [const currency] [arg string] (e.g.
+[const { \u20AC}]; non-ASCII is emitted as a JavaScript escape), [const prepend]
+[arg boolean] (currency before the number; default false) and [const negred]
+[arg boolean] (show negatives in red). Can be combined with [option -calculate]
+(both share one [const /AA]). Requires a JavaScript-capable viewer; only valid
+for [arg text] fields.
 [list_end]
 
 [def "[emph {Checkbutton options}]"]

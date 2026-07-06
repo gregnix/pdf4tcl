@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.29 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.33 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -168,7 +168,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.29?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.33?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -614,6 +614,58 @@ Not valid for <i class="arg">pushbutton</i> or <i class="arg">signature</i>.</p>
 <dd><dl class="doctools_options">
 <dt><b class="option">-multiline</b> <i class="arg">boolean</i></dt>
 <dd><p>Enable multi-line editing (text only). Default <b class="const">0</b>.</p></dd>
+<dt><b class="option">-align</b> <i class="arg">value</i></dt>
+<dd><p>Text alignment of the field value: <b class="const">left</b> (<b class="const">0</b>, default),
+<b class="const">center</b> (<b class="const">1</b>) or <b class="const">right</b> (<b class="const">2</b>), written as the
+PDF <b class="const">/Q</b> quadding entry. For <i class="arg">text</i> and <i class="arg">password</i> fields the
+generated appearance stream is aligned to match. Also valid for
+<i class="arg">combobox</i> and <i class="arg">listbox</i> fields.</p></dd>
+</dl></dd>
+<dt><em>Appearance options</em></dt>
+<dd><p>The following options apply to <i class="arg">text</i>, <i class="arg">password</i>, <i class="arg">combobox</i> and
+<i class="arg">listbox</i> fields. All are optional; the defaults reproduce the previous
+output unchanged.</p>
+<dl class="doctools_options">
+<dt><b class="option">-color</b> <i class="arg">color</i></dt>
+<dd><p>Text color of the field value, written into the PDF <b class="const">/DA</b> default
+appearance string (and the generated appearance stream). Any pdf4tcl color
+(RGB list, CMYK list or <b class="const">#rrggbb</b>; colour names require Tk). Default is
+black.</p></dd>
+<dt><b class="option">-borderwidth</b> <i class="arg">n</i></dt>
+<dd><p>Border line width in points, written as <b class="const">/BS &lt;&lt; /W n &gt;&gt;</b>. <b class="const">0</b>
+(default) means no border.</p></dd>
+<dt><b class="option">-bordercolor</b> <i class="arg">color</i></dt>
+<dd><p>Border color, written as <b class="const">/MK &lt;&lt; /BC ... &gt;&gt;</b>. Only takes effect when
+<b class="option">-borderwidth</b> is greater than 0. Default <b class="const">0 0 0</b>.</p></dd>
+<dt><b class="option">-bgcolor</b> <i class="arg">color</i></dt>
+<dd><p>Background (fill) color of the field, written as <b class="const">/MK &lt;&lt; /BG ... &gt;&gt;</b>.
+Default is no background.</p></dd>
+</dl></dd>
+<dt><em>Calculation options</em></dt>
+<dd><dl class="doctools_options">
+<dt><b class="option">-calculate</b> <i class="arg">spec</i></dt>
+<dd><p>Turn a <i class="arg">text</i> field into a calculated field. <i class="arg">spec</i> is a two-element
+list <i class="arg">operation fieldnames</i>, where <i class="arg">operation</i> is one of
+<b class="const">sum</b>, <b class="const">product</b>, <b class="const">average</b>, <b class="const">min</b> or <b class="const">max</b> and
+<i class="arg">fieldnames</i> is a list of source field ids. Emits an <b class="const">/AA /C</b>
+calculate action that calls the viewer's built-in <b class="const">AFSimple_Calculate</b>,
+adds the field to the AcroForm <b class="const">/CO</b> calculation order and sets
+<b class="const">/NeedAppearances true</b>. Live recalculation requires a
+JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit);
+combine with <b class="option">-init</b> to also show a static, precomputed value in viewers
+without JavaScript. Only valid for <i class="arg">text</i> fields.</p></dd>
+<dt><b class="option">-format</b> <i class="arg">spec</i></dt>
+<dd><p>Format a numeric <i class="arg">text</i> field via the viewer's built-in
+<b class="const">AFNumber_Format</b> / <b class="const">AFNumber_Keystroke</b> (<b class="const">/AA /F</b> and
+<b class="const">/AA /K</b>). <i class="arg">spec</i> is <b class="const">number</b> optionally followed by key/value
+pairs: <b class="const">decimals</b> <i class="arg">n</i> (default 2), <b class="const">sep</b> (thousands/decimal
+style: <b class="const">0</b>/<b class="const">us</b>, <b class="const">1</b>/<b class="const">plain</b>, <b class="const">2</b>/<b class="const">german</b>,
+<b class="const">3</b>/<b class="const">comma</b>; default 0), <b class="const">currency</b> <i class="arg">string</i> (e.g.
+<b class="const"> \u20AC</b>; non-ASCII is emitted as a JavaScript escape), <b class="const">prepend</b>
+<i class="arg">boolean</i> (currency before the number; default false) and <b class="const">negred</b>
+<i class="arg">boolean</i> (show negatives in red). Can be combined with <b class="option">-calculate</b>
+(both share one <b class="const">/AA</b>). Requires a JavaScript-capable viewer; only valid
+for <i class="arg">text</i> fields.</p></dd>
 </dl></dd>
 <dt><em>Checkbutton options</em></dt>
 <dd><dl class="doctools_options">
