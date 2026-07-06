@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.29?**
+package require **pdf4tcl ?0****.9****.4****.33?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -414,6 +414,27 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **-multiline boolean**
 : Enable multi-line editing (text only). Default **0**.
 
+**-align value**
+: Text alignment of the field value: **left** (**0**, default), **center** (**1**) or **right** (**2**), written as the PDF **/Q** quadding entry. For *text* and *password* fields the generated appearance stream is aligned to match. Also valid for *combobox* and *listbox* fields.
+
+**-color color**
+: Text color of the field value, written into the PDF **/DA** default appearance string (and the generated appearance stream). Any pdf4tcl color (RGB list, CMYK list or **#rrggbb**; colour names require Tk). Default is black.
+
+**-borderwidth n**
+: Border line width in points, written as **/BS << /W n >>**. **0** (default) means no border.
+
+**-bordercolor color**
+: Border color, written as **/MK << /BC ****.****.****. >>**. Only takes effect when **-borderwidth** is greater than 0. Default **0 0 0**.
+
+**-bgcolor color**
+: Background (fill) color of the field, written as **/MK << /BG ****.****.****. >>**. Default is no background.
+
+**-calculate spec**
+: Turn a *text* field into a calculated field. *spec* is a two-element list *operation fieldnames*, where *operation* is one of **sum**, **product**, **average**, **min** or **max** and *fieldnames* is a list of source field ids. Emits an **/AA /C** calculate action that calls the viewer's built-in **AFSimple_Calculate**, adds the field to the AcroForm **/CO** calculation order and sets **/NeedAppearances true**. Live recalculation requires a JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit); combine with **-init** to also show a static, precomputed value in viewers without JavaScript. Only valid for *text* fields.
+
+**-format spec**
+: Format a numeric *text* field via the viewer's built-in **AFNumber_Format** / **AFNumber_Keystroke** (**/AA /F** and **/AA /K**). *spec* is **number** optionally followed by key/value pairs: **decimals** *n* (default 2), **sep** (thousands/decimal style: **0**/**us**, **1**/**plain**, **2**/**german**, **3**/**comma**; default 0), **currency** *string* (e.g. ** **\**u20AC**; non-ASCII is emitted as a JavaScript escape), **prepend** *boolean* (currency before the number; default false) and **negred** *boolean* (show negatives in red). Can be combined with **-calculate** (both share one **/AA**). Requires a JavaScript-capable viewer; only valid for *text* fields.
+
 **-on xobjectId**
 : Custom appearance XObject for the checked state. Created with **startXObject**.
 
@@ -459,6 +480,11 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **Common options**
 
 **Text / Password options**
+
+**Appearance options**
+: The following options apply to *text*, *password*, *combobox* and *listbox* fields. All are optional; the defaults reproduce the previous output unchanged.
+
+**Calculation options**
 
 **Checkbutton options**
 

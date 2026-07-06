@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.29
+package provide pdf4tcl 0.9.4.33
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2172,6 +2172,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(objects) {}
         set pdf(bookmarks) {}
         set pdf(forms) {}
+        set pdf(forms_co) {}
         set pdf(radiogroups) {}
         set pdf(needAppearances) 0
         set pdf(cidfonts) {}
@@ -2958,6 +2959,9 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "$form_oid 0 obj\n"
             my Pdfout "<<\n/Fields \[[join $pdf(forms) \n]\]\n"
             my Pdfout "/DR 3 0 R\n"
+            if {[llength $pdf(forms_co)] > 0} {
+                my Pdfout "/CO \[[join $pdf(forms_co) \n]\]\n"
+            }
             if {$pdf(needAppearances)} {
                 my Pdfout "/NeedAppearances true\n"
             }
@@ -7542,20 +7546,32 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Build text/password appearance: returns onid or ""
-    method _BuildTextAP {width height initValue isPassword} {
+    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"}} {
         if {$initValue eq ""} {
             return ""
         }
+        if {$isPassword} {
+            set dispText [string repeat "\u2022" [string length $initValue]]
+        } else {
+            set dispText $initValue
+        }
+        # Horizontal position from alignment (0 left, 1 center, 2 right).
+        set tx 2
+        if {$quadding != 0} {
+            set tw [my getStringWidth $dispText \
+                    -font $pdf(current_font) -size $pdf(font_size) -internal 1]
+            if {$quadding == 1} {
+                set tx [expr {($width - $tw) / 2.0}]
+            } else {
+                set tx [expr {$width - $tw - 2}]
+            }
+            if {$tx < 2} { set tx 2 }
+        }
         set obj [my _FormXObjHeader $width $height]
         set stream "/Tx BMC BT "
-        append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g "
-        append stream "2 1.1 Td "
-        if {$isPassword} {
-            set masked [string repeat "\u2022" [string length $initValue]]
-            append stream "[PdfText $masked $pdf(current_font)] Tj "
-        } else {
-            append stream "[PdfText $initValue $pdf(current_font)] Tj "
-        }
+        append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor "
+        append stream "[Nf $tx] 1.1 Td "
+        append stream "[PdfText $dispText $pdf(current_font)] Tj "
         append stream "ET EMC"
         set body [MakeStream $obj $stream $pdf(compress)]
         return [my AddObject $body]
@@ -7709,6 +7725,13 @@ Use -pdfa-icc to specify a profile path."
         set label ""
         set tooltip ""
         set tabindex -1
+        set quadding 0
+        set fieldcolor {}
+        set borderwidth {}
+        set bordercolor {0 0 0}
+        set bgcolor {}
+        set calculate {}
+        set formatSpec {}
         if {$ftype eq "checkbutton"} {
             set initValue 0
         }
@@ -7796,6 +7819,46 @@ Use -pdfa-icc to specify a profile path."
                         throw {PDF4TCL} "-tabindex must be a non-negative integer"
                     }
                     set tabindex $value
+                }
+                -align {
+                    if {$ftype ni {text password combobox listbox}} {
+                        throw {PDF4TCL} \
+                            "-align is only valid for text, password, combobox and listbox fields"
+                    }
+                    switch -- $value {
+                        left   - l - 0 { set quadding 0 }
+                        center - c - 1 { set quadding 1 }
+                        right  - r - 2 { set quadding 2 }
+                        default {
+                            throw {PDF4TCL} \
+                                "-align must be left, center or right (0, 1 or 2)"
+                        }
+                    }
+                }
+                -color {
+                    if {$ftype ni {text password combobox listbox}} {
+                        throw {PDF4TCL} \
+                            "-color is only valid for text, password, combobox and listbox fields"
+                    }
+                    set fieldcolor $value
+                }
+                -borderwidth {
+                    if {![string is double -strict $value] || $value < 0} {
+                        throw {PDF4TCL} "-borderwidth must be a non-negative number"
+                    }
+                    set borderwidth $value
+                }
+                -bordercolor {
+                    set bordercolor $value
+                }
+                -bgcolor {
+                    set bgcolor $value
+                }
+                -calculate {
+                    set calculate $value
+                }
+                -format {
+                    set formatSpec $value
                 }
                 default {
                     throw {PDF4TCL} "unknown option \"$option\""
@@ -7886,12 +7949,147 @@ Use -pdfa-icc to specify a profile path."
         }
 
 
+        # Field appearance: text color (/DA), border (/BS + /MK/BC), background
+        # (/MK/BG). Defaults reproduce the previous output byte-for-byte.
+        if {$fieldcolor eq ""} {
+            set daColor "0 g"
+        } else {
+            set daColor "[join [my GetColor $fieldcolor] { }] rg"
+        }
+        set mkParts {}
+        if {$borderwidth ne "" && $borderwidth > 0} {
+            lappend mkParts "/BC \[[join [my GetColor $bordercolor] { }]\]"
+        }
+        if {$bgcolor ne ""} {
+            lappend mkParts "/BG \[[join [my GetColor $bgcolor] { }]\]"
+        }
+        set mkStr ""
+        if {[llength $mkParts]} {
+            set mkStr "  /MK << [join $mkParts { }] >>\n"
+        }
+        set bsStr ""
+        if {$borderwidth ne "" && $borderwidth > 0} {
+            set bsStr "  /BS << /W [Nf $borderwidth] >>\n"
+        }
+
+        # Field actions (/AA): calculation (/C via AFSimple_Calculate) and/or
+        # number formatting (/F + /K via AFNumber_Format / AFNumber_Keystroke).
+        # We only emit the *calls*; the AF* functions live in the viewer. Both
+        # share ONE /AA dict. Calculated fields are added to the AcroForm /CO
+        # below and /NeedAppearances is enabled so JS-capable viewers (re)generate
+        # the displayed value.
+        set aaParts {}
+
+        if {$calculate ne ""} {
+            if {$ftype ne "text"} {
+                throw {PDF4TCL} "-calculate is only valid for text fields"
+            }
+            lassign $calculate calcOp calcFields
+            switch -nocase -- $calcOp {
+                sum     - SUM         { set afOp SUM }
+                product - prd - PRD   { set afOp PRD }
+                average - avg - AVG   { set afOp AVG }
+                min     - MIN         { set afOp MIN }
+                max     - MAX         { set afOp MAX }
+                default {
+                    throw {PDF4TCL} \
+                        "-calculate operation must be sum, product, average, min or max"
+                }
+            }
+            if {[llength $calcFields] == 0} {
+                throw {PDF4TCL} "-calculate needs at least one source field name"
+            }
+            set arr {}
+            foreach fn $calcFields {
+                if {[string match "*\[\"\\\\]*" $fn]} {
+                    throw {PDF4TCL} \
+                        "-calculate field name contains invalid character: $fn"
+                }
+                lappend arr "\"$fn\""
+            }
+            set js "AFSimple_Calculate(\"$afOp\", new Array([join $arr {, }]));"
+            lappend aaParts "/C << /S /JavaScript /JS [QuoteString $js] >>"
+            set pdf(needAppearances) 1
+        }
+
+        if {$formatSpec ne ""} {
+            if {$ftype ne "text"} {
+                throw {PDF4TCL} "-format is only valid for text fields"
+            }
+            if {[lindex $formatSpec 0] ne "number"} {
+                throw {PDF4TCL} "-format: only 'number' is currently supported"
+            }
+            set fmtDec 2
+            set fmtSep 0
+            set fmtCur ""
+            set fmtPrepend 0
+            set fmtNegRed 0
+            foreach {k v} [lrange $formatSpec 1 end] {
+                switch -- $k {
+                    decimals { set fmtDec $v }
+                    sep {
+                        switch -nocase -- $v {
+                            0 - us - point       { set fmtSep 0 }
+                            1 - plain            { set fmtSep 1 }
+                            2 - de - german - eu { set fmtSep 2 }
+                            3 - comma            { set fmtSep 3 }
+                            default {
+                                throw {PDF4TCL} \
+                                    "-format sep must be 0..3 or us/plain/german/comma"
+                            }
+                        }
+                    }
+                    currency {
+                        if {[string match "*\[\"\\\\]*" $v]} {
+                            throw {PDF4TCL} "-format currency contains invalid character"
+                        }
+                        set fmtCur $v
+                    }
+                    prepend { set fmtPrepend [expr {!!$v}] }
+                    negred  { set fmtNegRed [expr {!!$v}] }
+                    default {
+                        throw {PDF4TCL} \
+                            "-format: unknown key \"$k\" (decimals sep currency prepend negred)"
+                    }
+                }
+            }
+            if {![string is integer -strict $fmtDec] || $fmtDec < 0} {
+                throw {PDF4TCL} "-format decimals must be a non-negative integer"
+            }
+            set neg  [expr {$fmtNegRed ? 1 : 0}]
+            set prep [expr {$fmtPrepend ? "true" : "false"}]
+            # Currency may contain non-WinAnsi glyphs (e.g. Euro sign). Emit them
+            # as JavaScript \uXXXX escapes so the PDF byte stream stays ASCII
+            # (Tcl 9 rejects codepoints > 0xFF on the binary channel) while the
+            # viewer's JS engine still renders the intended character.
+            set fmtCurJS ""
+            foreach ch [split $fmtCur ""] {
+                scan $ch %c code
+                if {$code > 127} {
+                    append fmtCurJS [format {\u%04X} $code]
+                } else {
+                    append fmtCurJS $ch
+                }
+            }
+            set afArgs "$fmtDec, $fmtSep, $neg, 0, \"$fmtCurJS\", $prep"
+            lappend aaParts \
+                "/F << /S /JavaScript /JS [QuoteString "AFNumber_Format($afArgs);"] >>"
+            lappend aaParts \
+                "/K << /S /JavaScript /JS [QuoteString "AFNumber_Keystroke($afArgs);"] >>"
+            set pdf(needAppearances) 1
+        }
+
+        set aaStr ""
+        if {[llength $aaParts]} {
+            set aaStr "  /AA << [join $aaParts { }] >>\n"
+        }
+
         # Build appearance streams via helper methods
         if {$ftype eq "checkbutton"} {
             lassign [my _BuildCheckboxAP $width $height $onObj $offObj] onid offid
         } elseif {$ftype in {text password}} {
             set onid [my _BuildTextAP $width $height $initValue \
-                    [expr {$ftype eq "password"}]]
+                    [expr {$ftype eq "password"}] $quadding $daColor]
         } elseif {$ftype eq "listbox"} {
             set choiceApId [my _BuildChoiceAP $width $height $ftype \
                     $initValue $optionsList]
@@ -7938,9 +8136,11 @@ Use -pdfa-icc to specify a profile path."
                 append andict "  /Ff $ff\n"
             }
             # Appearance
-            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
-            # Left justified flag
-            append andict "  /Q 0\n"
+            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor)\n"
+            # Text alignment (0 left, 1 center, 2 right)
+            append andict "  /Q $quadding\n"
+            append andict $mkStr
+            append andict $bsStr
             # Value
             if {$initValue ne ""} {
                 append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
@@ -7982,7 +8182,11 @@ Use -pdfa-icc to specify a profile path."
             }
             append andict "\]\n"
             # Appearance
-            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf 0 g)\n"
+            append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor)\n"
+            # Text alignment (0 left, 1 center, 2 right)
+            append andict "  /Q $quadding\n"
+            append andict $mkStr
+            append andict $bsStr
             # Selected value
             if {$initValue ne ""} {
                 append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
@@ -8110,8 +8314,16 @@ Use -pdfa-icc to specify a profile path."
         if {$tabindex >= 0} {
             append andict "  /TI $tabindex\n"
         }
+        # Field actions (/AA): calculate and/or format
+        append andict $aaStr
         append andict ">>\n"
         set anid [my AddObject $andict]
+
+        # Register in the AcroForm calculation order (/CO) if this is a
+        # calculated field. Order = order of addForm calls.
+        if {$calculate ne ""} {
+            lappend pdf(forms_co) "$anid 0 R"
+        }
 
         # Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"

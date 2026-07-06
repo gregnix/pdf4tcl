@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.29 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.33 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.29?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.33?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -893,6 +893,67 @@ Not valid for \fIpushbutton\fR or \fIsignature\fR\&.
 .TP
 \fB-multiline\fR \fIboolean\fR
 Enable multi-line editing (text only)\&. Default \fB0\fR\&.
+.TP
+\fB-align\fR \fIvalue\fR
+Text alignment of the field value: \fBleft\fR (\fB0\fR, default),
+\fBcenter\fR (\fB1\fR) or \fBright\fR (\fB2\fR), written as the
+PDF \fB/Q\fR quadding entry\&. For \fItext\fR and \fIpassword\fR fields the
+generated appearance stream is aligned to match\&. Also valid for
+\fIcombobox\fR and \fIlistbox\fR fields\&.
+.RE
+.TP
+\fIAppearance options\fR
+The following options apply to \fItext\fR, \fIpassword\fR, \fIcombobox\fR and
+\fIlistbox\fR fields\&. All are optional; the defaults reproduce the previous
+output unchanged\&.
+.RS
+.TP
+\fB-color\fR \fIcolor\fR
+Text color of the field value, written into the PDF \fB/DA\fR default
+appearance string (and the generated appearance stream)\&. Any pdf4tcl color
+(RGB list, CMYK list or \fB#rrggbb\fR; colour names require Tk)\&. Default is
+black\&.
+.TP
+\fB-borderwidth\fR \fIn\fR
+Border line width in points, written as \fB/BS << /W n >>\fR\&. \fB0\fR
+(default) means no border\&.
+.TP
+\fB-bordercolor\fR \fIcolor\fR
+Border color, written as \fB/MK << /BC \&.\&.\&. >>\fR\&. Only takes effect when
+\fB-borderwidth\fR is greater than 0\&. Default \fB0 0 0\fR\&.
+.TP
+\fB-bgcolor\fR \fIcolor\fR
+Background (fill) color of the field, written as \fB/MK << /BG \&.\&.\&. >>\fR\&.
+Default is no background\&.
+.RE
+.TP
+\fICalculation options\fR
+.RS
+.TP
+\fB-calculate\fR \fIspec\fR
+Turn a \fItext\fR field into a calculated field\&. \fIspec\fR is a two-element
+list \fIoperation fieldnames\fR, where \fIoperation\fR is one of
+\fBsum\fR, \fBproduct\fR, \fBaverage\fR, \fBmin\fR or \fBmax\fR and
+\fIfieldnames\fR is a list of source field ids\&. Emits an \fB/AA /C\fR
+calculate action that calls the viewer's built-in \fBAFSimple_Calculate\fR,
+adds the field to the AcroForm \fB/CO\fR calculation order and sets
+\fB/NeedAppearances true\fR\&. Live recalculation requires a
+JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit);
+combine with \fB-init\fR to also show a static, precomputed value in viewers
+without JavaScript\&. Only valid for \fItext\fR fields\&.
+.TP
+\fB-format\fR \fIspec\fR
+Format a numeric \fItext\fR field via the viewer's built-in
+\fBAFNumber_Format\fR / \fBAFNumber_Keystroke\fR (\fB/AA /F\fR and
+\fB/AA /K\fR)\&. \fIspec\fR is \fBnumber\fR optionally followed by key/value
+pairs: \fBdecimals\fR \fIn\fR (default 2), \fBsep\fR (thousands/decimal
+style: \fB0\fR/\fBus\fR, \fB1\fR/\fBplain\fR, \fB2\fR/\fBgerman\fR,
+\fB3\fR/\fBcomma\fR; default 0), \fBcurrency\fR \fIstring\fR (e\&.g\&.
+\fB \\u20AC\fR; non-ASCII is emitted as a JavaScript escape), \fBprepend\fR
+\fIboolean\fR (currency before the number; default false) and \fBnegred\fR
+\fIboolean\fR (show negatives in red)\&. Can be combined with \fB-calculate\fR
+(both share one \fB/AA\fR)\&. Requires a JavaScript-capable viewer; only valid
+for \fItext\fR fields\&.
 .RE
 .TP
 \fICheckbutton options\fR
