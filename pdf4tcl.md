@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.33?**
+package require **pdf4tcl ?0****.9****.4****.34?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -431,6 +431,9 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 
 **-calculate spec**
 : Turn a *text* field into a calculated field. *spec* is a two-element list *operation fieldnames*, where *operation* is one of **sum**, **product**, **average**, **min** or **max** and *fieldnames* is a list of source field ids. Emits an **/AA /C** calculate action that calls the viewer's built-in **AFSimple_Calculate**, adds the field to the AcroForm **/CO** calculation order and sets **/NeedAppearances true**. Live recalculation requires a JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit); combine with **-init** to also show a static, precomputed value in viewers without JavaScript. Only valid for *text* fields.
+
+**-js spec**
+: Attach raw JavaScript actions to a *text* field. *spec* is a list of *event*/*code* pairs, where *event* is one of **calculate** (**/C**), **format** (**/F**), **validate** (**/V**) or **keystroke** (**/K**) and *code* is the JavaScript body. Useful for calculations that the built-in **AFSimple_Calculate** cannot express, e.g. **event****.value = this****.getField("net")****.value * 1****.19;**. Shares one **/AA** with **-calculate** / **-format**; each event may be defined only once (a clash raises an error). A **calculate** action adds the field to the AcroForm **/CO** order and sets **/NeedAppearances true**. Requires a JavaScript-capable viewer; only valid for *text* fields.
 
 **-format spec**
 : Format a numeric *text* field via the viewer's built-in **AFNumber_Format** / **AFNumber_Keystroke** (**/AA /F** and **/AA /K**). *spec* is **number** optionally followed by key/value pairs: **decimals** *n* (default 2), **sep** (thousands/decimal style: **0**/**us**, **1**/**plain**, **2**/**german**, **3**/**comma**; default 0), **currency** *string* (e.g. ** **\**u20AC**; non-ASCII is emitted as a JavaScript escape), **prepend** *boolean* (currency before the number; default false) and **negred** *boolean* (show negatives in red). Can be combined with **-calculate** (both share one **/AA**). Requires a JavaScript-capable viewer; only valid for *text* fields.

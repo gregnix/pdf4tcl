@@ -1,3 +1,8 @@
+2026-07-07 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.34
+	* addForm -js {event code ...} -- raw JavaScript field actions (/AA /C /F /V /K); shares one /AA with -calculate/-format, adds calculate fields to /CO; enables e.g. VAT = net * 1.19
+
 2026-07-06 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.33

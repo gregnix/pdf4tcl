@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.33 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.34 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.33?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.34?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -941,6 +941,18 @@ adds the field to the AcroForm \fB/CO\fR calculation order and sets
 JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit);
 combine with \fB-init\fR to also show a static, precomputed value in viewers
 without JavaScript\&. Only valid for \fItext\fR fields\&.
+.TP
+\fB-js\fR \fIspec\fR
+Attach raw JavaScript actions to a \fItext\fR field\&. \fIspec\fR is a list of
+\fIevent\fR/\fIcode\fR pairs, where \fIevent\fR is one of \fBcalculate\fR
+(\fB/C\fR), \fBformat\fR (\fB/F\fR), \fBvalidate\fR (\fB/V\fR) or
+\fBkeystroke\fR (\fB/K\fR) and \fIcode\fR is the JavaScript body\&. Useful for
+calculations that the built-in \fBAFSimple_Calculate\fR cannot express, e\&.g\&.
+\fBevent\&.value = this\&.getField("net")\&.value * 1\&.19;\fR\&. Shares one
+\fB/AA\fR with \fB-calculate\fR / \fB-format\fR; each event may be
+defined only once (a clash raises an error)\&. A \fBcalculate\fR action adds the
+field to the AcroForm \fB/CO\fR order and sets \fB/NeedAppearances true\fR\&.
+Requires a JavaScript-capable viewer; only valid for \fItext\fR fields\&.
 .TP
 \fB-format\fR \fIspec\fR
 Format a numeric \fItext\fR field via the viewer's built-in
