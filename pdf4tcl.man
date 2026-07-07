@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.33]
+[manpage_begin pdf4tcl n 0.9.4.34]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.33]]
+[require pdf4tcl [opt 0.9.4.34]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -497,6 +497,18 @@ adds the field to the AcroForm [const /CO] calculation order and sets
 JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit);
 combine with [option -init] to also show a static, precomputed value in viewers
 without JavaScript. Only valid for [arg text] fields.
+
+[opt_def -js [arg spec]]
+Attach raw JavaScript actions to a [arg text] field. [arg spec] is a list of
+[arg event]/[arg code] pairs, where [arg event] is one of [const calculate]
+([const /C]), [const format] ([const /F]), [const validate] ([const /V]) or
+[const keystroke] ([const /K]) and [arg code] is the JavaScript body. Useful for
+calculations that the built-in [const AFSimple_Calculate] cannot express, e.g.
+[const {event.value = this.getField("net").value * 1.19;}]. Shares one
+[const /AA] with [option -calculate] / [option -format]; each event may be
+defined only once (a clash raises an error). A [const calculate] action adds the
+field to the AcroForm [const /CO] order and sets [const {/NeedAppearances true}].
+Requires a JavaScript-capable viewer; only valid for [arg text] fields.
 
 [opt_def -format [arg spec]]
 Format a numeric [arg text] field via the viewer's built-in

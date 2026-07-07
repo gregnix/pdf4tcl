@@ -5674,6 +5674,7 @@ Use -pdfa-icc to specify a profile path."
         set bgcolor {}
         set calculate {}
         set formatSpec {}
+        set jsSpec {}
         if {$ftype eq "checkbutton"} {
             set initValue 0
         }
@@ -5802,6 +5803,9 @@ Use -pdfa-icc to specify a profile path."
                 -format {
                     set formatSpec $value
                 }
+                -js {
+                    set jsSpec $value
+                }
                 default {
                     throw {PDF4TCL} "unknown option \"$option\""
                 }
@@ -5921,6 +5925,7 @@ Use -pdfa-icc to specify a profile path."
         # below and /NeedAppearances is enabled so JS-capable viewers (re)generate
         # the displayed value.
         set aaParts {}
+        set isCalcField 0
 
         if {$calculate ne ""} {
             if {$ftype ne "text"} {
@@ -5951,6 +5956,7 @@ Use -pdfa-icc to specify a profile path."
             }
             set js "AFSimple_Calculate(\"$afOp\", new Array([join $arr {, }]));"
             lappend aaParts "/C << /S /JavaScript /JS [QuoteString $js] >>"
+            set isCalcField 1
             set pdf(needAppearances) 1
         }
 
@@ -6019,6 +6025,29 @@ Use -pdfa-icc to specify a profile path."
             lappend aaParts \
                 "/K << /S /JavaScript /JS [QuoteString "AFNumber_Keystroke($afArgs);"] >>"
             set pdf(needAppearances) 1
+        }
+
+        if {$jsSpec ne ""} {
+            if {$ftype ne "text"} {
+                throw {PDF4TCL} "-js is only valid for text fields"
+            }
+            set evMap {calculate C format F validate V keystroke K}
+            foreach {ev code} $jsSpec {
+                if {![dict exists $evMap $ev]} {
+                    throw {PDF4TCL} \
+                        "-js event must be calculate, format, validate or keystroke"
+                }
+                set L [dict get $evMap $ev]
+                foreach p $aaParts {
+                    if {[string match "/$L <<*" $p]} {
+                        throw {PDF4TCL} \
+                            "-js $ev conflicts with -calculate/-format on the same field"
+                    }
+                }
+                lappend aaParts "/$L << /S /JavaScript /JS [QuoteString $code] >>"
+                if {$L eq "C"} { set isCalcField 1 }
+                set pdf(needAppearances) 1
+            }
         }
 
         set aaStr ""
@@ -6263,7 +6292,7 @@ Use -pdfa-icc to specify a profile path."
 
         # Register in the AcroForm calculation order (/CO) if this is a
         # calculated field. Order = order of addForm calls.
-        if {$calculate ne ""} {
+        if {$isCalcField} {
             lappend pdf(forms_co) "$anid 0 R"
         }
 

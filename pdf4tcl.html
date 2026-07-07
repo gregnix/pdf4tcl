@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.33 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.34 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -168,7 +168,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.33?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.34?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -654,6 +654,17 @@ adds the field to the AcroForm <b class="const">/CO</b> calculation order and se
 JavaScript-capable viewer (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit);
 combine with <b class="option">-init</b> to also show a static, precomputed value in viewers
 without JavaScript. Only valid for <i class="arg">text</i> fields.</p></dd>
+<dt><b class="option">-js</b> <i class="arg">spec</i></dt>
+<dd><p>Attach raw JavaScript actions to a <i class="arg">text</i> field. <i class="arg">spec</i> is a list of
+<i class="arg">event</i>/<i class="arg">code</i> pairs, where <i class="arg">event</i> is one of <b class="const">calculate</b>
+(<b class="const">/C</b>), <b class="const">format</b> (<b class="const">/F</b>), <b class="const">validate</b> (<b class="const">/V</b>) or
+<b class="const">keystroke</b> (<b class="const">/K</b>) and <i class="arg">code</i> is the JavaScript body. Useful for
+calculations that the built-in <b class="const">AFSimple_Calculate</b> cannot express, e.g.
+<b class="const">event.value = this.getField(&quot;net&quot;).value * 1.19;</b>. Shares one
+<b class="const">/AA</b> with <b class="option">-calculate</b> / <b class="option">-format</b>; each event may be
+defined only once (a clash raises an error). A <b class="const">calculate</b> action adds the
+field to the AcroForm <b class="const">/CO</b> order and sets <b class="const">/NeedAppearances true</b>.
+Requires a JavaScript-capable viewer; only valid for <i class="arg">text</i> fields.</p></dd>
 <dt><b class="option">-format</b> <i class="arg">spec</i></dt>
 <dd><p>Format a numeric <i class="arg">text</i> field via the viewer's built-in
 <b class="const">AFNumber_Format</b> / <b class="const">AFNumber_Keystroke</b> (<b class="const">/AA /F</b> and
