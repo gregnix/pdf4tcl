@@ -1,3 +1,42 @@
+2026-07-20 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.35
+	* src/helpers.tcl (QuoteString): now safe for the binary PDF stream.
+	Codepoints above U+00FF are transliterated where a sensible ASCII
+	equivalent exists (::pdf4tcl::asciiMap: dashes, quotes, ellipsis,
+	arrows, comparisons, euro, trademark) and replaced with "?" otherwise;
+	control characters are dropped. Before, such a character did not fail
+	here but in finish, as "expected code point values below 0xff but value
+	at byte offset N was 0x...", far from its origin. Affects all 18 call
+	sites, among them hyperlinkAdd, addAnnotNote and addAnnotHighlight,
+	which aborted the document; bookmarkAdd and metadata were already
+	guarded by SafeQuoteString, which is now a plain alias.
+	* src/helpers.tcl (QuoteStringWarn): appends one note per kind to
+	::pdf4tcl::warnings, the package's existing list of non-fatal warnings.
+	Nothing is written to stderr. Only control characters are reported;
+	transliteration is ordinary prose and stays quiet.
+	* src/encrypt.tcl (_EncRandBytes, _InitRandBackend): cryptographic
+	sources only -- /dev/urandom, twapi::random_bytes, PowerShell
+	RandomNumberGenerator -- and an error when none is available. The old
+	fallback to expr rand() produced the AES file key, the initialisation
+	vectors and the salts from a 31 bit linear congruential generator seeded
+	from the clock: an AES-256 key with at most 31 bits of entropy,
+	predictable when the time of creation is known, on every system without
+	/dev/urandom, i.e. always on Windows, and without a word to the caller.
+	Chosen source in ::pdf4tcl::_randBackend.
+	* src/main.tcl (getSubstCount): new method. Reports how many characters
+	CleanText could not represent in the font encoding and replaced with
+	"?" -- the PDF stays valid, the text does not. Exact from Tcl 9.0 on;
+	under 8.6 encoding convertto replaces silently and pdf4tcl cannot see it.
+	* tests/new-0.9.4.34.test: new, 48 tests for the addForm extensions of
+	0.9.4.30 .. 0.9.4.34 (-align, -color/-borderwidth/-bordercolor/-bgcolor,
+	-calculate, -format, -js), which had no test file of their own. Records
+	that -bordercolor without -borderwidth emits neither /MK nor /BS.
+	* tests/new-0.9.4.35.test: new, 36 tests for the above.
+	* pdf4tcl.man: getSubstCount, ::pdf4tcl::_randBackend, extended
+	description of ::pdf4tcl::warnings, and a note at _md5Backend that all
+	three backends compute the same MD5.
+
 2026-07-07 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.34

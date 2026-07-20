@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.34 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.35 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -168,7 +168,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.34?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.35?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -277,12 +277,13 @@
 <li><a href="#104"><i class="arg">objectName</i> <b class="method">rotate</b> <i class="arg">degrees</i></a></li>
 <li><a href="#105"><i class="arg">objectName</i> <b class="method">scale</b> <i class="arg">sx</i> <i class="arg">sy</i></a></li>
 <li><a href="#106"><i class="arg">objectName</i> <b class="method">getPageSize</b></a></li>
-<li><a href="#107"><i class="arg">objectName</i> <b class="method">addEmbeddedFile</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">options</i>?</span></a></li>
-<li><a href="#108"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></li>
-<li><a href="#109"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></li>
-<li><a href="#110"><i class="arg">objectName</i> <b class="method">endLayer</b></a></li>
-<li><a href="#111"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
-<li><a href="#112"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
+<li><a href="#107"><i class="arg">objectName</i> <b class="method">getSubstCount</b></a></li>
+<li><a href="#108"><i class="arg">objectName</i> <b class="method">addEmbeddedFile</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">options</i>?</span></a></li>
+<li><a href="#109"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></li>
+<li><a href="#110"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></li>
+<li><a href="#111"><i class="arg">objectName</i> <b class="method">endLayer</b></a></li>
+<li><a href="#112"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
+<li><a href="#113"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
 </ul>
 </div>
 </div>
@@ -1465,7 +1466,18 @@ For A4 with <b class="option">-unit mm</b>: approximately <b class="const">210.0
 For A4 with <b class="option">-unit p</b>: approximately <b class="const">595.0 842.0</b>
 (pdf4tcl rounds MediaBox to integer points).
 Complements <b class="method">getDrawableArea</b> which excludes margins.</p></dd>
-<dt><a name="107"><i class="arg">objectName</i> <b class="method">addEmbeddedFile</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">options</i>?</span></a></dt>
+<dt><a name="107"><i class="arg">objectName</i> <b class="method">getSubstCount</b></a></dt>
+<dd><p>Return how many characters could not be represented in the encoding of the
+font in use and were replaced with <b class="const">?</b> (or, in a subset without
+<b class="const">?</b>, with <b class="const">.notdef</b>). The PDF stays valid; the text does not.
+A non-zero value typically means Unicode text was drawn with a Latin-1 base
+font -- use a CID font to avoid it. The count is per document and starts at
+zero when the object is created.</p>
+<p>Exact from Tcl 9.0 on. Under Tcl 8.6 <b class="cmd">encoding convertto</b> performs its
+own silent replacement and returns without an error, so pdf4tcl never learns
+that a character was lost and the counter stays at zero. This is a property of
+the Tcl release, not of pdf4tcl.</p></dd>
+<dt><a name="108"><i class="arg">objectName</i> <b class="method">addEmbeddedFile</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">options</i>?</span></a></dt>
 <dd><p>Embed a file in the PDF.
 When <b class="option">-pdfa 3b</b> is active the FileSpec OID is automatically
 added to the document-level <b class="const">/AF</b> array in the Catalog
@@ -1473,7 +1485,7 @@ added to the document-level <b class="const">/AF</b> array in the Catalog
 <p>Options: <b class="option">-contents</b>, <b class="option">-mimetype</b>, <b class="option">-description</b>,
 <b class="option">-afrelationship</b> (Alternative|Data|Source|Supplement|Unspecified).</p>
 <p><em>Note:</em> Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).</p></dd>
-<dt><a name="108"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></dt>
+<dt><a name="109"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></dt>
 <dd><p>Add an Optional Content Group (OCG / layer) to the document.
 Returns a layer ID for use with <b class="method">beginLayer</b>.</p>
 <p><i class="arg">name</i> is the visible label shown in the viewer's layer panel.
@@ -1482,12 +1494,12 @@ Use cases: debug grids (<b class="option">-visible 0</b>), letterhead variants,
 watermarks (<b class="option">-visible 0</b>).</p>
 <p><em>Note:</em> <b class="method">addLayer</b> must be called before <b class="method">finish</b>.
 All layers are shared across all pages of the document.</p></dd>
-<dt><a name="109"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></dt>
+<dt><a name="110"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></dt>
 <dd><p>Open an Optional Content Group block. All drawing commands until
 <b class="method">endLayer</b> belong to this layer.
 <i class="arg">layerId</i> is the OID returned by <b class="method">addLayer</b>.
 Inserts a <b class="cmd">BDC</b> operator into the content stream.</p></dd>
-<dt><a name="110"><i class="arg">objectName</i> <b class="method">endLayer</b></a></dt>
+<dt><a name="111"><i class="arg">objectName</i> <b class="method">endLayer</b></a></dt>
 <dd><p>Close the current Optional Content Group block.
 Inserts an <b class="cmd">EMC</b> operator into the content stream.</p>
 <pre class="doctools_example">
@@ -1502,9 +1514,9 @@ $pdf beginLayer $lKopf
 $pdf endLayer
 </pre>
 </dd>
-<dt><a name="111"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
+<dt><a name="112"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
 <dd></dd>
-<dt><a name="112"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
+<dt><a name="113"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
 <dd><p>Internal methods for writing the cross-reference section.
 <b class="method">_WriteXrefTable</b> writes the classic text-based xref table and trailer dict.
 <b class="method">_WriteXrefStream</b> writes a binary XRef stream object (PDF 1.5+,
@@ -1664,10 +1676,21 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 </div>
 <div id="section6" class="doctools_section"><h2><a name="section6">PACKAGE VARIABLES</a></h2>
 <p><b class="variable">::pdf4tcl::warnings</b>
-A list of non-fatal compliance warnings accumulated during PDF generation.
-Currently populated by <b class="method">setAlpha</b> when called with a value less
-than 1.0 under <b class="option">-pdfa 1b</b> (transparency forbidden by
-ISO 19005-1 SS6.1.3).</p>
+A list of non-fatal warnings accumulated during PDF generation. Populated by</p>
+<ul class="doctools_itemized">
+<li><p><b class="method">setAlpha</b> when called with a value less than 1.0 under
+<b class="option">-pdfa 1b</b> (transparency forbidden by ISO 19005-1 SS6.1.3);</p></li>
+<li><p><b class="method">facturx</b> when the attached XML is not valid Factur-X/ZUGFeRD;</p></li>
+<li><p>the PDF string writer when a control character had to be dropped from a
+string (see below). Codepoints above U+00FF are transliterated or replaced
+silently and are <em>not</em> reported here -- typographic punctuation is
+ordinary prose and would produce a warning for nearly every document.</p></li>
+</ul>
+<p>The string writer adds at most one entry per kind and process, so a broken
+document does not produce one line per string. Clearing the list with
+<b class="cmd">set ::pdf4tcl::warnings {}</b> also re-arms that report.
+Nothing is written to <b class="const">stderr</b>: where diagnostics appear is the caller's
+decision.</p>
 <pre class="doctools_example">
 set ::pdf4tcl::warnings {}
 set pdf [pdf4tcl::new %AUTO% -pdfa 1b]
@@ -1682,7 +1705,20 @@ The PDF is generated regardless of any warnings in this list.
 <b class="variable">::pdf4tcl::_md5Backend</b>
 Set by <b class="method">_InitMD5Backend</b> on first use.
 Values: <b class="const">tcllib</b>, <b class="const">openssl</b>, <b class="const">pure-tcl</b>.
-Read-only; for diagnostics only.</p>
+All three compute the same MD5; the choice is about availability and speed,
+not strength. Read-only; for diagnostics only.
+<b class="variable">::pdf4tcl::_randBackend</b>
+Set on first use when a document is encrypted. Values: <b class="const">urandom</b>
+(reads &quot;<b class="file">/dev/urandom</b>&quot;), <b class="const">twapi</b> (<b class="cmd">::twapi::random_bytes</b>),
+<b class="const">powershell</b> (RandomNumberGenerator via <b class="cmd">exec powershell</b>) or
+<b class="const">none</b>.</p>
+<p>These bytes are the AES file key, the initialisation vectors and the salts,
+so they must come from a cryptographic source. If none of the three is
+available the encryption raises an error rather than falling back to
+<b class="cmd">expr rand()</b>, whose 31 bit state seeded from the clock would give an
+AES-256 key at most 31 bits of entropy. A document that cannot be written is
+better than one that only appears to be encrypted. Read-only; for diagnostics
+only.</p>
 </div>
 <div id="section7" class="doctools_section"><h2><a name="section7">CHANGES</a></h2>
 <div id="subsection12" class="doctools_subsection"><h3><a name="subsection12">Version 0.9.4.25</a></h3>

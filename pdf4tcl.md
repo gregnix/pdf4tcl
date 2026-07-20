@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.34?**
+package require **pdf4tcl ?0****.9****.4****.35?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -221,6 +221,8 @@ package require **pdf4tcl ?0****.9****.4****.34?**
 *objectName* **scale** *sx* *sy*
 
 *objectName* **getPageSize**
+
+*objectName* **getSubstCount**
 
 *objectName* **addEmbeddedFile** *filename* ?*options*?
 
@@ -1132,6 +1134,9 @@ $pdf grestore
 **objectName getPageSize**
 : Return the full page dimensions as **{width height}** in the current unit (set via **-unit** at creation time). For A4 with **-unit mm**: approximately **210****.0 297****.0**. For A4 with **-unit p**: approximately **595****.0 842****.0** (pdf4tcl rounds MediaBox to integer points). Complements **getDrawableArea** which excludes margins.
 
+**objectName getSubstCount**
+: Return how many characters could not be represented in the encoding of the font in use and were replaced with **?** (or, in a subset without **?**, with **.notdef**). The PDF stays valid; the text does not. A non-zero value typically means Unicode text was drawn with a Latin-1 base font -- use a CID font to avoid it. The count is per document and starts at zero when the object is created. Exact from Tcl 9.0 on. Under Tcl 8.6 **encoding convertto** performs its own silent replacement and returns without an error, so pdf4tcl never learns that a character was lost and the counter stays at zero. This is a property of the Tcl release, not of pdf4tcl.
+
 **objectName addEmbeddedFile filename ?options?**
 : Embed a file in the PDF. When **-pdfa 3b** is active the FileSpec OID is automatically added to the document-level **/AF** array in the Catalog (ISO 19005-3 SS6.2.11.4). Options: **-contents**, **-mimetype**, **-description**, **-afrelationship** (Alternative|Data|Source|Supplement|Unspecified). *Note:* Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).
 
@@ -1251,7 +1256,11 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 ## PACKAGE VARIABLES
 
-**::pdf4tcl::warnings** A list of non-fatal compliance warnings accumulated during PDF generation. Currently populated by **setAlpha** when called with a value less than 1.0 under **-pdfa 1b** (transparency forbidden by ISO 19005-1 SS6.1.3).
+**::pdf4tcl::warnings** A list of non-fatal warnings accumulated during PDF generation. Populated by
+
+- **setAlpha** when called with a value less than 1.0 under **-pdfa 1b** (transparency forbidden by ISO 19005-1 SS6.1.3);
+- **facturx** when the attached XML is not valid Factur-X/ZUGFeRD;
+- the PDF string writer when a control character had to be dropped from a string (see below). Codepoints above U+00FF are transliterated or replaced silently and are *not* reported here -- typographic punctuation is ordinary prose and would produce a warning for nearly every document. The string writer adds at most one entry per kind and process, so a broken document does not produce one line per string. Clearing the list with **set ::pdf4tcl::warnings {}** also re-arms that report. Nothing is written to **stderr**: where diagnostics appear is the caller's decision.
 
 ```tcl
 set ::pdf4tcl::warnings {}
@@ -1263,7 +1272,9 @@ $pdf destroy
 foreach w $::pdf4tcl::warnings { puts "WARNING: $w" }
 ```
 
-Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is generated regardless of any warnings in this list. **::pdf4tcl::_md5Backend** Set by **_InitMD5Backend** on first use. Values: **tcllib**, **openssl**, **pure-tcl**. Read-only; for diagnostics only.
+Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is generated regardless of any warnings in this list. **::pdf4tcl::_md5Backend** Set by **_InitMD5Backend** on first use. Values: **tcllib**, **openssl**, **pure-tcl**. All three compute the same MD5; the choice is about availability and speed, not strength. Read-only; for diagnostics only. **::pdf4tcl::_randBackend** Set on first use when a document is encrypted. Values: **urandom** (reads "*/dev/urandom*"), **twapi** (**::twapi::random_bytes**), **powershell** (RandomNumberGenerator via **exec powershell**) or **none**.
+
+These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
 

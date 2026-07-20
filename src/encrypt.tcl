@@ -311,17 +311,73 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     ###########################################################################
     # Generate n random bytes (used for IV, salts, file key)
+    #
+    # These bytes are the AES file key, the IVs and the salts -- they must come
+    # from a cryptographic source. Priority:
+    #
+    #   1. /dev/urandom          Unix, macOS, most others
+    #   2. twapi::random_bytes   Windows, if the package is installed
+    #   3. PowerShell RNGCrypto  Windows fallback, no extra package needed
+    #   4. error                 rather than a weak key
+    #
+    # Step 4 used to be a fallback to Tcl's rand(): a 31 bit linear congruential
+    # generator seeded from the clock. An AES-256 file key drawn from it has at
+    # most 31 bits of entropy and is predictable when the time of creation is
+    # known -- and nothing told the caller. A document that cannot be written is
+    # better than one that only pretends to be encrypted.
+    #
+    # Cached in ::pdf4tcl::_randBackend after the first call.
     ###########################################################################
-    method _EncRandBytes {n} {
-        if {[catch {
+    method _InitRandBackend {} {
+        if {[info exists ::pdf4tcl::_randBackend]} { return }
+        if {![catch {
             set fh [open /dev/urandom rb]
-            set bytes [read $fh $n]
+            read $fh 1
             close $fh
         }]} {
-            set bytes ""
-            for {set i 0} {$i < $n} {incr i} {
-                append bytes [format %c [expr {int(rand()*256)}]]
+            set ::pdf4tcl::_randBackend urandom
+            return
+        }
+        if {![catch {package require twapi}] && \
+                [llength [info commands ::twapi::random_bytes]]} {
+            set ::pdf4tcl::_randBackend twapi
+            return
+        }
+        if {[auto_execok powershell] ne ""} {
+            set ::pdf4tcl::_randBackend powershell
+            return
+        }
+        set ::pdf4tcl::_randBackend none
+    }
+
+    method _EncRandBytes {n} {
+        my _InitRandBackend
+        switch $::pdf4tcl::_randBackend {
+            urandom {
+                set fh [open /dev/urandom rb]
+                set bytes [read $fh $n]
+                close $fh
             }
+            twapi {
+                set bytes [::twapi::random_bytes $n]
+            }
+            powershell {
+                set script "$rng = \
+[System.Security.Cryptography.RandomNumberGenerator]::Create(); \
+$b = New-Object byte\[\] $n; $rng.GetBytes($b); \
+[System.BitConverter]::ToString($b) -replace '-',''"
+                set hex [string trim [exec powershell -NoProfile -Command $script]]
+                set bytes [binary decode hex $hex]
+            }
+            default {
+                throw {PDF4TCL} "no cryptographic random source available\
+                        (tried /dev/urandom, twapi, powershell) -- refusing to\
+                        generate an encryption key from a weak generator"
+            }
+        }
+        if {[string length $bytes] != $n} {
+            throw {PDF4TCL} "random source $::pdf4tcl::_randBackend returned\
+                    [string length $bytes] bytes instead of $n"
         }
         return $bytes
     }
