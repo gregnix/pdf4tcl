@@ -384,9 +384,18 @@ proc ::pdf4tcl::PdfText {in fn} {
     }
 }
 
+# Number of characters that CleanText could not represent in the font's
+# encoding and replaced with "?" (or, in a subset without "?", with .notdef).
+# The PDF stays valid, the text does not: an unmappable character is silently
+# lost. Read it per document with [$pdf getSubstCount] -- see the manual.
+namespace eval pdf4tcl {
+    variable substCount 0
+}
+
 # helper function: mask parentheses and backslash
 proc ::pdf4tcl::CleanText {in fn} {
     variable ::pdf4tcl::FontsAttrs
+    variable ::pdf4tcl::substCount
     if {$FontsAttrs($fn,specialencoding)} {
         # Convert using special encoding of font subset:
         set out ""
@@ -396,8 +405,10 @@ proc ::pdf4tcl::CleanText {in fn} {
                 append out [dict get $encDict $uchar]
             } elseif {[dict exists $encDict "?"]} {
                 append out [dict get $encDict "?"]
+                incr substCount
             } else {
                 append out [binary format cu 0]
+                incr substCount
             }
         }
     } else {
@@ -409,6 +420,7 @@ proc ::pdf4tcl::CleanText {in fn} {
             foreach uchar [split $in {}] {
                 if {[catch {append out [encoding convertto $enc $uchar]}]} {
                     append out "?"
+                    incr substCount
                 }
             }
         }
@@ -420,20 +432,86 @@ proc ::pdf4tcl::CleanText {in fn} {
 }
 
 # helper function: correctly quote string with parentheses
+# Transliteration of common typography that does not fit into a PDF literal
+# string (see QuoteString). Extend or override this variable if a document
+# needs different substitutions.
+namespace eval pdf4tcl {
+    variable asciiMap [list \
+        \u2010 -    \u2011 -    \u2012 -    \u2013 -    \u2014 -    \u2015 -   \
+        \u2018 '    \u2019 '    \u201A '    \u201B '                            \
+        \u201C \"   \u201D \"   \u201E \"   \u201F \"                           \
+        \u2039 <    \u203A >    \u2026 ...  \u2022 *                           \
+        \u2190 <-   \u2192 ->   \u2264 <=   \u2265 >=   \u2260 !=               \
+        \u20AC EUR  \u2122 (TM) \u2116 No.  \u2032 '    \u2033 \"                \
+        \u200B ""   \u2028 " "  \u2029 " "                                      \
+    ]
+}
+
+# QuoteString: escape a Tcl string for a PDF literal string, and make it safe
+# for the binary PDF stream.
+#
+# PDF literal strings go into the binary output. Tcl 9.0 rejects codepoints
+# above U+00FF on a binary-translation channel (EILSEQ), so such a character
+# does not fail here but much later, in `finish`, as an opaque
+#     expected code point values below 0xff but value at byte offset N was 0x...
+# hundreds of kilobytes away from its origin. Replacing it here turns a build
+# abort into a visible, local defect.
+#
+# Replacement is silent for ordinary text and noisy for control characters --
+# see the two comments in the body.
 proc ::pdf4tcl::QuoteString {string} {
+    # Codepoints above U+00FF: replaced silently. Titles, metadata and
+    # annotation text are ordinary prose; an en-dash or a typographic quote is
+    # normal there, and a warning would fire on nearly every real document.
+    #
+    # Common typography is transliterated first, so a bookmark reads
+    # "Chapter 1 - Introduction" and not "Chapter 1 ? Introduction". Whatever
+    # is left over becomes "?".
+    if {[regexp {[^\x00-\xFF]} $string]} {
+        variable asciiMap
+        set string [string map $asciiMap $string]
+        if {[regexp {[^\x00-\xFF]} $string]} {
+            set string [regsub -all {[^\x00-\xFF]} $string {?}]
+        }
+    }
+    # Control characters are different: they never belong in a PDF string and
+    # always indicate a defect upstream. Worth one line on stderr.
+    if {[regexp {[\x00-\x08\x0B\x0E-\x1F\x7F]} $string]} {
+        set string [regsub -all {[\x00-\x08\x0B\x0E-\x1F\x7F]} $string {}]
+        QuoteStringWarn "control character"
+    }
     # map special characters
     return ([string map {
         \n "\\n" \r "\\r" \t "\\t" \b "\\b" \f "\\f" ( "\\(" ) "\\)" \\ "\\\\"
     } $string])
 }
 
-# SafeQuoteString: like QuoteString but strips codepoints > U+00FF first.
-# PDF literal strings written via QuoteString go into the binary PDF stream.
-# Tcl 9.0 rejects codepoints > 0xFF on a binary-translation channel (EILSEQ).
-# Use for bookmark titles and document metadata.
+# Non-fatal warnings go into ::pdf4tcl::warnings, the list the package already
+# uses for PDF/A compliance notes (see the manual, PACKAGE VARIABLES). Nothing
+# is written to stderr: a library should not decide for its caller where
+# diagnostics appear, and tcltest counts any stderr output as a file error.
+#
+# One entry per kind and process -- a broken document would otherwise produce
+# one line per string. Reset with [set ::pdf4tcl::warnings {}], which also
+# re-arms the reporting.
+proc ::pdf4tcl::QuoteStringWarn {what} {
+    variable quoteWarned
+    variable warnings
+    if {$warnings eq ""} {
+        # list was reset by the caller; report again
+        catch {unset quoteWarned}
+    }
+    if {![info exists quoteWarned($what)]} {
+        set quoteWarned($what) 1
+        lappend warnings "quoteString: $what in a PDF string was replaced\
+                (further occurrences are not reported)"
+    }
+}
+
+# SafeQuoteString: kept for compatibility. QuoteString is safe by itself
+# since 0.9.4.x; this is a plain alias now.
 proc ::pdf4tcl::SafeQuoteString {string} {
-    set safe [regsub -all {[^\x00-\xFF]} $string {?}]
-    return [QuoteString $safe]
+    return [QuoteString $string]
 }
 
 # -- Unit conversion helpers (0.9.4.12) ----------------------------------------

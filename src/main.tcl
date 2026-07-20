@@ -47,6 +47,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Must be set here for SetPageOption to work.
         set pdf(unit) 1.0
 
+        # Baseline for getSubstCount; the counter itself is global because
+        # CleanText is a proc, not a method.
+        set pdf(substBase) $::pdf4tcl::substCount
+
         my Option -file      -default "" -readonly 1
         my Option -paper     -default a4     -validatemethod CheckPaper \
                 -configuremethod SetPageOption
@@ -1185,6 +1189,14 @@ Use -pdfa-icc to specify a profile path."
 
     # Returns the full page size as {width height} in the current unit.
     # Includes margins. Use getDrawableArea for the printable area.
+    # Number of characters replaced because the font's encoding could not
+    # represent them. Nonzero means the PDF is valid but its text is not what
+    # was passed in -- typically a Unicode string in a Latin-1 base font. Use a
+    # CID font to avoid it.
+    method getSubstCount {} {
+        return [expr {$::pdf4tcl::substCount - $pdf(substBase)}]
+    }
+
     method getPageSize {} {
         set w [expr {$pdf(width)  / $pdf(unit)}]
         set h [expr {$pdf(height) / $pdf(unit)}]

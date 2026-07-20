@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.34]
+[manpage_begin pdf4tcl n 0.9.4.35]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.34]]
+[require pdf4tcl [opt 0.9.4.35]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1502,6 +1502,20 @@ For A4 with [option {-unit p}]: approximately [const {595.0 842.0}]
 (pdf4tcl rounds MediaBox to integer points).
 Complements [method getDrawableArea] which excludes margins.
 
+[call [arg objectName] [method getSubstCount]]
+   Return how many characters could not be represented in the encoding of the
+font in use and were replaced with [const ?] (or, in a subset without
+[const ?], with [const .notdef]). The PDF stays valid; the text does not.
+A non-zero value typically means Unicode text was drawn with a Latin-1 base
+font -- use a CID font to avoid it. The count is per document and starts at
+zero when the object is created.
+
+[para]
+Exact from Tcl 9.0 on. Under Tcl 8.6 [cmd {encoding convertto}] performs its
+own silent replacement and returns without an error, so pdf4tcl never learns
+that a character was lost and the counter stays at zero. This is a property of
+the Tcl release, not of pdf4tcl.
+
 [call [arg objectName] [method addEmbeddedFile] [arg filename] [opt [arg options]]]
    Embed a file in the PDF.
 When [option {-pdfa 3b}] is active the FileSpec OID is automatically
@@ -1772,10 +1786,24 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 
 [var ::pdf4tcl::warnings]
 
-A list of non-fatal compliance warnings accumulated during PDF generation.
-Currently populated by [method setAlpha] when called with a value less
-than 1.0 under [option {-pdfa 1b}] (transparency forbidden by
-ISO 19005-1 SS6.1.3).
+A list of non-fatal warnings accumulated during PDF generation. Populated by
+
+[list_begin itemized]
+[item] [method setAlpha] when called with a value less than 1.0 under
+[option {-pdfa 1b}] (transparency forbidden by ISO 19005-1 SS6.1.3);
+[item] [method facturx] when the attached XML is not valid Factur-X/ZUGFeRD;
+[item] the PDF string writer when a control character had to be dropped from a
+string (see below). Codepoints above U+00FF are transliterated or replaced
+silently and are [emph not] reported here -- typographic punctuation is
+ordinary prose and would produce a warning for nearly every document.
+[list_end]
+
+The string writer adds at most one entry per kind and process, so a broken
+document does not produce one line per string. Clearing the list with
+[cmd {set ::pdf4tcl::warnings {}}] also re-arms that report.
+
+Nothing is written to [const stderr]: where diagnostics appear is the caller's
+decision.
 
 [example {
 set ::pdf4tcl::warnings {}
@@ -1794,7 +1822,24 @@ The PDF is generated regardless of any warnings in this list.
 
 Set by [method _InitMD5Backend] on first use.
 Values: [const tcllib], [const openssl], [const pure-tcl].
-Read-only; for diagnostics only.
+All three compute the same MD5; the choice is about availability and speed,
+not strength. Read-only; for diagnostics only.
+
+[var ::pdf4tcl::_randBackend]
+
+Set on first use when a document is encrypted. Values: [const urandom]
+(reads [file /dev/urandom]), [const twapi] ([cmd ::twapi::random_bytes]),
+[const powershell] (RandomNumberGenerator via [cmd {exec powershell}]) or
+[const none].
+
+[para]
+These bytes are the AES file key, the initialisation vectors and the salts,
+so they must come from a cryptographic source. If none of the three is
+available the encryption raises an error rather than falling back to
+[cmd {expr rand()}], whose 31 bit state seeded from the clock would give an
+AES-256 key at most 31 bits of entropy. A document that cannot be written is
+better than one that only appears to be encrypted. Read-only; for diagnostics
+only.
 
 [section CHANGES]
 

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.34 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.35 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.34?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.35?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -491,6 +491,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.34?\fR
 \fIobjectName\fR \fBscale\fR \fIsx\fR \fIsy\fR
 .sp
 \fIobjectName\fR \fBgetPageSize\fR
+.sp
+\fIobjectName\fR \fBgetSubstCount\fR
 .sp
 \fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoptions\fR?
 .sp
@@ -1962,6 +1964,19 @@ For A4 with \fB-unit p\fR: approximately \fB595\&.0 842\&.0\fR
 (pdf4tcl rounds MediaBox to integer points)\&.
 Complements \fBgetDrawableArea\fR which excludes margins\&.
 .TP
+\fIobjectName\fR \fBgetSubstCount\fR
+Return how many characters could not be represented in the encoding of the
+font in use and were replaced with \fB?\fR (or, in a subset without
+\fB?\fR, with \fB\&.notdef\fR)\&. The PDF stays valid; the text does not\&.
+A non-zero value typically means Unicode text was drawn with a Latin-1 base
+font -- use a CID font to avoid it\&. The count is per document and starts at
+zero when the object is created\&.
+.sp
+Exact from Tcl 9\&.0 on\&. Under Tcl 8\&.6 \fBencoding convertto\fR performs its
+own silent replacement and returns without an error, so pdf4tcl never learns
+that a character was lost and the counter stays at zero\&. This is a property of
+the Tcl release, not of pdf4tcl\&.
+.TP
 \fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoptions\fR?
 Embed a file in the PDF\&.
 When \fB-pdfa 3b\fR is active the FileSpec OID is automatically
@@ -2212,10 +2227,23 @@ $pdf roundedRect [pdf4tcl::mm 20] [pdf4tcl::mm 50]                  [pdf4tcl::mm
 .CE
 .SH "PACKAGE VARIABLES"
 \fB::pdf4tcl::warnings\fR
-A list of non-fatal compliance warnings accumulated during PDF generation\&.
-Currently populated by \fBsetAlpha\fR when called with a value less
-than 1\&.0 under \fB-pdfa 1b\fR (transparency forbidden by
-ISO 19005-1 SS6\&.1\&.3)\&.
+A list of non-fatal warnings accumulated during PDF generation\&. Populated by
+.IP \(bu
+\fBsetAlpha\fR when called with a value less than 1\&.0 under
+\fB-pdfa 1b\fR (transparency forbidden by ISO 19005-1 SS6\&.1\&.3);
+.IP \(bu
+\fBfacturx\fR when the attached XML is not valid Factur-X/ZUGFeRD;
+.IP \(bu
+the PDF string writer when a control character had to be dropped from a
+string (see below)\&. Codepoints above U+00FF are transliterated or replaced
+silently and are \fInot\fR reported here -- typographic punctuation is
+ordinary prose and would produce a warning for nearly every document\&.
+.PP
+The string writer adds at most one entry per kind and process, so a broken
+document does not produce one line per string\&. Clearing the list with
+\fBset ::pdf4tcl::warnings {}\fR also re-arms that report\&.
+Nothing is written to \fBstderr\fR: where diagnostics appear is the caller's
+decision\&.
 .CS
 
 
@@ -2233,7 +2261,21 @@ The PDF is generated regardless of any warnings in this list\&.
 \fB::pdf4tcl::_md5Backend\fR
 Set by \fB_InitMD5Backend\fR on first use\&.
 Values: \fBtcllib\fR, \fBopenssl\fR, \fBpure-tcl\fR\&.
-Read-only; for diagnostics only\&.
+All three compute the same MD5; the choice is about availability and speed,
+not strength\&. Read-only; for diagnostics only\&.
+\fB::pdf4tcl::_randBackend\fR
+Set on first use when a document is encrypted\&. Values: \fBurandom\fR
+(reads "\fI/dev/urandom\fR"), \fBtwapi\fR (\fB::twapi::random_bytes\fR),
+\fBpowershell\fR (RandomNumberGenerator via \fBexec powershell\fR) or
+\fBnone\fR\&.
+.PP
+These bytes are the AES file key, the initialisation vectors and the salts,
+so they must come from a cryptographic source\&. If none of the three is
+available the encryption raises an error rather than falling back to
+\fBexpr rand()\fR, whose 31 bit state seeded from the clock would give an
+AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
+better than one that only appears to be encrypted\&. Read-only; for diagnostics
+only\&.
 .SH CHANGES
 .SS "VERSION 0\&.9\&.4\&.25"
 .PP

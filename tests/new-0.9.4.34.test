@@ -1,0 +1,301 @@
+# new-0.9.4.34.test -- addForm extensions of 0.9.4.30 .. 0.9.4.34   -*-tcl-*-
+#
+# Covers the five releases that had no test file of their own:
+#
+#   .30  -align                              /Q quadding + aligned appearance
+#   .31  -color -borderwidth -bordercolor
+#        -bgcolor                            /DA, /BS, /MK
+#   .32  -calculate                          /AA /C, /CO order, /NeedAppearances
+#   .33  -format                             /AA /F + /K via AFNumber_*
+#   .34  -js                                 raw /AA /C /F /V /K, one shared /AA
+#
+# These features live only in the generated PDF: a wrong /AA does not fail at
+# build time, it fails silently in the reader. The tests therefore inspect the
+# object stream directly.
+#
+# Unlike most files here this one does not use [mytest]. The dictionaries under
+# test contain parentheses, which pdf4tcl escapes as \( \) in the PDF, and that
+# does not survive mytest's glob patterns cleanly. [form] below builds the same
+# kind of document (-compress 0) and returns the whitespace-collapsed text, so
+# the assertions can be plain [string match] / [regexp].
+#
+# Colours are given numerically (#rrggbb). Named colours go through
+# [winfo rgb], which needs Tk and is not available in a headless test run.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Build a one-page document from a list of addForm argument strings and
+# return its text with runs of whitespace collapsed to one space.
+proc form {args} {
+    set pdf [::pdf4tcl::new %AUTO% -compress 0 -paper {800 1000}]
+    $pdf setFont 12 Helvetica
+    $pdf startPage
+    foreach a $args {
+        eval $pdf addForm $a
+    }
+    set data [$pdf get]
+    $pdf destroy
+    regsub -all {\s+} $data " " data
+    return $data
+}
+
+# Same, but let an error through to the caller.
+proc formErr {args} {
+    set pdf [::pdf4tcl::new %AUTO% -compress 0 -paper {800 1000}]
+    $pdf setFont 12 Helvetica
+    $pdf startPage
+    set code [catch {
+        foreach a $args { eval $pdf addForm $a }
+    } err]
+    $pdf destroy
+    if {$code} { return -code error $err }
+    return ""
+}
+
+# ---------------------------------------------------------------------------
+# 0.9.4.30 -- -align
+# ---------------------------------------------------------------------------
+
+foreach {n value quad} {1 left 0 2 center 1 3 right 2} {
+    test formext-1.$n "align $value is /Q $quad" -body {
+        string match "*/Q $quad*" [form "text 0 0 100 20 -id f1 -align $value"]
+    } -result 1
+}
+
+test formext-1.4 {align accepts the numeric form} -body {
+    string match {*/Q 2*} [form {text 0 0 100 20 -id f1 -align 2}]
+} -result 1
+
+test formext-1.5 {align works on a combobox} -body {
+    set d [form {combobox 0 0 100 20 -id c -options {A B} -align 1}]
+    list [string match {*/FT /Ch*} $d] [string match {*/Q 1*} $d]
+} -result {1 1}
+
+test formext-1.6 {align rejects a bad value} -body {
+    catch {formErr {text 0 0 100 20 -id f1 -align sideways}} err
+    string match "*align*" $err
+} -result 1
+
+test formext-1.7 {/Q is written even without -align} -body {
+    # Documented behaviour: the default quadding is emitted explicitly.
+    string match {*/Q 0*} [form {text 0 0 100 20 -id f1}]
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 0.9.4.31 -- -color, -borderwidth, -bordercolor, -bgcolor
+# ---------------------------------------------------------------------------
+
+test formext-2.1 {-color sets the text colour in /DA} -body {
+    string match {*/DA (/Helvetica 12 Tf 1.0 0.0 0.0 rg)*} \
+            [form {text 0 0 100 20 -id f1 -color #ff0000}]
+} -result 1
+
+test formext-2.2 {without -color /DA carries the default 0 g} -body {
+    string match {*/DA (/Helvetica 12 Tf 0 g)*} \
+            [form {text 0 0 100 20 -id f1}]
+} -result 1
+
+test formext-2.3 {-borderwidth sets /BS /W} -body {
+    string match {*/BS << /W 2 >>*} [form {text 0 0 100 20 -id f1 -borderwidth 2}]
+} -result 1
+
+test formext-2.4 {-bordercolor sets /MK /BC when a width is given} -body {
+    expr {[string first {/MK << /BC [0.0 0.0 1.0] >>} \
+            [form {text 0 0 100 20 -id f1 -bordercolor #0000ff -borderwidth 1}]] >= 0}
+} -result 1
+
+# Found while writing these tests: -bordercolor on its own produces neither
+# /MK nor /BS. Without a width there is no visible border, so the colour has
+# nothing to colour -- but the option is accepted without a word.
+test formext-2.5 {-bordercolor alone is a silent no-op} -body {
+    set d [form {text 0 0 100 20 -id f1 -bordercolor #0000ff}]
+    list [regexp -all {/MK} $d] [regexp -all {/BS} $d]
+} -result {0 0}
+
+test formext-2.6 {-borderwidth alone defaults the border colour to black} -body {
+    expr {[string first {/MK << /BC [0 0 0] >> /BS << /W 2 >>} \
+            [form {text 0 0 100 20 -id f1 -borderwidth 2}]] >= 0}
+} -result 1
+
+test formext-2.7 {-bgcolor sets /MK /BG} -body {
+    expr {[string first {/MK << /BG [1.0 1.0 0.0] >>} \
+            [form {text 0 0 100 20 -id f1 -bgcolor #ffff00}]] >= 0}
+} -result 1
+
+test formext-2.8 {border colour and background share one /MK} -body {
+    regexp -all {/MK} [form {text 0 0 100 20 -id f1 \
+            -bordercolor #0000ff -borderwidth 1 -bgcolor #ffff00}]
+} -result 1
+
+test formext-2.9 {no border options means no /BS and no /MK} -body {
+    set d [form {text 0 0 100 20 -id f1}]
+    list [regexp -all {/BS} $d] [regexp -all {/MK} $d]
+} -result {0 0}
+
+# ---------------------------------------------------------------------------
+# 0.9.4.32 -- -calculate
+# ---------------------------------------------------------------------------
+
+test formext-3.1 {-calculate emits an /AA /C JavaScript action} -body {
+    set d [form {text 0 40 100 20 -id a} \
+                {text 0 0 100 20 -id sum -calculate {sum {a}}}]
+    list [string match {*/AA << /C << /S /JavaScript*} $d] \
+         [string match {*AFSimple_Calculate*} $d]
+} -result {1 1}
+
+test formext-3.2 {-calculate registers the field in /CO} -body {
+    expr {[string first {/CO [} [form {text 0 40 100 20 -id a} \
+            {text 0 0 100 20 -id sum -calculate {sum {a}}}]] >= 0}
+} -result 1
+
+test formext-3.3 {-calculate sets /NeedAppearances} -body {
+    string match {*/NeedAppearances true*} [form {text 0 40 100 20 -id a} \
+            {text 0 0 100 20 -id sum -calculate {sum {a}}}]
+} -result 1
+
+test formext-3.4 {-calculate names the source fields in order} -body {
+    set d [form {text 0 60 100 20 -id net} {text 0 30 100 20 -id tax} \
+                {text 0 0 100 20 -id total -calculate {sum {net tax}}}]
+    string match {*"SUM"*"net"*"tax"*} $d
+} -result 1
+
+foreach {n op word} {5 sum SUM 6 product PRD 7 average AVG 8 min MIN 9 max MAX} {
+    test formext-3.$n "-calculate operation $op" -body {
+        set d [form {text 0 40 100 20 -id a} \
+                    "text 0 0 100 20 -id r -calculate {$op {a}}"]
+        string match {*AFSimple_Calculate*} $d
+    } -result 1
+}
+
+test formext-3.10 {-calculate rejects an unknown operation} -body {
+    catch {formErr {text 0 0 100 20 -id r -calculate {median {a}}}} err
+    expr {[string match "*median*" $err] || [string match "*calculate*" $err]}
+} -result 1
+
+test formext-3.11 {without -calculate there is no /CO} -body {
+    regexp -all {/CO} [form {text 0 0 100 20 -id f1}]
+} -result 0
+
+# ---------------------------------------------------------------------------
+# 0.9.4.33 -- -format
+# ---------------------------------------------------------------------------
+
+test formext-4.1 {-format emits both AFNumber actions} -body {
+    set d [form {text 0 0 100 20 -id n -format {number}}]
+    list [string match {*AFNumber_Format*} $d] \
+         [string match {*AFNumber_Keystroke*} $d]
+} -result {1 1}
+
+test formext-4.2 {-format puts /F and /K into /AA} -body {
+    set d [form {text 0 0 100 20 -id n -format {number}}]
+    list [string match {*/AA <<*/F << /S /JavaScript*} $d] \
+         [string match {*/K << /S /JavaScript*} $d]
+} -result {1 1}
+
+test formext-4.3 {-format default is two decimals} -body {
+    expr {[string first {AFNumber_Format\(2, } \
+            [form {text 0 0 100 20 -id n -format {number}}]] >= 0}
+} -result 1
+
+test formext-4.4 {-format honours decimals} -body {
+    expr {[string first {AFNumber_Format\(3, } \
+            [form {text 0 0 100 20 -id n -format {number decimals 3}}]] >= 0}
+} -result 1
+
+test formext-4.5 {-format honours a named sep} -body {
+    expr {[string first {AFNumber_Format\(2, 2, } \
+            [form {text 0 0 100 20 -id n -format {number sep german}}]] >= 0}
+} -result 1
+
+test formext-4.6 {-format honours a numeric sep} -body {
+    expr {[string first {AFNumber_Format\(2, 3, } \
+            [form {text 0 0 100 20 -id n -format {number sep 3}}]] >= 0}
+} -result 1
+
+test formext-4.7 {-format carries an ASCII currency} -body {
+    string match {*USD*} [form {text 0 0 100 20 -id n -format {number currency " USD"}}]
+} -result 1
+
+test formext-4.8 {a non-ASCII currency never reaches the byte stream raw} -body {
+    set d [form [list text 0 0 100 20 -id n \
+            -format [list number currency " \u20AC"]]]
+    regexp {[^\x00-\xFF]} $d
+} -result 0
+
+test formext-4.9 {without -format there is no AFNumber action} -body {
+    regexp -all {AFNumber} [form {text 0 0 100 20 -id f1}]
+} -result 0
+
+# ---------------------------------------------------------------------------
+# 0.9.4.34 -- -js
+# ---------------------------------------------------------------------------
+
+foreach {n event key} {1 calculate C 2 format F 3 validate V 4 keystroke K} {
+    test formext-5.$n "-js event $event lands in /$key" -body {
+        set d [form "text 0 0 100 20 -id j -js {$event {event.value = 1;}}"]
+        string match "*/$key << /S /JavaScript*" $d
+    } -result 1
+}
+
+test formext-5.5 {-js body reaches the stream} -body {
+    set d [form {text 0 40 100 20 -id net} \
+                {text 0 0 100 20 -id vat \
+                 -js {calculate {event.value = this.getField("net").value * 1.19;}}}]
+    list [string match {*getField*} $d] [string match {*1.19*} $d]
+} -result {1 1}
+
+test formext-5.6 {-js calculate registers /CO and /NeedAppearances} -body {
+    set d [form {text 0 40 100 20 -id net} \
+                {text 0 0 100 20 -id vat -js {calculate {event.value = 1;}}}]
+    list [expr {[string first {/CO [} $d] >= 0}] \
+         [string match {*/NeedAppearances true*} $d]
+} -result {1 1}
+
+test formext-5.7 {-js format alone does not touch /CO} -body {
+    regexp -all {/CO} [form {text 0 0 100 20 -id j -js {format {event.value = 1;}}}]
+} -result 0
+
+test formext-5.8 {-js and -calculate share a single /AA} -body {
+    regexp -all {/AA} [form {text 0 40 100 20 -id a} \
+            {text 0 0 100 20 -id r -calculate {sum {a}} \
+             -js {format {event.value = "x";}}}]
+} -result 1
+
+test formext-5.9 {a duplicate event is refused} -body {
+    catch {formErr {text 0 40 100 20 -id a} \
+            {text 0 0 100 20 -id r -calculate {sum {a}} \
+             -js {calculate {event.value = 1;}}}} err
+    string match "*calculate*" $err
+} -result 1
+
+test formext-5.10 {-js rejects an unknown event} -body {
+    catch {formErr {text 0 0 100 20 -id r -js {onblur {event.value = 1;}}}} err
+    expr {[string match "*onblur*" $err] || [string match "*js*" $err]}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# Combination -- everything on one field still yields a well-formed document
+# ---------------------------------------------------------------------------
+
+test formext-6.1 {all options together} -body {
+    set d [form {text 0 40 100 20 -id net} \
+                {text 0 0 100 20 -id r -align 2 -color #ff0000 \
+                 -borderwidth 1 -bordercolor #0000ff -bgcolor #ffff00 \
+                 -calculate {sum {net}} -format {number decimals 2} -init 0.00}]
+    list [string match {*/Q 2*} $d] \
+         [string match {*1.0 0.0 0.0 rg*} $d] \
+         [expr {[string first {/BS << /W 1 >>} $d] >= 0}] \
+         [expr {[string first {/BC [0.0 0.0 1.0]} $d] >= 0}] \
+         [expr {[string first {/BG [1.0 1.0 0.0]} $d] >= 0}] \
+         [string match {*AFSimple_Calculate*} $d] \
+         [string match {*AFNumber_Format*} $d] \
+         [string match {*%%EOF*} $d]
+} -result {1 1 1 1 1 1 1 1}
+
+test formext-6.2 {one /AA for calculate and format together} -body {
+    regexp -all {/AA} [form {text 0 40 100 20 -id net} \
+            {text 0 0 100 20 -id r -calculate {sum {net}} \
+             -format {number decimals 2}}]
+} -result 1
+
+::tcltest::cleanupTests
