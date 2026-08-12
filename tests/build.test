@@ -14,7 +14,7 @@ namespace import ::tcltest::*
 set repoRoot [file normalize [file join [file dirname [info script]] ..]]
 set catfiles {
     src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl
-    src/main.tcl src/encrypt.tcl src/cat.tcl
+    src/main.tcl src/encrypt.tcl src/tagged.tcl src/cat.tcl
 }
 
 test build-1.0 {pdf4tcl.tcl is in sync with src/*.tcl (cat CATFILES)} -body {

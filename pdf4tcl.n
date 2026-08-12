@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.35 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.36 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.35?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.36?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -407,6 +407,18 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.35?\fR
 \fIobjectName\fR \fBdrawTextBox\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIstr\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBgetFontMetric\fR \fImetric\fR
+.sp
+\fIobjectName\fR \fBtagged\fR ?\fIboolean\fR? ?\fIoptions\fR?
+.sp
+\fIobjectName\fR \fBtagBegin\fR \fItype\fR ?\fIoptions\fR?
+.sp
+\fIobjectName\fR \fBtagEnd\fR
+.sp
+\fIobjectName\fR \fBtagText\fR \fItype\fR \fIstr\fR ?\fIoptions\fR?
+.sp
+\fIobjectName\fR \fBtagArtifact\fR ?\fIoptions\fR?
+.sp
+\fIobjectName\fR \fBtagArtifactEnd\fR
 .sp
 \fIobjectName\fR \fBputImage\fR \fIid\fR \fIx\fR \fIy\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1597,6 +1609,195 @@ Top of Bounding Box, displacement from anchor point\&. Typically a positive numb
 Height of font's Bounding Box\&.
 .RE
 .PP
+.SS "OBJECT METHODS, TAGGED PDF"
+An ordinary PDF records only where glyphs are painted\&. Nothing in the file
+says which run of glyphs is a heading, a table cell or a page number, and the
+reading order is whatever order the content stream happens to use, which is
+wrong as soon as a page has more than one column\&.
+A tagged PDF adds a tree of structure elements next to the content and links
+the two, as described by ISO 32000-1 clause 14\&.7 and 14\&.8\&. Assistive
+technology walks that tree instead of the paint order; it is also what makes
+text extraction, reflow and structure preserving export to HTML reliable\&.
+Tagging is required by PDF/UA (ISO 14289) and by the \fBa\fR conformance
+levels of PDF/A\&.
+Tagging is off by default and costs nothing when unused\&. The methods below
+are available from 0\&.9\&.4\&.36 on\&.
+.PP
+Being tagged is not the same as being accessible\&. A document in which every
+paragraph is \fB/P\fR and every heading is \fB/H1\fR is formally tagged
+and validates cleanly, but tells a reader nothing useful\&.
+.TP
+\fIobjectName\fR \fBtagged\fR ?\fIboolean\fR? ?\fIoptions\fR?
+Enables or disables tagging\&. Must be called before the first
+\fBtagBegin\fR\&. Raises the PDF version to 1\&.4\&. If no structure element is
+ever opened, no structure tree is written at all\&.
+.RS
+.TP
+\fB-lang\fR \fItag\fR
+Natural language of the document as an RFC 3066
+tag, for example \fBde-DE\fR\&. Written as \fB/Lang\fR in the document
+catalog\&.
+.TP
+\fB-ua\fR \fIpart\fR
+Writes the PDF/UA identification schema
+(\fBpdfuaid:part\fR) into the XMP packet\&. \fIpart\fR is \fB0\fR (the
+default, no claim), \fB1\fR or \fB2\fR\&.
+.RE
+.IP
+\fB-ua\fR is deliberately opt-in and not implied by enabling tagging\&. The
+entry asserts conformance that pdf4tcl cannot verify: embedded font programs,
+a document title, tagging of \fIall\fR content and a sensible heading order
+are the caller's responsibility\&. A document that claims PDF/UA and then fails
+validation is worse than one that claims nothing\&.
+.TP
+\fIobjectName\fR \fBtagBegin\fR \fItype\fR ?\fIoptions\fR?
+Opens a structure element\&. Everything painted until the matching
+\fBtagEnd\fR belongs to it\&. Elements nest, and the nesting of the calls is
+the nesting of the tree\&.
+.sp
+\fItype\fR must be one of the standard structure types of ISO 32000-1
+Table 333 to 337:
+\fBDocument\fR, \fBPart\fR, \fBArt\fR, \fBSect\fR, \fBDiv\fR,
+\fBBlockQuote\fR, \fBCaption\fR, \fBTOC\fR, \fBTOCI\fR,
+\fBIndex\fR, \fBNonStruct\fR, \fBPrivate\fR,
+\fBP\fR, \fBH\fR, \fBH1\fR to \fBH6\fR,
+\fBL\fR, \fBLI\fR, \fBLbl\fR, \fBLBody\fR,
+\fBTable\fR, \fBTR\fR, \fBTH\fR, \fBTD\fR, \fBTHead\fR,
+\fBTBody\fR, \fBTFoot\fR,
+\fBSpan\fR, \fBQuote\fR, \fBNote\fR, \fBReference\fR,
+\fBBibEntry\fR, \fBCode\fR, \fBFigure\fR, \fBFormula\fR and
+\fBForm\fR\&.
+Any other type would require a \fB/RoleMap\fR entry and is refused rather
+than written out and then silently ignored by readers\&.
+.RS
+.TP
+\fB-alt\fR \fItext\fR
+Alternative description, written as
+\fB/Alt\fR\&. For a \fBFigure\fR this is the only text a screen reader can
+announce\&.
+.TP
+\fB-actualtext\fR \fItext\fR
+Replacement text for extraction, written as
+\fB/ActualText\fR\&. Use it where the painted glyphs differ from the
+characters they represent, for example a ligature drawn as one glyph\&.
+.TP
+\fB-title\fR \fItext\fR
+Human readable label, written as \fB/T\fR\&.
+.TP
+\fB-lang\fR \fItag\fR
+Marks a passage in a language other than the
+document language\&.
+.TP
+\fB-scope\fR \fIscope\fR
+Applies to \fBTH\fR only and writes
+\fB/A <</O /Table /Scope \&.\&.\&.>>\fR\&. \fIscope\fR is \fBRow\fR,
+\fBColumn\fR or \fBBoth\fR\&. ISO 14289-1 clause 7\&.5 requires it wherever
+the relation between a header cell and its data cells cannot be derived
+algorithmically\&.
+.RE
+.IP
+Text passed to these options is written as a UTF-16BE string when it contains
+anything outside printable ASCII, so it is not restricted to Latin-1 the way
+\fBbookmarkAdd\fR titles are\&.
+.TP
+\fIobjectName\fR \fBtagEnd\fR
+Closes the innermost open structure element\&. Raises an error if no element is
+open\&. All elements must be closed before the document is finished\&.
+.TP
+\fIobjectName\fR \fBtagText\fR \fItype\fR \fIstr\fR ?\fIoptions\fR?
+Convenience for a complete element around a single \fBtext\fR call\&.
+Options are split by name: \fB-alt\fR, \fB-actualtext\fR,
+\fB-title\fR, \fB-lang\fR and \fB-scope\fR go to \fBtagBegin\fR,
+everything else to \fBtext\fR\&. Returns whatever \fBtext\fR returns\&.
+.TP
+\fIobjectName\fR \fBtagArtifact\fR ?\fIoptions\fR?
+.TP
+\fIobjectName\fR \fBtagArtifactEnd\fR
+Marks content that is not part of the document: running heads, page numbers,
+rules, background decoration\&. Artifacts carry no \fB/MCID\fR and are
+skipped by assistive technology (ISO 32000-1 clause 14\&.8\&.2\&.2)\&.
+.RS
+.TP
+\fB-type\fR \fItype\fR
+One of \fBPagination\fR, \fBLayout\fR,
+\fBPage\fR or \fBBackground\fR\&.
+.TP
+\fB-subtype\fR \fIsubtype\fR
+One of \fBHeader\fR, \fBFooter\fR or
+\fBWatermark\fR\&.
+.RE
+.IP
+Without options a plain \fBBMC\fR artifact is written\&.
+.sp
+A structure element may still be open when \fBtagArtifact\fR is called --
+a running foot on the second page of a paragraph that spans the page break is
+the normal case\&. The element's marked content is closed first and reopened by
+the next painting call, so the artifact sits \fIbetween\fR two sequences of
+the element rather than inside one\&. ISO 14289-1 clause 7\&.1 forbids an
+artifact inside tagged content and tagged content inside an artifact\&.
+Opening a structure element while an artifact is open raises an error\&.
+.PP
+.PP
+Marked content is opened at the first painting operation after
+\fBtagBegin\fR, and only for the innermost open element\&. A grouping
+element such as \fBL\fR, \fBTR\fR or \fBTable\fR paints nothing itself
+and therefore carries no marked content at all; an element interrupted by a
+nested one receives a further marked content sequence when painting resumes\&.
+Elements may span page breaks: the sequence is closed at the end of the page
+and a new one opened on the next, because marked content may not cross a
+content stream boundary\&.
+.PP
+Tagging inside an XObject (\fBstartPage\fR with \fB-xobject\fR) is not
+supported and raises an error\&.
+.PP
+\fB::pdf4tcl::catPdf\fR removes the logical structure from tagged input
+documents and notes this in \fB::pdf4tcl::warnings\fR\&. Merging structure
+trees is not implemented: each page carries a \fB/StructParents\fR key
+indexing the parent tree of its own document, and each document numbers its
+pages from zero, so a merge would leave pages resolving to the wrong
+structure elements\&.
+.PP
+Example:
+.CS
+
+
+package require pdf4tcl
+
+# PDF/UA requires embedded font programs; the base 14 fonts have none\&.
+pdf4tcl::loadBaseTrueTypeFont BaseFreeSans FreeSans\&.ttf
+pdf4tcl::createFont BaseFreeSans DemoFont iso8859-1
+
+set pdf [pdf4tcl::new %AUTO% -paper a4]
+$pdf tagged 1 -lang de-DE -ua 1
+$pdf metadata -title "Beispiel"
+$pdf viewerPreferences -displaydoctitle 1
+$pdf startPage
+
+$pdf tagArtifact -type Pagination -subtype Footer
+$pdf setFont 8 DemoFont
+$pdf text "Seite 1" -x 500 -y 40
+$pdf tagArtifactEnd
+
+$pdf setFont 18 DemoFont
+$pdf tagText H1 "Kapitel 1" -x 50 -y 780
+
+$pdf setFont 11 DemoFont
+$pdf tagBegin P
+$pdf text "Erste Zeile" -x 50 -y 750
+$pdf text "Zweite Zeile desselben Absatzes" -x 50 -y 735
+$pdf tagEnd
+
+$pdf tagBegin Figure -alt "Rotes Quadrat"
+$pdf setFillColor 0\&.8 0\&.1 0\&.1
+$pdf rectangle 50 600 60 60 -filled 1
+$pdf tagEnd
+
+$pdf write -file tagged\&.pdf
+$pdf destroy
+
+.CE
+A fuller example with a list, a table and a paragraph spanning a page break
+is "\fIexamples/tagged\&.tcl\fR"\&.
 .SS "OBJECT METHODS, IMAGES"
 A limited set of image formats are directly understood by pdf4tcl,
 currently some JPEG, some PNG, and some TIFF formats\&.
@@ -2277,6 +2478,47 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.36"
+.PP
+.IP \(bu
+"\fIsrc/tagged\&.tcl\fR": new\&. Tagged PDF, the logical structure of
+ISO 32000-1 clause 14\&.7 and 14\&.8\&. New methods \fBtagged\fR,
+\fBtagBegin\fR, \fBtagEnd\fR, \fBtagText\fR, \fBtagArtifact\fR
+and \fBtagArtifactEnd\fR\&. Writes \fB/StructTreeRoot\fR with a parent
+tree, \fB/MarkInfo\fR, \fB/StructParents\fR per page, and \fB/Alt\fR,
+\fB/ActualText\fR, \fB/Lang\fR, \fB/T\fR and \fB/Scope\fR on the
+elements\&. Off by default\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR" (\fB_BuildXMPStream\fR): writes the PDF/UA
+identification schema \fBpdfuaid:part\fR when \fBtagged\fR was called
+with \fB-ua\fR\&. Opt-in, because the entry asserts conformance that pdf4tcl
+cannot verify\&.
+.IP \(bu
+"\fIsrc/cat\&.tcl\fR" (\fBStripStructure\fR): \fB::pdf4tcl::catPdf\fR
+now removes the logical structure of tagged inputs and notes this in
+\fB::pdf4tcl::warnings\fR\&. Previously the merged file claimed to be tagged
+while the second document's pages indexed the first document's parent tree:
+two pages both carrying \fB/StructParents 0\fR, a tree holding only the
+first document's heading, and no error raised\&. A file that misreports its
+structure is worse than one without any, because a reader trusts
+\fB/MarkInfo\fR and follows the wrong tree instead of the paint order\&.
+.IP \(bu
+"\fIsrc/cat\&.tcl\fR" (\fBWritePdf\fR): fixed a typo where the final
+\fBWriteCh\fR passed \fBpo\fR instead of \fBpos\fR, updating the position
+counter in a variable nobody reads\&.
+.IP \(bu
+"\fItests/tagged\&.test\fR": new, 37 tests\&.
+.IP \(bu
+"\fItools/check-tagged\&.py\fR": new\&. Walks the structure tree,
+reconstructs the text each element actually paints, and checks marked content
+balance, MCID numbering and nesting, \fB/StructParents\fR uniqueness across
+pages, parent tree coverage and orphaned sequences\&.
+.IP \(bu
+"\fIexamples/tagged\&.tcl\fR": new\&. Headings, list, table with
+\fB/Scope\fR, figure with \fB/Alt\fR, artifacts and a paragraph spanning
+a page break\&. Validates with veraPDF 1\&.28\&.2 as PDF/UA-1, 106 rules and 1357
+checks passed, none failed\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.25"
 .PP
 .IP \(bu

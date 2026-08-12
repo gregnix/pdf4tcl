@@ -244,6 +244,32 @@ oo::define ::pdf4tcl::pdf4tcl {
     #######################################################################
 
     # Add raw data to accumulated pdf output
+    #######################################################################
+    # Tagged PDF hooks
+    #
+    # src/main.tcl calls these from startPage, endPage, finish, Pdfoutcmd and
+    # BeginTextObj. src/tagged.tcl is concatenated after this file and
+    # overrides every one of them with the real implementation.
+    #
+    # They are defined here so that main.tcl does not depend on tagged.tcl
+    # being part of the build. Without these, a build with a shortened
+    # CATFILES -- or an older installed copy of the package shadowing the
+    # freshly built one -- fails at the first startPage with "unknown method
+    # TagPageStart" followed by every method the class does have, which says
+    # nothing about the actual cause.
+    #
+    # These are not silent fallbacks for a broken state: if tagged.tcl is
+    # missing, the "tagged" method is missing as well, so tagging cannot have
+    # been switched on and doing nothing is the correct behaviour.
+    #######################################################################
+
+    method TagPageStart {} {}
+    method TagPageEnd {} {}
+    method TagEnsureMC {} {}
+    method TagPageDict {} { return "" }
+    method TagCatalogEntries {} {}
+    method TagWriteObjects {} {}
+
     method Pdfout {out} {
         append pdf(ob) $out
         incr pdf(out_pos) [string length $out]
@@ -257,6 +283,10 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Helper to format a line consisting of numbers and last a command
     method Pdfoutcmd {args} {
+        # Tagged PDF: every content stream operator is a painting operation,
+        # so this is where a pending structure element gets its marked
+        # content. No-op when tagging is off. See src/tagged.tcl.
+        my TagEnsureMC
         set str ""
         foreach num [lrange $args 0 end-1] {
             append str [Nf $num] " "
@@ -524,6 +554,15 @@ oo::define ::pdf4tcl::pdf4tcl {
         # capture output
         my Flush
 
+        # Tagged PDF: reopen marked content for structure elements that are
+        # still open, so an element may span a page break. See src/tagged.tcl.
+        #
+        # This must come AFTER the Flush above. Flush writes without
+        # compression, while endPage compresses whatever is still buffered and
+        # then computes /Length from that. Anything flushed early would land
+        # uncompressed in front of the deflate stream and truncate the page.
+        my TagPageStart
+
         return $oid
     }
 
@@ -532,6 +571,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {! $pdf(inPage)} {
             return
         }
+        # Tagged PDF: BDC/EMC may not cross a content stream boundary.
+        # Close what is still open here; TagPageStart reopens it. Must run
+        # before the stream is flushed. See src/tagged.tcl.
+        my TagPageEnd
         if {$pdf(in_text_object)} {
             my Pdfout "\nET\n"
         }
@@ -574,6 +617,8 @@ oo::define ::pdf4tcl::pdf4tcl {
                 # /Tabs /R (row order) enables logical tab order for form fields
                 append pdf(pageobj) "/Tabs /R\n"
             }
+            # Tagged PDF: /StructParents, if this page carries any MCID
+            append pdf(pageobj) [my TagPageDict]
             append pdf(pageobj) ">>\n"
             append pdf(pageobj) "endobj\n\n"
             my StoreXref $pdf(pageobjid)
@@ -631,6 +676,10 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "/Version $pdf(version)\n"
         }
         my Pdfout "/Pages 2 0 R\n"
+        # Tagged PDF: /StructTreeRoot, /MarkInfo, /Lang. Reserves the
+        # StructTreeRoot oid; the objects are written by TagWriteObjects
+        # further down. See src/tagged.tcl.
+        my TagCatalogEntries
         # XMP Metadata stream -- OID reserved now, written at end of endPDF
         # (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2)
         set xmp_oid [my GetOid 1]
@@ -1012,6 +1061,11 @@ Use -pdfa-icc to specify a profile path."
             my Pdfout "endobj\n\n"
         }
 
+        # Tagged PDF: structure elements, parent tree, StructTreeRoot.
+        # Queues the StructElem objects, so it must run before the
+        # FlushObjects below. See src/tagged.tcl.
+        my TagWriteObjects
+
         # Deferred objects added after the last endPage (e.g. embedded files
         # via addEmbeddedFile / facturx) are still queued in pdf(objects).
         # Flush them here so their bodies are written and their xref offsets
@@ -1369,6 +1423,11 @@ Use -pdfa-icc to specify a profile path."
         if {$options(-pdfa) ne ""} {
             append x "\n   xmlns:pdfaid=\"http://www.aiim.org/pdfa/ns/id/\""
         }
+        # PDF/UA Identification Schema (ISO 14289-1 clause 5). Only meaningful
+        # for a tagged document; an untagged one must not claim it.
+        if {[info exists pdf(tag,uapart)] && $pdf(tag,uapart) ne ""} {
+            append x "\n   xmlns:pdfuaid=\"http://www.aiim.org/pdfua/ns/id/\""
+        }
         append x ">\n"
 
         # dc:title
@@ -1425,6 +1484,11 @@ Use -pdfa-icc to specify a profile path."
             set pdfaid_conf [string toupper [string index $options(-pdfa) 1]]
             append x "   <pdfaid:part>$pdfaid_part</pdfaid:part>\n"
             append x "   <pdfaid:conformance>$pdfaid_conf</pdfaid:conformance>\n"
+        }
+        # pdfuaid Identification (ISO 14289-1 clause 5) -- only when the
+        # caller asserted PDF/UA conformance via "tagged ... -ua 1".
+        if {[info exists pdf(tag,uapart)] && $pdf(tag,uapart) ne ""} {
+            append x "   <pdfuaid:part>$pdf(tag,uapart)</pdfuaid:part>\n"
         }
 
         append x "  </rdf:Description>\n"
@@ -2700,6 +2764,8 @@ Use -pdfa-icc to specify a profile path."
     # start text object, if not already in text
     method BeginTextObj {} {
         if {!$pdf(in_text_object)} {
+            # Tagged PDF: BT must be inside the element's BDC, not around it.
+            my TagEnsureMC
             my Pdfout "BT\n"
             set pdf(in_text_object) true
         }

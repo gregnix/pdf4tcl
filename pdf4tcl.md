@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.35?**
+package require **pdf4tcl ?0****.9****.4****.36?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -137,6 +137,18 @@ package require **pdf4tcl ?0****.9****.4****.35?**
 *objectName* **drawTextBox** *x* *y* *width* *height* *str* ?*option value*...?
 
 *objectName* **getFontMetric** *metric*
+
+*objectName* **tagged** ?*boolean*? ?*options*?
+
+*objectName* **tagBegin** *type* ?*options*?
+
+*objectName* **tagEnd**
+
+*objectName* **tagText** *type* *str* ?*options*?
+
+*objectName* **tagArtifact** ?*options*?
+
+*objectName* **tagArtifactEnd**
 
 *objectName* **putImage** *id* *x* *y* ?*option value*...?
 
@@ -906,6 +918,93 @@ $pdf line $x $nextY [expr {$x+$w}] $nextY
 **objectName getFontMetric metric**
 : Get information about current font. The available *metric*s are **ascend**, **descend**, **fixed**, **bboxb**, **bboxt** and **height**.
 
+### OBJECT METHODS, TAGGED PDF
+
+An ordinary PDF records only where glyphs are painted. Nothing in the file says which run of glyphs is a heading, a table cell or a page number, and the reading order is whatever order the content stream happens to use, which is wrong as soon as a page has more than one column. A tagged PDF adds a tree of structure elements next to the content and links the two, as described by ISO 32000-1 clause 14.7 and 14.8. Assistive technology walks that tree instead of the paint order; it is also what makes text extraction, reflow and structure preserving export to HTML reliable. Tagging is required by PDF/UA (ISO 14289) and by the **a** conformance levels of PDF/A. Tagging is off by default and costs nothing when unused. The methods below are available from 0.9.4.36 on.
+
+Being tagged is not the same as being accessible. A document in which every paragraph is **/P** and every heading is **/H1** is formally tagged and validates cleanly, but tells a reader nothing useful.
+
+**-lang tag**
+: Natural language of the document as an RFC 3066 tag, for example **de-DE**. Written as **/Lang** in the document catalog.
+
+**-ua part**
+: Writes the PDF/UA identification schema (**pdfuaid:part**) into the XMP packet. *part* is **0** (the default, no claim), **1** or **2**.
+
+**objectName tagged ?boolean? ?options?**
+: Enables or disables tagging. Must be called before the first **tagBegin**. Raises the PDF version to 1.4. If no structure element is ever opened, no structure tree is written at all.
+
+- **-ua** is deliberately opt-in and not implied by enabling tagging. The entry asserts conformance that pdf4tcl cannot verify: embedded font programs, a document title, tagging of *all* content and a sensible heading order are the caller's responsibility. A document that claims PDF/UA and then fails validation is worse than one that claims nothing.
+
+**-alt text**
+: Alternative description, written as **/Alt**. For a **Figure** this is the only text a screen reader can announce.
+
+**-actualtext text**
+: Replacement text for extraction, written as **/ActualText**. Use it where the painted glyphs differ from the characters they represent, for example a ligature drawn as one glyph.
+
+**-title text**
+: Human readable label, written as **/T**.
+
+**-lang tag**
+: Marks a passage in a language other than the document language.
+
+**-scope scope**
+: Applies to **TH** only and writes **/A <</O /Table /Scope ****.****.****.>>**. *scope* is **Row**, **Column** or **Both**. ISO 14289-1 clause 7.5 requires it wherever the relation between a header cell and its data cells cannot be derived algorithmically.
+
+**objectName tagBegin type ?options?**
+: Opens a structure element. Everything painted until the matching **tagEnd** belongs to it. Elements nest, and the nesting of the calls is the nesting of the tree. *type* must be one of the standard structure types of ISO 32000-1 Table 333 to 337: **Document**, **Part**, **Art**, **Sect**, **Div**, **BlockQuote**, **Caption**, **TOC**, **TOCI**, **Index**, **NonStruct**, **Private**, **P**, **H**, **H1** to **H6**, **L**, **LI**, **Lbl**, **LBody**, **Table**, **TR**, **TH**, **TD**, **THead**, **TBody**, **TFoot**, **Span**, **Quote**, **Note**, **Reference**, **BibEntry**, **Code**, **Figure**, **Formula** and **Form**. Any other type would require a **/RoleMap** entry and is refused rather than written out and then silently ignored by readers.
+
+- Text passed to these options is written as a UTF-16BE string when it contains anything outside printable ASCII, so it is not restricted to Latin-1 the way **bookmarkAdd** titles are.
+**-type type**
+: One of **Pagination**, **Layout**, **Page** or **Background**.
+
+**-subtype subtype**
+: One of **Header**, **Footer** or **Watermark**.
+
+**objectName tagEnd**
+: Closes the innermost open structure element. Raises an error if no element is open. All elements must be closed before the document is finished.
+
+**objectName tagText type str ?options?**
+: Convenience for a complete element around a single **text** call. Options are split by name: **-alt**, **-actualtext**, **-title**, **-lang** and **-scope** go to **tagBegin**, everything else to **text**. Returns whatever **text** returns.
+
+**objectName**
+: **tagArtifact** ?*options*?
+
+**objectName tagArtifactEnd**
+: Marks content that is not part of the document: running heads, page numbers, rules, background decoration. Artifacts carry no **/MCID** and are skipped by assistive technology (ISO 32000-1 clause 14.8.2.2).
+
+- Without options a plain **BMC** artifact is written. A structure element may still be open when **tagArtifact** is called -- a running foot on the second page of a paragraph that spans the page break is the normal case. The element's marked content is closed first and reopened by the next painting call, so the artifact sits *between* two sequences of the element rather than inside one. ISO 14289-1 clause 7.1 forbids an artifact inside tagged content and tagged content inside an artifact. Opening a structure element while an artifact is open raises an error. Marked content is opened at the first painting operation after **tagBegin**, and only for the innermost open element. A grouping element such as **L**, **TR** or **Table** paints nothing itself and therefore carries no marked content at all; an element interrupted by a nested one receives a further marked content sequence when painting resumes. Elements may span page breaks: the sequence is closed at the end of the page and a new one opened on the next, because marked content may not cross a content stream boundary. Tagging inside an XObject (**startPage** with **-xobject**) is not supported and raises an error. **::pdf4tcl::catPdf** removes the logical structure from tagged input documents and notes this in **::pdf4tcl::warnings**. Merging structure trees is not implemented: each page carries a **/StructParents** key indexing the parent tree of its own document, and each document numbers its pages from zero, so a merge would leave pages resolving to the wrong structure elements. Example:
+
+```tcl
+package require pdf4tcl
+# PDF/UA requires embedded font programs; the base 14 fonts have none.
+pdf4tcl::loadBaseTrueTypeFont BaseFreeSans FreeSans.ttf
+pdf4tcl::createFont BaseFreeSans DemoFont iso8859-1
+set pdf [pdf4tcl::new %AUTO% -paper a4]
+$pdf tagged 1 -lang de-DE -ua 1
+$pdf metadata -title "Beispiel"
+$pdf viewerPreferences -displaydoctitle 1
+$pdf startPage
+$pdf tagArtifact -type Pagination -subtype Footer
+$pdf setFont 8 DemoFont
+$pdf text "Seite 1" -x 500 -y 40
+$pdf tagArtifactEnd
+$pdf setFont 18 DemoFont
+$pdf tagText H1 "Kapitel 1" -x 50 -y 780
+$pdf setFont 11 DemoFont
+$pdf tagBegin P
+$pdf text "Erste Zeile" -x 50 -y 750
+$pdf text "Zweite Zeile desselben Absatzes" -x 50 -y 735
+$pdf tagEnd
+$pdf tagBegin Figure -alt "Rotes Quadrat"
+$pdf setFillColor 0.8 0.1 0.1
+$pdf rectangle 50 600 60 60 -filled 1
+$pdf tagEnd
+$pdf write -file tagged.pdf
+$pdf destroy
+```
+
+A fuller example with a list, a table and a paragraph spanning a page break is "*examples/tagged**.tcl*".
+
 ### OBJECT METHODS, IMAGES
 
 A limited set of image formats are directly understood by pdf4tcl, currently some JPEG, some PNG, and some TIFF formats. To use unsupported formats, use Tk and the Img package to load and dump images to raw format which can be fed to **putRawImage** and **addRawImage**.
@@ -1277,6 +1376,16 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.36
+
+- ISO 32000-1 clause 14.7 and 14.8. New methods **tagged**, **tagBegin**, **tagEnd**, **tagText**, **tagArtifact** and **tagArtifactEnd**. Writes **/StructTreeRoot** with a parent tree, **/MarkInfo**, **/StructParents** per page, and **/Alt**, **/ActualText**, **/Lang**, **/T** and **/Scope** on the elements. Off by default.
+- identification schema **pdfuaid:part** when **tagged** was called with **-ua**. Opt-in, because the entry asserts conformance that pdf4tcl cannot verify.
+- now removes the logical structure of tagged inputs and notes this in **::pdf4tcl::warnings**. Previously the merged file claimed to be tagged while the second document's pages indexed the first document's parent tree: two pages both carrying **/StructParents 0**, a tree holding only the first document's heading, and no error raised. A file that misreports its structure is worse than one without any, because a reader trusts **/MarkInfo** and follows the wrong tree instead of the paint order.
+- **WriteCh** passed **po** instead of **pos**, updating the position counter in a variable nobody reads.
+- 
+- reconstructs the text each element actually paints, and checks marked content balance, MCID numbering and nesting, **/StructParents** uniqueness across pages, parent tree coverage and orphaned sequences.
+- **/Scope**, figure with **/Alt**, artifacts and a paragraph spanning a page break. Validates with veraPDF 1.28.2 as PDF/UA-1, 106 rules and 1357 checks passed, none failed.
 
 ### VERSION 0.9.4.25
 

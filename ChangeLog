@@ -1,3 +1,8 @@
+2026-08-12 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.36
+	* Tagged PDF -- logical structure via tagged/tagBegin/tagEnd/tagText/tagArtifact, /StructTreeRoot with parent tree, /Alt /ActualText /Lang /T, /Scope on TH, optional pdfuaid; examples/tagged.tcl validates as PDF/UA-1; catPdf now drops structure instead of corrupting it
+
 2026-07-20 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.35

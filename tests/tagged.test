@@ -1,0 +1,635 @@
+# Tagged PDF -- logical structure                                   -*-tcl-*-
+#
+# ISO 32000-1 clause 14.7/14.8. See src/tagged.tcl.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Build a document and return the raw bytes. The object is 'p' in the body.
+# opts overrides the defaults -- appending would pass e.g. -compress twice,
+# and readonly options refuse a second value at creation time.
+proc taggedPdf {body {opts {}}} {
+    set all [dict merge {-compress 0 -paper a4} $opts]
+    set p [::pdf4tcl::new %AUTO% {*}$all]
+    uplevel 1 [list set p $p]
+    uplevel 1 $body
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+proc contains {str sub} {
+    expr {[string first $sub $str] >= 0}
+}
+
+# Count non-overlapping occurrences of sub in str
+proc countOf {str sub} {
+    set n 0
+    set idx 0
+    while {[set idx [string first $sub $str $idx]] >= 0} {
+        incr n
+        incr idx [string length $sub]
+    }
+    return $n
+}
+
+# Decompress every deflate stream in a PDF. Streams that are not deflate
+# (or are encrypted) simply do not decompress and are skipped.
+#
+# pdf4tcl writes with [zlib compress], which prepends a zlib header, so the
+# counterpart is [zlib decompress]. [zlib inflate] expects raw deflate and
+# fails here with a bare "data error".
+proc inflatedStreams {data} {
+    set res {}
+    set idx 0
+    while {[set s [string first "stream\n" $data $idx]] >= 0} {
+        set start [expr {$s + 7}]
+        set e [string first "\nendstream" $data $start]
+        if {$e < 0} break
+        set chunk [string range $data $start $e-1]
+        if {![catch {zlib decompress $chunk} out]} {
+            lappend res $out
+        }
+        set idx [expr {$e + 10}]
+    }
+    return $res
+}
+
+# -----------------------------------------------------------------------
+# 1.x  Off by default -- no cost for untagged documents
+# -----------------------------------------------------------------------
+
+test tagged-1.1 {untagged document has no structure tree} -body {
+    set data [taggedPdf {
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "plain" -x 50 -y 700
+    }]
+    list [contains $data "/StructTreeRoot"] [contains $data "/MarkInfo"] \
+            [contains $data "/StructParents"]
+} -result {0 0 0}
+
+test tagged-1.2 {tagBegin without tagged 1 is an error} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    set res [catch {$p tagBegin P} err]
+    $p destroy
+    list $res [string match "*not enabled*" $err]
+} -result {1 1}
+
+# -----------------------------------------------------------------------
+# 2.x  Catalog entries
+# -----------------------------------------------------------------------
+
+test tagged-2.1 {catalog gets StructTreeRoot, MarkInfo and Lang} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "hello" -x 50 -y 700
+    }]
+    list [contains $data "/StructTreeRoot"] \
+            [contains $data "/MarkInfo <</Marked true>>"] \
+            [contains $data "/Lang (de-DE)"]
+} -result {1 1 1}
+
+test tagged-2.2 {tagging raises the PDF version to 1.4} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "hello" -x 50 -y 700
+    }]
+    expr {[string range $data 0 7] >= "%PDF-1.4"}
+} -result 1
+
+test tagged-2.3 {invalid language tag is rejected} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    set res [catch {$p tagged 1 -lang "Deutsch (Deutschland)"} err]
+    $p destroy
+    list $res [string match "*invalid language tag*" $err]
+} -result {1 1}
+
+test tagged-2.4 {tagged 1 alone writes no structure tree} -body {
+    # An enabled but unused tagging must not produce a stub tree.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "plain" -x 50 -y 700
+    }]
+    contains $data "/StructTreeRoot"
+} -result 0
+
+# -----------------------------------------------------------------------
+# 3.x  Marked content in the stream
+# -----------------------------------------------------------------------
+
+test tagged-3.1 {tagBegin emits BDC with an MCID, tagEnd emits EMC} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin H1
+        $p text "Title" -x 50 -y 700
+        $p tagEnd
+    }]
+    list [contains $data "/H1 <</MCID 0>> BDC"] [countOf $data "EMC"]
+} -result {1 1}
+
+test tagged-3.2 {MCIDs are numbered per page starting at zero} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText H1 "a" -x 50 -y 700
+        $p tagText P  "b" -x 50 -y 680
+        $p tagText P  "c" -x 50 -y 660
+    }]
+    list [contains $data "/H1 <</MCID 0>> BDC"] \
+            [contains $data "/P <</MCID 1>> BDC"] \
+            [contains $data "/P <</MCID 2>> BDC"]
+} -result {1 1 1}
+
+test tagged-3.3 {BDC is emitted outside the text object} -body {
+    # BT ... ET must not be split by BDC; the BDC has to come first.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "x" -x 50 -y 700
+    }]
+    regexp {BDC\s+BT} $data
+} -result 1
+
+test tagged-3.4 {grouping elements carry no marked content of their own} -body {
+    # A structure element that only contains other elements paints nothing
+    # and must not get an MCID. Opening one for every tagBegin put the
+    # container's MCID around its children's; veraPDF reports that as
+    # "Nested MCID" (21 of them on one page of examples/tagged.tcl), and the
+    # PDF/UA structure rules assume it never happens.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin L
+        $p tagBegin LI
+        $p tagText Lbl "1." -x 50 -y 700
+        $p tagText LBody "first" -x 70 -y 700
+        $p tagEnd
+        $p tagEnd
+    }]
+    # Only Lbl and LBody paint, so exactly two sequences; L and LI get none.
+    list [countOf $data "BDC"] [countOf $data "EMC"] \
+            [contains $data "/L <</MCID"] [contains $data "/LI <</MCID"] \
+            [contains $data "/Lbl <</MCID 0>> BDC"] \
+            [contains $data "/LBody <</MCID 1>> BDC"]
+} -result {2 2 0 0 1 1}
+
+test tagged-3.5 {an element regains marked content after a nested one closes} -body {
+    # P paints, then a Span interrupts it, then P paints again. P must own
+    # two separate marked content sequences, not one wrapping the Span.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "before" -x 50 -y 700
+        $p tagBegin Span -lang en-GB
+        $p text "inside" -x 50 -y 685
+        $p tagEnd
+        $p text "after" -x 50 -y 670
+        $p tagEnd
+    }]
+    list [contains $data "/P <</MCID 0>> BDC"] \
+            [contains $data "/Span <</MCID 1>> BDC"] \
+            [contains $data "/P <</MCID 2>> BDC"] \
+            [countOf $data "EMC"]
+} -result {1 1 1 3}
+
+# -----------------------------------------------------------------------
+# 4.x  Page handling
+# -----------------------------------------------------------------------
+
+test tagged-4.1 {every page with an MCID gets StructParents} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "page one" -x 50 -y 700
+        $p startPage
+        $p tagText P "page two" -x 50 -y 700
+    }]
+    list [contains $data "/StructParents 0"] [contains $data "/StructParents 1"]
+} -result {1 1}
+
+test tagged-4.2 {a page without marked content gets no StructParents} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "tagged" -x 50 -y 700
+        $p startPage
+        $p text "untagged" -x 50 -y 700
+    }]
+    list [contains $data "/StructParents 0"] [contains $data "/StructParents 1"]
+} -result {1 0}
+
+test tagged-4.3 {an element open across a page break is closed and reopened} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "first part" -x 50 -y 100
+        $p startPage
+        $p text "second part" -x 50 -y 700
+        $p tagEnd
+    }]
+    # One BDC and one EMC on each of the two pages
+    list [countOf $data "BDC"] [countOf $data "EMC"] \
+            [contains $data "/StructParents 0"] [contains $data "/StructParents 1"]
+} -result {2 2 1 1}
+
+test tagged-4.4 {finishing with an open element is an error} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagBegin P
+    $p text "x" -x 50 -y 700
+    set res [catch {$p get} err]
+    catch {$p destroy}
+    list $res [string match "*open structure element*" $err]
+} -result {1 1}
+
+# -----------------------------------------------------------------------
+# 5.x  Attributes
+# -----------------------------------------------------------------------
+
+test tagged-5.1 {Alt, ActualText, Lang and title reach the element} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Figure -alt "A red circle" -title "fig1"
+        $p setFillColor 1 0 0
+        $p circle 300 700 40 -filled 1
+        $p tagEnd
+        $p tagText P "fi" -actualtext "fi" -lang en-GB -x 50 -y 600
+    }]
+    list [contains $data "/Alt (A red circle)"] [contains $data "/T (fig1)"] \
+            [contains $data "/ActualText (fi)"] [contains $data "/Lang (en-GB)"]
+} -result {1 1 1 1}
+
+test tagged-5.2 {non-ASCII Alt text becomes UTF-16BE, not a question mark} -body {
+    # QuoteString would turn U+2192 into "?", which is what a screen reader
+    # would then announce. TagTextString must encode it instead.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Figure -alt "A \u2192 B"
+        $p circle 300 700 40
+        $p tagEnd
+    }]
+    # UTF-16BE BOM as octal escapes; U+2192 is 0x21 0x92, and 0x21 is a
+    # printable ASCII byte, so it stays literal while 0x92 is escaped.
+    list [contains $data "/Alt (\\376\\377"] [contains $data "!\\222"] \
+            [contains $data "/Alt (A ? B)"]
+} -result {1 1 0}
+
+# -----------------------------------------------------------------------
+# 6.x  Artifacts
+# -----------------------------------------------------------------------
+
+test tagged-6.1 {artifact content carries no MCID} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "body" -x 50 -y 700
+        $p tagArtifact -type Pagination -subtype Footer
+        $p text "page 1" -x 50 -y 40
+        $p tagArtifactEnd
+    }]
+    # /MCID occurs twice for one tagged element: once in the BDC operator
+    # in the content stream and once in the /MCR dict of the StructElem.
+    list [contains $data "/Artifact <</Type /Pagination /Subtype /Footer>> BDC"] \
+            [countOf $data "/MCID"]
+} -result {1 2}
+
+test tagged-6.2 {artifact without properties uses BMC} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "body" -x 50 -y 700
+        $p tagArtifact
+        $p line 50 60 500 60
+        $p tagArtifactEnd
+    }]
+    contains $data "/Artifact BMC"
+} -result 1
+
+test tagged-6.3 {tagBegin inside an artifact is an error} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    $p tagArtifact
+    set res [catch {$p tagBegin P} err]
+    catch {$p destroy}
+    list $res [string match "*inside an artifact*" $err]
+} -result {1 1}
+
+test tagged-6.4 {an artifact left open at page end is an error} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    $p tagArtifact
+    set res [catch {$p endPage} err]
+    catch {$p destroy}
+    list $res [string match "*open artifact*" $err]
+} -result {1 1}
+
+# -----------------------------------------------------------------------
+# 7.x  Errors
+# -----------------------------------------------------------------------
+
+test tagged-7.1 {unknown structure type is rejected} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    set res [catch {$p tagBegin Paragraph} err]
+    catch {$p destroy}
+    list $res [string match "*unknown structure type*" $err]
+} -result {1 1}
+
+test tagged-7.2 {tagEnd without tagBegin is rejected} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    set res [catch {$p tagEnd} err]
+    catch {$p destroy}
+    list $res [string match "*without matching tagBegin*" $err]
+} -result {1 1}
+
+test tagged-7.3 {tagging inside an XObject is rejected} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage -xobject 1
+    set res [catch {$p tagBegin P} err]
+    catch {$p destroy}
+    list $res [string match "*XObject*" $err]
+} -result {1 1}
+
+test tagged-7.4 {unknown option to tagBegin is rejected} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    set res [catch {$p tagBegin P -description "x"} err]
+    catch {$p destroy}
+    list $res [string match "*unknown option*" $err]
+} -result {1 1}
+
+# -----------------------------------------------------------------------
+# 8.x  Interaction with other features
+# -----------------------------------------------------------------------
+
+test tagged-8.1a {a tag spanning a page break survives compression} -body {
+    # Regression: TagPageStart used to write the reopened BDC before the
+    # Flush at the end of startPage. Flush writes uncompressed, while endPage
+    # deflates the remaining buffer and derives /Length from it -- the second
+    # page ended up as a few raw bytes in front of a deflate stream, and
+    # every reader saw an empty page. No error was raised anywhere.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "page one" -x 50 -y 700
+        $p startPage
+        $p text "page two" -x 50 -y 700
+        $p tagEnd
+    } {-compress 1}]
+    set streams [inflatedStreams $data]
+    set found {}
+    foreach s $streams {
+        foreach probe {"page one" "page two"} {
+            if {[contains $s $probe]} { lappend found $probe }
+        }
+    }
+    # Both pages must inflate and carry their text plus balanced markers
+    set bdc 0
+    set emc 0
+    foreach s $streams {
+        incr bdc [countOf $s "BDC"]
+        incr emc [countOf $s "EMC"]
+    }
+    list [lsort $found] $bdc $emc
+} -result {{{page one} {page two}} 2 2}
+
+test tagged-8.1 {structure survives compression} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText H1 "compressed" -x 50 -y 700
+    } {-compress 1}]
+    # Structure objects live outside the content stream and stay readable
+    list [contains $data "/StructTreeRoot"] [contains $data "/S /H1"]
+} -result {1 1}
+
+# Encryption needs tcllib's aes; skip rather than fail where it is missing.
+tcltest::testConstraint hasAes [expr {![catch {package require aes}]}]
+
+test tagged-8.2 {Alt strings are encrypted along with the rest} -constraints hasAes -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Figure -alt "SECRETALTTEXT"
+        $p circle 300 700 40
+        $p tagEnd
+    } {-userpassword secret -encversion 4}]
+    # The literal must not survive in the clear
+    list [contains $data "/Encrypt"] [contains $data "SECRETALTTEXT"]
+} -result {1 0}
+
+test tagged-8.3 {layers and tags nest without breaking each other} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        set lyr [$p addLayer "Draft"]
+        $p tagBegin P
+        $p beginLayer $lyr
+        $p text "draft text" -x 50 -y 700
+        $p endLayer
+        $p tagEnd
+    }]
+    # The layer opens its BDC directly, the structure element opens its own
+    # lazily at the first painting call, so the structure sequence sits
+    # inside the optional content group. Both nestings are legal; this one is
+    # the better of the two, because hiding the layer hides its tagged
+    # content with it rather than leaving an empty element behind.
+    regexp {/OC /Lyr.* BDC.*/P <</MCID 0>> BDC.*EMC.*EMC} $data
+} -result 1
+
+test tagged-8.4 {an artifact next to an open element is not nested inside it} -body {
+    # ISO 14289-1 clause 7.1: no artifact inside tagged content and no
+    # tagged content inside an artifact. veraPDF reported both against the
+    # running foot on the second page of examples/tagged.tcl.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "body" -x 50 -y 700
+        $p tagArtifact -type Pagination -subtype Footer
+        $p text "page 1" -x 50 -y 40
+        $p tagArtifactEnd
+        $p text "more body" -x 50 -y 680
+        $p tagEnd
+    }]
+    # P closes before the artifact and opens a second sequence after it
+    regexp {/P <</MCID 0>> BDC.*EMC.*/Artifact.*BDC.*EMC.*/P <</MCID 1>> BDC.*EMC} \
+            $data
+} -result 1
+
+test tagged-9.1 {catPdf removes the structure instead of corrupting it} -body {
+    # Both documents number their pages from 0, so both carry
+    # /StructParents 0. AppendPdf keeps the first catalog, so the merged file
+    # claimed to be tagged while page 2 resolved to page 1's structure.
+    # Measured before the fix: two pages both with /StructParents 0, a tree
+    # holding only the first heading, and no error raised.
+    foreach n {1 2} {
+        set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 14 Helvetica
+        $p tagText H1 "Dokument $n" -x 50 -y 700
+        $p write -file [file join [temporaryDirectory] cat$n.pdf]
+        $p destroy
+    }
+    set out [file join [temporaryDirectory] catout.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] cat1.pdf] \
+            [file join [temporaryDirectory] cat2.pdf] $out
+    # Read back the catalog rather than grepping the raw bytes: the orphaned
+    # StructElem objects of both inputs are still in the file (removing them
+    # would mean renumbering everything again), and a byte search finds their
+    # "/Type /StructTreeRoot" even though nothing references them. What
+    # matters is what the catalog and the pages actually point at.
+    set doc [::pdf4tcl::cat::ReadPdf $out]
+    set rootId [lindex [dict get $doc trailer /Root] 0]
+    set catalog [dict get $doc $rootId full]
+    # Pages are the objects referenced from /Kids of the /Pages object
+    set pagesId [lindex [dict get $doc root /Pages] 0]
+    regexp {/Kids\s*\[([^\]]*)\]} [dict get $doc $pagesId full] -> kidsvec
+    set pageSP 0
+    foreach {id _ _} $kidsvec {
+        if {[regexp {/StructParents} [dict get $doc $id full]]} {
+            incr pageSP
+        }
+    }
+    list [contains $catalog "/StructTreeRoot"] [contains $catalog "/MarkInfo"] \
+            $pageSP [llength $::pdf4tcl::warnings]
+} -cleanup {
+    foreach f {cat1.pdf cat2.pdf catout.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {0 0 0 1}
+
+test tagged-9.2 {catPdf leaves untagged documents alone and stays silent} -body {
+    foreach n {1 2} {
+        set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
+        $p startPage
+        $p setFont 14 Helvetica
+        $p text "Dokument $n" -x 50 -y 700
+        $p write -file [file join [temporaryDirectory] plain$n.pdf]
+        $p destroy
+    }
+    set out [file join [temporaryDirectory] plainout.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] plain1.pdf] \
+            [file join [temporaryDirectory] plain2.pdf] $out
+    list [file exists $out] [llength $::pdf4tcl::warnings]
+} -cleanup {
+    foreach f {plain1.pdf plain2.pdf plainout.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+} -result {1 0}
+
+test tagged-10.1 {no PDF/UA claim unless asked for} -body {
+    # pdfuaid:part asserts conformance that nothing here can verify, so it
+    # must never appear just because tagging is on.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText H1 "x" -x 50 -y 700
+    }]
+    contains $data "pdfuaid"
+} -result 0
+
+test tagged-10.2 {-ua writes the PDF/UA identification schema} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE -ua 1
+        $p metadata -title "Titel"
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText H1 "x" -x 50 -y 700
+    }]
+    list [contains $data "http://www.aiim.org/pdfua/ns/id/"] \
+            [contains $data "<pdfuaid:part>1</pdfuaid:part>"]
+} -result {1 1}
+
+test tagged-10.3 {invalid -ua value is rejected} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    set res [catch {$p tagged 1 -ua 3} err]
+    catch {$p destroy}
+    list $res [string match "*invalid -ua value*" $err]
+} -result {1 1}
+
+test tagged-10.4 {TH carries Scope as an Attributes dictionary} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Table
+        $p tagBegin TR
+        $p tagText TH "Artikel" -scope Column -x 50 -y 700
+        $p tagEnd
+        $p tagEnd
+    }]
+    contains $data "/A <</O /Table /Scope /Column>>"
+} -result 1
+
+test tagged-10.5 {-scope is refused outside TH and for bad values} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    set r1 [catch {$p tagBegin TD -scope Column} e1]
+    set r2 [catch {$p tagBegin TH -scope Sideways} e2]
+    catch {$p destroy}
+    list $r1 [string match "*applies to TH*" $e1] \
+            $r2 [string match "*invalid -scope value*" $e2]
+} -result {1 1 1 1}
+
+test tagged-11.1 {the hooks are defined even without the tagged module} -body {
+    # src/main.tcl calls TagPageStart and friends from startPage, endPage,
+    # finish, Pdfoutcmd and BeginTextObj. src/main.tcl defines them as no-ops
+    # and src/tagged.tcl overrides them, so a build with a shortened CATFILES
+    # -- or an older installed copy of the package shadowing the freshly
+    # built one -- still produces documents instead of failing at the first
+    # startPage with "unknown method TagPageStart" and a list of every method
+    # the class does have.
+    set methods [info class methods ::pdf4tcl::pdf4tcl -private]
+    set missing {}
+    foreach m {TagPageStart TagPageEnd TagEnsureMC TagPageDict
+               TagCatalogEntries TagWriteObjects} {
+        if {$m ni $methods} { lappend missing $m }
+    }
+    set missing
+} -result {}
+
+cleanupTests

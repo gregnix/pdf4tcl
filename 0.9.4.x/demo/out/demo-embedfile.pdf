@@ -1,0 +1,1666 @@
+%PDF-1.4
+%åäöç
+5 0 obj
+<<
+/Length 6 0 R
+>>
+stream
+0.1 0.1 0.5 rg
+/Helvetica-Bold 14 Tf
+0 Tr
+14 TL
+BT
+1 0 0 1 56 780 Tm
+(addEmbeddedFile -- Catalog-Einbettung) Tj
+0 0 0 rg
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 748 Tm
+(Dateien werden still im PDF-Catalog-NameTree eingebettet.) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 733 Tm
+(Kein sichtbares Icon auf der Seite \(anders als attachFile\).) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 718 Tm
+(Typischer Anwendungsfall: ZUGFeRD / Factur-X Rechnungen.) Tj
+0.5 0.5 0.5 RG
+ET
+0.5 w
+56 700 483 -100 re
+S
+0.3 0.3 0.3 rg
+/Helvetica 8 Tf
+0 Tr
+8 TL
+BT
+1 0 0 1 60 690 Tm
+(API) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 680 Tm
+($pdf addEmbeddedFile filename) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 665 Tm
+(    ?-contents    data?        ;# bin\\u00E4rinhalt direkt \\u00FCbergeben) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 650 Tm
+(    ?-mimetype    type?        ;# z.B. "application/xml") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 635 Tm
+(    ?-description text?        ;# lesbare Beschreibung) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 620 Tm
+(    ?-afrelationship rel?      ;# Alternative|Data|Source|...) Tj
+0 0 0 rg
+0.5 0.5 0.5 RG
+ET
+0.5 w
+56 588 483 -120 re
+S
+0.3 0.3 0.3 rg
+/Helvetica 8 Tf
+0 Tr
+8 TL
+BT
+1 0 0 1 60 578 Tm
+(Beispiel: ZUGFeRD-Rechnung) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 567 Tm
+(set pdf [pdf4tcl::new %AUTO% -paper a4]) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 557 Tm
+($pdf startPage) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 542 Tm
+(# Text und Layout ...) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 527 Tm
+($pdf addEmbeddedFile "ZUGFeRD-invoice.xml") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 512 Tm
+(    -contents $xmlData) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 497 Tm
+(    -mimetype "application/xml") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 482 Tm
+(    -afrelationship Alternative) Tj
+0 0 0 rg
+0.6 0 0 rg
+/Helvetica-Bold 9 Tf
+0 Tr
+9 TL
+1 0 0 1 56 455 Tm
+(Hinweis:) Tj
+/Helvetica 9 Tf
+0 Tr
+9 TL
+0 0 0 rg
+1 0 0 1 120 455 Tm
+(In PDF/A-1b verboten \(ISO 19005-1 SS6.1.7\). Erlaubt ab PDF/A-2b.) Tj
+
+ET
+
+endstream
+endobj
+
+6 0 obj
+2275
+endobj
+
+4 0 obj
+<</Type /Page
+/Parent 2 0 R
+/Resources 3 0 R
+/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>
+/MediaBox [0 0 595 842]
+/Contents [5 0 R]
+>>
+endobj
+
+7 0 obj
+<<
+/Length 3454
+>>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo
+<< /Registry (Helvetica-Bold)
+/Ordering (UCS)
+/Supplement 0
+>> def
+/CMapName /Adobe-Identity-UCS def
+/CMapType 1 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+100 beginbfchar
+<00> <0000>
+<01> <0001>
+<02> <0002>
+<03> <0003>
+<04> <0004>
+<05> <0005>
+<06> <0006>
+<07> <0007>
+<08> <0008>
+<09> <0009>
+<0A> <000A>
+<0B> <000B>
+<0C> <000C>
+<0D> <000D>
+<0E> <000E>
+<0F> <000F>
+<10> <0010>
+<11> <0011>
+<12> <0012>
+<13> <0013>
+<14> <0014>
+<15> <0015>
+<16> <0016>
+<17> <0017>
+<18> <0018>
+<19> <0019>
+<1A> <001A>
+<1B> <001B>
+<1C> <001C>
+<1D> <001D>
+<1E> <001E>
+<1F> <001F>
+<20> <0020>
+<21> <0021>
+<22> <0022>
+<23> <0023>
+<24> <0024>
+<25> <0025>
+<26> <0026>
+<27> <0027>
+<28> <0028>
+<29> <0029>
+<2A> <002A>
+<2B> <002B>
+<2C> <002C>
+<2D> <002D>
+<2E> <002E>
+<2F> <002F>
+<30> <0030>
+<31> <0031>
+<32> <0032>
+<33> <0033>
+<34> <0034>
+<35> <0035>
+<36> <0036>
+<37> <0037>
+<38> <0038>
+<39> <0039>
+<3A> <003A>
+<3B> <003B>
+<3C> <003C>
+<3D> <003D>
+<3E> <003E>
+<3F> <003F>
+<40> <0040>
+<41> <0041>
+<42> <0042>
+<43> <0043>
+<44> <0044>
+<45> <0045>
+<46> <0046>
+<47> <0047>
+<48> <0048>
+<49> <0049>
+<4A> <004A>
+<4B> <004B>
+<4C> <004C>
+<4D> <004D>
+<4E> <004E>
+<4F> <004F>
+<50> <0050>
+<51> <0051>
+<52> <0052>
+<53> <0053>
+<54> <0054>
+<55> <0055>
+<56> <0056>
+<57> <0057>
+<58> <0058>
+<59> <0059>
+<5A> <005A>
+<5B> <005B>
+<5C> <005C>
+<5D> <005D>
+<5E> <005E>
+<5F> <005F>
+<60> <0060>
+<61> <0061>
+<62> <0062>
+<63> <0063>
+endbfchar
+100 beginbfchar
+<64> <0064>
+<65> <0065>
+<66> <0066>
+<67> <0067>
+<68> <0068>
+<69> <0069>
+<6A> <006A>
+<6B> <006B>
+<6C> <006C>
+<6D> <006D>
+<6E> <006E>
+<6F> <006F>
+<70> <0070>
+<71> <0071>
+<72> <0072>
+<73> <0073>
+<74> <0074>
+<75> <0075>
+<76> <0076>
+<77> <0077>
+<78> <0078>
+<79> <0079>
+<7A> <007A>
+<7B> <007B>
+<7C> <007C>
+<7D> <007D>
+<7E> <007E>
+<7F> <007F>
+<80> <20AC>
+<81> <0081>
+<82> <201A>
+<83> <0192>
+<84> <201E>
+<85> <2026>
+<86> <2020>
+<87> <2021>
+<88> <02C6>
+<89> <2030>
+<8A> <0160>
+<8B> <2039>
+<8C> <0152>
+<8D> <008D>
+<8E> <017D>
+<8F> <008F>
+<90> <0090>
+<91> <2018>
+<92> <2019>
+<93> <201C>
+<94> <201D>
+<95> <2022>
+<96> <2013>
+<97> <2014>
+<98> <02DC>
+<99> <2122>
+<9A> <0161>
+<9B> <203A>
+<9C> <0153>
+<9D> <009D>
+<9E> <017E>
+<9F> <0178>
+<A0> <00A0>
+<A1> <00A1>
+<A2> <00A2>
+<A3> <00A3>
+<A4> <00A4>
+<A5> <00A5>
+<A6> <00A6>
+<A7> <00A7>
+<A8> <00A8>
+<A9> <00A9>
+<AA> <00AA>
+<AB> <00AB>
+<AC> <00AC>
+<AD> <00AD>
+<AE> <00AE>
+<AF> <00AF>
+<B0> <00B0>
+<B1> <00B1>
+<B2> <00B2>
+<B3> <00B3>
+<B4> <00B4>
+<B5> <00B5>
+<B6> <00B6>
+<B7> <00B7>
+<B8> <00B8>
+<B9> <00B9>
+<BA> <00BA>
+<BB> <00BB>
+<BC> <00BC>
+<BD> <00BD>
+<BE> <00BE>
+<BF> <00BF>
+<C0> <00C0>
+<C1> <00C1>
+<C2> <00C2>
+<C3> <00C3>
+<C4> <00C4>
+<C5> <00C5>
+<C6> <00C6>
+<C7> <00C7>
+endbfchar
+56 beginbfchar
+<C8> <00C8>
+<C9> <00C9>
+<CA> <00CA>
+<CB> <00CB>
+<CC> <00CC>
+<CD> <00CD>
+<CE> <00CE>
+<CF> <00CF>
+<D0> <00D0>
+<D1> <00D1>
+<D2> <00D2>
+<D3> <00D3>
+<D4> <00D4>
+<D5> <00D5>
+<D6> <00D6>
+<D7> <00D7>
+<D8> <00D8>
+<D9> <00D9>
+<DA> <00DA>
+<DB> <00DB>
+<DC> <00DC>
+<DD> <00DD>
+<DE> <00DE>
+<DF> <00DF>
+<E0> <00E0>
+<E1> <00E1>
+<E2> <00E2>
+<E3> <00E3>
+<E4> <00E4>
+<E5> <00E5>
+<E6> <00E6>
+<E7> <00E7>
+<E8> <00E8>
+<E9> <00E9>
+<EA> <00EA>
+<EB> <00EB>
+<EC> <00EC>
+<ED> <00ED>
+<EE> <00EE>
+<EF> <00EF>
+<F0> <00F0>
+<F1> <00F1>
+<F2> <00F2>
+<F3> <00F3>
+<F4> <00F4>
+<F5> <00F5>
+<F6> <00F6>
+<F7> <00F7>
+<F8> <00F8>
+<F9> <00F9>
+<FA> <00FA>
+<FB> <00FB>
+<FC> <00FC>
+<FD> <00FD>
+<FE> <00FE>
+<FF> <00FF>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+
+endstream
+endobj
+8 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/Name /Helvetica-Bold
+/BaseFont /Helvetica-Bold
+/ToUnicode 7 0 R
+>>
+endobj
+9 0 obj
+<<
+/Length 3449
+>>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo
+<< /Registry (Helvetica)
+/Ordering (UCS)
+/Supplement 0
+>> def
+/CMapName /Adobe-Identity-UCS def
+/CMapType 1 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+100 beginbfchar
+<00> <0000>
+<01> <0001>
+<02> <0002>
+<03> <0003>
+<04> <0004>
+<05> <0005>
+<06> <0006>
+<07> <0007>
+<08> <0008>
+<09> <0009>
+<0A> <000A>
+<0B> <000B>
+<0C> <000C>
+<0D> <000D>
+<0E> <000E>
+<0F> <000F>
+<10> <0010>
+<11> <0011>
+<12> <0012>
+<13> <0013>
+<14> <0014>
+<15> <0015>
+<16> <0016>
+<17> <0017>
+<18> <0018>
+<19> <0019>
+<1A> <001A>
+<1B> <001B>
+<1C> <001C>
+<1D> <001D>
+<1E> <001E>
+<1F> <001F>
+<20> <0020>
+<21> <0021>
+<22> <0022>
+<23> <0023>
+<24> <0024>
+<25> <0025>
+<26> <0026>
+<27> <0027>
+<28> <0028>
+<29> <0029>
+<2A> <002A>
+<2B> <002B>
+<2C> <002C>
+<2D> <002D>
+<2E> <002E>
+<2F> <002F>
+<30> <0030>
+<31> <0031>
+<32> <0032>
+<33> <0033>
+<34> <0034>
+<35> <0035>
+<36> <0036>
+<37> <0037>
+<38> <0038>
+<39> <0039>
+<3A> <003A>
+<3B> <003B>
+<3C> <003C>
+<3D> <003D>
+<3E> <003E>
+<3F> <003F>
+<40> <0040>
+<41> <0041>
+<42> <0042>
+<43> <0043>
+<44> <0044>
+<45> <0045>
+<46> <0046>
+<47> <0047>
+<48> <0048>
+<49> <0049>
+<4A> <004A>
+<4B> <004B>
+<4C> <004C>
+<4D> <004D>
+<4E> <004E>
+<4F> <004F>
+<50> <0050>
+<51> <0051>
+<52> <0052>
+<53> <0053>
+<54> <0054>
+<55> <0055>
+<56> <0056>
+<57> <0057>
+<58> <0058>
+<59> <0059>
+<5A> <005A>
+<5B> <005B>
+<5C> <005C>
+<5D> <005D>
+<5E> <005E>
+<5F> <005F>
+<60> <0060>
+<61> <0061>
+<62> <0062>
+<63> <0063>
+endbfchar
+100 beginbfchar
+<64> <0064>
+<65> <0065>
+<66> <0066>
+<67> <0067>
+<68> <0068>
+<69> <0069>
+<6A> <006A>
+<6B> <006B>
+<6C> <006C>
+<6D> <006D>
+<6E> <006E>
+<6F> <006F>
+<70> <0070>
+<71> <0071>
+<72> <0072>
+<73> <0073>
+<74> <0074>
+<75> <0075>
+<76> <0076>
+<77> <0077>
+<78> <0078>
+<79> <0079>
+<7A> <007A>
+<7B> <007B>
+<7C> <007C>
+<7D> <007D>
+<7E> <007E>
+<7F> <007F>
+<80> <20AC>
+<81> <0081>
+<82> <201A>
+<83> <0192>
+<84> <201E>
+<85> <2026>
+<86> <2020>
+<87> <2021>
+<88> <02C6>
+<89> <2030>
+<8A> <0160>
+<8B> <2039>
+<8C> <0152>
+<8D> <008D>
+<8E> <017D>
+<8F> <008F>
+<90> <0090>
+<91> <2018>
+<92> <2019>
+<93> <201C>
+<94> <201D>
+<95> <2022>
+<96> <2013>
+<97> <2014>
+<98> <02DC>
+<99> <2122>
+<9A> <0161>
+<9B> <203A>
+<9C> <0153>
+<9D> <009D>
+<9E> <017E>
+<9F> <0178>
+<A0> <00A0>
+<A1> <00A1>
+<A2> <00A2>
+<A3> <00A3>
+<A4> <00A4>
+<A5> <00A5>
+<A6> <00A6>
+<A7> <00A7>
+<A8> <00A8>
+<A9> <00A9>
+<AA> <00AA>
+<AB> <00AB>
+<AC> <00AC>
+<AD> <00AD>
+<AE> <00AE>
+<AF> <00AF>
+<B0> <00B0>
+<B1> <00B1>
+<B2> <00B2>
+<B3> <00B3>
+<B4> <00B4>
+<B5> <00B5>
+<B6> <00B6>
+<B7> <00B7>
+<B8> <00B8>
+<B9> <00B9>
+<BA> <00BA>
+<BB> <00BB>
+<BC> <00BC>
+<BD> <00BD>
+<BE> <00BE>
+<BF> <00BF>
+<C0> <00C0>
+<C1> <00C1>
+<C2> <00C2>
+<C3> <00C3>
+<C4> <00C4>
+<C5> <00C5>
+<C6> <00C6>
+<C7> <00C7>
+endbfchar
+56 beginbfchar
+<C8> <00C8>
+<C9> <00C9>
+<CA> <00CA>
+<CB> <00CB>
+<CC> <00CC>
+<CD> <00CD>
+<CE> <00CE>
+<CF> <00CF>
+<D0> <00D0>
+<D1> <00D1>
+<D2> <00D2>
+<D3> <00D3>
+<D4> <00D4>
+<D5> <00D5>
+<D6> <00D6>
+<D7> <00D7>
+<D8> <00D8>
+<D9> <00D9>
+<DA> <00DA>
+<DB> <00DB>
+<DC> <00DC>
+<DD> <00DD>
+<DE> <00DE>
+<DF> <00DF>
+<E0> <00E0>
+<E1> <00E1>
+<E2> <00E2>
+<E3> <00E3>
+<E4> <00E4>
+<E5> <00E5>
+<E6> <00E6>
+<E7> <00E7>
+<E8> <00E8>
+<E9> <00E9>
+<EA> <00EA>
+<EB> <00EB>
+<EC> <00EC>
+<ED> <00ED>
+<EE> <00EE>
+<EF> <00EF>
+<F0> <00F0>
+<F1> <00F1>
+<F2> <00F2>
+<F3> <00F3>
+<F4> <00F4>
+<F5> <00F5>
+<F6> <00F6>
+<F7> <00F7>
+<F8> <00F8>
+<F9> <00F9>
+<FA> <00FA>
+<FB> <00FB>
+<FC> <00FC>
+<FD> <00FD>
+<FE> <00FE>
+<FF> <00FF>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+
+endstream
+endobj
+10 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/Name /Helvetica
+/BaseFont /Helvetica
+/ToUnicode 9 0 R
+>>
+endobj
+11 0 obj
+<<
+/Length 3447
+>>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo
+<< /Registry (Courier)
+/Ordering (UCS)
+/Supplement 0
+>> def
+/CMapName /Adobe-Identity-UCS def
+/CMapType 1 def
+1 begincodespacerange
+<00> <FF>
+endcodespacerange
+100 beginbfchar
+<00> <0000>
+<01> <0001>
+<02> <0002>
+<03> <0003>
+<04> <0004>
+<05> <0005>
+<06> <0006>
+<07> <0007>
+<08> <0008>
+<09> <0009>
+<0A> <000A>
+<0B> <000B>
+<0C> <000C>
+<0D> <000D>
+<0E> <000E>
+<0F> <000F>
+<10> <0010>
+<11> <0011>
+<12> <0012>
+<13> <0013>
+<14> <0014>
+<15> <0015>
+<16> <0016>
+<17> <0017>
+<18> <0018>
+<19> <0019>
+<1A> <001A>
+<1B> <001B>
+<1C> <001C>
+<1D> <001D>
+<1E> <001E>
+<1F> <001F>
+<20> <0020>
+<21> <0021>
+<22> <0022>
+<23> <0023>
+<24> <0024>
+<25> <0025>
+<26> <0026>
+<27> <0027>
+<28> <0028>
+<29> <0029>
+<2A> <002A>
+<2B> <002B>
+<2C> <002C>
+<2D> <002D>
+<2E> <002E>
+<2F> <002F>
+<30> <0030>
+<31> <0031>
+<32> <0032>
+<33> <0033>
+<34> <0034>
+<35> <0035>
+<36> <0036>
+<37> <0037>
+<38> <0038>
+<39> <0039>
+<3A> <003A>
+<3B> <003B>
+<3C> <003C>
+<3D> <003D>
+<3E> <003E>
+<3F> <003F>
+<40> <0040>
+<41> <0041>
+<42> <0042>
+<43> <0043>
+<44> <0044>
+<45> <0045>
+<46> <0046>
+<47> <0047>
+<48> <0048>
+<49> <0049>
+<4A> <004A>
+<4B> <004B>
+<4C> <004C>
+<4D> <004D>
+<4E> <004E>
+<4F> <004F>
+<50> <0050>
+<51> <0051>
+<52> <0052>
+<53> <0053>
+<54> <0054>
+<55> <0055>
+<56> <0056>
+<57> <0057>
+<58> <0058>
+<59> <0059>
+<5A> <005A>
+<5B> <005B>
+<5C> <005C>
+<5D> <005D>
+<5E> <005E>
+<5F> <005F>
+<60> <0060>
+<61> <0061>
+<62> <0062>
+<63> <0063>
+endbfchar
+100 beginbfchar
+<64> <0064>
+<65> <0065>
+<66> <0066>
+<67> <0067>
+<68> <0068>
+<69> <0069>
+<6A> <006A>
+<6B> <006B>
+<6C> <006C>
+<6D> <006D>
+<6E> <006E>
+<6F> <006F>
+<70> <0070>
+<71> <0071>
+<72> <0072>
+<73> <0073>
+<74> <0074>
+<75> <0075>
+<76> <0076>
+<77> <0077>
+<78> <0078>
+<79> <0079>
+<7A> <007A>
+<7B> <007B>
+<7C> <007C>
+<7D> <007D>
+<7E> <007E>
+<7F> <007F>
+<80> <20AC>
+<81> <0081>
+<82> <201A>
+<83> <0192>
+<84> <201E>
+<85> <2026>
+<86> <2020>
+<87> <2021>
+<88> <02C6>
+<89> <2030>
+<8A> <0160>
+<8B> <2039>
+<8C> <0152>
+<8D> <008D>
+<8E> <017D>
+<8F> <008F>
+<90> <0090>
+<91> <2018>
+<92> <2019>
+<93> <201C>
+<94> <201D>
+<95> <2022>
+<96> <2013>
+<97> <2014>
+<98> <02DC>
+<99> <2122>
+<9A> <0161>
+<9B> <203A>
+<9C> <0153>
+<9D> <009D>
+<9E> <017E>
+<9F> <0178>
+<A0> <00A0>
+<A1> <00A1>
+<A2> <00A2>
+<A3> <00A3>
+<A4> <00A4>
+<A5> <00A5>
+<A6> <00A6>
+<A7> <00A7>
+<A8> <00A8>
+<A9> <00A9>
+<AA> <00AA>
+<AB> <00AB>
+<AC> <00AC>
+<AD> <00AD>
+<AE> <00AE>
+<AF> <00AF>
+<B0> <00B0>
+<B1> <00B1>
+<B2> <00B2>
+<B3> <00B3>
+<B4> <00B4>
+<B5> <00B5>
+<B6> <00B6>
+<B7> <00B7>
+<B8> <00B8>
+<B9> <00B9>
+<BA> <00BA>
+<BB> <00BB>
+<BC> <00BC>
+<BD> <00BD>
+<BE> <00BE>
+<BF> <00BF>
+<C0> <00C0>
+<C1> <00C1>
+<C2> <00C2>
+<C3> <00C3>
+<C4> <00C4>
+<C5> <00C5>
+<C6> <00C6>
+<C7> <00C7>
+endbfchar
+56 beginbfchar
+<C8> <00C8>
+<C9> <00C9>
+<CA> <00CA>
+<CB> <00CB>
+<CC> <00CC>
+<CD> <00CD>
+<CE> <00CE>
+<CF> <00CF>
+<D0> <00D0>
+<D1> <00D1>
+<D2> <00D2>
+<D3> <00D3>
+<D4> <00D4>
+<D5> <00D5>
+<D6> <00D6>
+<D7> <00D7>
+<D8> <00D8>
+<D9> <00D9>
+<DA> <00DA>
+<DB> <00DB>
+<DC> <00DC>
+<DD> <00DD>
+<DE> <00DE>
+<DF> <00DF>
+<E0> <00E0>
+<E1> <00E1>
+<E2> <00E2>
+<E3> <00E3>
+<E4> <00E4>
+<E5> <00E5>
+<E6> <00E6>
+<E7> <00E7>
+<E8> <00E8>
+<E9> <00E9>
+<EA> <00EA>
+<EB> <00EB>
+<EC> <00EC>
+<ED> <00ED>
+<EE> <00EE>
+<EF> <00EF>
+<F0> <00F0>
+<F1> <00F1>
+<F2> <00F2>
+<F3> <00F3>
+<F4> <00F4>
+<F5> <00F5>
+<F6> <00F6>
+<F7> <00F7>
+<F8> <00F8>
+<F9> <00F9>
+<FA> <00FA>
+<FB> <00FB>
+<FC> <00FC>
+<FD> <00FD>
+<FE> <00FE>
+<FF> <00FF>
+endbfchar
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+
+endstream
+endobj
+12 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/Encoding /WinAnsiEncoding
+/Name /Courier
+/BaseFont /Courier
+/ToUnicode 11 0 R
+>>
+endobj
+14 0 obj
+<<
+/Length 15 0 R
+>>
+stream
+0.1 0.1 0.5 rg
+/Helvetica-Bold 14 Tf
+0 Tr
+14 TL
+BT
+1 0 0 1 56 780 Tm
+(Mehrere Dateien und Optionen) Tj
+0 0 0 rg
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 750 Tm
+(Alle Optionen im Überblick:) Tj
+0.85 0.9 0.98 rg
+ET
+56 732 483 -104 re
+B
+0 0 0 rg
+/Helvetica-Bold 9 Tf
+0 Tr
+9 TL
+BT
+1 0 0 1 64 720 Tm
+(Option) Tj
+1 0 0 1 220 720 Tm
+(Bedeutung) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 64 702 Tm
+(-contents data) Tj
+/Helvetica 9 Tf
+0 Tr
+9 TL
+0 0 0 rg
+1 0 0 1 220 702 Tm
+(Binärinhalt direkt \(kein Dateizugriff\)) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 64 684 Tm
+(-mimetype type) Tj
+/Helvetica 9 Tf
+0 Tr
+9 TL
+0 0 0 rg
+1 0 0 1 220 684 Tm
+(MIME-Typ -> /Subtype im EmbeddedFile-Stream) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 64 666 Tm
+(-description text) Tj
+/Helvetica 9 Tf
+0 Tr
+9 TL
+0 0 0 rg
+1 0 0 1 220 666 Tm
+(/Desc im Filespec-Dictionary) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 64 648 Tm
+(-afrelationship rel) Tj
+/Helvetica 9 Tf
+0 Tr
+9 TL
+0 0 0 rg
+1 0 0 1 220 648 Tm
+(/AFRelationship \(PDF/A-3: Alternative/Data/...\)) Tj
+0.5 0.5 0.5 RG
+ET
+0.5 w
+56 610 483 -192 re
+S
+0.3 0.3 0.3 rg
+/Helvetica 8 Tf
+0 Tr
+8 TL
+BT
+1 0 0 1 60 600 Tm
+(Beispiel: Rechnung + Schema) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 590 Tm
+(# Rechnung \(ZUGFeRD-Muster\)) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 575 Tm
+($pdf addEmbeddedFile "factur-x.xml") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 560 Tm
+(    -contents $invoiceXml) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 545 Tm
+(    -mimetype "application/xml") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 530 Tm
+(    -description "Factur-X Rechnung 2026-0042") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 515 Tm
+(    -afrelationship Alternative) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 490 Tm
+(# Begleitendes Schema) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 475 Tm
+($pdf addEmbeddedFile "schema.xsd") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 460 Tm
+(    -contents $schemaXsd) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 445 Tm
+(    -mimetype "application/xml") Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 430 Tm
+(    -afrelationship Data) Tj
+0 0 0 rg
+0.5 0.5 0.5 RG
+ET
+0.5 w
+56 410 483 -90 re
+S
+0.3 0.3 0.3 rg
+/Helvetica 8 Tf
+0 Tr
+8 TL
+BT
+1 0 0 1 60 400 Tm
+(Gueltige -afrelationship Werte \(PDF/A-3 SS6.2.7\)) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 387 Tm
+(Alternative  -- Ersatzdarstellung des Seiteninhalts) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 374 Tm
+(Data         -- Quelldaten \(z.B. Rohdaten einer Grafik\)) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 361 Tm
+(Source       -- Quelldatei \(z.B. Original-Tabellenkalkulation\)) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 348 Tm
+(Supplement   -- Ergaenzungsmaterial) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 335 Tm
+(Unspecified  -- Nicht naeher definierte Beziehung) Tj
+
+ET
+
+endstream
+endobj
+
+15 0 obj
+3053
+endobj
+
+13 0 obj
+<</Type /Page
+/Parent 2 0 R
+/Resources 3 0 R
+/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>
+/MediaBox [0 0 595 842]
+/Contents [14 0 R]
+>>
+endobj
+
+17 0 obj
+<<
+/Length 18 0 R
+>>
+stream
+0.1 0.1 0.5 rg
+/Helvetica-Bold 14 Tf
+0 Tr
+14 TL
+BT
+1 0 0 1 56 780 Tm
+(PDF-Objektstruktur) Tj
+0 0 0 rg
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 750 Tm
+(Drei Objekte je eingebetteter Datei + ein NameTree-Objekt im Catalog:) Tj
+0.5 0.5 0.5 RG
+ET
+0.5 w
+56 735 483 -155 re
+S
+0.3 0.3 0.3 rg
+/Helvetica 8 Tf
+0 Tr
+8 TL
+BT
+1 0 0 1 60 725 Tm
+(PDF-Struktur) Tj
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 716 Tm
+(1 0 obj  % Catalog) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 705 Tm
+(  << /Type /Catalog) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 690 Tm
+(     /Pages 2 0 R) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 675 Tm
+(     /Names << /EmbeddedFiles 9 0 R >>   % NameTree) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 660 Tm
+(  >>) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 645 Tm
+(9 0 obj  % NameTree \(flach\)) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 630 Tm
+(  << /Names [ \(factur-x.xml\) 10 0 R ] >>) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 615 Tm
+(10 0 obj % FileSpec) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 600 Tm
+(  << /Type /Filespec /F \(factur-x.xml\) /UF \(factur-x.xml\)) Tj
+0 0 0 rg
+/Courier 9 Tf
+0 Tr
+9 TL
+0.1 0.3 0.1 rg
+1 0 0 1 72 585 Tm
+(     /EF << /F 11 0 R /UF 11 0 R >> /Desc \(...\) >>) Tj
+0 0 0 rg
+0.5 0.5 0.5 RG
+ET
+0.5 w
+56 565 483 -130 re
+S
+0.3 0.3 0.3 rg
+/Helvetica 8 Tf
+0 Tr
+8 TL
+BT
+1 0 0 1 60 555 Tm
+(Koexistenz mit anderen Features) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 538 Tm
+(addEmbeddedFile ist unabhaengig von:) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 523 Tm
+(  - Lesezeichen \(bookmarkAdd\) -- beides landet im Catalog) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 508 Tm
+(  - Formularfeldern \(addForm\)  -- AcroForm bleibt unberuehrt) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 493 Tm
+(  - attachFile -- sichtbare Annotation bleibt separat) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 478 Tm
+(  - Verschluesselung \(encrypt\) -- EmbeddedFile-Streams werden) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 463 Tm
+(    wie alle Streams verschluesselt) Tj
+/Helvetica 10 Tf
+0 Tr
+10 TL
+0 0 0 rg
+1 0 0 1 56 448 Tm
+(  - Kompression \(-compress 1\)  -- zlib-komprimiert wenn sinnvoll) Tj
+0 0.4 0 rg
+/Helvetica-Bold 10 Tf
+0 Tr
+10 TL
+1 0 0 1 56 415 Tm
+(Demo enthaelt zwei eingebettete Dateien \(unsichtbar im Catalog\):) Tj
+/Helvetica 9 Tf
+0 Tr
+9 TL
+0 0 0 rg
+1 0 0 1 72 400 Tm
+(factur-x.xml -- ZUGFeRD-Muster-Rechnung) Tj
+1 0 0 1 72 385 Tm
+(schema.xsd   -- Begleit-Schema) Tj
+
+ET
+
+endstream
+endobj
+
+18 0 obj
+2624
+endobj
+
+16 0 obj
+<</Type /Page
+/Parent 2 0 R
+/Resources 3 0 R
+/Group <</S /Transparency /CS /DeviceRGB /I false /K false>>
+/MediaBox [0 0 595 842]
+/Contents [17 0 R]
+>>
+endobj
+
+19 0 obj
+<< /Type /EmbeddedFile
+   /Subtype /application#2Fxml
+   /Params << /Size 291 >> 
+/Length 291
+>>
+stream
+<?xml version="1.0" encoding="UTF-8"?>
+<rsm:CrossIndustryInvoice
+    xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100">
+  <rsm:ExchangedDocument>
+    <ram:ID>2026-0042</ram:ID>
+    <ram:TypeCode>380</ram:TypeCode>
+  </rsm:ExchangedDocument>
+</rsm:CrossIndustryInvoice>
+endstream
+endobj
+20 0 obj
+<< /Type /Filespec
+   /F (factur-x.xml)
+   /UF (factur-x.xml)
+   /EF << /F 19 0 R /UF 19 0 R >>
+   /Desc (Factur-X Rechnung 2026-0042)
+   /AFRelationship /Alternative
+>>
+
+endobj
+21 0 obj
+<< /Type /EmbeddedFile
+   /Subtype /application#2Fxml
+   /Params << /Size 155 >> 
+/Length 155
+>>
+stream
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="invoice" type="xs:string"/>
+</xs:schema>
+endstream
+endobj
+22 0 obj
+<< /Type /Filespec
+   /F (schema.xsd)
+   /UF (schema.xsd)
+   /EF << /F 21 0 R /UF 21 0 R >>
+   /Desc (Begleit-Schema)
+   /AFRelationship /Data
+>>
+
+endobj
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+/Metadata 23 0 R
+/Outlines 24 0 R
+/Names << /EmbeddedFiles 25 0 R >>
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Count 3
+/Kids [4 0 R 13 0 R 16 0 R ]
+>>
+endobj
+
+3 0 obj
+<<
+/ProcSet[/PDF /Text /ImageC]
+/Font <<
+/Courier 12 0 R
+/Helvetica 10 0 R
+/Helvetica-Bold 8 0 R
+>>
+>>
+endobj
+
+24 0 obj
+<<
+/Type /Outlines
+/First 26 0 R
+/Last 28 0 R
+/Count 3
+>>
+endobj
+
+26 0 obj
+<<
+/Title (Grundkonzept)
+/Parent 24 0 R
+/Next 27 0 R
+/Dest [4 0 R /XYZ null null null]
+>>
+endobj
+
+27 0 obj
+<<
+/Title (Optionen)
+/Parent 24 0 R
+/Prev 26 0 R
+/Next 28 0 R
+/Dest [13 0 R /XYZ null null null]
+>>
+endobj
+
+28 0 obj
+<<
+/Title (PDF-Struktur)
+/Parent 24 0 R
+/Prev 27 0 R
+/Dest [16 0 R /XYZ null null null]
+>>
+endobj
+
+23 0 obj
+<< /Type /Metadata /Subtype /XML /Length 428 >>
+stream
+<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+   xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+   <pdf:Producer>pdf4tcl</pdf:Producer>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>
+endstream
+endobj
+
+25 0 obj
+<< /Names [
+(factur-x.xml) 20 0 R
+(schema.xsd) 22 0 R
+] >>
+endobj
+
+xref
+0 29
+0000000000 65535 f 
+0000020670 00000 n 
+0000020789 00000 n 
+0000020862 00000 n 
+0000002365 00000 n 
+0000000015 00000 n 
+0000002344 00000 n 
+0000002532 00000 n 
+0000006038 00000 n 
+0000006179 00000 n 
+0000009680 00000 n 
+0000009812 00000 n 
+0000013312 00000 n 
+0000016572 00000 n 
+0000013441 00000 n 
+0000016550 00000 n 
+0000019443 00000 n 
+0000016741 00000 n 
+0000019421 00000 n 
+0000019612 00000 n 
+0000020034 00000 n 
+0000020221 00000 n 
+0000020507 00000 n 
+0000021388 00000 n 
+0000020981 00000 n 
+0000021899 00000 n 
+0000021056 00000 n 
+0000021163 00000 n 
+0000021280 00000 n 
+trailer
+<<
+/Size 29
+/Root 1 0 R
+/ID [<E485B554F5DB72D9E485E083F5DB270E> <E485B554F5DB72D9E485E083F5DB270E>]
+>>
+
+startxref
+21975
+%%EOF

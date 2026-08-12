@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09435
+VERSION = 09436
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -11,7 +11,7 @@ ESKIL    = eskil
 all: pdf4tcl.tcl pkg/pdf4tcl.tcl doc web
 
 # Build from source
-CATFILES = src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl src/main.tcl src/encrypt.tcl src/cat.tcl
+CATFILES = src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl src/main.tcl src/encrypt.tcl src/tagged.tcl src/cat.tcl
 
 pdf4tcl.tcl: $(CATFILES)
 	cat $(CATFILES) > pdf4tcl.tcl

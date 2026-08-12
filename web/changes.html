@@ -11,6 +11,11 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.36 (2026-08-12, fork gregnix):<br>
+<ul>
+  <li>Tagged PDF -- logical structure via tagged/tagBegin/tagEnd/tagText/tagArtifact, /StructTreeRoot with parent tree, /Alt /ActualText /Lang /T, /Scope on TH, optional pdfuaid; examples/tagged.tcl validates as PDF/UA-1; catPdf now drops structure instead of corrupting it</li>
+</ul>
+
 Changes in v0.9.4.35 (2026-07-20, fork gregnix):<br>
 <ul>
   <li>QuoteString safe for the binary PDF stream -- typography transliterated, codepoints above U+00FF replaced, control chars reported in ::pdf4tcl::warnings; encryption requires a cryptographic random source; new getSubstCount</li>

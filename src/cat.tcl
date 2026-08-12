@@ -308,7 +308,7 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     WriteCh $ch [TclDictToPdfDict [dict get $pdfd trailer]]\n pos
     WriteCh $ch "startxref\n" pos
     WriteCh $ch "$xref_pos\n" pos
-    WriteCh $ch "%%EOF\n" po
+    WriteCh $ch "%%EOF\n" pos
 
     close $ch
 }
@@ -552,7 +552,66 @@ proc pdf4tcl::catPdf {args} {
         #pdf4tcl::cat::Dump $pdf2
         set pdf1 [pdf4tcl::cat::AppendPdf $pdf1 $pdf2]
     }
+    set pdf1 [pdf4tcl::cat::StripStructure $pdf1]
     pdf4tcl::cat::WritePdf $outfile $pdf1
+}
+
+# Remove the logical structure from a merged document.
+#
+# Merging tagged PDFs is not a matter of renumbering objects. Every page
+# carries a /StructParents key indexing the /ParentTree of ITS document, and
+# both documents number their pages from 0. AppendPdf keeps the catalog of
+# the first document, so the result claims to be tagged while the second
+# document's pages point at the first document's parent tree: page 2 of the
+# merge resolved to the structure of page 1 of the original. Measured on two
+# one-page documents, the merge produced two pages both carrying
+# /StructParents 0, a tree containing only the first document's heading, and
+# no error anywhere.
+#
+# A file that lies about its structure is worse than one that has none: a
+# screen reader trusts /MarkInfo and reads the wrong tree instead of falling
+# back to the paint order. So the structure is removed and the caller told.
+#
+# Proper merging needs the parent trees remapped and the two /Document
+# subtrees combined under one root. See TAGGED.md.
+proc pdf4tcl::cat::StripStructure {pdfd} {
+    set rootId [lindex [dict get $pdfd trailer /Root] 0]
+    if {![dict exists $pdfd $rootId]} {
+        return $pdfd
+    }
+    set catalog [dict get $pdfd $rootId full]
+    if {![regexp {/StructTreeRoot|/MarkInfo} $catalog]} {
+        return $pdfd
+    }
+
+    # Drop the catalog entries. The StructElem objects themselves stay in the
+    # file as unreferenced objects; they are harmless once nothing points at
+    # them, and removing them would mean renumbering everything again.
+    #
+    # The locals here are deliberately not called "full": a variable of that
+    # name makes nagelfar flag the pre-existing "dict set pdf1 $key full ..."
+    # in AppendPdf as a constant that is also a variable.
+    regsub -all {/StructTreeRoot\s+\d+\s+0\s+R\s*} $catalog "" catalog
+    regsub -all {/MarkInfo\s*<<[^>]*>>\s*} $catalog "" catalog
+    ##nagelfar ignore Found constant
+    dict set pdfd $rootId full $catalog
+
+    # /StructParents on the pages is now dangling as well.
+    foreach {key val} $pdfd {
+        if {![string is digit -strict $key]} continue
+        set obj [dict get $val full]
+        if {[regsub -all {/StructParents\s+\d+\s*} $obj "" obj]} {
+            ##nagelfar ignore Found constant
+            dict set pdfd $key full $obj
+        }
+    }
+
+    variable ::pdf4tcl::warnings
+    lappend ::pdf4tcl::warnings "catPdf: the logical structure (tagged PDF)\
+            was removed. Merging structure trees is not supported; keeping\
+            it would have produced a document whose pages resolve to the\
+            wrong structure elements."
+    return $pdfd
 }
 
 # Extract form data from a PDF file
