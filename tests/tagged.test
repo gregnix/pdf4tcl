@@ -792,4 +792,92 @@ test tagged-12.6 {an untagged form keeps row tab order} -body {
     list [contains $data "/Tabs /R"] [contains $data "/Tabs /S"]
 } -result {1 0}
 
+# -----------------------------------------------------------------------
+# 14.x  Unattached annotations are reported
+# -----------------------------------------------------------------------
+
+test tagged-14.1 {an annotation outside a Link element is reported} -body {
+    # The one quiet failure left in the tagged path: the link works when
+    # clicked, no error is raised, and assistive technology never sees it.
+    set ::pdf4tcl::warnings {}
+    taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "see here" -x 50 -y 700
+        $p hyperlinkAdd 50 698 40 12 "https://example.org"
+        $p tagEnd
+    }
+    list [llength $::pdf4tcl::warnings] \
+            [string match "*not part of the structure tree*" \
+                    [lindex $::pdf4tcl::warnings 0]]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1}
+
+test tagged-14.2 {a correctly wrapped annotation is not reported} -body {
+    set ::pdf4tcl::warnings {}
+    taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Link -alt "example"
+        $p tagText Span "here" -x 50 -y 700
+        $p hyperlinkAdd 50 698 40 12 "https://example.org"
+        $p tagEnd
+    }
+    llength $::pdf4tcl::warnings
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+test tagged-14.3 {an untagged document is not reported} -body {
+    # Untagged annotations are perfectly legal; only a tagged document that
+    # leaves one out of the tree is worth a word.
+    set ::pdf4tcl::warnings {}
+    taggedPdf {
+        $p startPage
+        $p setFont 12 Helvetica
+        $p hyperlinkAdd 50 698 40 12 "https://example.org"
+    }
+    llength $::pdf4tcl::warnings
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+test tagged-14.4 {reported once, not per annotation} -body {
+    set ::pdf4tcl::warnings {}
+    taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "many links" -x 50 -y 700
+        for {set i 0} {$i < 5} {incr i} {
+            $p hyperlinkAdd 50 [expr {690 - $i * 20}] 40 12 "https://example.org"
+        }
+        $p tagEnd
+    }
+    llength $::pdf4tcl::warnings
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
+test tagged-14.5 {the message names the open element} -body {
+    set ::pdf4tcl::warnings {}
+    taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Figure -alt "picture"
+        $p circle 100 100 30
+        $p addAnnotNote 300 100 20 20 -content "note"
+        $p tagEnd
+    }
+    string match "*the open element is /Figure*" [lindex $::pdf4tcl::warnings 0]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
 cleanupTests

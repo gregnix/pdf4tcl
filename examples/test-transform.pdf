@@ -21,8 +21,8 @@ BT
 10 TL
 1 0 0 1 50 747 Tm
 (translate) Tj
-0.7 0.7 0.7 RG
 ET
+0.7 0.7 0.7 RG
 60 717 30 -20 re
 S
 0 0 0.8 RG
@@ -38,8 +38,8 @@ Q
 BT
 1 0 0 1 50 667 Tm
 (rotate) Tj
-0 0 0 rg
 ET
+0 0 0 rg
 122 597 m
 122 598.105 121.105 599 120 599 c
 118.895 599 118 598.105 118 597 c
@@ -127,9 +127,9 @@ Q
 BT
 1 0 0 1 50 527 Tm
 (scale) Tj
+ET
 0.2 0.4 0.8 rg
 q
-ET
 1 0 0 1 55 477 cm
 0.5 0 0 0.5 0 0 cm
 0 0 30 20 re
@@ -783,8 +783,8 @@ stream
 BT
 1 0 0 1 50 802 Tm
 (Combined: translate + rotate + line) Tj
-0 0 0 rg
 ET
+0 0 0 rg
 203 642 m
 203 643.657 201.657 645 200 645 c
 198.343 645 197 643.657 197 642 c
@@ -908,9 +908,9 @@ Q
 BT
 1 0 0 1 50 462 Tm
 (Combined: translate + scale + rectangle) Tj
+ET
 0.2 0.5 0.9 rg
 q
-ET
 1 0 0 1 60 422 cm
 0.4 0 0 0.4 0 0 cm
 0 0 25 18 re
@@ -1028,7 +1028,7 @@ trailer
 <<
 /Size 15
 /Root 1 0 R
-/ID [<1F838B1350B542A61F83A5C450B56C71> <1F838B1350B542A61F83A5C450B56C71>]
+/ID [<71804A33D2C25C20718064E4D2C272F7> <71804A33D2C25C20718064E4D2C272F7>]
 >>
 
 startxref

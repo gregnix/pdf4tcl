@@ -125,6 +125,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(tag,nextkey)  0      ;# next free key in the parent tree
         set pdf(tag,annotkeys) {}    ;# {key elementIndex} for annotations
         set pdf(tag,pendannot) ""    ;# key handed out but not yet bound
+        set pdf(tag,annotwarned) 0   ;# unattached annotation reported once
         set pdf(tag,rootoid)  ""
         set pdf(tag,uapart)   ""   ;# pdfuaid:part, empty unless -ua given
     }
@@ -514,9 +515,15 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagAnnotEntries {andict} {
         set pdf(tag,pendannot) ""
         if {![my TagActive]} { return "" }
-        if {[llength $pdf(tag,stack)] == 0} { return "" }
+        if {[llength $pdf(tag,stack)] == 0} {
+            my TagAnnotUnattached ""
+            return ""
+        }
         set idx [lindex $pdf(tag,stack) end]
-        if {$pdf(tag,type,$idx) ni {Link Annot}} { return "" }
+        if {$pdf(tag,type,$idx) ni {Link Annot}} {
+            my TagAnnotUnattached $pdf(tag,type,$idx)
+            return ""
+        }
 
         set key $pdf(tag,nextkey)
         incr pdf(tag,nextkey)
@@ -529,6 +536,34 @@ oo::define ::pdf4tcl::pdf4tcl {
                     [::pdf4tcl::TagTextString [dict get $attrs -alt]]\n"
         }
         return $out
+    }
+
+    # An annotation was created while tagging is on, but not inside a Link or
+    # Annot element, so it cannot be reached from the structure tree.
+    #
+    # This is the one thing in the tagged path that fails quietly: the link
+    # still works when clicked and no error is raised, but assistive
+    # technology never sees it, and PDF/UA rule 7.18 cannot be met. Nothing is
+    # inferred -- guessing which paragraph a link belongs to would be wrong as
+    # often as right -- so the caller is told instead.
+    #
+    # A warning rather than an error, because an untagged annotation is legal
+    # PDF and existing code may rely on it. Reported once per document, like
+    # the control character warning in QuoteString, so a page full of links
+    # does not bury the message.
+    method TagAnnotUnattached {openType} {
+        if {$pdf(tag,annotwarned)} { return }
+        set pdf(tag,annotwarned) 1
+        if {$openType eq ""} {
+            set where "no structure element is open"
+        } else {
+            set where "the open element is /$openType"
+        }
+        lappend ::pdf4tcl::warnings "tagged: an annotation was created while\
+                $where, so it is not part of the structure tree and assistive\
+                technology cannot reach it. Wrap it in\
+                \"tagBegin Link -alt ...\" ... \"tagEnd\".\
+                (further occurrences are not reported)"
     }
 
     # Bind the annotation object just written to the element that claimed it.

@@ -157,12 +157,27 @@ rather than `/Tabs /R`, so that tabbing follows the structure tree
 (ISO 14289-1 clause 7.18.3). Untagged documents keep `/R`, which is what a
 plain form wants.
 
-An annotation created outside such an element stays unattached. That is the
-one case worth being careful about, because it fails quietly: the link still
-works when clicked, and no error is raised, but assistive technology cannot
-reach it. Nothing is inferred automatically -- guessing which paragraph a
-link belongs to would be wrong as often as right. `tools/check-tagged.py`
-reports unattached annotations.
+An annotation created outside such an element stays unattached: the link
+still works when clicked, but assistive technology cannot reach it and
+PDF/UA rule 7.18 cannot be met. Since 0.9.4.39 this is reported in
+`::pdf4tcl::warnings`, once per document:
+
+    tagged: an annotation was created while the open element is /P, so it is
+    not part of the structure tree and assistive technology cannot reach it.
+    Wrap it in "tagBegin Link -alt ..." ... "tagEnd".
+
+A warning rather than an error, because an untagged annotation is legal PDF
+and existing code may rely on it. Nothing is inferred automatically --
+guessing which paragraph a link belongs to would be wrong as often as right.
+`tools/check-tagged.py` reports the same case when checking a finished file.
+
+So check the warnings after generating a tagged document:
+
+```tcl
+set ::pdf4tcl::warnings {}
+...
+foreach w $::pdf4tcl::warnings { puts stderr $w }
+```
 
 Every annotation now goes through `AddAnnot` in `src/main.tcl` rather than
 `AddObject`, which is what gives the tagging module a chance to see it. A new
@@ -282,7 +297,7 @@ in every combination; the totals are only comparable within one environment.
 
 Tcl 8.6.14:
 
-- `tests/tagged.test`: 47 cases, all green.
+- `tests/tagged.test`: 52 cases, all green.
 - Full suite `tests/all.tcl`: 851 total, 827 passed, 24 skipped, 0 failed.
 
 Tcl 9.0.4 (built from `core-9-0-4`):

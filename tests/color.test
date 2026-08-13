@@ -73,4 +73,144 @@ test color-6.2 {tk colors} -constraints Tk -body {
     mytest {setFillColor fnurga} {}
 } -returnCodes 1 -result "unknown color: fnurga"
 
-::tcltest::cleanupTests
+# -----------------------------------------------------------------------
+# Range checking (0.9.4.39)
+# -----------------------------------------------------------------------
+# The components end up verbatim as operands of rg, RG, k or K, where
+# ISO 32000-1 clause 8.6.4 requires 0 to 1. Out of range values are not a
+# syntax error -- readers clamp them silently, qpdf reports nothing, and the
+# document simply has the wrong color. Measured before the check: setFillColor
+# 5 -2 0.5 wrote "5 -2 0.5 rg" and every tool accepted the file.
+
+test color-range-1.1 {RGB components above 1.0 are refused} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set res [catch {$p setFillColor 1.5 0 0} err]
+    $p destroy
+    list $res [string match "*must be between 0.0 and 1.0*" $err]
+} -result {1 1}
+
+test color-range-1.2 {negative RGB components are refused} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set res [catch {$p setStrokeColor 0 -2 0.5} err]
+    $p destroy
+    list $res [string match "*must be between 0.0 and 1.0*" $err]
+} -result {1 1}
+
+test color-range-1.3 {CMYK components are checked too} -body {
+    set p [pdf4tcl::new %AUTO% -cmyk 1]
+    set res [catch {$p setFillColor 0 0 0 1.2} err]
+    $p destroy
+    list $res [string match "*invalid CMYK component*" $err]
+} -result {1 1}
+
+test color-range-1.4 {non-numeric components are refused} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set res [catch {$p setFillColor 1 x 0} err]
+    $p destroy
+    list $res [string match "*not a number*" $err]
+} -result {1 1}
+
+test color-range-1.5 {the boundaries themselves are allowed} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set res [catch {
+        $p setFillColor 0 0 0
+        $p setFillColor 1 1 1
+    }]
+    $p destroy
+    set res
+} -result 0
+
+# -----------------------------------------------------------------------
+# Color names without Tk (0.9.4.39)
+# -----------------------------------------------------------------------
+# winfo rgb needs Tk *and* a display, which a PDF generator on a server does
+# not have. The 147 standard names are resolved from a built-in table; Tk is
+# still consulted for anything outside it.
+
+test color-name-1.1 {standard names resolve without Tk} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFillColor red
+    $p rectangle 10 10 20 20 -filled 1
+    set data [$p get]
+    $p destroy
+    string match "*1 0 0 rg*" $data
+} -result 1
+
+test color-name-1.2 {names are case insensitive} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set res [catch {
+        $p setFillColor NAVY
+        $p setStrokeColor Navy
+    }]
+    $p destroy
+    set res
+} -result 0
+
+test color-name-1.3 {the table agrees with Tk} -constraints Tk -body {
+    # Every name in the table must give what winfo rgb would have given.
+    package require Tk
+    variable ::pdf4tcl::colorNames
+    set bad {}
+    foreach {name rgb} $::pdf4tcl::colorNames {
+        if {[catch {winfo rgb . $name} tk]} { lappend bad "$name: unknown to Tk" ; continue }
+        lassign $tk r g b
+        set tkrgb [list [expr {($r & 0xFF00)/65280.0}] \
+                        [expr {($g & 0xFF00)/65280.0}] \
+                        [expr {($b & 0xFF00)/65280.0}]]
+        foreach a $rgb b2 $tkrgb {
+            if {abs($a - $b2) > 0.000002} { lappend bad "$name: $rgb vs $tkrgb" }
+        }
+    }
+    set bad
+} -result {}
+
+test color-name-1.4 {an unknown name is still an error} -body {
+    set p [pdf4tcl::new %AUTO%]
+    set res [catch {$p setFillColor notacolor} err]
+    $p destroy
+    list $res [string match "*unknown color*" $err]
+} -result {1 1}
+
+# -----------------------------------------------------------------------
+# Gradients share the pipeline (0.9.4.39)
+# -----------------------------------------------------------------------
+# _colorToRGB knew eight names plus hex, so a gradient accepted strictly less
+# than setFillColor did: "navy" and CMYK lists were errors in a document where
+# setFillColor took both.
+
+test color-gradient-1.1 {gradients accept what setFillColor accepts} -body {
+    set p [pdf4tcl::new %AUTO%]
+    $p startPage
+    set res [catch {
+        $p linearGradient 0 0 100 0 navy white
+        $p radialGradient 50 50 0 50 50 40 #cc3300 {0 0.5 1}
+    } err]
+    $p destroy
+    list $res $err
+} -result {0 {}}
+
+test color-gradient-1.2 {gradients follow the document color space} -body {
+    set out {}
+    foreach cmyk {0 1} {
+        set p [pdf4tcl::new %AUTO% -compress 0 -cmyk $cmyk]
+        $p startPage
+        $p linearGradient 0 0 100 0 navy white
+        set data [$p get]
+        $p destroy
+        if {[regexp {/ShadingType 2 /ColorSpace (/Device[A-Za-z]+)} $data -> cs]} {
+            lappend out $cs
+        }
+    }
+    set out
+} -result {/DeviceRGB /DeviceCMYK}
+
+test color-gradient-1.3 {a CMYK list works in a gradient} -body {
+    set p [pdf4tcl::new %AUTO% -cmyk 1]
+    $p startPage
+    set res [catch {$p linearGradient 0 0 100 0 {0 0.5 1 0} {1 0 0 0}}]
+    $p destroy
+    set res
+} -result 0
+
+cleanupTests

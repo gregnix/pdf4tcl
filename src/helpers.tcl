@@ -13,52 +13,7 @@ namespace eval pdf4tcl {
     variable Ff_SORT        524288     ;# Bit 20: Sort (Ch)
     variable Ff_MULTISELECT 2097152    ;# Bit 22: MultiSelect (Ch)
 
-    # The incoming RGB must contain three values in the range 0.0 to 1.0
-    # The return value is CMYK as a list of values in the range 0.0 to 1.0
-    proc rgb2Cmyk {RGB} {
-        foreach {r g b} $RGB break
-
-        # Black, including some margin for float roundings
-        if {$r <= 0.00001 && $g <= 0.00001 && $b <= 0.00001} {
-            return [list 0.0 0.0 0.0 1.0]
-        }
-        set c [expr {1.0 - $r}]
-        set m [expr {1.0 - $g}]
-        set y [expr {1.0 - $b}]
-
-        # k is min of c/m/y
-        set k [expr {min($c, $m, $y)}]
-        # k is less than 1 since only black would give exactly 1
-        # so all divisions are safe.
-        # Since k is min, all numerators are >= 0
-        # All numerators are <= denominators, leaving all results <= 1.0
-        set c [expr {($c - $k) / (1.0 - $k)}]
-        set m [expr {($m - $k) / (1.0 - $k)}]
-        set y [expr {($y - $k) / (1.0 - $k)}]
-
-        return [list $c $m $y $k]
-    }
-
-    # The incoming CMYK must contain four values in the range 0.0 to 1.0
-    # The return value is RGB as a list of values in the range 0.0 to 1.0
-    proc cmyk2Rgb {CMYK} {
-        foreach {c m y k} $CMYK break
-
-        # Black, including some margin for float roundings
-        if {$k >= 0.99999} {
-            return [list 0.0 0.0 0.0]
-        }
-
-        set c [expr {$c * (1.0 - $k) + $k}]
-        set m [expr {$m * (1.0 - $k) + $k}]
-        set y [expr {$y * (1.0 - $k) + $k}]
-
-        set r [expr {1.0 - $c}]
-        set g [expr {1.0 - $m}]
-        set b [expr {1.0 - $y}]
-
-        return [list $r $g $b]
-    }
+    # rgb2Cmyk and cmyk2Rgb moved to src/color.tcl.
 }
 
 #######################################################################

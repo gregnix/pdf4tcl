@@ -9,6 +9,49 @@ not listed here -- see the CHANGES section in the manpage.
 
 ---
 
+## From any version to 0.9.4.39
+
+**Color components are now range checked.** This is the one change here that
+can break working code.
+
+Components must be between 0.0 and 1.0. Values outside that range used to be
+written into the PDF verbatim; they now raise an error. The most likely way
+to hit this is code that passes 0 to 255:
+
+```tcl
+$pdf setFillColor 255 0 0        ;# was accepted, wrote "255 0 0 rg"
+$pdf setFillColor 1 0 0          ;# correct
+```
+
+Such code was already producing the wrong color -- ISO 32000-1 clause 8.6.4
+requires 0 to 1, and readers clamp anything else silently. The error makes a
+long standing bug visible rather than introducing a new restriction. Divide by
+255, or use the hex form `#ff0000`.
+
+Everything else in this release only adds:
+
+- Color names no longer need Tk. The 147 standard X11 and CSS names resolve
+  from a built-in table, so `setFillColor red` works in a headless script.
+  Names outside the table still ask Tk, so nothing that worked before stopped
+  working.
+- `linearGradient` and `radialGradient` accept everything `setFillColor`
+  accepts. Their old parser knew eight names plus hex, so `navy` and CMYK
+  lists were errors in a document where `setFillColor` took both. The shading
+  now declares `/DeviceCMYK` rather than a fixed `/DeviceRGB` in a `-cmyk 1`
+  document, which is a change in the generated file but not in the API.
+- Gradient color components are written through `::pdf4tcl::Nf` like every
+  other number, so `/C0 [1.0 0.0 0.0]` reads `/C0 [1 0 0]`. Same value,
+  different notation. Only relevant if you compare generated PDFs literally.
+- Tagged PDF: an annotation created while no `Link` or `Annot` element is
+  open is now reported in `::pdf4tcl::warnings`. Nothing changes in the
+  output; the annotation was unreachable from the structure tree before too,
+  just silently.
+
+`::pdf4tcl::rgb2Cmyk` and `::pdf4tcl::cmyk2Rgb` moved from `src/helpers.tcl`
+to `src/color.tcl`. Same namespace, same behaviour, still overridable.
+
+---
+
 ## From any version to 0.9.4.36 and 0.9.4.37
 
 Both releases only add features; existing code is unaffected.
@@ -243,6 +286,7 @@ Available feature names:
 
 | Feature | Available since | Description |
 |---------|----------------|-------------|
+| `color-range` | 0.9.4.39 | color components validated, names without Tk, gradients share the pipeline |
 | `tagged-annot` | 0.9.4.37 | `tagBegin Link/Annot`, `/OBJR`, `-listnumbering`, `-id`, `-headers` |
 | `tagged` | 0.9.4.36 | Tagged PDF: `tagged`, `tagBegin`, `tagEnd`, `tagText`, `tagArtifact` |
 | `write-chan` | 0.9.4.25 | `write -chan $channel` option |

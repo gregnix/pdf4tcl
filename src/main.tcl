@@ -2814,47 +2814,8 @@ Use -pdfa-icc to specify a profile path."
     #######################################################################
 
     # Convert any user color to PDF color
-    method GetColor {color} {
-        # Remove list layers, to accept things that have been
-        # multiply listified
-        if {[llength $color] == 1} {
-            set color [lindex $color 0]
-        }
-        if {[llength $color] == 4} {
-            # Maybe range check them here...
-            if {$pdf(cmyk)} {
-                return $color
-            }
-            # Convert CMYK to RGB
-            set color [pdf4tcl::cmyk2Rgb $color]
-        }
-        if {[llength $color] == 3} {
-            # Maybe range check them here...
-            set RGB $color
-        } elseif {[regexp {^\#([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2})$} \
-                $color -> rHex gHex bHex]} {
-            set red   [expr {[scan $rHex %x] / 255.0}]
-            set green [expr {[scan $gHex %x] / 255.0}]
-            set blue  [expr {[scan $bHex %x] / 255.0}]
-            set RGB [list $red $green $blue]
-        } else {
-            # Use catch both to catch bad color, and to catch Tk not present
-            if {[catch {winfo rgb . $color} tkcolor]} {
-                throw {PDF4TCL} "unknown color: $color"
-            }
-            foreach {red green blue} $tkcolor break
-            set red   [expr {($red   & 0xFF00) / 65280.0}]
-            set green [expr {($green & 0xFF00) / 65280.0}]
-            set blue  [expr {($blue  & 0xFF00) / 65280.0}]
-            set RGB [list $red $green $blue]
-        }
-        if {!$pdf(cmyk)} {
-            return $RGB
-        }
-        # Convert RGB to CMYK
-        return [pdf4tcl::rgb2Cmyk $RGB]
-    }
-
+    # GetColor, the color setters and the RGB/CMYK conversions live in
+    # src/color.tcl.
     ###<jpo 2004-11-08: replaced "on off" by "args"
     ###                 to enable resetting dashed lines
     method setLineStyle {width args} {
@@ -3196,48 +3157,6 @@ Use -pdfa-icc to specify a profile path."
                 [expr {$y2+$sz*sin($ang-$rad)}]
     }
 
-    method setBgColor {args} {
-        set pdf(bgColor) [my GetColor $args]
-    }
-
-    method SetFillColor {color} {
-        if {$pdf(cmyk)} {
-            foreach {red green blue k} $color break
-            my Pdfoutcmd $red $green $blue $k "k"
-        } else {
-            foreach {red green blue} $color break
-            my Pdfoutcmd $red $green $blue "rg"
-        }
-    }
-
-    method setFillColor {args} {
-        if {!$pdf(inPage)} { my startPage }
-        set pdf(fillColor) [my GetColor $args]
-        my SetFillColor $pdf(fillColor)
-    }
-
-    method SetStrokeColor {color} {
-        if {$pdf(cmyk)} {
-            foreach {red green blue k} $color break
-            my Pdfoutcmd $red $green $blue $k "K"
-        } else {
-            foreach {red green blue} $color break
-            my Pdfoutcmd $red $green $blue "RG"
-        }
-    }
-
-    method setStrokeColor {args} {
-        if {!$pdf(inPage)} { my startPage }
-        set pdf(strokeColor) [my GetColor $args]
-        my SetStrokeColor $pdf(strokeColor)
-    }
-
-    # Set fill and/or stroke opacity (0.0 = transparent, 1.0 = opaque).
-    # Usage:
-    #   setAlpha value              -- set both fill and stroke
-    #   setAlpha value -fill        -- fill only
-    #   setAlpha value -stroke      -- stroke only
-    #   setAlpha fillval strokeval  -- fill and stroke separately
     method setAlpha {args} {
         if {!$pdf(inPage)} { my startPage }
 
@@ -3369,15 +3288,23 @@ Use -pdfa-icc to specify a profile path."
         if {!$pdf(inPage)} { my startPage }
         my Trans $x1 $y1 x1 y1
         my Trans $x2 $y2 x2 y2
-        set c1 [my _colorToRGB $color1]
-        set c2 [my _colorToRGB $color2]
+        # Same pipeline as every other color in the document, so a
+        # gradient accepts what setFillColor accepts -- names, hex,
+        # RGB and CMYK lists -- and follows the document color space.
+        set c1 [my GetColor $color1]
+        set c2 [my GetColor $color2]
 
         # ShadingType 2: Axial shading
+        # Nf, like every other number pdf4tcl writes. Before this the
+        # components went out raw, which is why a gradient used to emit
+        # "1.0 0.0 0.0" where the rest of the document says "1 0 0".
+        set c1 [my FormatColor $c1]
+        set c2 [my FormatColor $c2]
         set funcBody "<< /FunctionType 2 /Domain \[0 1\] "
         append funcBody "/C0 \[[join $c1 { }]\] /C1 \[[join $c2 { }]\] /N 1 >>"
         set funcOid [my AddObject $funcBody]
 
-        set shdBody "<< /ShadingType 2 /ColorSpace /DeviceRGB "
+        set shdBody "<< /ShadingType 2 /ColorSpace [my ColorSpaceName] "
         append shdBody "/Coords \[$x1 $y1 $x2 $y2\] "
         append shdBody "/Function $funcOid 0 R "
         append shdBody "/Extend \[$extend1 $extend2\] >>"
@@ -3408,15 +3335,23 @@ Use -pdfa-icc to specify a profile path."
         my Trans $cx2 $cy2 cx2 cy2
         my TransR $r1 $r1 r1 _
         my TransR $r2 $r2 r2 _
-        set c1 [my _colorToRGB $color1]
-        set c2 [my _colorToRGB $color2]
+        # Same pipeline as every other color in the document, so a
+        # gradient accepts what setFillColor accepts -- names, hex,
+        # RGB and CMYK lists -- and follows the document color space.
+        set c1 [my GetColor $color1]
+        set c2 [my GetColor $color2]
 
         # ShadingType 3: Radial shading
+        # Nf, like every other number pdf4tcl writes. Before this the
+        # components went out raw, which is why a gradient used to emit
+        # "1.0 0.0 0.0" where the rest of the document says "1 0 0".
+        set c1 [my FormatColor $c1]
+        set c2 [my FormatColor $c2]
         set funcBody "<< /FunctionType 2 /Domain \[0 1\] "
         append funcBody "/C0 \[[join $c1 { }]\] /C1 \[[join $c2 { }]\] /N 1 >>"
         set funcOid [my AddObject $funcBody]
 
-        set shdBody "<< /ShadingType 3 /ColorSpace /DeviceRGB "
+        set shdBody "<< /ShadingType 3 /ColorSpace [my ColorSpaceName] "
         append shdBody "/Coords \[$cx1 $cy1 $r1 $cx2 $cy2 $r2\] "
         append shdBody "/Function $funcOid 0 R "
         append shdBody "/Extend \[$extend1 $extend2\] >>"
@@ -3426,34 +3361,6 @@ Use -pdfa-icc to specify a profile path."
         set grads($id) [list 0 0 $shdOid]
         my Pdfout "/$id sh\n"
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
-    }
-
-    # -- _colorToRGB helper ---------------------------------------------------
-    # Accept {r g b} list (0.0-1.0) or named color or #rrggbb hex.
-    method _colorToRGB {color} {
-        if {[llength $color] == 3} {
-            return $color
-        }
-        set color [string tolower $color]
-        switch -- $color {
-            red     { return {1.0 0.0 0.0} }
-            green   { return {0.0 0.5 0.0} }
-            blue    { return {0.0 0.0 1.0} }
-            white   { return {1.0 1.0 1.0} }
-            black   { return {0.0 0.0 0.0} }
-            yellow  { return {1.0 1.0 0.0} }
-            cyan    { return {0.0 1.0 1.0} }
-            magenta { return {1.0 0.0 1.0} }
-            default {
-                if {[regexp {^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$} $color -> rh gh bh]} {
-                    scan $rh %x rv
-                    scan $gh %x gv
-                    scan $bh %x bv
-                    return [list [expr {$rv/255.0}] [expr {$gv/255.0}] [expr {$bv/255.0}]]
-                }
-                throw {PDF4TCL} "_colorToRGB: unknown color \"$color\""
-            }
-        }
     }
 
     # Draw a rectangle, internal version

@@ -14,13 +14,19 @@ proc pdfContains {file pattern} {
 
 # -- _colorToRGB (indirekt ueber linearGradient) -------------------------------
 
+# Since 0.9.4.39 gradient colors go through GetColor like every other color,
+# and the components are written with ::pdf4tcl::Nf like every other number.
+# The values below are unchanged; only their notation follows Nf now, so
+# "/C0 [1.0 0.0 0.0]" reads "/C0 [1 0 0]". The old spelling was the odd one
+# out -- the rest of the document already wrote 1 rather than 1.0.
+
 test colortorgb-1.1 {_colorToRGB: named color red -> C0} {
     set f [makeFile {} test-c2rgb1.pdf]
     set pdf [pdf4tcl::new %AUTO% -compress false -file $f]
     $pdf startPage
     $pdf linearGradient 50 50 300 50 red blue
     $pdf destroy
-    pdfContains $f "/C0 \[1.0 0.0 0.0\]"
+    pdfContains $f "/C0 \[1 0 0\]"
 } 1
 
 test colortorgb-1.2 {_colorToRGB: named color blue -> C1} {
@@ -29,7 +35,7 @@ test colortorgb-1.2 {_colorToRGB: named color blue -> C1} {
     $pdf startPage
     $pdf linearGradient 50 50 300 50 red blue
     $pdf destroy
-    pdfContains $f "/C1 \[0.0 0.0 1.0\]"
+    pdfContains $f "/C1 \[0 0 1\]"
 } 1
 
 test colortorgb-1.3 {_colorToRGB: named color white} {
@@ -38,7 +44,7 @@ test colortorgb-1.3 {_colorToRGB: named color white} {
     $pdf startPage
     $pdf linearGradient 50 50 300 50 white black
     $pdf destroy
-    pdfContains $f "/C0 \[1.0 1.0 1.0\]"
+    pdfContains $f "/C0 \[1 1 1\]"
 } 1
 
 test colortorgb-1.4 {_colorToRGB: named color black} {
@@ -47,7 +53,7 @@ test colortorgb-1.4 {_colorToRGB: named color black} {
     $pdf startPage
     $pdf linearGradient 50 50 300 50 white black
     $pdf destroy
-    pdfContains $f "/C1 \[0.0 0.0 0.0\]"
+    pdfContains $f "/C1 \[0 0 0\]"
 } 1
 
 test colortorgb-1.5 {_colorToRGB: hex #ff0000 approx 1.0 red} {
@@ -78,7 +84,7 @@ test colortorgb-1.7 {_colorToRGB: {r g b} triple pass-through} {
     $pdf startPage
     $pdf radialGradient 200 200 0 200 200 100 {1.0 0.5 0.0} {0.0 0.5 1.0}
     $pdf destroy
-    pdfContains $f "/C0 \[1.0 0.5 0.0\]"
+    pdfContains $f "/C0 \[1 0.5 0\]"
 } 1
 
 # -- setBlendMode / getBlendMode -----------------------------------------------

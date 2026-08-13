@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.38?**
+package require **pdf4tcl ?0****.9****.4****.39?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 

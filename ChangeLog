@@ -1,5 +1,61 @@
 2026-08-13 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.39
+	* src/color.tcl: new. GetColor, the color setters, setBgColor and the
+	RGB/CMYK conversions moved here from src/main.tcl and
+	src/helpers.tcl. ::pdf4tcl::rgb2Cmyk and ::pdf4tcl::cmyk2Rgb keep their
+	namespace, so they remain part of the documented API and stay
+	overridable. Concatenated after src/main.tcl, like encrypt and tagged,
+	and without a "variable" declaration -- oo::define variable replaces the
+	class variable list rather than extending it.
+	* src/color.tcl (CheckColorRange): color components are checked against
+	0.0 to 1.0. The comment "Maybe range check them here..." had stood in
+	the old code twice. Measured before: setFillColor 5 -2 0.5 wrote
+	"5 -2 0.5 rg", 1.5 1.5 1.5 wrote itself, and with -cmyk 1 the result was
+	"0 1.4 0.9 -4 k". ISO 32000-1 clause 8.6.4 requires 0 to 1 for these
+	operands, but out of range values are not a syntax error: readers clamp
+	them silently, qpdf --check reported nothing, pypdf read the file, and
+	the document simply had the wrong color. It now raises an error, on the
+	same reasoning as the random source in 0.9.4.35 -- a document that
+	cannot be written beats one that only looks right.
+	* src/color.tcl: the 147 standard X11 and CSS color names are resolved
+	from a built-in table. winfo rgb needs Tk *and* a display; measured,
+	setFillColor red failed under tclsh without Tk and under wish without
+	DISPLAY, which rules it out on a server. The table was generated with
+	winfo rgb against Tk 8.6.14 rather than typed, and test color-name-1.3
+	compares every one of the 147 values against winfo rgb. Names outside
+	the table still ask Tk, so nothing that worked before stopped working.
+	* src/main.tcl: gradients use the same color pipeline as everything
+	else. The separate parser _colorToRGB knew eight names plus hex, so a
+	gradient accepted strictly less than setFillColor did in the same
+	document: measured, setFillColor {0 0.5 1 0} worked while
+	linearGradient with the same list and with "navy" both failed.
+	_colorToRGB is gone, both gradients call GetColor, and the shading
+	declares /DeviceCMYK instead of a fixed /DeviceRGB when the document is
+	CMYK. The components are written through ::pdf4tcl::Nf like every other
+	number, so "/C0 [1.0 0.0 0.0]" now reads "/C0 [1 0 0]"; the value is
+	unchanged and the old spelling was the odd one out. Tests
+	colortorgb-1.1 to 1.4 and 1.7 in tests/new-0.9.4.13.test were updated
+	accordingly, with the reason recorded in the file.
+	* src/tagged.tcl (TagAnnotUnattached): an annotation created while no
+	Link or Annot element is open is reported in ::pdf4tcl::warnings. This
+	was the one remaining quiet failure in the tagged path: the link works
+	when clicked, no error is raised, and assistive technology never
+	reaches it, so PDF/UA rule 7.18 cannot be met. A warning rather than an
+	error, because an untagged annotation is legal PDF and existing code may
+	rely on it, and reported once per document so a page full of links does
+	not bury the message. Nothing is inferred -- guessing which paragraph a
+	link belongs to would be wrong as often as right.
+	* 0.9.4.x/doc/en/pdf4tcl-graphics-and-colors.md: new section on the four
+	input forms, the range check, names without Tk and the gradient
+	pipeline. Corrected the section on setBgColor, which claimed it set a
+	page background. It sets the color of the box that "text -bg" draws
+	behind a string and is used nowhere else; measured, setBgColor 1 1 0
+	with text -bg 1 produces a rectangle the size of the text. There is no
+	method for a page background.
+
+2026-08-13 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.38
 	* 0.9.4.x/demo: the demo suite is complete and runnable again. Of 34
 	scripts only 22 were in the DEMOS list of run-all-demos.tcl, and the

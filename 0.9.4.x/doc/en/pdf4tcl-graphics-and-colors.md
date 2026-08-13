@@ -629,12 +629,66 @@ $pdf grestore
 This is the mechanism for fitting an oversized image or diagram into a fixed
 frame without scaling it.
 
-## Page background
+## Color input (0.9.4.39)
+
+Every color goes through one place, `GetColor`, which accepts four forms:
+
+| form | example |
+|---|---|
+| RGB list or three arguments | `1 0 0` or `{1 0 0}` |
+| CMYK list or four arguments | `{0 0.5 1 0}` |
+| hexadecimal | `#cc3300` |
+| name | `red`, `navy`, `darkslategray` |
+
+Values run from 0.0 to 1.0, not 0 to 255.
+
+**Names work without Tk.** The 147 standard X11 and CSS names are resolved
+from a built-in table generated with `winfo rgb` against Tk 8.6, so the values
+are exactly the ones Tk gives. This matters on a server: `winfo rgb` needs Tk
+*and* a display, and before 0.9.4.39 `setFillColor red` failed in a headless
+script. Names outside the table still ask Tk, so nothing that worked before
+stopped working.
+
+**Components are range checked.** They end up verbatim as operands of `rg`,
+`RG`, `k` or `K`, where ISO 32000-1 clause 8.6.4 requires 0 to 1. Out of range
+values used to be written as given:
 
 ```tcl
-$pdf setBgColor 0.95 0.95 1
+$pdf setFillColor 5 -2 0.5     ;# wrote "5 -2 0.5 rg" before 0.9.4.39
 ```
 
-Sets a background colour for the pages that follow. Call it before
-`startPage`; it applies to whole pages, unlike `setFillColor`, which affects
-the next shape.
+Nothing complained -- readers clamp silently, `qpdf --check` found no error,
+and the document simply had the wrong color. It now raises an error, on the
+same reasoning as the random source in 0.9.4.35: a document that cannot be
+written beats one that only looks right.
+
+**Gradients use the same pipeline.** Until 0.9.4.39 `linearGradient` and
+`radialGradient` had their own parser that knew eight names plus hex, so a
+gradient accepted strictly less than `setFillColor` in the same document --
+`navy` and CMYK lists were errors. They now go through `GetColor`, and the
+shading declares `/DeviceCMYK` instead of `/DeviceRGB` in a `-cmyk 1`
+document.
+
+## Text background
+
+```tcl
+$pdf setBgColor 1 1 0
+$pdf text "highlighted" -x 20 -y 50 -bg 1
+```
+
+Despite the name, `setBgColor` does **not** fill the page. It sets the colour
+of the box that `text` draws behind a string when `-bg` is given, and it is
+used nowhere else. Measured, the two lines above produce:
+
+    1 1 0 rg
+    20 789.3 32.676 13.872 re
+
+-- one rectangle the size of the text, not of the page. `text -bg` also
+accepts a colour directly, which then wins over `setBgColor`:
+
+```tcl
+$pdf text "highlighted" -x 20 -y 50 -bg {1 1 0}
+```
+
+There is no method for a page background. Draw a filled rectangle over the
+drawable area right after `startPage` if you need one.

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.38 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.39 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.38?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.39?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -2528,6 +2528,37 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.39"
+.PP
+.IP \(bu
+"\fIsrc/color\&.tcl\fR": new\&. \fBGetColor\fR, the color setters and the
+RGB/CMYK conversions moved out of "\fIsrc/main\&.tcl\fR" and
+"\fIsrc/helpers\&.tcl\fR"\&. \fB::pdf4tcl::rgb2Cmyk\fR and
+\fB::pdf4tcl::cmyk2Rgb\fR keep their namespace and stay overridable\&.
+.IP \(bu
+Color components are range checked\&. Values outside 0\&.0 to 1\&.0 used to
+be written verbatim as operands of \fBrg\fR, \fBRG\fR, \fBk\fR or
+\fBK\fR, where ISO 32000-1 clause 8\&.6\&.4 requires that range\&. Readers clamp
+them silently, so the document simply had the wrong color and no tool
+complained\&. They now raise an error\&.
+.IP \(bu
+The 147 standard color names are resolved from a built-in table
+instead of \fBwinfo rgb\fR, which needs Tk and a display\&. Color names now
+work in a headless script\&. Names outside the table still ask Tk\&.
+.IP \(bu
+Gradients use the same color pipeline as everything else\&. The separate
+parser knew eight names plus hex, so \fBlinearGradient\fR accepted
+strictly less than \fBsetFillColor\fR in the same document; CMYK lists and
+names such as \fBnavy\fR were errors\&. The shading also declares
+\fB/DeviceCMYK\fR rather than always \fB/DeviceRGB\fR when the document
+is CMYK\&.
+.IP \(bu
+Tagged PDF: an annotation created while no \fBLink\fR or
+\fBAnnot\fR element is open is reported in \fB::pdf4tcl::warnings\fR\&. Such
+an annotation is not reachable from the structure tree -- the link still
+works when clicked, but assistive technology never sees it, and PDF/UA
+rule 7\&.18 cannot be met\&. Reported once per document\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.38"
 .PP
 .IP \(bu
