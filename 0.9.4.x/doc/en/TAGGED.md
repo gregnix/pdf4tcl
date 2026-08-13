@@ -1,6 +1,11 @@
 # Tagged PDF in pdf4tcl
 
-Status: prototype, added in 0.9.4.36. See `src/tagged.tcl`.
+Added in 0.9.4.36, extended with annotation support in 0.9.4.37.
+See `src/tagged.tcl`.
+
+`examples/tagged.tcl` validates as PDF/UA-1 conformant with veraPDF 1.28.2.
+That says the file obeys the standard, not that the tagging is sensible --
+see the Open section at the end.
 
 ## What a tagged PDF is
 
@@ -210,8 +215,8 @@ see a collision between pages.
 Needs `pypdf`.
 
 `qpdf --check` catches syntax and stream errors but knows nothing about
-logical structure. veraPDF would be the tool for actual PDF/UA conformance;
-it has not been run against this code yet.
+logical structure. veraPDF is the tool for actual PDF/UA conformance; see the
+veraPDF section below for what it found and what it still does not cover.
 
 ## Implementation notes
 
@@ -270,15 +275,20 @@ for a bookmark title but not for the only text a screen reader gets.
 
 ## Measured
 
+The totals below come from a minimal container without Tk, tkpath, OTF fonts
+or Ghostscript, so many tests are skipped there and the numbers are lower
+than on a full workstation. What matters is the failure count, which is zero
+in every combination; the totals are only comparable within one environment.
+
 Tcl 8.6.14:
 
 - `tests/tagged.test`: 47 cases, all green.
-- Full suite `tests/all.tcl`: 887 total, 861 passed, 26 skipped, 0 failed.
+- Full suite `tests/all.tcl`: 851 total, 827 passed, 24 skipped, 0 failed.
 
 Tcl 9.0.4 (built from `core-9-0-4`):
 
-- `tests/tagged.test`: 47 green.
-- Full suite `tests/all.tcl`: 841 total, 825 passed, 16 skipped, 0 failed.
+- `tests/tagged.test`: 46 green, 1 skipped.
+- Full suite `tests/all.tcl`: 805 total, 792 passed, 13 skipped, 0 failed.
 - The skip is `hasAes`. tcllib 1.21 cannot be loaded under Tcl 9 at all: its
   `pkgIndex.tcl` guards with `package vsatisfies [package provide Tcl] 8.5`
   without a trailing dash, which means "same major version" and is therefore
@@ -342,8 +352,6 @@ subtrees combined under one root. Not implemented.
 
 ## Open
 
-- No manual page. `pdf4tcl.man` has no section on tagging yet, so
-  `pdf4tcl.n` and `pdf4tcl.html` do not describe the new methods.
 - Untagged content stays untagged. That is legal PDF but not PDF/UA
   conformant -- PDF/UA wants every piece of content either tagged or marked
   as an artifact. There is no check for leftover content yet.
@@ -364,10 +372,24 @@ subtrees combined under one root. Not implemented.
 
 ## veraPDF
 
-Measured with veraPDF 1.28.2, profile PDF/UA-1, against `examples/tagged.tcl`:
-99 rules passed, 7 failed, 1382 checks passed, 8 failed. The structure tree
-itself was not faulted -- no complaint about `/StructTreeRoot`, `/ParentTree`,
-`/StructParents`, the MCR references or the roles.
+Measured with veraPDF 1.28.2, profile PDF/UA-1, against `examples/tagged.tcl`.
+
+**Result as of 0.9.4.37: compliant.** 106 rules and 1492 checks passed, none
+failed, with a tagged link annotation in the tree. `examples/facturx.tcl`
+remains PDF/A-3B compliant alongside it (146 rules, 1226 checks).
+
+Getting there took four rounds:
+
+| round | rules passed | rules failed | checks failed |
+|---|---|---|---|
+| first run | 99 | 7 | 8 |
+| lazy marked content, artifact placement, title, DisplayDocTitle | 105 | 1 | 2 |
+| `pdfuaid`, `/Scope`, embedded font | 106 | 0 | 0 |
+| annotations added; `/Tabs /S` fixed | 106 | 0 | 0 |
+
+The first run already left the structure tree itself unfaulted -- no complaint
+about `/StructTreeRoot`, `/ParentTree`, `/StructParents`, the MCR references
+or the roles.
 
 Two of the failures were defects in this module and are fixed:
 

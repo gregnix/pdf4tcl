@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.37 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.38 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.37?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.38?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -2528,6 +2528,35 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.38"
+.PP
+.IP \(bu
+Demos and documentation\&. No change to the library API\&.
+.IP \(bu
+"\fI0\&.9\&.4\&.x/demo\fR": the demo suite is complete again\&. All 35 scripts
+are covered by "\fIrun-all-demos\&.tcl\fR", entries carry an optional reason for
+being skipped, and \fB--alle\fR runs those too\&. Five scripts that never
+ran are fixed, and output goes to "\fIdemo/out\fR" instead of next to the
+scripts\&.
+.IP \(bu
+"\fI0\&.9\&.4\&.x/demo/demo-tagged\&.tcl\fR": new, demonstrates Tagged PDF\&.
+.IP \(bu
+"\fI0\&.9\&.4\&.x/demo/demo-unicode-tabelle\&.tcl\fR": warns that the blocks
+above U+FFFF cannot be rendered under Tcl 8, detected at runtime rather than
+from the version number\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR" (\fBCanvasDoTkoPathItem\fR): the item id was
+overwritten with the PDF image id before being used to ask the widget for
+coordinates\&. Coordinates are determined first now\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR": both window branches delete the photo created by
+\fBimage create photo -format window\fR after reading the pixels\&.
+.IP \(bu
+"\fI0\&.9\&.4\&.x/doc/en\fR": 27 of the 93 documented methods appeared in no
+guide\&. New documents for images, canvas export and annotations, plus a
+README index; bookmarks, XObjects, the text cursor, arcs, clipping and the
+state queries added to the existing ones\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.37"
 .PP
 .IP \(bu

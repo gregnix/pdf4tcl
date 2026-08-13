@@ -574,3 +574,67 @@ Catalog: /OCProperties << /OCGs [N 0 R ...]
 Resources: /Properties << /LyrN  N 0 R >>
 Content:   /OC /LyrN BDC  ... drawing ...  EMC
 ```
+
+## Arcs
+
+```tcl
+$pdf arc $x $y $radiusX $radiusY $phi $extend ?options?
+```
+
+`phi` and `extend` are positional arguments, not options -- a common
+mistake, since most of the drawing API takes options. The arc starts at
+`phi` degrees, counted counter-clockwise from east, and runs for `extend`
+degrees.
+
+```tcl
+$pdf arc 100 100 80 40 0 120 -style pieslice -filled 1
+```
+
+`-style` decides how the shape closes:
+
+| style | |
+|---|---|
+| `arc` (default) | the perimeter only, never filled |
+| `pieslice` | closed with lines to the centre of the oval |
+| `chord` | closed directly between the endpoints |
+
+Only `pieslice` and `chord` enclose an area, so `-filled 1` has no effect
+with the default style.
+
+## Line style
+
+```tcl
+$pdf setLineStyle 2 6 3
+```
+
+The first argument is the width, the rest a dash pattern in the PDF sense:
+lengths of ink and gap, alternating. The call above produces `[6 3] 0 d` in
+the content stream -- six on, three off. `setLineStyle 1` with no pattern
+resets to a solid line (`[] 0 d`).
+
+## Clipping
+
+`clip` restricts drawing to a rectangle. It changes the graphics state, so
+it belongs between `gsave` and `grestore` -- otherwise everything drawn
+afterwards on that page stays clipped:
+
+```tcl
+$pdf gsave
+$pdf clip 0 150 100 60
+$pdf setFillColor 1 0 0
+$pdf rectangle 0 150 300 60 -filled 1   ;# only the left 100 points appear
+$pdf grestore
+```
+
+This is the mechanism for fitting an oversized image or diagram into a fixed
+frame without scaling it.
+
+## Page background
+
+```tcl
+$pdf setBgColor 0.95 0.95 1
+```
+
+Sets a background colour for the pages that follow. Call it before
+`startPage`; it applies to whole pages, unlike `setFillColor`, which affects
+the next shape.

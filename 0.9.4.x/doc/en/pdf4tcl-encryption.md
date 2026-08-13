@@ -132,3 +132,35 @@ and tooltips are protected alongside the document content.
 - `-encversion` and `-permissions` are read-only after object creation.
 - AES-256 with the pure-Tcl SHA backend is slow (~24 s/PDF).
   Install tcl-sha for production use.
+
+## Where the random bytes come from (0.9.4.35)
+
+The AES file key, the initialisation vectors and the salts must come from a
+cryptographic source. pdf4tcl looks for one on first use and records the
+result in `::pdf4tcl::_randBackend`, which is read-only and meant for
+diagnostics:
+
+| value | source |
+|---|---|
+| `urandom` | reads `/dev/urandom` |
+| `twapi` | `::twapi::random_bytes` |
+| `powershell` | `RandomNumberGenerator` via `exec powershell` |
+| `none` | nothing usable found |
+
+```tcl
+set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "secret" -encversion 5]
+$p startPage
+$p endPage
+$p write -file out.pdf
+puts $::pdf4tcl::_randBackend      ;# urandom on a normal Linux box
+```
+
+If none of the three is available, **encryption raises an error** rather than
+falling back to `expr rand()`. That fallback would look like it worked: a 31
+bit state seeded from the clock gives an AES-256 key at most 31 bits of
+entropy, which is a document that only appears to be encrypted. A file that
+cannot be written is the better outcome, because the failure is visible.
+
+Worth checking on locked-down Windows machines where `exec powershell` is
+blocked and twapi is not installed. There the error appears at `write` time,
+not at `new`.

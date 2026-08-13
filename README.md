@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.37)
+# pdf4tcl fork (0.9.4.38)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -12,8 +12,9 @@ This fork started as a personal working environment -- features and
 fixes developed for own projects, submitted upstream where appropriate.
 
 The focus is on extending the 0.9.4.x line with practical features:
-full Unicode via CID fonts, PDF/A-1b/2b support, transparency, and
-AES-256 encryption -- covering real-world PDF generation needs in Tcl.
+full Unicode via CID fonts, PDF/A-1b/2b/3b support, Tagged PDF with
+PDF/UA-1 conformance, transparency, and AES-256 encryption -- covering
+real-world PDF generation needs in Tcl.
 
 
 ## Requirements
@@ -33,8 +34,8 @@ make
 This runs:
 
 ```bash
-cat src/prologue.tcl src/fonts.tcl src/helpers.tcl \
-    src/options.tcl src/main.tcl src/encrypt.tcl src/cat.tcl > pdf4tcl.tcl
+cat src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl \
+    src/main.tcl src/encrypt.tcl src/tagged.tcl src/cat.tcl > pdf4tcl.tcl
 ```
 
 Do not edit `pdf4tcl.tcl` directly -- changes will be lost on the next build.
@@ -55,6 +56,34 @@ $pdf write -file output.pdf
 $pdf destroy
 ```
 
+
+
+## Tagged PDF
+
+Since 0.9.4.36 documents can carry a logical structure (ISO 32000-1
+clause 14.7/14.8), which is what assistive technology reads instead of the
+order in which glyphs happen to be painted. It also makes text extraction
+and reflow reliable.
+
+```tcl
+$pdf tagged 1 -lang de-DE -ua 1
+$pdf startPage
+$pdf tagText H1 "Chapter 1" -x 0 -y 20
+$pdf tagBegin P
+$pdf text "First line" -x 0 -y 50
+$pdf text "Second line of the same paragraph" -x 0 -y 65
+$pdf tagEnd
+```
+
+`examples/tagged.tcl` produces a document that veraPDF 1.28.2 validates as
+PDF/UA-1 conformant: 106 rules and 1492 checks passed, none failed. The
+manual page describes the methods under *OBJECT METHODS, TAGGED PDF*,
+`0.9.4.x/doc/en/TAGGED.md` goes into the background and the open ends, and
+`tools/check-tagged.py` verifies the structure of a generated file.
+
+Being tagged is not the same as being accessible. A document in which every
+paragraph is `/P` and every heading is `/H1` validates just as cleanly and
+still tells a reader nothing useful.
 
 
 ## Upstream

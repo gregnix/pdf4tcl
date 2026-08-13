@@ -1,12 +1,209 @@
 2026-08-13 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.38
+	* 0.9.4.x/demo: the demo suite is complete and runnable again. Of 34
+	scripts only 22 were in the DEMOS list of run-all-demos.tcl, and the
+	list gave no hint whether an entry was missing or left out on purpose.
+	Entries now carry an optional reason for being skipped, so a deliberate
+	omission is visible; --alle runs those too. All 35 scripts are covered.
+	* 0.9.4.x/demo: five scripts never ran at all. demo-write-chan.tcl used
+	[expr {... ? \"JA\" : \"NEIN\"}], where the backslashes survive inside the
+	braces and expr refuses the operand. demo-make-cheatsheets.tcl,
+	demo-aes256.tcl, demo-forms-aes128.tcl and demo-forms-aes256.tcl put the
+	demo directory on auto_path instead of the repository root, so they only
+	worked with pdf4tcl installed system wide; demo-otf.tcl set no auto_path
+	at all.
+	* 0.9.4.x/demo: output goes to demo/out. 17 scripts had the path wired in
+	and took no argument, which is why the demo directory filled up with
+	PDFs. Measured afterwards: 0 files left beside the scripts, 49 in out/.
+	demo-annotations.tcl was listed with the --out schema although it takes
+	a positional directory, so the runner created a directory named "--out".
+	demo-forms-aes256.tcl wrote demo-forms-ase256.pdf, and fonts.tcl
+	computed an output path and then wrote a literal file name.
+	* 0.9.4.x/demo/demo-tagged.tcl: new. Tagged PDF with headings, a
+	paragraph across a page break, a list with /ListNumbering, a table with
+	/Scope and /ID, a figure with /Alt, artifacts and a tagged link.
+	* 0.9.4.x/demo/demo-unicode-tabelle.tcl: the blocks above U+FFFF are
+	useless under Tcl 8 without anything in the PDF saying so. Measured,
+	[format %c 0x1F600] gives U+FFFD there and U+1F600 under Tcl 9, so with
+	DejaVuSans 12 pages differ and the emoticon page shows the replacement
+	glyph 80 times instead of 65 different ones. The demo now detects this
+	at runtime rather than from the version number and adds a notice page,
+	a line in each affected page header and a warning on stderr.
+	* src/main.tcl (CanvasDoTkoPathItem): the item id was overwritten with
+	the PDF image id and then used to ask the widget for coordinates. The
+	classic canvas branch receives coords as a parameter, so overwriting is
+	intentional there; this branch fetches them afterwards. Coordinates are
+	now determined before the image, which also keeps an orphaned XObject
+	out of the document when the branch returns early.
+	* src/main.tcl: both window branches delete the photo created by
+	"image create photo -format window" once the pixels have been read.
+	* 0.9.4.x/doc/en: documentation completed. Of the 93 methods in the
+	manual page, 27 appeared in no guide. New: pdf4tcl-images.md,
+	pdf4tcl-canvas.md, pdf4tcl-annotations.md and a README.md index.
+	Extended: bookmarks and XObjects in the layout patterns, the text cursor
+	in text-and-fonts, arc/clip/setLineStyle/setBgColor in
+	graphics-and-colors, state queries in basics, -calculate and -js in the
+	forms manual, the random source in encryption, substitution counting in
+	text-and-fonts.
+	* README.md: the build command printed there was missing src/tagged.tcl,
+	so following it produced a pdf4tcl without tagged PDF support.
+
+2026-08-13 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.37
-	* Tagged PDF: annotations in the structure tree -- tagBegin Link/Annot attaches links, form fields and markup annotations via /OBJR and /StructParent, with /Contents from -alt; all annotation objects now go through AddAnnot; new -listnumbering on L and -id/-headers on TH/TD
+	* src/tagged.tcl: annotations can now be part of the logical structure.
+	tagBegin accepts the types Link and Annot; an annotation created while
+	such an element is open receives a /StructParent key and the element an
+	/OBJR entry pointing at it (ISO 32000-1 clause 14.7.4.4). Without this
+	a link works when clicked but is invisible to assistive technology,
+	and PDF/UA rule 7.18 cannot be met at all. Nothing is inferred: an
+	annotation created outside a Link element stays unattached, because
+	guessing which paragraph a link belongs to would be wrong as often as
+	right. tools/check-tagged.py reports the unattached case.
+	* src/tagged.tcl (TagAnnotEntries): link annotations also receive
+	/Contents, taken from the element's -alt when the annotation does not
+	already carry one. An explicit /Contents in the annotation always wins.
+	/Contents is what a reader announces for a link, so PDF/UA requires it
+	even though /Alt on the element says the same thing.
+	* src/main.tcl (AddAnnot): new. All eight places that created
+	annotation objects went through AddObject directly and were therefore
+	invisible to the tagging module; they now go through AddAnnot, which
+	inserts the extra dictionary entries before the object is written and
+	registers it afterwards. A new kind of annotation added later has to
+	use AddAnnot as well, or it will be missing from the structure tree
+	without any error.
+	* src/tagged.tcl: the parent tree now numbers pages and annotations
+	from one counter. A page maps to an array of structure elements, an
+	annotation to a single element (clause 14.7.4.4), and the entries are
+	merged and sorted before writing, because the keys of a number tree
+	must appear in increasing order (clause 7.9.7).
+	* src/tagged.tcl: new attributes. -listnumbering on L writes
+	/A <</O /List /ListNumbering ...>>, so a reader announces the list
+	style instead of reading the painted bullet glyph. -id names a table
+	cell and -headers lists the -id values of the header cells that apply
+	to it; -headers is what works for irregular tables, where -scope alone
+	cannot express the relation (ISO 14289-1 clause 7.5).
+	* src/main.tcl, src/tagged.tcl: a page carrying annotations is written
+	with /Tabs /S instead of /Tabs /R while tagging is enabled, so that
+	tabbing follows the structure tree (ISO 14289-1 clause 7.18.3).
+	Untagged documents keep /R, which is the row order a plain form wants.
+	This only surfaced once examples/tagged.tcl gained its first
+	annotation; before that no tagged page had one.
+	* examples/tagged.tcl: coordinates corrected. pdf4tcl defaults to
+	-orient 1, where y counts downward from the top margin and the margins
+	are already included, but the file placed content as if the origin were
+	at the bottom left. Measured: the heading sat 12 points above the
+	bottom edge, the running foot at the top, and the page read from bottom
+	to top, while x was off by the margin because it was added twice.
+	veraPDF called that file PDF/UA-1 compliant, since it validates the
+	structure tree and not the layout.
+	* src/encrypt.tcl (_MD5): the padding used a literal NUL character
+	inside a quoted string rather than the escape \x00. Tcl reads either
+	form the same way, but the raw byte made grep classify pdf4tcl.tcl and
+	src/encrypt.tcl as binary, so "make checkdoc" compared the manual page
+	against an empty list of source methods and reported nothing.
+	* tools/check-tagged.py: checks that every annotation reachable from a
+	page is claimed by exactly one /OBJR, that its /StructParent resolves
+	back to that same element, and that link annotations carry /Contents.
+	* tests/tagged.test: 47 tests, nine of them new.
+	* examples/tagged.tcl: the demo now contains a tagged link, a numbered
+	list with /ListNumbering and header cells with /ID.
 
 2026-08-12 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.36
-	* Tagged PDF -- logical structure via tagged/tagBegin/tagEnd/tagText/tagArtifact, /StructTreeRoot with parent tree, /Alt /ActualText /Lang /T, /Scope on TH, optional pdfuaid; examples/tagged.tcl validates as PDF/UA-1; catPdf now drops structure instead of corrupting it
+	* src/tagged.tcl: new. Tagged PDF, i.e. the logical structure of ISO
+	32000-1 clause 14.7/14.8. Without it a PDF records only where glyphs
+	are painted; nothing says which run is a heading, a table cell or a
+	page number, and the reading order is whatever order the content
+	stream happens to use. New methods: tagged (enable, -lang, -ua),
+	tagBegin/tagEnd (open and close a structure element, with -alt,
+	-actualtext, -title, -lang, -scope), tagText (both around a single
+	text call) and tagArtifact/tagArtifactEnd for content that is not part
+	of the document, such as running heads and rules. Structure types are
+	restricted to the standard ones of Table 333-337; anything else would
+	need a /RoleMap entry and is refused rather than written out and
+	silently ignored by readers. The file reopens the class with a second
+	oo::define, the way src/encrypt.tcl does, and deliberately declares no
+	class variables: oo::define variable replaces the variable list rather
+	than extending it, so declaring only pdf there would hide options,
+	fonts and images from every method of the class.
+	* src/tagged.tcl (TagTextString): /Alt and the other text strings are
+	written as UTF-16BE literal strings with octal escapes. Not as hex
+	strings, because EncryptStringsInBody only rewrites (...) literals and
+	a hex string would stay in the clear in an encrypted document. Not via
+	QuoteString either, which transliterates above U+00FF and replaces the
+	rest with "?" -- acceptable for a bookmark title, not for the only
+	text a screen reader gets.
+	* src/tagged.tcl (TagEnsureMC): marked content is opened at the first
+	painting operation and only for the innermost open element. Opening it
+	in tagBegin instead put a container's MCID around its children's;
+	veraPDF reported 21 "Nested MCID" warnings against examples/tagged.tcl
+	for that. A grouping element such as /L or /TR paints nothing itself
+	and must carry no marked content at all. An element interrupted by a
+	nested one simply gets a second /MCR when painting resumes.
+	* src/tagged.tcl (tagArtifact): closes the open marked content first,
+	so an artifact next to an open element sits between two sequences of
+	it rather than inside one. ISO 14289-1 clause 7.1 forbids both
+	directions; a running foot on the second page of a paragraph spanning
+	the page break triggered both rules.
+	* src/main.tcl: seven hook calls, each returning at once when tagging
+	is off. startPage and endPage manage the per page state and write
+	/StructParents; finish writes /StructTreeRoot, /MarkInfo, /Lang and
+	the structure objects; Pdfoutcmd and BeginTextObj drive TagEnsureMC.
+	The hook in startPage must come after the Flush: Flush writes
+	uncompressed while endPage deflates the remaining buffer and derives
+	/Length from it, so writing there first put raw bytes in front of the
+	deflate stream. The page then inflated to nothing and every reader
+	showed it as empty, without an error anywhere. Covered by test
+	tagged-8.1a.
+	* src/main.tcl (_BuildXMPStream): writes the PDF/UA identification
+	schema (pdfuaid:part) when the caller passed -ua to tagged. Opt-in on
+	purpose: the entry asserts conformance that pdf4tcl cannot verify --
+	embedded fonts, a document title, complete tagging and a sane heading
+	order are the caller's responsibility, and a file that claims PDF/UA
+	and then fails validation is worse than one that claims nothing.
+	* src/cat.tcl (StripStructure): new. catPdf removes the logical
+	structure of tagged inputs and appends a note to ::pdf4tcl::warnings.
+	Merging structure trees is not a matter of renumbering objects: every
+	page carries a /StructParents key indexing the parent tree of its own
+	document, and every document numbers its pages from 0. AppendPdf keeps
+	the first catalog, so the merge claimed to be tagged while the second
+	document's pages pointed into the first document's parent tree.
+	Measured on two one-page documents: two pages both carrying
+	/StructParents 0, a tree holding only the first document's heading,
+	the second document's content orphaned, no error raised. A file that
+	lies about its structure is worse than one that has none, because a
+	screen reader trusts /MarkInfo and reads the wrong tree instead of
+	falling back to the paint order. The orphaned StructElem objects stay
+	in the file; unreferenced they are inert, and removing them would mean
+	renumbering everything again.
+	* src/cat.tcl (WritePdf): the last WriteCh passed "po" instead of
+	"pos". upvar creates the variable silently and incr initialises it to
+	0, so the position counter was updated in a variable nobody reads.
+	Harmless as the final call, but a data error the moment a line is
+	added below it.
+	* tests/tagged.test: new, 37 tests. Among them tagged-8.1a, which
+	inflates the content streams rather than comparing /Length values --
+	the first version of that test passed on the broken code as well.
+	* tools/check-tagged.py: new. Walks the structure tree, reconstructs
+	for every element the text its marked content actually paints, and
+	checks BDC/EMC balance, MCID numbering, nesting, /StructParents
+	uniqueness across pages, parent tree coverage and orphaned sequences.
+	The nesting and uniqueness checks were added after the fact: the first
+	version verified everything per page and passed both the nested MCIDs
+	and the broken catPdf merge.
+	* examples/tagged.tcl: new. Headings, list, table with /Scope, figure
+	with /Alt, artifacts and a paragraph spanning a page break. Embeds
+	FreeSans.ttf, sets a document title and DisplayDocTitle, and writes
+	beside the script rather than into the current directory. Validates
+	with veraPDF 1.28.2 as PDF/UA-1: 106 rules and 1357 checks passed,
+	none failed.
+	* TAGGED.md: new. Documentation, the measurements above and the open
+	items -- no /Link with /OBJR for annotations, no /ListNumbering, no
+	/Headers//ID for irregular tables, no tagging inside XObjects, and
+	nothing that enforces that content is tagged at all.
 
 2026-07-20 Gregor  <gregnix@github>
 

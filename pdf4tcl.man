@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.37]
+[manpage_begin pdf4tcl n 0.9.4.38]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.37]]
+[require pdf4tcl [opt 0.9.4.38]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -2078,6 +2078,30 @@ better than one that only appears to be encrypted. Read-only; for diagnostics
 only.
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.38}]
+[para]
+[list_begin itemized]
+[item] Demos and documentation. No change to the library API.
+[item] [file 0.9.4.x/demo]: the demo suite is complete again. All 35 scripts
+are covered by [file run-all-demos.tcl], entries carry an optional reason for
+being skipped, and [option --alle] runs those too. Five scripts that never
+ran are fixed, and output goes to [file demo/out] instead of next to the
+scripts.
+[item] [file 0.9.4.x/demo/demo-tagged.tcl]: new, demonstrates Tagged PDF.
+[item] [file 0.9.4.x/demo/demo-unicode-tabelle.tcl]: warns that the blocks
+above U+FFFF cannot be rendered under Tcl 8, detected at runtime rather than
+from the version number.
+[item] [file src/main.tcl] ([cmd CanvasDoTkoPathItem]): the item id was
+overwritten with the PDF image id before being used to ask the widget for
+coordinates. Coordinates are determined first now.
+[item] [file src/main.tcl]: both window branches delete the photo created by
+[cmd {image create photo -format window}] after reading the pixels.
+[item] [file 0.9.4.x/doc/en]: 27 of the 93 documented methods appeared in no
+guide. New documents for images, canvas export and annotations, plus a
+README index; bookmarks, XObjects, the text cursor, arcs, clipping and the
+state queries added to the existing ones.
+[list_end]
 
 [subsection {Version 0.9.4.37}]
 [para]

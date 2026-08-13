@@ -423,7 +423,7 @@ an OutputIntent with an sRGB ICC profile, and suppresses
 
 **Important:** For PDF/A all fonts must be embedded. Standard fonts
 (Helvetica, Times, Courier) are not embedded and violate PDF/A.
-Use CIDFonts exclusively (see `pdf4tcl-cid-fonts.md`).
+Use CIDFonts exclusively (see `pdf4tcl-cidfont-manual.md`).
 
 Validation:
 ```bash
@@ -496,3 +496,34 @@ per PDF/A document), and NIST SHA/AES reference vectors integrated into
 - Text API and fonts: see pdf4tcl-text-and-fonts.md
 - Graphics and colors: see pdf4tcl-graphics-and-colors.md
 - Layout patterns: see pdf4tcl-layout-patterns.md
+
+## Asking the object about its state
+
+A few methods answer questions instead of drawing, which is what generic
+helper procs need:
+
+```tcl
+$pdf inPage          ;# 0 before startPage, 1 after
+$pdf currentPage     ;# number of the page being written, 1 based
+$pdf pageCount       ;# how many pages exist so far
+$pdf cget -paper     ;# any constructor option, here: a4
+$pdf getDrawableArea ;# {width height} minus margins
+```
+
+Measured on a fresh object with `-paper a4`: `inPage` returns 0 before the
+first `startPage` and 1 afterwards, `currentPage` is 1 on the first page,
+and `pageCount` is 2 after two `startPage` calls.
+
+`inPage` is the one worth remembering. Most drawing commands open a page
+implicitly when none is open, so a helper that draws something can silently
+add a blank sheet if it is called at the wrong moment. Asking first makes
+that visible:
+
+```tcl
+proc drawFooter {pdf text} {
+    if {![$pdf inPage]} {
+        error "drawFooter called outside a page"
+    }
+    ...
+}
+```

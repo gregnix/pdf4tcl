@@ -400,3 +400,128 @@ Options:
 
 Restriction: with `-pdfa 1b`, `addEmbeddedFile` is not permitted
 (ISO 19005-1 §6.1.7). With PDF/A-3 (`-pdfa 3b`) it is explicitly supported.
+
+
+## Continuing below a text box (0.9.4.23)
+
+`drawTextBox` wraps text into a rectangle. A caller usually needs to know
+where the text actually ended -- a paragraph of unknown length cannot be
+followed by a heading at a fixed position.
+
+Two things help:
+
+* the **return value** is the unused remainder of the string, empty when
+  everything fitted. Checking it is how a multi-page flow is built: draw,
+  take the remainder, start a new page, draw the rest.
+* **`-linesvar`** names a variable receiving the number of lines written.
+
+```tcl
+set rest [$pdf drawTextBox 0 $y $w 200 $text -linesvar lines]
+while {$rest ne ""} {
+    $pdf startPage
+    set rest [$pdf drawTextBox 0 0 $w 700 $rest]
+}
+```
+
+### -newyvar needs care
+
+`-newyvar` names a variable receiving the Y position after the last rendered
+line. Measured with a three line paragraph, comparing the variable against
+the baselines actually written into the content stream:
+
+| `-orient` | baselines in the PDF | `-newyvar` |
+|---|---|---|
+| `1` | 793.475, 782.475, **771.475** | **771.475** |
+| `0` | 91.475, 80.475, **69.475** | **69.475** |
+
+The value is the last baseline in **PDF page coordinates**, counted from the
+bottom left of the sheet, in both orient modes. It is *not* in the user
+coordinate system that `drawTextBox` took its `y` from.
+
+Feeding it straight back into a drawing call therefore misplaces the result.
+Measured with `-orient 1`, margin 40, a box drawn at user `y 0`:
+
+```tcl
+$pdf drawTextBox 0 0 200 60 $text -newyvar ny   ;# ny = 771.475
+$pdf line 0 $ny 200 $ny                          ;# lands at PDF y 30.525
+```
+
+The text ends at PDF y 771.475 and the line is drawn 741 points away from it.
+Convert before using the value, or work out the position from `-linesvar` and
+the line height (`getLineSpacing`) instead, which stays in the coordinate
+system you started in.
+
+## Bookmarks (document outline)
+
+`bookmarkAdd` adds an entry to the outline pane that viewers show beside the
+page. It always refers to the **current page**, so it belongs right after
+`startPage`:
+
+```tcl
+$pdf startPage
+$pdf bookmarkAdd -title "Chapter 1" -level 0
+...
+$pdf startPage
+$pdf bookmarkAdd -title "Chapter 2" -level 0
+$pdf bookmarkAdd -title "Section 2.1" -level 1
+```
+
+`-level` builds the hierarchy: a higher level nests under the preceding entry
+of the level above. `-closed 1` starts a branch collapsed.
+
+Verified in the output: three calls across two pages produce an `/Outlines`
+dictionary in the catalog.
+
+The title goes through `QuoteString`, so codepoints above U+00FF are
+transliterated where possible and replaced with `?` otherwise -- see the
+substitution section in `pdf4tcl-text-and-fonts.md`. For a document with
+non-Latin headings, check what actually arrived in the outline.
+
+Bookmarks are navigation, not structure. They do not make a document
+accessible; that is what tagging does, see `TAGGED.md`.
+
+## Reusable content with XObjects
+
+A logo that appears on fifty pages should be described once. `startXObject`
+opens a drawing context that behaves like a page and returns an id;
+`putImage` then places it as often as needed:
+
+```tcl
+set logo [$pdf startXObject -paper {60p 30p}]
+$pdf setFillColor 0.2 0.3 0.8
+$pdf rectangle 0 0 60 30 -filled 1
+$pdf setFillColor 1 1 1
+$pdf setFont 10 Helvetica
+$pdf text "LOGO" -x 12 -y 20
+$pdf endXObject
+
+$pdf startPage
+$pdf putImage $logo 0 0
+$pdf putImage $logo 200 0 -width 120
+```
+
+Everything that works on a page works here: text, shapes, colours, images.
+The default paper is `{100p 100p}` with no margin, so give `-paper` the size
+you actually want to draw in. Scaling at placement time works exactly as for
+images, `-width` alone preserving the aspect ratio.
+
+### The empty page trap
+
+An XObject has to be created *between* pages, and any drawing command issued
+while no page is open silently opens one. Measured:
+
+```tcl
+set id [$pdf startXObject -paper {60p 30p}]
+$pdf rectangle 0 0 60 30 -filled 1
+$pdf endXObject
+$pdf setFillColor 0 0 0          ;# <- outside any page
+$pdf startPage
+```
+
+| variant | pages in the result |
+|---|---|
+| without the `setFillColor` line | 1 |
+| with it | **2**, the first one empty |
+
+Nothing is reported; the document simply gains a blank sheet. Reset colours
+and fonts *after* `startPage`, not between `endXObject` and it.

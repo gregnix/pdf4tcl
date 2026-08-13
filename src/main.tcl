@@ -6664,12 +6664,22 @@ Use -pdfa-icc to specify a profile path."
             }
             window {
                 upvar 1 $optsName opts
+                # Coordinates first. They may be empty for group and matrix
+                # items, and asking after the image was added would leave an
+                # orphaned XObject in the document. The item id is also needed
+                # here, so it must not be overwritten before this point --
+                # which is exactly what the old code did.
+                set _coords [$path coords $id]
+                if {[llength $_coords] < 2} return
+                foreach {x1 y1} $_coords break
+
                 catch {package require img::window}
                 if {[catch {
                     image create photo -format window -data $opts(-window)
                 } image]} {
                     set image ""
                 }
+                set imgId ""
                 if {$image eq ""} {
                     # Get a size even if it is unmapped
                     foreach width [list [winfo width $opts(-window)] \
@@ -6683,14 +6693,13 @@ Use -pdfa-icc to specify a profile path."
                         if {$height > 1} break
                     }
                 } else {
-                    set id [my addRawImage [$image data]]
-
-                    foreach {width height oid} $images($id) break
+                    set imgId [my addRawImage [$image data]]
+                    foreach {width height oid} $images($imgId) break
+                    # The photo was only a means of reading the pixels. Keeping
+                    # it alive leaves an image referencing a widget that the
+                    # caller is free to destroy afterwards.
+                    image delete $image
                 }
-                # BUG-C1 fix: coords may be empty for group/matrix items
-                set _coords [$path coords $id]
-                if {[llength $_coords] < 2} return
-                foreach {x1 y1} $_coords break
                 # Since the canvas coordinate system is upside
                 # down we must flip back to get the image right.
                 # We do this by adjusting y and y scale.
@@ -6708,14 +6717,14 @@ Use -pdfa-icc to specify a profile path."
                 set x [expr {$x1 - $width  * $dx}]
                 set y [expr {$y1 + $height * $dy}]
 
-                if {$image eq ""} {
+                if {$imgId eq ""} {
                     # Draw a black box
                     my Pdfoutcmd $x [expr {$y - $height}] \
                             $width $height "re"
                     my Pdfoutcmd "f"
                 } else {
                     my Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
-                    my Pdfout "/$id Do\n"
+                    my Pdfout "/$imgId Do\n"
                 }
             }
         }
@@ -7209,9 +7218,18 @@ Use -pdfa-icc to specify a profile path."
                         if {$height > 1} break
                     }
                 } else {
+                    # Overwriting id is intentional here: the classic canvas
+                    # branch receives coords as a parameter and uses id only
+                    # for the /Do operator below.
                     set id [my addRawImage [$image data]]
-
                     foreach {width height oid} $images($id) break
+                    # The photo was only a means of reading the pixels. Keeping
+                    # it alive leaves an image referencing a widget that the
+                    # caller is free to destroy afterwards; under Tk 8.6 the
+                    # redisplay of such an image happens in the event loop,
+                    # long after this method returned.
+                    image delete $image
+                    set image "photo deleted"
                 }
                 foreach {x1 y1} $coords break
                 # Since the canvas coordinate system is upside

@@ -9,6 +9,30 @@ not listed here -- see the CHANGES section in the manpage.
 
 ---
 
+## From any version to 0.9.4.36 and 0.9.4.37
+
+Both releases only add features; existing code is unaffected.
+
+One behaviour changed for documents that switch tagging on:
+
+- A page carrying annotations is written with `/Tabs /S` instead of
+  `/Tabs /R`, so that tabbing follows the structure tree. ISO 14289-1
+  clause 7.18.3 requires this. Untagged documents keep `/R`, which is the
+  row order a plain form wants.
+
+And one for `pdf4tcl::catPdf`:
+
+- If any input document is tagged, the logical structure is removed from the
+  result and a note is appended to `::pdf4tcl::warnings`. Merging structure
+  trees is not supported: every page carries a `/StructParents` key indexing
+  the parent tree of its own document, and every document numbers its pages
+  from zero, so keeping the structure would leave pages resolving to the
+  wrong elements. Merging untagged documents is unchanged.
+
+See `0.9.4.x/doc/en/TAGGED.md` for what tagging does and where it stops.
+
+---
+
 ## From any version to 0.9.4.25
 
 ### Paper size: A3 height changed
@@ -219,6 +243,8 @@ Available feature names:
 
 | Feature | Available since | Description |
 |---------|----------------|-------------|
+| `tagged-annot` | 0.9.4.37 | `tagBegin Link/Annot`, `/OBJR`, `-listnumbering`, `-id`, `-headers` |
+| `tagged` | 0.9.4.36 | Tagged PDF: `tagged`, `tagBegin`, `tagEnd`, `tagText`, `tagArtifact` |
 | `write-chan` | 0.9.4.25 | `write -chan $channel` option |
 | `b-c-paper` | 0.9.4.25 | ISO B/C paper sizes (b0-b10, c0-c10) |
 | `newyvar` | 0.9.4.23 | `drawTextBox -newyvar` option |

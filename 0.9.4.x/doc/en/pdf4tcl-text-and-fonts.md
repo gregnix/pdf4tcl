@@ -343,3 +343,111 @@ produces `/CIDFontType0` (instead of `/CIDFontType2` for TTF) and uses
 
 The remaining CIDFont API (`createFontSpecCID`, glyph widths, text output,
 `getStringWidth`) works identically for TTF and OTF.
+
+## Characters that do not fit the encoding (0.9.4.35)
+
+A base-14 font such as Helvetica can only carry Latin-1. Drawing text that
+does not fit does not raise an error -- the PDF stays valid, the text does
+not. pdf4tcl handles it in two steps.
+
+**Transliteration first.** Codepoints above U+00FF are replaced by an ASCII
+equivalent where one makes sense. `::pdf4tcl::asciiMap` holds 31 such pairs:
+dashes, quotation marks, ellipsis, arrows, comparison signs, euro,
+trademark. Measured:
+
+```tcl
+% ::pdf4tcl::QuoteString "Zitat \u201Ctest\u201D \u2014 Ende \u2192 x"
+(Zitat "test" - Ende -> x)
+```
+
+The typography is lost, the meaning survives. Nothing is reported, because
+nothing was lost that a reader would miss.
+
+**Replacement second.** Anything without an equivalent becomes `?` (or
+`.notdef` in a subset without `?`). This *is* a loss, and `getSubstCount`
+reports it:
+
+```tcl
+$pdf setFont 12 Helvetica
+$pdf text "Hallo \u4F60\u597D Welt" -x 50 -y 50
+$pdf endPage
+puts [$pdf getSubstCount]      ;# 2
+```
+
+The counter runs per document and starts at zero. A non-zero value almost
+always means Unicode text was drawn with a Latin-1 base font; a CID font
+(see `pdf4tcl-cidfont-manual.md`) is the cure, not a different encoding.
+
+### The catch under Tcl 8.6
+
+Measured with the same script on both runtimes:
+
+| | `getSubstCount` |
+|---|---|
+| Tcl 9.0.4 | 2 |
+| Tcl 8.6.14 | **0** |
+
+Under Tcl 8.6, `encoding convertto` performs its own silent replacement and
+returns without an error, so pdf4tcl never learns that a character was lost.
+The characters are gone in both cases; only the reporting differs. This is a
+property of the Tcl release, not of pdf4tcl.
+
+So under Tcl 8.6 a zero counter proves nothing. If a document may contain
+text from outside your control, either use a CID font from the start, or
+check the count under Tcl 9 during development.
+
+### Control characters
+
+Control characters would break the PDF string syntax and are dropped. Unlike
+transliteration this is reported, once per document, in
+`::pdf4tcl::warnings`:
+
+```tcl
+set ::pdf4tcl::warnings {}
+::pdf4tcl::QuoteString "a\u0001b"        ;# -> (ab)
+puts $::pdf4tcl::warnings
+;# quoteString: control character in a PDF string was replaced
+;# (further occurrences are not reported)
+```
+
+Worth checking after generating a document from data you did not write
+yourself.
+
+## The text cursor
+
+`text` with `-x` and `-y` places a string at an absolute position. For
+running text there is a cursor instead, which saves computing every line
+position by hand:
+
+```tcl
+$pdf setFont 12 Helvetica
+$pdf setTextPosition 0 20
+$pdf text "Line 1"
+$pdf newLine
+$pdf text "Line 2"
+```
+
+`newLine` moves down by one line height and back to the left edge of the
+text block. Measured with 12 point Helvetica, starting at `0 20`:
+
+| after | `getTextPosition` |
+|---|---|
+| `text "Line 1"` | `36.012 32.0` |
+| `newLine` + `text "Line 2"` | -- |
+| `setLineSpacing 1.5`, `newLine`, `text` | `71.352 50.0` |
+
+Note what `getTextPosition` returns: the position *after* the last string,
+so the x value has advanced by the text width. It is the pen position, not
+the start of the line.
+
+`getLineHeight` returns the current line height -- 12.0 for a 12 point font
+at the default spacing of 1.0. `setLineSpacing` multiplies it: after
+`setLineSpacing 1.5` the step from line to line grew from 12 to 18 points
+(32.0 to 50.0 in the measurement above).
+
+`moveTextPosition` shifts the cursor relative to where it is, which is how
+an indent or a hanging label is done without recomputing absolute
+coordinates.
+
+For font metrics beyond the line height, `getFontMetric` answers with the
+values of the current font; `ascend` gave 8.616 for 12 point Helvetica.

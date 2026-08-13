@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.37?**
+package require **pdf4tcl ?0****.9****.4****.38?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -1405,6 +1405,16 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.38
+
+- Demos and documentation. No change to the library API.
+- are covered by "*run-all-demos**.tcl*", entries carry an optional reason for being skipped, and **--alle** runs those too. Five scripts that never ran are fixed, and output goes to "*demo/out*" instead of next to the scripts.
+- 
+- above U+FFFF cannot be rendered under Tcl 8, detected at runtime rather than from the version number.
+- overwritten with the PDF image id before being used to ask the widget for coordinates. Coordinates are determined first now.
+- **image create photo -format window** after reading the pixels.
+- guide. New documents for images, canvas export and annotations, plus a README index; bookmarks, XObjects, the text cursor, arcs, clipping and the state queries added to the existing ones.
 
 ### VERSION 0.9.4.37
 

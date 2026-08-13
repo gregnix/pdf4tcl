@@ -769,3 +769,54 @@ $p destroy
 set p [pdf4tcl::new %AUTO% -paper a4 \
     -userpassword "secret" -encversion 5]
 ```
+
+## Calculated Fields (0.9.4.32)
+
+A text field can compute its value from other fields. `-calculate` takes a
+two-element list `{operation fieldnames}`:
+
+```tcl
+$pdf addForm text 50 50  80 16 -id pos1
+$pdf addForm text 50 80  80 16 -id pos2
+$pdf addForm text 50 110 80 16 -id total -calculate {sum {pos1 pos2}}
+```
+
+`operation` is one of `sum`, `product`, `average`, `min` or `max`.
+
+This emits an `/AA /C` calculate action calling the viewer's built-in
+`AFSimple_Calculate`, adds the field to the AcroForm `/CO` calculation order,
+and marks the field read-only. Verified in the generated file: the
+`AFSimple_Calculate` call and the `/CO` array are both present.
+
+The calculation runs in the *viewer*, not in pdf4tcl. A viewer without
+JavaScript shows the field empty. If the value must be there regardless,
+compute it in Tcl and write it as the field's default value instead -- and
+consider whether the field needs to be a form field at all.
+
+## Raw JavaScript Actions (0.9.4.34)
+
+Where `AFSimple_Calculate` is not enough, `-js` attaches JavaScript directly.
+It takes a list of `event`/`code` pairs:
+
+```tcl
+$pdf addForm text 50 140 80 16 -id vat \
+        -js {calculate {event.value = this.getField("total").value * 0.19;}}
+```
+
+`event` is one of:
+
+| event | PDF entry | fires |
+|---|---|---|
+| `calculate` | `/C` | when another field changes |
+| `format` | `/F` | when the value is displayed |
+| `validate` | `/V` | when the value is committed |
+| `keystroke` | `/K` | on every keystroke |
+
+`-js` and `-calculate` share one `/AA` dictionary, so they can be combined on
+the same field; `-js calculate` overrides what `-calculate` would emit.
+
+Two things to keep in mind. The code is written into the PDF verbatim -- if
+it is built from data, quoting is your responsibility. And the same caveat as
+above applies: this only runs in viewers with JavaScript enabled, which many
+deployments switch off for security reasons. It is convenience for the reader,
+never a substitute for computing the value yourself.
