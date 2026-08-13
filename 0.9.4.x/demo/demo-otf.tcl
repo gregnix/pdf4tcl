@@ -10,6 +10,12 @@
 #   Page 2 -- Multiple OTF fonts, font sizes, getStringWidth
 #   Page 3 -- Unicode character coverage (Latin, Thai, symbols)
 
+# Das Paket liegt zwei Ebenen hoeher. Vorher setzte diese Demo den auto_path
+# gar nicht und lief nur, wenn sie aus dem Repository-Wurzelverzeichnis
+# gestartet wurde.
+set demodir [file dirname [file normalize [info script]]]
+set auto_path [linsert $auto_path 0 [file normalize [file join $demodir ../..]]]
+
 package require pdf4tcl
 
 # ---------------------------------------------------------------------------

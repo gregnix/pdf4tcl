@@ -632,4 +632,164 @@ test tagged-11.1 {the hooks are defined even without the tagged module} -body {
     set missing
 } -result {}
 
+# -----------------------------------------------------------------------
+# 12.x  Annotations in the structure tree
+# -----------------------------------------------------------------------
+
+test tagged-12.1 {an annotation inside a Link element gets OBJR and StructParent} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "Siehe " -x 50 -y 700
+        $p tagBegin Link -alt "pdf4tcl project page"
+        $p tagText Span "pdf4tcl" -x 90 -y 700
+        $p hyperlinkAdd 90 698 50 14 "https://example.org"
+        $p tagEnd
+        $p tagEnd
+    }]
+    list [contains $data "/Type /OBJR"] \
+            [contains $data "/StructParent 1"] \
+            [contains $data "/Contents (pdf4tcl project page)"]
+} -result {1 1 1}
+
+test tagged-12.2 {an annotation outside a Link element stays unattached} -body {
+    # Legal PDF, and the link still works on click, but it is invisible to a
+    # screen reader. Nothing is invented here; the caller has to wrap it.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin P
+        $p text "Siehe pdf4tcl" -x 50 -y 700
+        $p hyperlinkAdd 90 698 50 14 "https://example.org"
+        $p tagEnd
+    }]
+    list [contains $data "/Type /OBJR"] [contains $data "/StructParent "]
+} -result {0 0}
+
+test tagged-12.3 {an explicit Contents in the annotation is not overwritten} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Link -alt "from the element"
+        $p tagText Span "note" -x 50 -y 700
+        $p addAnnotNote 300 700 20 20 -content "from the annotation"
+        $p tagEnd
+    }]
+    # -alt legitimately appears as /Alt on the element; what must not happen
+    # is that it is also injected as the annotation's /Contents.
+    list [contains $data "/Contents (from the annotation)"] \
+            [contains $data "/Contents (from the element)"] \
+            [contains $data "/Alt (from the element)"]
+} -result {1 0 1}
+
+test tagged-12.4 {parent tree keys stay ordered across pages and annotations} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Link -alt "one"
+        $p tagText Span "a" -x 50 -y 700
+        $p hyperlinkAdd 50 698 20 14 "https://example.org/1"
+        $p tagEnd
+        $p startPage
+        $p tagBegin Link -alt "two"
+        $p tagText Span "b" -x 50 -y 700
+        $p hyperlinkAdd 50 698 20 14 "https://example.org/2"
+        $p tagEnd
+    }]
+    # ISO 32000-1 clause 7.9.7: number tree keys must increase
+    regexp {/Nums \[(.*?)\]>>} $data -> nums
+    set keys {}
+    foreach {key _} [regexp -all -inline -line {^(\d+) } $nums] {
+        lappend keys $key
+    }
+    set sorted [lsort -integer $keys]
+    list [expr {$keys eq $sorted}] [llength $keys]
+} -result {1 4}
+
+# -----------------------------------------------------------------------
+# 13.x  List and table attributes
+# -----------------------------------------------------------------------
+
+test tagged-13.1 {ListNumbering on L} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin L -listnumbering Decimal
+        $p tagBegin LI
+        $p tagText Lbl "1." -x 50 -y 700
+        $p tagText LBody "x" -x 70 -y 700
+        $p tagEnd
+        $p tagEnd
+    }]
+    contains $data "/A <</O /List /ListNumbering /Decimal>>"
+} -result 1
+
+test tagged-13.2 {Headers and ID on table cells} -body {
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Table
+        $p tagBegin TR
+        $p tagText TH "Artikel" -id h1 -scope Column -x 50 -y 700
+        $p tagEnd
+        $p tagBegin TR
+        $p tagText TD "Schraube" -headers h1 -x 50 -y 684
+        $p tagEnd
+        $p tagEnd
+    }]
+    list [contains $data "/ID (h1)"] \
+            [contains $data "/Scope /Column"] \
+            [contains $data "/Headers \[(h1)\]"]
+} -result {1 1 1}
+
+test tagged-13.3 {list and table attributes are refused on the wrong types} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1
+    $p startPage
+    set r1 [catch {$p tagBegin P -listnumbering Decimal} e1]
+    set r2 [catch {$p tagBegin P -headers h1} e2]
+    set r3 [catch {$p tagBegin L -listnumbering Sideways} e3]
+    set r4 [catch {$p tagBegin TD -headers {}} e4]
+    catch {$p destroy}
+    list $r1 $r2 $r3 $r4 \
+            [string match "*applies to L*" $e1] \
+            [string match "*applies to TH or TD*" $e2] \
+            [string match "*invalid -listnumbering*" $e3] \
+            [string match "*at least one cell*" $e4]
+} -result {1 1 1 1 1 1 1 1}
+
+test tagged-12.5 {a tagged page with annotations uses structure tab order} -body {
+    # ISO 14289-1 clause 7.18.3: /Tabs must be /S on every page carrying an
+    # annotation, so that tabbing follows the structure tree instead of the
+    # geometric row order. veraPDF flagged /Tabs /R here once the demo gained
+    # its first annotation.
+    set data [taggedPdf {
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Link -alt "example"
+        $p tagText Span "link" -x 50 -y 700
+        $p hyperlinkAdd 50 698 30 12 "https://example.org"
+        $p tagEnd
+    }]
+    list [contains $data "/Tabs /S"] [contains $data "/Tabs /R"]
+} -result {1 0}
+
+test tagged-12.6 {an untagged form keeps row tab order} -body {
+    # /R is the sensible default for a plain form and must not change.
+    set data [taggedPdf {
+        $p startPage
+        $p setFont 12 Helvetica
+        $p addForm text 50 50 100 20 -id f1
+    }]
+    list [contains $data "/Tabs /R"] [contains $data "/Tabs /S"]
+} -result {1 0}
+
 cleanupTests

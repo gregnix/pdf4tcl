@@ -20,7 +20,17 @@ set pdf4tclDir [file normalize [file join $scriptDir .. .. ..]]
 set auto_path  [linsert $auto_path 0 $pdf4tclDir]
 package require pdf4tcl 0.9.4.32
 
-set outfile [file join $scriptDir demo-forms-calc.pdf]
+# Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
+# Datei als erstes Argument.
+set demoOutDir [file join $scriptDir out]
+if {$argc > 0} { set demoOutDir [lindex $argv 0] }
+file mkdir [expr {[file isdirectory $demoOutDir] || ![file exists $demoOutDir]
+                  ? $demoOutDir : [file dirname $demoOutDir]}]
+if {[file isdirectory $demoOutDir]} {
+    set outfile [file join $demoOutDir demo-forms-calc.pdf]
+} else {
+    set outfile $demoOutDir
+}
 
 set p [pdf4tcl::new %AUTO% -paper a4 -orient true]
 $p startPage

@@ -29,11 +29,11 @@
 # This file reopens ::pdf4tcl::pdf4tcl with a second oo::define. It must NOT
 # contain a "variable" declaration: oo::define variable REPLACES the class
 # variable list, so re-declaring only "pdf" here would hide options, fonts,
-# images ... from every method of the class. The declarations in main.tcl
+# images ... from all methods of the class. The declarations in main.tcl
 # already apply to the methods below. src/encrypt.tcl works the same way.
 #
 # NOTE ON METHOD NAMES
-# TclOO exports a method only if its name starts with a lowercase letter.
+# TclOO exports methods only when the name starts with a lowercase letter.
 # Public API therefore uses tagBegin/tagEnd/..., internal hooks use
 # TagPageStart/TagPageEnd/... and stay private without an explicit unexport.
 ###############################################################################
@@ -50,6 +50,7 @@ namespace eval pdf4tcl {
         Table TR TH TD THead TBody TFoot
         Span Quote Note Reference BibEntry Code
         Figure Formula Form
+        Link Annot
     }
 
     # Encode a Tcl string as a PDF text string (ISO 32000-1 clause 7.9.2.2).
@@ -121,6 +122,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(tag,curpage)  ""     ;# page object id the counters belong to
         set pdf(tag,nextmcid) 0
         set pdf(tag,pagelist) {}     ;# page object ids that carry MCIDs
+        set pdf(tag,nextkey)  0      ;# next free key in the parent tree
+        set pdf(tag,annotkeys) {}    ;# {key elementIndex} for annotations
+        set pdf(tag,pendannot) ""    ;# key handed out but not yet bound
         set pdf(tag,rootoid)  ""
         set pdf(tag,uapart)   ""   ;# pdfuaid:part, empty unless -ua given
     }
@@ -203,6 +207,45 @@ oo::define ::pdf4tcl::pdf4tcl {
                     ##nagelfar ignore Found constant
                     dict set attrs $option $value
                 }
+                -listnumbering {
+                    # ISO 32000-1 Table 345. Lets a reader announce the list
+                    # style instead of reading the painted bullet glyph.
+                    if {$type ne "L"} {
+                        throw {PDF4TCL} "-listnumbering applies to L, not $type"
+                    }
+                    if {$value ni {None Disc Circle Square Decimal
+                                   UpperRoman LowerRoman UpperAlpha
+                                   LowerAlpha}} {
+                        throw {PDF4TCL} "invalid -listnumbering value\
+                                \"$value\""
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
+                -id {
+                    # Identifier of a header cell, referenced by -headers of
+                    # the data cells it applies to.
+                    if {$type ni {TH TD}} {
+                        throw {PDF4TCL} "-id applies to TH or TD, not $type"
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
+                -headers {
+                    # List of -id values naming the header cells for this
+                    # cell. ISO 14289-1 clause 7.5 requires either this or
+                    # -scope wherever the relation cannot be derived from the
+                    # table layout, which is the case for any irregular table.
+                    if {$type ni {TH TD}} {
+                        throw {PDF4TCL} "-headers applies to TH or TD,\
+                                not $type"
+                    }
+                    if {[llength $value] == 0} {
+                        throw {PDF4TCL} "-headers must name at least one cell"
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
                 -scope {
                     # ISO 14289-1 clause 7.5: where a table's structure cannot
                     # be derived algorithmically, TH must carry /Scope. Written
@@ -260,7 +303,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set tagOpts {}
         set textOpts {}
         foreach {option value} $args {
-            if {$option in {-alt -actualtext -title -lang -scope}} {
+            if {$option in {-alt -actualtext -title -lang -scope
+                            -listnumbering -id -headers}} {
                 lappend tagOpts $option $value
             } else {
                 lappend textOpts $option $value
@@ -365,7 +409,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(tag,nextmcid) 0
         if {![info exists pdf(tag,pagekids,$page)]} {
             set pdf(tag,pagekids,$page) {}
-            set pdf(tag,spnum,$page) [llength $pdf(tag,pagelist)]
+            set pdf(tag,spnum,$page) $pdf(tag,nextkey)
+            incr pdf(tag,nextkey)
             lappend pdf(tag,pagelist) $page
         }
     }
@@ -449,6 +494,63 @@ oo::define ::pdf4tcl::pdf4tcl {
         my TagCloseMC
     }
 
+    # Extra entries for an annotation dictionary, called from AddAnnot before
+    # the object is written.
+    #
+    # An annotation is attached to the structure tree by an /OBJR entry in the
+    # element's /K array plus a /StructParent key in the annotation pointing
+    # back (ISO 32000-1 clause 14.7.4.4). Only /Link and /Annot elements take
+    # annotations; a link inside a paragraph therefore has to be wrapped:
+    #
+    #     $pdf tagBegin Link -alt "pdf4tcl home page"
+    #     $pdf tagText Span "pdf4tcl" -x 50 -y 700
+    #     $pdf hyperlinkAdd 50 698 60 14 "https://..."
+    #     $pdf tagEnd
+    #
+    # PDF/UA rule 7.18.1 also wants the annotation itself to carry /Contents,
+    # because that is what a reader announces for the link. It is filled from
+    # the element's -alt when the caller did not supply one; an explicit
+    # /Contents in the annotation dictionary always wins.
+    method TagAnnotEntries {andict} {
+        set pdf(tag,pendannot) ""
+        if {![my TagActive]} { return "" }
+        if {[llength $pdf(tag,stack)] == 0} { return "" }
+        set idx [lindex $pdf(tag,stack) end]
+        if {$pdf(tag,type,$idx) ni {Link Annot}} { return "" }
+
+        set key $pdf(tag,nextkey)
+        incr pdf(tag,nextkey)
+        set pdf(tag,pendannot) [list $key $idx]
+
+        set out "/StructParent $key\n"
+        set attrs $pdf(tag,attr,$idx)
+        if {![regexp {/Contents[\s(<\[/]} $andict] && [dict exists $attrs -alt]} {
+            append out "/Contents\
+                    [::pdf4tcl::TagTextString [dict get $attrs -alt]]\n"
+        }
+        return $out
+    }
+
+    # Bind the annotation object just written to the element that claimed it.
+    method TagAnnotRegister {oid} {
+        if {$pdf(tag,pendannot) eq ""} { return }
+        lassign $pdf(tag,pendannot) key idx
+        set pdf(tag,pendannot) ""
+        lappend pdf(tag,kids,$idx) [list O $oid]
+        lappend pdf(tag,annotkeys) $key $idx
+    }
+
+    # Tab order for a page carrying annotations.
+    #
+    # ISO 14289-1 clause 7.18.3: every page with an annotation must have
+    # /Tabs /S, so that tabbing follows the structure tree rather than the
+    # geometric row order. Untagged documents keep /R, which is what a plain
+    # form wants.
+    method TagTabOrder {} {
+        if {[my TagActive]} { return "S" }
+        return "R"
+    }
+
     # Extra entries for the page dictionary in endPage.
     method TagPageDict {} {
         if {![my TagActive]} { return "" }
@@ -504,6 +606,12 @@ oo::define ::pdf4tcl::pdf4tcl {
                         lassign $kid _ page mcid
                         lappend kids "<</Type /MCR /Pg $page 0 R /MCID $mcid>>"
                     }
+                    O {
+                        # Annotation attached to this element, ISO 32000-1
+                        # clause 14.7.4.4. /Pg is omitted: the annotation is
+                        # reached through the page's /Annots array anyway.
+                        lappend kids "<</Type /OBJR /Obj [lindex $kid 1] 0 R>>"
+                    }
                 }
             }
             set body "<</Type /StructElem\n"
@@ -513,8 +621,35 @@ oo::define ::pdf4tcl::pdf4tcl {
                 append body "/K \[[join $kids "\n"]\]\n"
             }
             set attrs $pdf(tag,attr,$i)
+            # /A entries. Table and List attributes live in different owner
+            # dictionaries, so they cannot be merged into one.
+            set aList {}
+            set tableAttrs {}
             if {[dict exists $attrs -scope]} {
-                append body "/A <</O /Table /Scope /[dict get $attrs -scope]>>\n"
+                lappend tableAttrs "/Scope /[dict get $attrs -scope]"
+            }
+            if {[dict exists $attrs -headers]} {
+                set ids {}
+                foreach id [dict get $attrs -headers] {
+                    lappend ids [::pdf4tcl::TagTextString $id]
+                }
+                lappend tableAttrs "/Headers \[[join $ids { }]\]"
+            }
+            if {[llength $tableAttrs] > 0} {
+                lappend aList "<</O /Table [join $tableAttrs { }]>>"
+            }
+            if {[dict exists $attrs -listnumbering]} {
+                lappend aList "<</O /List /ListNumbering\
+                        /[dict get $attrs -listnumbering]>>"
+            }
+            if {[llength $aList] == 1} {
+                append body "/A [lindex $aList 0]\n"
+            } elseif {[llength $aList] > 1} {
+                append body "/A \[[join $aList { }]\]\n"
+            }
+            if {[dict exists $attrs -id]} {
+                append body "/ID\
+                        [::pdf4tcl::TagTextString [dict get $attrs -id]]\n"
             }
             foreach {option key} {-alt Alt -actualtext ActualText
                                   -title T -lang Lang} {
@@ -532,13 +667,27 @@ oo::define ::pdf4tcl::pdf4tcl {
         # No strings inside, so it is written directly.
         my StoreXref $parentTreeOid
         my Pdfout "$parentTreeOid 0 obj\n"
-        my Pdfout "<</Nums \[\n"
+        # ISO 32000-1 clause 7.9.7: the keys of a number tree must appear in
+        # increasing order, so page and annotation entries are merged rather
+        # than written one group after the other.
+        set entries {}
         foreach page $pdf(tag,pagelist) {
             set refs {}
             foreach idx $pdf(tag,pagekids,$page) {
                 lappend refs "$pdf(tag,oid,$idx) 0 R"
             }
-            my Pdfout "$pdf(tag,spnum,$page) \[[join $refs { }]\]\n"
+            ##nagelfar ignore Found constant
+            dict set entries $pdf(tag,spnum,$page) "\[[join $refs { }]\]"
+        }
+        # An annotation is a single structure element, not a list of them, so
+        # its entry is a plain reference (clause 14.7.4.4).
+        foreach {key idx} $pdf(tag,annotkeys) {
+            ##nagelfar ignore Found constant
+            dict set entries $key "$pdf(tag,oid,$idx) 0 R"
+        }
+        my Pdfout "<</Nums \[\n"
+        foreach key [lsort -integer [dict keys $entries]] {
+            my Pdfout "$key [dict get $entries $key]\n"
         }
         my Pdfout "\]>>\n"
         my Pdfout "endobj\n\n"
@@ -548,7 +697,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfout "<</Type /StructTreeRoot\n"
         my Pdfout "/K \[$pdf(tag,oid,$pdf(tag,root)) 0 R\]\n"
         my Pdfout "/ParentTree $parentTreeOid 0 R\n"
-        my Pdfout "/ParentTreeNextKey [llength $pdf(tag,pagelist)]\n"
+        my Pdfout "/ParentTreeNextKey $pdf(tag,nextkey)\n"
         my Pdfout ">>\n"
         my Pdfout "endobj\n\n"
     }

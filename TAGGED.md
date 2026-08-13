@@ -48,7 +48,9 @@ of every piece of content and a sane heading order are the caller's
 responsibility. A file that claims PDF/UA and then fails veraPDF is worse
 than one that claims nothing.
 
-    $pdf tagBegin type ?-alt text? ?-actualtext text? ?-title text? ?-lang tag? ?-scope Row|Column|Both?
+    $pdf tagBegin type ?-alt text? ?-actualtext text? ?-title text? ?-lang tag?
+                       ?-scope Row|Column|Both? ?-id name? ?-headers list?
+                       ?-listnumbering style?
     $pdf tagEnd
 
 Open and close a structure element. Everything painted in between belongs to
@@ -64,6 +66,12 @@ tree.
 - `-scope` applies to `TH` only and becomes an `/A <</O /Table /Scope ...>>`
   dictionary. ISO 14289-1 clause 7.5 requires it wherever the relation
   between a header cell and its data cells cannot be derived algorithmically.
+- `-id` names a table cell, `-headers` lists the `-id`s of the header cells
+  that apply to it. `-headers` is what works for irregular tables, where
+  `-scope` alone cannot express the relation.
+- `-listnumbering` applies to `L` only and becomes
+  `/A <</O /List /ListNumbering ...>>`, so a reader can announce the list
+  style instead of reading the painted bullet glyph.
 
     $pdf tagText type str ?tag options? ?text options?
 
@@ -119,6 +127,61 @@ and without one a reader silently ignores the element.
 A larger example is `examples/tagged.tcl` (headings, list, table, figure,
 artifacts, and a paragraph spanning a page break).
 
+## Annotations
+
+Links from `hyperlinkAdd`, fields from `addForm` and the `addAnnot...` family
+are attached to the structure tree only when they are created while a `Link`
+or `Annot` element is open:
+
+    $pdf tagBegin P
+    $pdf text "Mehr dazu auf der" -x 50 -y 700
+    $pdf tagBegin Link -alt "pdf4tcl project page"
+    $pdf tagText Span "Projektseite" -x 155 -y 700
+    $pdf hyperlinkAdd 155 698 65 14 "https://github.com/gregnix/pdf4tcl"
+    $pdf tagEnd
+    $pdf tagEnd
+
+The element then gets an `/OBJR` entry and the annotation a `/StructParent`
+key pointing back (ISO 32000-1 clause 14.7.4.4). PDF/UA also wants the
+annotation itself to carry `/Contents`, since that is what a reader
+announces; it is filled from the element's `-alt` when the annotation has
+none, and an explicit `/Contents` always wins.
+
+While tagging is on, a page carrying annotations is written with `/Tabs /S`
+rather than `/Tabs /R`, so that tabbing follows the structure tree
+(ISO 14289-1 clause 7.18.3). Untagged documents keep `/R`, which is what a
+plain form wants.
+
+An annotation created outside such an element stays unattached. That is the
+one case worth being careful about, because it fails quietly: the link still
+works when clicked, and no error is raised, but assistive technology cannot
+reach it. Nothing is inferred automatically -- guessing which paragraph a
+link belongs to would be wrong as often as right. `tools/check-tagged.py`
+reports unattached annotations.
+
+Every annotation now goes through `AddAnnot` in `src/main.tcl` rather than
+`AddObject`, which is what gives the tagging module a chance to see it. A new
+kind of annotation added later must use `AddAnnot` too, or it will silently
+be missing from the structure tree.
+
+## Coordinates in the examples
+
+`pdf4tcl` defaults to `-orient 1`: y counts downward from the top margin and
+x rightward from the left margin, so `(0,0)` is the top left corner of the
+drawable area and the margins are already included.
+
+The first version of `examples/tagged.tcl` was written as if the origin were
+at the bottom left, with the heading at `y 780` and the running foot at
+`y 40`. Measured afterwards, the heading sat 12 points above the bottom edge,
+the foot at the top, and the page read from bottom to top. The x coordinates
+were off by the margin as well, because it was added a second time.
+
+veraPDF called that file PDF/UA-1 compliant. It validates the structure tree,
+not the layout, and the structure tree really was correct -- the reading
+order a screen reader follows comes from the tree, not from where the glyphs
+landed. This is the clearest example of the point made further down: a green
+validator run says the file obeys the standard, not that it is any good.
+
 ## Checking the result
 
     python3 tools/check-tagged.py tagged.pdf
@@ -134,6 +197,8 @@ generator gets wrong:
 - `/StructParents` keys unique across pages
 - the `/ParentTree` covering every MCID
 - every marked content sequence claimed by exactly one structure element
+- every annotation claimed by exactly one `/OBJR`, its `/StructParent`
+  resolving back to that element, and link annotations carrying `/Contents`
 
 The last two checks were added after the fact. The first version verified
 everything per page, and the broken `catPdf` merge passed it cleanly: both
@@ -207,13 +272,13 @@ for a bookmark title but not for the only text a screen reader gets.
 
 Tcl 8.6.14:
 
-- `tests/tagged.test`: 38 cases, all green.
-- Full suite `tests/all.tcl`: 842 total, 818 passed, 24 skipped, 0 failed.
+- `tests/tagged.test`: 47 cases, all green.
+- Full suite `tests/all.tcl`: 887 total, 861 passed, 26 skipped, 0 failed.
 
 Tcl 9.0.4 (built from `core-9-0-4`):
 
-- `tests/tagged.test`: 37 green, 1 skipped.
-- Full suite `tests/all.tcl`: 796 total, 783 passed, 13 skipped, 0 failed.
+- `tests/tagged.test`: 47 green.
+- Full suite `tests/all.tcl`: 841 total, 825 passed, 16 skipped, 0 failed.
 - The skip is `hasAes`. tcllib 1.21 cannot be loaded under Tcl 9 at all: its
   `pkgIndex.tcl` guards with `package vsatisfies [package provide Tcl] 8.5`
   without a trailing dash, which means "same major version" and is therefore
@@ -282,15 +347,10 @@ subtrees combined under one root. Not implemented.
 - Untagged content stays untagged. That is legal PDF but not PDF/UA
   conformant -- PDF/UA wants every piece of content either tagged or marked
   as an artifact. There is no check for leftover content yet.
-- No `/Link` and `/Annot` elements. Links and form fields need `/OBJR`
-  references from the structure tree to the annotation, otherwise a screen
-  reader cannot announce them. `addForm` writes `/TU` today, which is not a
-  substitute.
 - No table validation. `/TD` outside a `/TR` is accepted and produces a tree
   no checker will like. Same for `/LI` outside `/L`.
-- `/Attributes` covers `/Scope` on `TH` only. Lists still cannot carry
-  `/ListNumbering`, and `/Headers`/`/ID` on cells is not implemented, so
-  irregular tables remain out of reach.
+- `/Attributes` covers `/Scope`, `/Headers`, `/ID` and `/ListNumbering`.
+  Other attribute owners (`/Layout`, `/PrintField`) are not implemented.
 - Tagging inside an XObject (`startPage -xobject 1`) is refused rather than
   supported.
 - `catPdf` discards structure rather than merging it, see above.

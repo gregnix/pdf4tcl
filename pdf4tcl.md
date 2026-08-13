@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.36?**
+package require **pdf4tcl ?0****.9****.4****.37?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -947,6 +947,15 @@ Being tagged is not the same as being accessible. A document in which every para
 **-lang tag**
 : Marks a passage in a language other than the document language.
 
+**-listnumbering style**
+: Applies to **L** only and writes **/A <</O /List /ListNumbering ****.****.****.>>**. *style* is **None**, **Disc**, **Circle**, **Square**, **Decimal**, **UpperRoman**, **LowerRoman**, **UpperAlpha** or **LowerAlpha**. Lets a reader announce the list style instead of reading the painted bullet glyph.
+
+**-id name**
+: Identifier of a table cell, referenced by **-headers** of the cells it applies to.
+
+**-headers list**
+: Applies to **TH** and **TD** and names the header cells for this cell by their **-id**. Together with **-scope** this covers the requirement of ISO 14289-1 clause 7.5; **-headers** is the one that works for irregular tables, where the relation cannot be derived from the layout.
+
 **-scope scope**
 : Applies to **TH** only and writes **/A <</O /Table /Scope ****.****.****.>>**. *scope* is **Row**, **Column** or **Both**. ISO 14289-1 clause 7.5 requires it wherever the relation between a header cell and its data cells cannot be derived algorithmically.
 
@@ -972,7 +981,27 @@ Being tagged is not the same as being accessible. A document in which every para
 **objectName tagArtifactEnd**
 : Marks content that is not part of the document: running heads, page numbers, rules, background decoration. Artifacts carry no **/MCID** and are skipped by assistive technology (ISO 32000-1 clause 14.8.2.2).
 
-- Without options a plain **BMC** artifact is written. A structure element may still be open when **tagArtifact** is called -- a running foot on the second page of a paragraph that spans the page break is the normal case. The element's marked content is closed first and reopened by the next painting call, so the artifact sits *between* two sequences of the element rather than inside one. ISO 14289-1 clause 7.1 forbids an artifact inside tagged content and tagged content inside an artifact. Opening a structure element while an artifact is open raises an error. Marked content is opened at the first painting operation after **tagBegin**, and only for the innermost open element. A grouping element such as **L**, **TR** or **Table** paints nothing itself and therefore carries no marked content at all; an element interrupted by a nested one receives a further marked content sequence when painting resumes. Elements may span page breaks: the sequence is closed at the end of the page and a new one opened on the next, because marked content may not cross a content stream boundary. Tagging inside an XObject (**startPage** with **-xobject**) is not supported and raises an error. **::pdf4tcl::catPdf** removes the logical structure from tagged input documents and notes this in **::pdf4tcl::warnings**. Merging structure trees is not implemented: each page carries a **/StructParents** key indexing the parent tree of its own document, and each document numbers its pages from zero, so a merge would leave pages resolving to the wrong structure elements. Example:
+- Without options a plain **BMC** artifact is written. A structure element may still be open when **tagArtifact** is called -- a running foot on the second page of a paragraph that spans the page break is the normal case. The element's marked content is closed first and reopened by the next painting call, so the artifact sits *between* two sequences of the element rather than inside one. ISO 14289-1 clause 7.1 forbids an artifact inside tagged content and tagged content inside an artifact. Opening a structure element while an artifact is open raises an error. Marked content is opened at the first painting operation after **tagBegin**, and only for the innermost open element. A grouping element such as **L**, **TR** or **Table** paints nothing itself and therefore carries no marked content at all; an element interrupted by a nested one receives a further marked content sequence when painting resumes. Elements may span page breaks: the sequence is closed at the end of the page and a new one opened on the next, because marked content may not cross a content stream boundary. Annotations, that is links created with **hyperlinkAdd**, form fields from **addForm** and the **addAnnot****.****.****.** family, are attached to the structure tree when they are created while a **Link** or **Annot** element is open. The element then receives an **/OBJR** entry and the annotation a **/StructParent** key pointing back (ISO 32000-1 clause 14.7.4.4). An annotation created outside such an element stays unattached: the link still works when clicked, but assistive technology cannot reach it. Nothing is inferred automatically, so a link has to be wrapped explicitly:
+
+```tcl
+$pdf tagBegin P
+$pdf text "Mehr dazu auf der" -x 50 -y 700
+$pdf tagBegin Link -alt "pdf4tcl project page"
+$pdf tagText Span "Projektseite" -x 155 -y 700
+$pdf hyperlinkAdd 155 698 65 14 "https://github.com/gregnix/pdf4tcl"
+$pdf tagEnd
+$pdf tagEnd
+```
+
+A page carrying annotations is written with **/Tabs /S** while tagging is enabled, so that tabbing follows the structure tree; untagged documents keep **/Tabs /R**, the row order a plain form wants. ISO 14289-1 clause 7.18.3 requires the former.
+
+PDF/UA additionally requires a link annotation to carry **/Contents**, because that is what a reader announces. It is taken from the element's **-alt** when the annotation does not already have one; an explicit **/Contents** always wins.
+
+Tagging inside an XObject (**startPage** with **-xobject**) is not supported and raises an error.
+
+**::pdf4tcl::catPdf** removes the logical structure from tagged input documents and notes this in **::pdf4tcl::warnings**. Merging structure trees is not implemented: each page carries a **/StructParents** key indexing the parent tree of its own document, and each document numbers its pages from zero, so a merge would leave pages resolving to the wrong structure elements.
+
+Example:
 
 ```tcl
 package require pdf4tcl
@@ -1376,6 +1405,14 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.37
+
+- Tagged PDF: annotations can be attached to the structure tree. **tagBegin** accepts **Link** and **Annot**; an annotation created while such an element is open receives a **/StructParent** key and the element an **/OBJR** entry. Link annotations also get **/Contents** from the element's **-alt** when they have none, as PDF/UA requires.
+- created annotation objects now go through it, so the tagging module sees every annotation.
+- Tagged PDF: new attributes **-listnumbering** on **L** and **-id** and **-headers** on **TH** and **TD**.
+- Tagged PDF: a page with annotations is now written with **/Tabs /S** instead of **/Tabs /R** while tagging is enabled (ISO 14289-1 clause 7.18.3). Untagged documents are unaffected.
+- by exactly one **/OBJR**, that its **/StructParent** resolves back to that element, and that link annotations carry **/Contents**.
 
 ### VERSION 0.9.4.36
 

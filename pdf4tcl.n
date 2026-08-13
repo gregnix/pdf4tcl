@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.36 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.37 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.36?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.37?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1688,6 +1688,25 @@ Human readable label, written as \fB/T\fR\&.
 Marks a passage in a language other than the
 document language\&.
 .TP
+\fB-listnumbering\fR \fIstyle\fR
+Applies to \fBL\fR only and writes
+\fB/A <</O /List /ListNumbering \&.\&.\&.>>\fR\&. \fIstyle\fR is \fBNone\fR,
+\fBDisc\fR, \fBCircle\fR, \fBSquare\fR, \fBDecimal\fR,
+\fBUpperRoman\fR, \fBLowerRoman\fR, \fBUpperAlpha\fR or
+\fBLowerAlpha\fR\&. Lets a reader announce the list style instead of reading
+the painted bullet glyph\&.
+.TP
+\fB-id\fR \fIname\fR
+Identifier of a table cell, referenced by
+\fB-headers\fR of the cells it applies to\&.
+.TP
+\fB-headers\fR \fIlist\fR
+Applies to \fBTH\fR and \fBTD\fR and names
+the header cells for this cell by their \fB-id\fR\&. Together with
+\fB-scope\fR this covers the requirement of ISO 14289-1 clause 7\&.5;
+\fB-headers\fR is the one that works for irregular tables, where the
+relation cannot be derived from the layout\&.
+.TP
 \fB-scope\fR \fIscope\fR
 Applies to \fBTH\fR only and writes
 \fB/A <</O /Table /Scope \&.\&.\&.>>\fR\&. \fIscope\fR is \fBRow\fR,
@@ -1746,6 +1765,37 @@ nested one receives a further marked content sequence when painting resumes\&.
 Elements may span page breaks: the sequence is closed at the end of the page
 and a new one opened on the next, because marked content may not cross a
 content stream boundary\&.
+.PP
+Annotations, that is links created with \fBhyperlinkAdd\fR, form fields
+from \fBaddForm\fR and the \fBaddAnnot\&.\&.\&.\fR family, are attached to
+the structure tree when they are created while a \fBLink\fR or
+\fBAnnot\fR element is open\&. The element then receives an \fB/OBJR\fR
+entry and the annotation a \fB/StructParent\fR key pointing back
+(ISO 32000-1 clause 14\&.7\&.4\&.4)\&. An annotation created outside such an element
+stays unattached: the link still works when clicked, but assistive technology
+cannot reach it\&. Nothing is inferred automatically, so a link has to be
+wrapped explicitly:
+.CS
+
+
+$pdf tagBegin P
+$pdf text "Mehr dazu auf der" -x 50 -y 700
+$pdf tagBegin Link -alt "pdf4tcl project page"
+$pdf tagText Span "Projektseite" -x 155 -y 700
+$pdf hyperlinkAdd 155 698 65 14 "https://github\&.com/gregnix/pdf4tcl"
+$pdf tagEnd
+$pdf tagEnd
+
+.CE
+A page carrying annotations is written with \fB/Tabs /S\fR while tagging
+is enabled, so that tabbing follows the structure tree; untagged documents
+keep \fB/Tabs /R\fR, the row order a plain form wants\&. ISO 14289-1
+clause 7\&.18\&.3 requires the former\&.
+.PP
+PDF/UA additionally requires a link annotation to carry \fB/Contents\fR,
+because that is what a reader announces\&. It is taken from the element's
+\fB-alt\fR when the annotation does not already have one; an explicit
+\fB/Contents\fR always wins\&.
 .PP
 Tagging inside an XObject (\fBstartPage\fR with \fB-xobject\fR) is not
 supported and raises an error\&.
@@ -2478,6 +2528,31 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.37"
+.PP
+.IP \(bu
+Tagged PDF: annotations can be attached to the structure tree\&.
+\fBtagBegin\fR accepts \fBLink\fR and \fBAnnot\fR; an annotation
+created while such an element is open receives a \fB/StructParent\fR key
+and the element an \fB/OBJR\fR entry\&. Link annotations also get
+\fB/Contents\fR from the element's \fB-alt\fR when they have none, as
+PDF/UA requires\&.
+.IP \(bu
+"\fIsrc/main\&.tcl\fR" (\fBAddAnnot\fR): new\&. All eight places that
+created annotation objects now go through it, so the tagging module sees
+every annotation\&.
+.IP \(bu
+Tagged PDF: new attributes \fB-listnumbering\fR on \fBL\fR and
+\fB-id\fR and \fB-headers\fR on \fBTH\fR and \fBTD\fR\&.
+.IP \(bu
+Tagged PDF: a page with annotations is now written with
+\fB/Tabs /S\fR instead of \fB/Tabs /R\fR while tagging is enabled
+(ISO 14289-1 clause 7\&.18\&.3)\&. Untagged documents are unaffected\&.
+.IP \(bu
+"\fItools/check-tagged\&.py\fR": checks that every annotation is claimed
+by exactly one \fB/OBJR\fR, that its \fB/StructParent\fR resolves back to
+that element, and that link annotations carry \fB/Contents\fR\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.36"
 .PP
 .IP \(bu

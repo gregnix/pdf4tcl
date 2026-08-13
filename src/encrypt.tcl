@@ -493,7 +493,7 @@ $b = New-Object byte\[\] $n; $rng.GetBytes($b); \
         set msgLen [string length $msg]
         append msg "\x80"
         set padLen [expr {(56 - ($msgLen + 1) % 64 + 64) % 64}]
-        append msg [string repeat " " $padLen]
+        append msg [string repeat "\x00" $padLen]
         # Length in bits as 64-bit little-endian (two 32-bit words)
         set bitLen [expr {$msgLen * 8}]
         set loLen  [expr {$bitLen & 0xFFFFFFFF}]

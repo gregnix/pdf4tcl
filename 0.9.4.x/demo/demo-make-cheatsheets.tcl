@@ -3,7 +3,10 @@
 # Layout: 2 Spalten pro Seite
 
 set scriptDir [file dirname [file normalize [info script]]]
-lappend auto_path $scriptDir
+# The package lives two levels up, in the repository root. Appending the
+# demo directory instead only worked when pdf4tcl was installed system wide.
+set reporoot [file normalize [file join $scriptDir ../..]]
+set auto_path [linsert $auto_path 0 $reporoot]
 package require pdf4tcl
 
 set outDir [file join $scriptDir out]

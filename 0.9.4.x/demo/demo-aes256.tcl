@@ -4,10 +4,23 @@
 # Aufruf: tclsh demo-aes256.tcl
 
 set scriptDir [file dirname [file normalize [info script]]]
-set auto_path  [linsert $auto_path 0 $scriptDir]
+# Das Paket liegt zwei Ebenen hoeher, im Repository-Wurzelverzeichnis.
+# Nur den Demo-Ordner einzutragen funktionierte lediglich dann, wenn pdf4tcl
+# systemweit installiert war.
+set auto_path  [linsert $auto_path 0 [file normalize [file join $scriptDir ../..]]]
 package require pdf4tcl 0.9.4.16
 
-set outfile [file join $scriptDir demo-aes256.pdf]
+# Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
+# Datei als erstes Argument.
+set demoOutDir [file join $scriptDir out]
+if {$argc > 0} { set demoOutDir [lindex $argv 0] }
+file mkdir [expr {[file isdirectory $demoOutDir] || ![file exists $demoOutDir]
+                  ? $demoOutDir : [file dirname $demoOutDir]}]
+if {[file isdirectory $demoOutDir]} {
+    set outfile [file join $demoOutDir demo-aes256.pdf]
+} else {
+    set outfile $demoOutDir
+}
 set user    "geheim"
 set owner   "admin"
 

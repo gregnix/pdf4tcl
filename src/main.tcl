@@ -255,14 +255,17 @@ oo::define ::pdf4tcl::pdf4tcl {
     # being part of the build. Without these, a build with a shortened
     # CATFILES -- or an older installed copy of the package shadowing the
     # freshly built one -- fails at the first startPage with "unknown method
-    # TagPageStart" followed by every method the class does have, which says
+    # TagPageStart" followed by all methods the class does have, which says
     # nothing about the actual cause.
     #
     # These are not silent fallbacks for a broken state: if tagged.tcl is
-    # missing, the "tagged" method is missing as well, so tagging cannot have
+    # missing, then so is the "tagged" entry point, so tagging cannot have
     # been switched on and doing nothing is the correct behaviour.
     #######################################################################
 
+    method TagAnnotEntries {andict} { return "" }
+    method TagTabOrder {} { return "R" }
+    method TagAnnotRegister {oid} {}
     method TagPageStart {} {}
     method TagPageEnd {} {}
     method TagEnsureMC {} {}
@@ -614,8 +617,12 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {!$pdf(inXObject)} {
             if {[llength $pdf(annotations)] > 0} {
                 append pdf(pageobj) "/Annots \[[join $pdf(annotations) \n]\]\n"
-                # /Tabs /R (row order) enables logical tab order for form fields
-                append pdf(pageobj) "/Tabs /R\n"
+                # Tab order for annotations. /R is row order, the sensible
+                # default for a plain form. In a tagged document it has to be
+                # /S, structure order, so that tabbing follows the structure
+                # tree -- ISO 14289-1 clause 7.18.3 requires it on every page
+                # that carries an annotation.
+                append pdf(pageobj) "/Tabs /[my TagTabOrder]\n"
             }
             # Tagged PDF: /StructParents, if this page carries any MCID
             append pdf(pageobj) [my TagPageDict]
@@ -652,6 +659,28 @@ oo::define ::pdf4tcl::pdf4tcl {
     method AddObject {body} {
         set oid [my GetOid 1]
         lappend pdf(objects) $oid "$oid 0 obj\n$body\nendobj\n"
+        return $oid
+    }
+
+    # Add an annotation object.
+    #
+    # Same as AddObject, but gives the tagged PDF module a chance to add
+    # /StructParent (and /Contents) to the dictionary and to record the
+    # object in the structure tree. Every annotation must go through here,
+    # otherwise it cannot be reached from the structure tree and a screen
+    # reader will not announce it.
+    method AddAnnot {andict} {
+        set extra [my TagAnnotEntries $andict]
+        if {$extra ne ""} {
+            set trimmed [string trimright $andict]
+            if {[string range $trimmed end-1 end] ne ">>"} {
+                throw {PDF4TCL} "AddAnnot: annotation dictionary does not\
+                        end with >>"
+            }
+            set andict "[string range $trimmed 0 end-2]$extra>>\n"
+        }
+        set oid [my AddObject $andict]
+        my TagAnnotRegister $oid
         return $oid
     }
 
@@ -4914,7 +4943,7 @@ Use -pdfa-icc to specify a profile path."
         }
         append andict "  /Rect \[$x $y $x2 $y2\]\n"
         append andict ">>\n"
-        set anid [my AddObject $andict]
+        set anid [my AddAnnot $andict]
 
         # 4. Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
@@ -5169,7 +5198,7 @@ Use -pdfa-icc to specify a profile path."
         append andict "  /A << /Type /Action /S /URI /URI [QuoteString $url] >>\n"
         append andict ">>\n"
 
-        lappend pdf(annotations) "[my AddObject $andict] 0 R"
+        lappend pdf(annotations) "[my AddAnnot $andict] 0 R"
     }
 
     # ---------------------------------------------------------------------------
@@ -5251,7 +5280,7 @@ Use -pdfa-icc to specify a profile path."
         append d ">>
 "
 
-        lappend pdf(annotations) "[my AddObject $d] 0 R"
+        lappend pdf(annotations) "[my AddAnnot $d] 0 R"
     }
 
     # addAnnotFreeText x y width height text ?options?
@@ -5314,7 +5343,7 @@ Use -pdfa-icc to specify a profile path."
         append d ">>
 "
 
-        lappend pdf(annotations) "[my AddObject $d] 0 R"
+        lappend pdf(annotations) "[my AddAnnot $d] 0 R"
     }
 
     # addAnnotHighlight x y width height ?options?
@@ -5383,7 +5412,7 @@ Use -pdfa-icc to specify a profile path."
         append d ">>
 "
 
-        lappend pdf(annotations) "[my AddObject $d] 0 R"
+        lappend pdf(annotations) "[my AddAnnot $d] 0 R"
     }
 
     # addAnnotStamp x y width height ?options?
@@ -5445,7 +5474,7 @@ Use -pdfa-icc to specify a profile path."
         append d ">>
 "
 
-        lappend pdf(annotations) "[my AddObject $d] 0 R"
+        lappend pdf(annotations) "[my AddAnnot $d] 0 R"
     }
 
     # addAnnotLine x1 y1 x2 y2 ?options?
@@ -5513,7 +5542,7 @@ Use -pdfa-icc to specify a profile path."
         append d ">>
 "
 
-        lappend pdf(annotations) "[my AddObject $d] 0 R"
+        lappend pdf(annotations) "[my AddAnnot $d] 0 R"
     }
 
     # Add an interactive form
@@ -6366,7 +6395,7 @@ Use -pdfa-icc to specify a profile path."
         # Field actions (/AA): calculate and/or format
         append andict $aaStr
         append andict ">>\n"
-        set anid [my AddObject $andict]
+        set anid [my AddAnnot $andict]
 
         # Register in the AcroForm calculation order (/CO) if this is a
         # calculated field. Order = order of addForm calls.

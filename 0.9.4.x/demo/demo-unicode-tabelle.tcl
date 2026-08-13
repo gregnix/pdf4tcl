@@ -188,12 +188,71 @@ set x0R    [expr {$mL + $blockW + $gap}]
 # ---------------------------------------------------------------------------
 # Hilfsprozeduren
 # ---------------------------------------------------------------------------
+# Kann diese Laufzeitumgebung Codepunkte oberhalb der BMP darstellen?
+#
+# Gemessen statt aus der Versionsnummer geraten: unter Tcl 8.6 liefert
+# [format %c 0x1F600] das Ersetzungszeichen U+FFFD, der Codepunkt ist damit
+# verloren, bevor pdf4tcl ihn ueberhaupt sieht. Unter Tcl 9 kommt U+1F600
+# heraus. Folge fuer diese Tabelle: unter Tcl 8 zeigen alle SMP-Bloecke
+# denselben Glyph -- den des Ersetzungszeichens, sofern der Font einen hat --
+# und behaupten damit eine Font-Abdeckung, die es nicht gibt.
+proc smpUsable {} {
+    scan [format %c 0x1F600] %c v
+    return [expr {$v == 0x1F600}]
+}
+set ::smpOk [smpUsable]
+
+# Wird von smpRangePage gesetzt, damit newPage die Kopfzeile kennzeichnen kann
+set ::inSmpBlock 0
+
 proc newPage {pdf title fontName} {
-    global mL mT pW fHead
+    global mL mT pW fHead fTxt
     $pdf startPage
     $pdf setFont $fHead Helvetica-Bold
     $pdf text "$title  \[$fontName\]" -x $mL -y $mT
     $pdf line $mL [expr {$mT + 2.5}] [expr {$pW - $mL}] [expr {$mT + 2.5}]
+    if {$::inSmpBlock && !$::smpOk} {
+        $pdf setFont $fTxt Helvetica
+        $pdf text "Achtung: Tcl [info patchlevel] kann diese Zeichen nicht\
+                darstellen -- die Glyphen unten sind nicht die des Blocks." \
+                -x $mL -y [expr {$mT + 6.5}]
+    }
+}
+
+# Hinweisseite vor der SMP-Gruppe, nur wenn die Laufzeit die Zeichen nicht kann
+proc smpNoticePage {pdf fontName} {
+    global mL mT pW fTxt fHead
+    if {$::smpOk} { return }
+    $pdf startPage
+    $pdf setFont $fHead Helvetica-Bold
+    $pdf text "Hinweis zu den folgenden Bloecken" -x $mL -y $mT
+    $pdf line $mL [expr {$mT + 2.5}] [expr {$pW - $mL}] [expr {$mT + 2.5}]
+    $pdf bookmarkAdd -title "Hinweis: SMP unter Tcl 8 unbrauchbar" -level 1
+    set y [expr {$mT + 12.0}]
+    $pdf setFont $fTxt Helvetica
+    foreach zeile [list \
+        "Diese Tabelle wurde mit Tcl [info patchlevel] erzeugt." \
+        "" \
+        "Alle folgenden Bloecke liegen oberhalb der Basic Multilingual Plane," \
+        "also ueber U+FFFF. Tcl 8 kann solche Codepunkte nicht in einem String" \
+        "halten: [format {[format %%c 0x1F600]}] ergibt dort U+FFFD, das" \
+        "Ersetzungszeichen. Der Codepunkt geht verloren, bevor pdf4tcl ihn" \
+        "sieht." \
+        "" \
+        "Auf den folgenden Seiten steht deshalb ueberall derselbe Glyph -- der" \
+        "des Ersetzungszeichens, falls der Font einen hat, sonst .notdef. Das" \
+        "sagt nichts darueber aus, welche Zeichen der Font tatsaechlich" \
+        "enthaelt." \
+        "" \
+        "Fuer eine brauchbare Darstellung dieser Bloecke die Tabelle mit" \
+        "Tcl 9 erzeugen:" \
+        "" \
+        "    tclsh9.0 demo-unicode-tabelle.tcl <fontdatei>" \
+        ] {
+        $pdf text $zeile -x $mL -y $y
+        set y [expr {$y + 5.5}]
+    }
+    $pdf endPage
 }
 
 proc tableHeader {pdf y} {
@@ -288,7 +347,9 @@ proc smpRangePage {pdf title from to symFont fontName baseName} {
         $pdf endPage
         return
     }
+    set ::inSmpBlock 1
     rangePage $pdf $title $from $to $symFont $fontName
+    set ::inSmpBlock 0
 }
 
 # ---------------------------------------------------------------------------
@@ -432,6 +493,7 @@ proc generatePdf {fontPath outfile} {
 
     # --- Symbole und Emoji (Supplementary Plane) ---
     groupBookmark "Symbole und Emoji (SMP)"
+    smpNoticePage $pdf $fontName
     smpRangePage $pdf "Verschiedene Symbole und Pfeile (U+2B00..U+2BFF)"   0x2B00 0x2BFF $symFont $fontName $baseName
     smpRangePage $pdf "Geometrische Formen Erweitert (U+1F780..U+1F7FF)"   0x1F780 0x1F7FF $symFont $fontName $baseName
     smpRangePage $pdf "Zusaetzliche Pfeile C (U+1F800..U+1F8FF)"           0x1F800 0x1F8FF $symFont $fontName $baseName
@@ -463,7 +525,17 @@ proc generatePdf {fontPath outfile} {
 # Hauptschleife: pro Font eine PDF
 # ---------------------------------------------------------------------------
 set fontCounter 0
-set outDir [file dirname [file normalize [info script]]]
+# Ausgabe nach demo/out. Die Argumente sind hier schon Fontnamen.
+set outDir [file join [file dirname [file normalize [info script]]] out]
+file mkdir $outDir
+
+if {!$::smpOk} {
+    puts stderr "Hinweis: Tcl [info patchlevel] kann keine Codepunkte ueber\
+            U+FFFF darstellen."
+    puts stderr "         Die SMP-Bloecke der Tabelle sind damit unbrauchbar;\
+            eine Hinweisseite steht davor."
+    puts stderr "         Mit tclsh9.0 erzeugen, um sie zu sehen."
+}
 
 puts "\n[llength $fontList] Font(s) gefunden:"
 foreach f $fontList { puts "  $f" }

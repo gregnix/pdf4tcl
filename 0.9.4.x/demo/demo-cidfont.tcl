@@ -34,7 +34,11 @@ pdf4tcl::loadBaseTrueTypeFont DejaVuSans $fontPath
 pdf4tcl::createFontSpecCID DejaVuSans cidSans
 
 # Ausgabedatei
-set outFile [file join [file dirname [info script]] demo-cidfont.pdf]
+# Ausgabe nach demo/out. Das erste Argument ist hier schon der Fontpfad,
+# deshalb kein Verzeichnisargument.
+set demoOutDir [file join [file dirname [file normalize [info script]]] out]
+file mkdir $demoOutDir
+set outFile [file join $demoOutDir demo-cidfont.pdf]
 
 set pdf [pdf4tcl::new %AUTO% -compress 1 -orient 1]
 $pdf startPage -paper a4

@@ -87,7 +87,7 @@ set sz1  [file size $out1]
 set sz1b [file size $out1b]
 puts "  -chan Groesse: $sz1 Bytes"
 puts "  -file Groesse: $sz1b Bytes"
-puts "  Identisch: [expr {$sz1 == $sz1b ? \"JA\" : \"NEIN\"}]"
+puts "  Identisch: [expr {$sz1 == $sz1b ? {JA} : {NEIN}}]"
 puts ""
 
 # ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ file delete $tmpf
 puts "  get -> string -> channel -> verify"
 puts "  Groesse original:  [string length $data] Bytes"
 puts "  Groesse readback:  [string length $readback] Bytes"
-puts "  Identisch: [expr {$data eq $readback ? \"JA\" : \"NEIN\"}]"
+puts "  Identisch: [expr {$data eq $readback ? {JA} : {NEIN}}]"
 puts ""
 
 # ---------------------------------------------------------------------------

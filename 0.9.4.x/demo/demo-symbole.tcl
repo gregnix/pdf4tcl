@@ -205,7 +205,11 @@ set pageTitles {
 # ---------------------------------------------------------------------------
 # PDF erzeugen
 # ---------------------------------------------------------------------------
-set outFile [file join [file dirname [info script]] demo-symbole.pdf]
+# Ausgabe nach demo/out. Das erste Argument ist hier schon der Fontpfad,
+# deshalb kein Verzeichnisargument.
+set demoOutDir [file join [file dirname [file normalize [info script]]] out]
+file mkdir $demoOutDir
+set outFile [file join $demoOutDir demo-symbole.pdf]
 set pdf [pdf4tcl::new %AUTO% -paper a4 -orient true -compress 1]
 
 set pnum 0

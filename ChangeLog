@@ -1,3 +1,8 @@
+2026-08-13 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.37
+	* Tagged PDF: annotations in the structure tree -- tagBegin Link/Annot attaches links, form fields and markup annotations via /OBJR and /StructParent, with /Contents from -alt; all annotation objects now go through AddAnnot; new -listnumbering on L and -id/-headers on TH/TD
+
 2026-08-12 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.36

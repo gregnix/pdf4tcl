@@ -7,6 +7,7 @@
 # Usage:
 #   tclsh run-all-demos.tcl              -- Ausgabe nach demo/out/
 #   tclsh run-all-demos.tcl --outdir /tmp/pdfout
+#   tclsh run-all-demos.tcl --alle       -- auch die sonst uebersprungenen
 
 set demodir  [file dirname [file normalize [info script]]]
 set reporoot [file normalize [file join $demodir ../..]]
@@ -22,6 +23,10 @@ if {$idx >= 0} {
 }
 file mkdir $outdir
 
+# --alle laesst auch die Demos laufen, die sonst mit Grund uebersprungen
+# werden (langsame Verschluesselung, optionale Pakete).
+set runAll [expr {[lsearch -exact $argv --alle] >= 0}]
+
 # ---------------------------------------------------------------------------
 # Tk verfuegbar?
 # ---------------------------------------------------------------------------
@@ -34,18 +39,26 @@ set hasTk [expr {[info exists env(DISPLAY)] && $env(DISPLAY) ne ""}]
 # ---------------------------------------------------------------------------
 
 # Demo-Liste
-# Eintraege: {skriptname tk_erforderlich argschema beschreibung}
+# Eintraege: {skriptname tk_erforderlich argschema beschreibung ?grund?}
 # argschema:
-#   none      -- kein Argument (schreibt in demodir)
+#   none      -- kein Argument. Diese Demos schreiben immer nach demo/out und
+#                folgen --outdir NICHT: ihre Argumente sind bereits mit
+#                Font-Pfaden belegt. Betrifft demo-api-vergleich, demo-cidfont,
+#                demo-symbole, demo-unicode-tabelle und demo-make-cheatsheets.
 #   dir       -- outdir als positionales Argument
 #   file NAME -- outdir/NAME als positionales Argument
 #   --out     -- --out outdir
 #   --out+    -- --out outdir (plus weitere feste Argumente moeglich)
+#
+# grund (optional): ist er gesetzt, wird die Demo uebersprungen und der Grund
+# ausgegeben. So steht jede bewusst ausgelassene Demo in der Liste, statt zu
+# fehlen -- vorher war einer fehlenden Datei nicht anzusehen, ob sie vergessen
+# wurde oder Absicht war. Ueberspringen laesst sich mit --alle abschalten.
 
 set DEMOS {
-    {minimalPdf.tcl              0  none       "Minimales PDF (Hello World)"}
-    {FarbenundFormen.tcl         0  none       "Farben und Formen"}
-    {demo-all.tcl                0  none       "Alle Features (Comprehensive)"}
+    {minimalPdf.tcl              0  dir        "Minimales PDF (Hello World)"}
+    {FarbenundFormen.tcl         0  dir        "Farben und Formen"}
+    {demo-all.tcl                0  dir        "Alle Features (Comprehensive)"}
     {demo-alpha.tcl              0  {file demo-alpha.pdf}  "Transparenz (setAlpha/getAlpha)"}
     {demo-api-vergleich.tcl      0  none       "API-Vergleich (Font-Demo)"}
     {demo-cidfont.tcl            0  none       "CIDFont Unicode-Support"}
@@ -55,16 +68,37 @@ set DEMOS {
     {demo-transform.tcl          0  dir        "transform + getPageSize (0.9.4.20)"}
     {demo-permissions.tcl        0  dir        "PDF-Berechtigungen (-permissions)"}
     {demo-layers.tcl             0  dir        "Layer / OCG (0.9.4.21)"}
-    {demo-annotations.tcl        0  --out      "Annotationen (Note/FreeText/Stamp/Markup/Line 0.9.4.23)"}
+    {demo-annotations.tcl        0  dir        "Annotationen (Note/FreeText/Stamp/Markup/Line 0.9.4.23)"}
     {demo-pdfa.tcl               0  --out      "PDF/A direkt"}
     {demo-pdfa-gs.tcl            0  --out      "PDF/A via Ghostscript"}
-    {demo-stdfonts-tabelle.tcl   0  none       "Standard-Fonts Tabelle"}
-    {demo-stdfonts-tounicode.tcl 0  none       "Standard-Fonts ToUnicode"}
+    {demo-stdfonts-tabelle.tcl   0  dir        "Standard-Fonts Tabelle"}
+    {demo-stdfonts-tounicode.tcl 0  dir        "Standard-Fonts ToUnicode"}
     {demo-symbole.tcl            0  none       "Symbole"}
     {demo-unicode-tabelle.tcl    0  none       "Unicode-Tabelle"}
-    {fonts.tcl                   0  none       "Font-Demo"}
-    {demo-forms-calc.tcl         0  none       "Formular + Summenberechnung (-calculate 0.9.4.32)"}
+    {fonts.tcl                   0  dir        "Font-Demo"}
+    {demo-forms-calc.tcl         0  dir        "Formular + Summenberechnung (-calculate 0.9.4.32)"}
     {demo-forms-tk.tcl           1  none       "Formulare (Tk-GUI)"}
+    {demo-tagged.tcl             0  dir        "Tagged PDF / PDF-UA (0.9.4.36+0.9.4.37)"}
+    {demo-forms.tcl              0  dir        "Bestellformular ohne Verschluesselung"}
+    {demo-gradients.tcl          0  dir        "Verlaeufe und Blendmodi"}
+    {demo-paper-sizes.tcl        0  dir        "Papierformate"}
+    {demo-write-chan.tcl         0  dir        "write -chan / -file / get"}
+    {demo-make-cheatsheets.tcl   0  none       "Cheat Sheets"}
+
+    {demo-aes256.tcl             0  dir        "AES-256 Verschluesselung"
+        "tcllib-AES braucht rund 24 s pro Durchlauf"}
+    {demo-forms-aes128.tcl       0  dir        "Formular mit AES-128"
+        "Verschluesselung, langsam"}
+    {demo-forms-aes256.tcl       0  dir        "Formular mit AES-256"
+        "Verschluesselung, sehr langsam"}
+    {demo-forms-enc.tcl          0  dir        "Formular verschluesselt"
+        "Verschluesselung, langsam"}
+    {demo-otf.tcl                0  --out      "OpenType-Fonts"
+        "benoetigt OTF-Fonts im System (Loma o.ae.)"}
+    {demo-canvas-0.9.4.24.tcl    1  none       "Canvas-Export"
+        "benoetigt Tk"}
+    {demo-canvas-tkpath.tcl      1  none       "Canvas-Export mit tkpath"
+        "benoetigt Tk und tkpath"}
 }
 
 # ---------------------------------------------------------------------------
@@ -89,13 +123,20 @@ puts "Tk verfuegbar: [expr {$hasTk ? {ja} : {nein (DISPLAY nicht gesetzt)}}]"
 puts "\n[string repeat - 60]"
 
 foreach demo $DEMOS {
-    lassign $demo script needsTk argschema desc
+    lassign $demo script needsTk argschema desc grund
 
     set scriptpath [file join $demodir $script]
 
     # Datei vorhanden?
     if {![file exists $scriptpath]} {
         skip "$script -- Datei nicht gefunden"
+        incr n_skip
+        continue
+    }
+
+    # Bewusst ausgelassen?
+    if {$grund ne "" && !$runAll} {
+        skip "$script -- $grund"
         incr n_skip
         continue
     }

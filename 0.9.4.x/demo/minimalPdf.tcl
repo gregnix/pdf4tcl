@@ -10,7 +10,10 @@ $pdf startPage
 $pdf setFont 18 Helvetica-Bold
 $pdf text "Hello World!" -x 50 -y 100
 $pdf endPage
-$pdf write -file hello.pdf
+set demoOutDir [file join [file dirname [file normalize [info script]]] out]
+if {$argc > 0} { set demoOutDir [lindex $argv 0] }
+file mkdir $demoOutDir
+$pdf write -file [file join $demoOutDir hello.pdf]
 $pdf destroy
 
 

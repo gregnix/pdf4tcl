@@ -9,7 +9,17 @@ package require pdf4tcl
 set pkgfile [lindex [package ifneeded pdf4tcl [package require pdf4tcl]] end]
 set pkgver  [package require pdf4tcl]
 
-set outfile [file join $demodir farbenundFormen.pdf]
+# Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
+# Datei als erstes Argument.
+set demoOutDir [file join $demodir out]
+if {$argc > 0} { set demoOutDir [lindex $argv 0] }
+file mkdir [expr {[file isdirectory $demoOutDir] || ![file exists $demoOutDir]
+                  ? $demoOutDir : [file dirname $demoOutDir]}]
+if {[file isdirectory $demoOutDir]} {
+    set outfile [file join $demoOutDir farbenundFormen.pdf]
+} else {
+    set outfile $demoOutDir
+}
 
 puts "Written: $outfile"
 puts "Package: pdf4tcl $pkgver"

@@ -262,6 +262,78 @@ def main(path, dump=False):
     check(nextkey is None or int(nextkey) > max(mapping) if mapping else True,
           "/ParentTreeNextKey greater than the highest key")
 
+    print("== annotations ==")
+    # Every annotation reachable from a page must be claimed by exactly one
+    # structure element through an /OBJR, and its /StructParent must resolve
+    # back to that same element. A link that is only in /Annots but not in the
+    # tree is invisible to a screen reader even though it works on click.
+    annots_by_obj = {}
+    for pageno, page in enumerate(reader.pages):
+        for a in resolve(page.get("/Annots", [])) or []:
+            num = a.idnum if isinstance(a, IndirectObject) else None
+            annots_by_obj[num] = (pageno, resolve(a))
+    rootkids = resolve(st.get("/K", []))
+    if not isinstance(rootkids, list):
+        rootkids = [rootkids]
+    objr = {}
+    def collect_objr(elem, oid_of):
+        elem = resolve(elem)
+        if not isinstance(elem, dict):
+            return
+        kids = resolve(elem.get("/K", []))
+        if not isinstance(kids, list):
+            kids = [kids]
+        for kid in kids:
+            k = resolve(kid)
+            if isinstance(k, dict) and k.get("/Type") == "/OBJR":
+                ref = k.get("/Obj")
+                if isinstance(ref, IndirectObject):
+                    objr.setdefault(ref.idnum, []).append(elem)
+            elif isinstance(k, dict) and "/S" in k:
+                collect_objr(k, oid_of)
+    for kid in rootkids:
+        collect_objr(kid, None)
+
+    if not annots_by_obj and not objr:
+        print("  info no annotations in this document")
+    else:
+        for num, elems in objr.items():
+            check(len(elems) == 1,
+                  "annotation %s is claimed by exactly one element" % num)
+            check(num in annots_by_obj,
+                  "annotation %s referenced by /OBJR is in a page /Annots"
+                  % num)
+        for num, (pageno, a) in annots_by_obj.items():
+            claimed = num in objr
+            check(claimed,
+                  "annotation %s on page %d is claimed by an /OBJR"
+                  % (num, pageno))
+            sp = a.get("/StructParent")
+            check(sp is not None,
+                  "annotation %s carries /StructParent" % num)
+            if sp is not None and claimed:
+                target = resolve(mapping.get(int(sp), [None])
+                                 if not isinstance(mapping.get(int(sp)), list)
+                                 else mapping.get(int(sp))[0])
+                entry = mapping.get(int(sp))
+                # For an annotation the parent tree entry is a single element,
+                # not an array; pypdf hands back the resolved object either way
+                if isinstance(entry, list) and len(entry) == 1:
+                    entry = entry[0]
+                same = resolve(entry) is not None and \
+                    resolve(entry).get("/S") == objr[num][0].get("/S")
+                check(same,
+                      "annotation %s /StructParent resolves to its element"
+                      % num)
+            if a.get("/Subtype") == "/Link":
+                check("/Contents" in a,
+                      "link annotation %s carries /Contents" % num)
+        # ISO 14289-1 clause 7.18.3
+        for pageno, page in enumerate(reader.pages):
+            if resolve(page.get("/Annots", [])):
+                check(str(page.get("/Tabs")) == "/S",
+                      "page %d with annotations uses /Tabs /S" % pageno)
+
     print("== structure tree ==")
     out = []
     kids = resolve(st.get("/K", []))

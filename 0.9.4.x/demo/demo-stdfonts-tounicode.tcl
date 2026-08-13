@@ -44,7 +44,17 @@ proc infoBox {pdf x y w text} {
 # ---------------------------------------------------------------------------
 # PDF erzeugen
 # ---------------------------------------------------------------------------
-set outFile [file join [file dirname [info script]] demo-stdfonts-tounicode.pdf]
+# Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
+# Datei als erstes Argument.
+set demoOutDir [file join [file dirname [file normalize [info script]]] out]
+if {$argc > 0} { set demoOutDir [lindex $argv 0] }
+file mkdir [expr {[file isdirectory $demoOutDir] || ![file exists $demoOutDir]
+                  ? $demoOutDir : [file dirname $demoOutDir]}]
+if {[file isdirectory $demoOutDir]} {
+    set outFile [file join $demoOutDir demo-stdfonts-tounicode.pdf]
+} else {
+    set outFile $demoOutDir
+}
 set pdf [pdf4tcl::new %AUTO% -paper a4 -orient true]
 $pdf startPage
 
