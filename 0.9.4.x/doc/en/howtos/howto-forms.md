@@ -1,5 +1,14 @@
 # How-to: Interactive forms
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-forms.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-forms.tcl`](howto-forms.tcl).
+
 Demos: `demo-forms.tcl`, `demo-forms-calc.tcl`, `demo-forms-tk.tcl`
 
 ## Problem

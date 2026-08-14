@@ -1,5 +1,14 @@
 # Tutorial 5 -- Graphics lab (alpha, gradient, transform)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/tutorials/tutorial-05-graphics-lab.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`tutorial-05-graphics-lab.tcl`](tutorial-05-graphics-lab.tcl).
+
 One page that combines three demos: transparency, a clipped gradient, and a
 rotated graphic. Companion demos: `demo-alpha.tcl`, `demo-gradients.tcl`,
 `demo-transform.tcl`.

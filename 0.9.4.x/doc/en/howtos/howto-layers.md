@@ -1,5 +1,14 @@
 # How-to: Optional content layers (OCG)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-layers.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-layers.tcl`](howto-layers.tcl).
+
 Demo: `0.9.4.x/demo/demo-layers.tcl`
 
 ## Problem

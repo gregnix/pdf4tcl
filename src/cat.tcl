@@ -155,6 +155,15 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set data [read $ch]
     close $ch
 
+    # Remember the header version. WritePdf used to hardcode 1.4, which
+    # silently downgraded the header of anything newer -- pdf4tcl writes 1.7
+    # as soon as a document needs it.
+    if {[regexp {^%PDF-(\d+\.\d+)} $data -> hdrVersion]} {
+        set pdfVersion $hdrVersion
+    } else {
+        set pdfVersion 1.4
+    }
+
     # Locate all incremental xref tables
     set allXref {}
     set xrefIndices {}
@@ -224,6 +233,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
 
     # Highest object number
     set obj [lindex [lsort -stride 2 -integer -decreasing -index 0 $xrefs] 0]
+    dict set pdfdata version $pdfVersion
     dict set pdfdata N [expr {$obj + 1}]
     dict set pdfdata "trailer" $trailer
     # Cut out objects, from the end
@@ -287,8 +297,18 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     set ch [open $filename wb]
     set pos 0
     set xref {}
-    WriteCh $ch "%PDF-1.4\n" pos
-    WriteCh $ch "%\xE5\xE4\xF6\n" pos
+    # Header version: the highest of the inputs, not a fixed 1.4. AppendPdf
+    # keeps the first document's value and raises it in MergeVersion.
+    set version 1.4
+    if {[dict exists $pdfd version]} {
+        set version [dict get $pdfd version]
+    }
+    WriteCh $ch "%PDF-$version\n" pos
+    # The binary comment needs at least FOUR bytes above 127. This wrote
+    # three, which is enough for a reader but not for PDF/A: ISO 19005-3
+    # clause 6.1.2 requires four, and veraPDF fails the file over it --
+    # measured, the only rule a merged PDF/A-3a document failed.
+    WriteCh $ch "%\xE5\xE4\xF6\xE7\n" pos
     foreach obj [lreverse [dict keys $pdfd]] {
         if {![string is digit -strict $obj]} continue
         dict set xref $obj $pos
@@ -458,6 +478,15 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
             dict set pdf1 $key full [dict get $val full]
         }
     }
+    # Keep the higher of the two header versions
+    if {[dict exists $pdf2 version]} {
+        set v2 [dict get $pdf2 version]
+        set v1 [expr {[dict exists $pdf1 version] ? [dict get $pdf1 version] : 1.4}]
+        if {[package vcompare $v2 $v1] > 0} {
+            dict set pdf1 version $v2
+        }
+    }
+
     # Update size in trailer
     dict set pdf1 trailer /Size [dict get $pdf2 N]
     dict set pdf1 N [dict get $pdf2 N]

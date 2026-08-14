@@ -1,5 +1,14 @@
 # Tutorial 1 -- Hello PDF
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/tutorials/tutorial-01-hello-pdf.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`tutorial-01-hello-pdf.tcl`](tutorial-01-hello-pdf.tcl).
+
 Build a one-page A4 PDF with a title, a coloured rule, and a short paragraph.
 About five minutes if pdf4tcl is already on your `auto_path`.
 

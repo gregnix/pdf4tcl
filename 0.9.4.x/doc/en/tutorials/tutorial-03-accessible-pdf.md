@@ -1,5 +1,14 @@
 # Tutorial 3 -- Accessible (tagged) PDF
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/tutorials/tutorial-03-accessible-pdf.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`tutorial-03-accessible-pdf.tcl`](tutorial-03-accessible-pdf.tcl).
+
 Build a small PDF/UA-1-oriented document: title metadata, embedded font,
 headings, a paragraph, a tagged link, and an artifact footer. Full detail is
 in `../TAGGED.md`; this page is the shortest path that usually validates.
@@ -76,6 +85,12 @@ verapdf -f ua1 accessible.pdf
 
 A green veraPDF run means the file obeys the profile. It does **not** mean the
 tagging is sensible. Putting every line in `/H1` can still pass.
+
+## Optional: claim PDF/A-3a as well
+
+Since 0.9.4.41 you can pass `-pdfa 3a` at `new` **in addition** to
+`tagged 1 -lang …`. Both tagging and language are required or `finish`
+raises. Embed a real font (not Helvetica). See `../howtos/howto-pdfa.md`.
 
 ## Next
 

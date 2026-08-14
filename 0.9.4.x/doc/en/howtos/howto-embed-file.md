@@ -1,5 +1,14 @@
 # How-to: Embed arbitrary files
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-embed-file.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-embed-file.tcl`](howto-embed-file.tcl).
+
 Demo: `0.9.4.x/demo/demo-embedfile.tcl`  
 Factur-X-specific: `howto-facturx.md`, `examples/facturx.tcl`
 

@@ -1,5 +1,14 @@
 # How-to: Headers and footers on every page
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-headers-footers.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-headers-footers.tcl`](howto-headers-footers.tcl).
+
 ## Problem
 
 Repeat a title line and a page number without duplicating layout logic.

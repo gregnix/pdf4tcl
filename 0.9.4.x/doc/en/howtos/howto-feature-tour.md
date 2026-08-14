@@ -1,5 +1,14 @@
 # How-to: Feature tour (`demo-all` / `minimalPdf`)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-feature-tour.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-feature-tour.tcl`](howto-feature-tour.tcl).
+
 Demos:
 - `minimalPdf.tcl` -- smallest Hello-World style PDF
 - `demo-all.tcl` -- wide feature tour in one file (text, fonts, colours,

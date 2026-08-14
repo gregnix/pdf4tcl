@@ -1,5 +1,14 @@
 # Tutorial 4 -- Order form with a live sum
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/tutorials/tutorial-04-forms.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`tutorial-04-forms.tcl`](tutorial-04-forms.tcl).
+
 Build an interactive order form: name fields, amount fields, a calculated
 total, and submit/reset buttons. Based on `0.9.4.x/demo/demo-forms-calc.tcl`.
 

@@ -1,5 +1,14 @@
 # How-to: OpenType / CFF fonts (OTF)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-otf.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-otf.tcl`](howto-otf.tcl).
+
 Demo: `0.9.4.x/demo/demo-otf.tcl` (skipped unless an OTF is found, or pass
 `--font`; `run-all-demos.tcl --alle` forces the attempt)
 

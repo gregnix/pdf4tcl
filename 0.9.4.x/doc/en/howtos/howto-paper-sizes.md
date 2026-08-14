@@ -1,5 +1,14 @@
 # How-to: Paper sizes and units
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-paper-sizes.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-paper-sizes.tcl`](howto-paper-sizes.tcl).
+
 Demo: `0.9.4.x/demo/demo-paper-sizes.tcl`
 
 ## Problem

@@ -1,5 +1,14 @@
 # How-to: Run the demo suite
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-run-demos.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-run-demos.tcl`](howto-run-demos.tcl).
+
 Script: `0.9.4.x/demo/run-all-demos.tcl`
 
 ## Problem

@@ -1,5 +1,14 @@
 # How-to: Factur-X / ZUGFeRD container
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-facturx.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-facturx.tcl`](howto-facturx.tcl).
+
 ## Problem
 
 Ship an electronic invoice as **PDF/A-3** with an embedded CII XML and the

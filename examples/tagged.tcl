@@ -27,7 +27,11 @@ set fontFile [file join [file dirname [file normalize [info script]]] FreeSans.t
 pdf4tcl::loadBaseTrueTypeFont BaseFreeSans $fontFile
 pdf4tcl::createFont BaseFreeSans DemoFont iso8859-1
 
-set pdf [pdf4tcl::new %AUTO% -paper a4 -margin 50]
+# -pdfa 3a as well, so the demo is archivable and accessible at the same
+# time. Level A requires exactly what tagging already provides -- a structure
+# tree, a language and Unicode mappings -- so the two go together naturally.
+# pdf4tcl checks the first two when the document is finished.
+set pdf [pdf4tcl::new %AUTO% -paper a4 -margin 50 -pdfa 3a]
 $pdf tagged 1 -lang de-DE -ua 1
 
 # PDF/UA-1 requires a document title in the XMP metadata (clause 7.1-9) and

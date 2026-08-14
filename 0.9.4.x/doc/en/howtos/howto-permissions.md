@@ -1,5 +1,14 @@
 # How-to: Permissions (`-permissions`)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-permissions.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-permissions.tcl`](howto-permissions.tcl).
+
 Demo: `0.9.4.x/demo/demo-permissions.tcl`
 
 ## Problem

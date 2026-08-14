@@ -350,4 +350,215 @@ test pdfa-9.3 {ICC-Profil: komprimiertes PDF kleiner als unkomprimiertes} -setup
 } -result 1
 
 # Aufraumen
+proc contains {str sub} {
+    expr {[string first $sub $str] >= 0}
+}
+
+# -----------------------------------------------------------------------
+# Conformance level A (0.9.4.41)
+# -----------------------------------------------------------------------
+# Level A adds tagged PDF, a natural language and Unicode mappings on top of
+# level B. The first two are checked when the document is finished, because
+# -pdfa 3a is a claim: it writes pdfaid:conformance A into the XMP packet and
+# a reader trusts that.
+
+test pdfa-a-1.1 {the a levels are accepted} -body {
+    set res {}
+    foreach lvl {1a 2a 3a} {
+        lappend res [catch {[::pdf4tcl::new %AUTO% -pdfa $lvl] destroy}]
+    }
+    set res
+} -result {0 0 0}
+
+test pdfa-a-1.2 {an unknown level is still refused} -body {
+    set res [catch {::pdf4tcl::new %AUTO% -pdfa 4x} err]
+    list $res [string match "*invalid -pdfa value*" $err]
+} -result {1 1}
+
+test pdfa-a-1.3 {level a without tagging is refused} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3a]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 50 -y 50
+    set res [catch {$p get} err]
+    catch {$p destroy}
+    list $res [string match "*requires tagged PDF*" $err]
+} -result {1 1}
+
+test pdfa-a-1.4 {level a without a language is refused} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3a]
+    $p tagged 1
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    set res [catch {$p get} err]
+    catch {$p destroy}
+    list $res [string match "*requires a document language*" $err]
+} -result {1 1}
+
+test pdfa-a-1.5 {a tagged document with a language passes} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3a -compress 0]
+    $p tagged 1 -lang de-DE
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    set data [$p get]
+    $p destroy
+    list [contains $data "<pdfaid:part>3</pdfaid:part>"] \
+            [contains $data "<pdfaid:conformance>A</pdfaid:conformance>"] \
+            [contains $data "/StructTreeRoot"] \
+            [contains $data "/Lang (de-DE)"]
+} -result {1 1 1 1}
+
+test pdfa-a-1.6 {level b is unaffected by the check} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3b]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 50 -y 50
+    set res [catch {$p get}]
+    $p destroy
+    set res
+} -result 0
+
+# -----------------------------------------------------------------------
+# Fonts that cannot be embedded (0.9.4.41)
+# -----------------------------------------------------------------------
+
+test pdfa-font-1.1 {a standard font with -pdfa is reported} -body {
+    # PDF/A requires every font program to be embedded and the 14 standard
+    # fonts have none. The file is still produced -- it is a valid PDF, just
+    # not a valid PDF/A -- but it used to happen without a word.
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -pdfa 3b]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 50 -y 50
+    $p get
+    $p destroy
+    list [llength $::pdf4tcl::warnings] \
+            [string match "*no embeddable font program*" \
+                    [lindex $::pdf4tcl::warnings 0]]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1}
+
+test pdfa-font-1.2 {reported once, not per font} -body {
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -pdfa 3b]
+    $p startPage
+    foreach f {Helvetica Times-Roman Courier} {
+        $p setFont 12 $f
+        $p text "x" -x 50 -y 50
+    }
+    $p get
+    $p destroy
+    llength $::pdf4tcl::warnings
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
+test pdfa-font-1.3 {without -pdfa nothing is reported} -body {
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 50 -y 50
+    $p get
+    $p destroy
+    llength $::pdf4tcl::warnings
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+# -----------------------------------------------------------------------
+# PDF/A and PDF/UA in one document (0.9.4.41)
+# -----------------------------------------------------------------------
+# PDF/A clause 6.6.2.3.1 requires every XMP property outside the predefined
+# schemas to be declared through pdfaExtension. Without that declaration
+# veraPDF rejects a PDF/A file over pdfuaid:part, so a document could not be
+# archivable and accessible at the same time -- which is exactly the
+# combination that gets asked for.
+
+test pdfa-ua-1.1 {pdfuaid gets an extension schema when -pdfa is set} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3a -compress 0]
+    $p tagged 1 -lang de-DE -ua 1
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    set data [$p get]
+    $p destroy
+    list [contains $data "<pdfuaid:part>1</pdfuaid:part>"] \
+            [contains $data "PDF/UA Universal Accessibility Schema"] \
+            [contains $data "http://www.aiim.org/pdfua/ns/id/"] \
+            [contains $data "<pdfaProperty:valueType>Integer</pdfaProperty:valueType>"]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1 1 1}
+
+test pdfa-ua-1.2 {without -pdfa there is no extension schema} -body {
+    # The declaration is a PDF/A requirement. A plain PDF/UA document does
+    # not need it, and adding it would be noise.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1 -lang de-DE -ua 1
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    set data [$p get]
+    $p destroy
+    list [contains $data "<pdfuaid:part>1</pdfuaid:part>"] \
+            [contains $data "PDF/UA Universal Accessibility Schema"]
+} -result {1 0}
+
+test pdfa-ua-1.3 {without -ua there is no pdfuaid and no schema} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3a -compress 0]
+    $p tagged 1 -lang de-DE
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    set data [$p get]
+    $p destroy
+    list [contains $data "pdfuaid"] \
+            [contains $data "PDF/UA Universal Accessibility Schema"]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {0 0}
+
+test pdfa-ua-1.4 {Factur-X and PDF/UA share one extension schema block} -body {
+    # XMP allows pdfaExtension:schemas once. Emitting a second block made
+    # veraPDF stop before validating anything: "Duplicate property or field
+    # node 'pdfaExtension:schemas'". Two namespaces need declaring here --
+    # fx: and pdfuaid: -- so both go into one rdf:Bag.
+    set p [::pdf4tcl::new %AUTO% -pdfa 3a -compress 0]
+    $p tagged 1 -lang de-DE -ua 1
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    $p endPage
+    $p facturx -contents "<x/>"
+    set data [$p get]
+    $p destroy
+    set n 0
+    foreach _ [regexp -all -inline {<pdfaExtension:schemas>} $data] { incr n }
+    list $n \
+            [contains $data "Factur-X PDFA Extension Schema"] \
+            [contains $data "PDF/UA Universal Accessibility Schema"]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1 1}
+
+test pdfa-ua-1.5 {Factur-X alone declares only its own namespace} -body {
+    set p [::pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 50 -y 50
+    $p endPage
+    $p facturx -contents "<x/>"
+    set data [$p get]
+    $p destroy
+    list [contains $data "Factur-X PDFA Extension Schema"] \
+            [contains $data "PDF/UA Universal Accessibility Schema"]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 0}
+
 cleanupTests

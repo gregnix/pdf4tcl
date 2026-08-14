@@ -130,7 +130,13 @@ proc buildCII {} {
 # -orient 0: y grows upward from the bottom-left (the coordinates below are
 # written that way). pdf4tcl defaults to -orient 1 (y from the top), which
 # would render this layout upside-down.
-pdf4tcl::new p1 -paper a4 -pdfa 3b -compress 1 -orient 0
+# -pdfa 3a rather than 3b, and tagged: an invoice is a document that has to
+# be read, and the European Accessibility Act aims at exactly this kind of
+# document. Level A costs nothing here beyond marking up the content, since
+# the font is embedded and the metadata are set anyway.
+pdf4tcl::new p1 -paper a4 -pdfa 3a -compress 1 -orient 0
+
+p1 tagged 1 -lang de-DE -ua 1
 
 p1 metadata \
     -title        "Rechnung $inv(no)" \
@@ -140,19 +146,38 @@ p1 metadata \
     -creationdate "D:20260115100000" \
     -moddate      "D:20260115100000"
 
+p1 viewerPreferences -displaydoctitle 1
+
 p1 startPage
 
-proc L {y size str {align left}} {
+# The two helpers take a structure type, so marking up the invoice does not
+# mean rewriting the layout. Default is /P; the headings and the table cells
+# say what they are.
+proc L {y size str {align left} {tag P}} {
     p1 setFont $size InvoiceFont
+    # ISO 14289-1 clause 7.5 wants /Scope where the header relation cannot be
+    # derived from the layout, which is the case for a one-row header.
+    if {$tag eq "TH"} {
+        p1 tagBegin TH -scope Column
+    } else {
+        p1 tagBegin $tag
+    }
     p1 text $str -x 60 -y $y -align $align
+    p1 tagEnd
 }
-proc R {y size str} {
+proc R {y size str {tag P}} {
     p1 setFont $size InvoiceFont
+    if {$tag eq "TH"} {
+        p1 tagBegin TH -scope Column
+    } else {
+        p1 tagBegin $tag
+    }
     p1 text $str -x 535 -y $y -align right
+    p1 tagEnd
 }
 
 # Title
-L 790 20 "RECHNUNG"
+L 790 20 "RECHNUNG" left H1
 R 790 9  "Factur-X / ZUGFeRD (EN 16931)"
 
 # Seller / Buyer
@@ -161,7 +186,7 @@ L 736 9  "$seller(street)"
 L 724 9  "$seller(zip) $seller(city)"
 L 712 9  "USt-IdNr: $seller(vatid)"
 
-L 680 9  "Rechnung an:"
+L 680 9  "Rechnung an:" left H2
 L 666 11 $buyer(name)
 L 652 9  "$buyer(street)"
 L 640 9  "$buyer(zip) $buyer(city)"
@@ -175,23 +200,40 @@ L 572 9  "Leitweg-ID:"
 R 572 9  $inv(buyerRef)
 
 # Table
+# The rules are decoration, not content, so they are artifacts. Without that
+# a screen reader would announce them as if they meant something.
+p1 tagArtifact -type Layout
 p1 setLineWidth 0.5
 p1 line 60 545 535 545
-L 532 9  "Pos / Beschreibung"
-R 532 9  "Menge        Einzelpreis        Betrag"
+p1 tagArtifactEnd
+
+p1 tagBegin Table
+p1 tagBegin TR
+L 532 9  "Pos / Beschreibung" left TH
+R 532 9  "Menge        Einzelpreis        Betrag" TH
+p1 tagEnd
+
+p1 tagArtifact -type Layout
 p1 line 60 525 535 525
-L 510 10 "1   $item(name)"
-R 510 10 "$item(qty)            $item(price) $inv(currency)        $item(net) $inv(currency)"
+p1 tagArtifactEnd
+
+p1 tagBegin TR
+L 510 10 "1   $item(name)" left TD
+R 510 10 "$item(qty)            $item(price) $inv(currency)        $item(net) $inv(currency)" TD
+p1 tagEnd
+p1 tagEnd
+
+p1 tagArtifact -type Layout
 p1 line 60 495 535 495
+p1 tagArtifactEnd
 
 # Totals
 L 478 9  "Nettobetrag:"
 R 478 9  "$total(net) $inv(currency)"
 L 464 9  "USt $vat(rate) %:"
 R 464 9  "$vat(amount) $inv(currency)"
-p1 setFont 12 InvoiceFont
-p1 text "Gesamtbetrag:" -x 60 -y 446
-p1 text "$total(gross) $inv(currency)" -x 535 -y 446 -align right
+L 446 12 "Gesamtbetrag:"
+R 446 12 "$total(gross) $inv(currency)"
 
 # Footer note
 L 110 8  "Diese Rechnung enthaelt eine eingebettete XML-Datei (factur-x.xml) nach EN 16931."
@@ -225,6 +267,6 @@ if {[llength $::pdf4tcl::warnings] > 0} {
     puts "Warnings:"
     foreach w $::pdf4tcl::warnings { puts "  - $w" }
 } else {
-    puts "No warnings (PDF/A-3b active)."
+    puts "No warnings (PDF/A-3a and PDF/UA-1 active)."
 }
 puts "Validate the XML against EN 16931 (KoSIT) and the PDF with veraPDF for production use."

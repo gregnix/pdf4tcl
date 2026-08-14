@@ -1,5 +1,14 @@
 # How-to: CMYK output
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-cmyk.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-cmyk.tcl`](howto-cmyk.tcl).
+
 ## Problem
 
 Print workflows want DeviceCMYK operators instead of DeviceRGB.

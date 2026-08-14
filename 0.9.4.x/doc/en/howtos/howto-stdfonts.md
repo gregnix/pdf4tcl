@@ -1,5 +1,14 @@
 # How-to: Standard (Base-14) fonts and ToUnicode
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-stdfonts.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-stdfonts.tcl`](howto-stdfonts.tcl).
+
 Demos:
 - `demo-stdfonts-tounicode.tcl` -- all 14 fonts with sample text
 - `demo-stdfonts-tabelle.tcl` -- full WinAnsi code-page grid per font

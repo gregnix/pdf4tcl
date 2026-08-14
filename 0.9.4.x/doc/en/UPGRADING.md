@@ -9,6 +9,29 @@ not listed here -- see the CHANGES section in the manpage.
 
 ---
 
+## From any version to 0.9.4.41
+
+Two additions, one of which may produce warnings in existing code.
+
+**`-pdfa` accepts the level A values `1a`, `2a` and `3a`.** Level A wants
+tagged PDF, a document language and Unicode mappings. pdf4tcl writes the
+mappings itself; the other two are checked when the document is finished, and
+a missing one raises an error rather than writing `pdfaid:conformance A` into
+a file that has neither:
+
+```tcl
+$pdf tagged 1 -lang de-DE      ;# both required for -pdfa 3a
+```
+
+**Standard fonts with `-pdfa` now warn.** The 14 standard fonts have no
+embeddable font program, and every PDF/A level requires one, so a document
+using them cannot validate. That was true before as well -- the file simply
+failed validation with nothing in pdf4tcl having mentioned it. Existing code
+that produced non-conformant PDF/A output will now say so in
+`::pdf4tcl::warnings`. The output itself is unchanged.
+
+---
+
 ## From any version to 0.9.4.40
 
 `pdf4tcl::catPdf` merges the logical structure of tagged input documents
@@ -300,6 +323,7 @@ Available feature names:
 
 | Feature | Available since | Description |
 |---------|----------------|-------------|
+| `pdfa-level-a` | 0.9.4.41 | -pdfa 1a/2a/3a, standard font warning |
 | `struct-merge` | 0.9.4.40 | catPdf merges structure trees |
 | `color-range` | 0.9.4.39 | color components validated, names without Tk, gradients share the pipeline |
 | `tagged-annot` | 0.9.4.37 | `tagBegin Link/Annot`, `/OBJR`, `-listnumbering`, `-id`, `-headers` |

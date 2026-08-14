@@ -1,5 +1,14 @@
 # How-to: Markup annotations
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-annotations.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-annotations.tcl`](howto-annotations.tcl).
+
 Demo: `0.9.4.x/demo/demo-annotations.tcl`
 
 ## Problem
@@ -9,11 +18,11 @@ Add sticky notes, stamps, highlights, or a free-text box (beyond hyperlinks).
 ## Common calls
 
 ```tcl
-$pdf addAnnotNote 100 100 20 20 -text "Review this" -title "Editor" \
+$pdf addAnnotNote 100 100 20 20 -content "Review this" -author "Editor" \
         -icon Comment -color {0.6 0.8 1.0}
 $pdf addAnnotFreeText 50 200 200 40 "Always visible" \
         -color {0 0 0} -bgcolor {1 1 0.8}
-$pdf addAnnotStamp 300 500 80 30 -stamp Approved -color {1 0 0}
+$pdf addAnnotStamp 300 500 80 30 -name Approved -color {1 0 0}
 $pdf addAnnotHighlight 50 300 200 14 -color {1 1 0}
 $pdf addAnnotUnderline 50 320 200 14
 $pdf addAnnotStrikeOut 50 340 200 14 -color {1 0 0}

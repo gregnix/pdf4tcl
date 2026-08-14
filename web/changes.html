@@ -11,6 +11,11 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.41 (2026-08-14, fork gregnix):<br>
+<ul>
+  <li>-pdfa accepts the level A conformance levels 1a, 2a and 3a -- tagging and a document language are checked when the document is finished; using a standard font with -pdfa is reported, since those cannot be embedded and the file therefore cannot validate as PDF/A</li>
+</ul>
+
 Changes in v0.9.4.40 (2026-08-14, fork gregnix):<br>
 <ul>
   <li>catPdf merges the logical structure of tagged documents instead of dropping it -- parent tree keys shifted, /Document subtrees joined under one root, MCIDs left alone; mixed tagged/untagged input warns</li>

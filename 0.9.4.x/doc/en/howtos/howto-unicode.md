@@ -1,5 +1,14 @@
 # How-to: Unicode text (CID fonts)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-unicode.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-unicode.tcl`](howto-unicode.tcl).
+
 ## Problem
 
 `createFont` with WinAnsi / ISO-8859-1 only covers Latin-1. Polish, Greek,

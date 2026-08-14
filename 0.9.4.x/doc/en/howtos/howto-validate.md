@@ -1,5 +1,14 @@
 # How-to: Validate output
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-validate.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-validate.tcl`](howto-validate.tcl).
+
 ## Problem
 
 You wrote a PDF and need a quick go/no-go before shipping.

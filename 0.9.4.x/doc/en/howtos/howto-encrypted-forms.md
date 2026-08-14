@@ -1,5 +1,14 @@
 # How-to: Encrypted forms (AES-128 / AES-256)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-encrypted-forms.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-encrypted-forms.tcl`](howto-encrypted-forms.tcl).
+
 Demos (slow -- skipped by default in `run-all-demos.tcl`, use `--alle`):
 - `demo-forms-aes128.tcl` -- AcroForm + AES-128 (`-encversion 4`)
 - `demo-forms-aes256.tcl` -- AcroForm + AES-256 (`-encversion 5`)

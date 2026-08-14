@@ -1,5 +1,14 @@
 # How-to: Encrypt a PDF
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-encrypt.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-encrypt.tcl`](howto-encrypt.tcl).
+
 ## Problem
 
 Require a password to open (or to change) the file.

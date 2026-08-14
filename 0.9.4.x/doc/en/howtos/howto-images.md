@@ -1,5 +1,14 @@
 # How-to: Images (PNG / JPEG / TIFF)
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-images.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-images.tcl`](howto-images.tcl).
+
 Demos: `demo-interlaced-png.tcl`, guide `../pdf4tcl-images.md`
 
 ## Problem

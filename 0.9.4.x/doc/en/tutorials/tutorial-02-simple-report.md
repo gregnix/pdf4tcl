@@ -1,5 +1,14 @@
 # Tutorial 2 -- Simple multi-page report
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/tutorials/tutorial-02-simple-report.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`tutorial-02-simple-report.tcl`](tutorial-02-simple-report.tcl).
+
 Produce a short report: title page, a content page with a small table, and a
 running header/footer. Still Pure Tcl, still Base-14 fonts (Latin-1 only).
 

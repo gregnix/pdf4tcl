@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.40
+package provide pdf4tcl 0.9.4.41
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2047,11 +2047,16 @@ oo::define ::pdf4tcl::options {
         }
     }
 
-    # Validator for -pdfa: accepts "", "1b", "2b"
+    # Validator for -pdfa.
+    #
+    # The "a" levels additionally require tagged PDF, a language and Unicode
+    # mappings. pdf4tcl cannot check all of that here, at construction time,
+    # so what it can check happens in finish: see CheckPdfaLevelA.
     method CheckPdfa {option value} {
-        if {$value ni {"" "1b" "2b" "3b"}} {
+        if {$value ni {"" "1a" "1b" "2a" "2b" "3a" "3b"}} {
             throw {PDF4TCL} \
-                "invalid -pdfa value \"$value\": must be \"\", \"1b\", \"2b\", or \"3b\""
+                "invalid -pdfa value \"$value\": must be \"\", \"1a\",\
+                \"1b\", \"2a\", \"2b\", \"3a\" or \"3b\""
         }
     }
 
@@ -2240,6 +2245,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
         set pdf(fillColor) [list 0 0 0]
         set pdf(bgColor) [list 0 0 0]
+        set pdf(pdfaFontWarned) 0
         set pdf(strokeColor) [list 0 0 0]
         set pdf(fillAlpha) 1.0
         set pdf(strokeAlpha) 1.0
@@ -2775,6 +2781,39 @@ oo::define ::pdf4tcl::pdf4tcl {
         return $oid
     }
 
+    # Check what the "a" conformance levels of PDF/A require beyond "b".
+    #
+    # ISO 19005 level A adds tagged PDF, a natural language and Unicode
+    # mappings on top of level B. pdf4tcl can check the first two here; the
+    # Unicode mappings it always writes, both for the standard fonts (a
+    # ToUnicode CMap since 0.9.4.9) and for CID fonts.
+    #
+    # An error rather than a warning, because -pdfa 3a is a claim: it puts
+    # pdfaid:conformance A into the XMP packet, and a reader trusts that. The
+    # same reasoning as for the random source in 0.9.4.35 and the range check
+    # in 0.9.4.39 -- a document that cannot be written beats one that only
+    # says it conforms.
+    #
+    # What is NOT checked here: whether the tagging is any good. A tree in
+    # which every paragraph is /P and every heading is /H1 passes this and
+    # tells a reader nothing. Nor does it check that all content is tagged;
+    # see the open points in doc/en/TAGGED.md.
+    method CheckPdfaLevelA {} {
+        if {$options(-pdfa) eq ""} { return }
+        if {[string index $options(-pdfa) 1] ne "a"} { return }
+
+        if {![my TagActive] || $pdf(tag,n) <= 1} {
+            throw {PDF4TCL} "-pdfa $options(-pdfa) requires tagged PDF:\
+                    enable it with \"tagged 1 -lang ...\" and mark up the\
+                    content, or use -pdfa [string index $options(-pdfa) 0]b"
+        }
+        if {$pdf(tag,lang) eq ""} {
+            throw {PDF4TCL} "-pdfa $options(-pdfa) requires a document\
+                    language: pass -lang to \"tagged\", for example\
+                    \"tagged 1 -lang en-GB\""
+        }
+    }
+
     # Finish document
     method finish {{dryRun 0}} {
         if {$pdf(finished)} {
@@ -2799,6 +2838,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Tagged PDF: /StructTreeRoot, /MarkInfo, /Lang. Reserves the
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
+        my CheckPdfaLevelA
         my TagCatalogEntries
         # XMP Metadata stream -- OID reserved now, written at end of endPDF
         # (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2)
@@ -3618,6 +3658,84 @@ Use -pdfa-icc to specify a profile path."
         # declares the custom fx: namespace (ISO 19005-1 SS6.7.9 -- mandatory so
         # the namespace is valid in PDF/A), (2) the fx: invoice fields. Without
         # both, validators (veraPDF, Mustang, KoSIT) reject the Factur-X file.
+        # PDF/A extension schemas.
+        #
+        # ISO 19005 clause 6.6.2.3.1 requires every XMP property outside the
+        # predefined schemas to be declared here. Two namespaces can need it:
+        # fx: for Factur-X and pdfuaid: when the document claims PDF/UA as
+        # well.
+        #
+        # They share ONE pdfaExtension:schemas property with one rdf:Bag.
+        # Emitting a second one is not just untidy: XMP allows a property
+        # once, and veraPDF stops with "Duplicate property or field node
+        # 'pdfaExtension:schemas'" before it validates anything -- measured
+        # on the Factur-X demo as soon as it also became PDF/UA.
+        set extSchemas {}
+
+        if {[dict size $pdf(facturx)] > 0} {
+            set fxNs   [_XmlEsc [dict get $pdf(facturx) namespace]]
+            set fxPfx  [_XmlEsc [dict get $pdf(facturx) prefix]]
+            set li "     <rdf:li rdf:parseType=\"Resource\">\n"
+            append li "      <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>\n"
+            append li "      <pdfaSchema:namespaceURI>$fxNs</pdfaSchema:namespaceURI>\n"
+            append li "      <pdfaSchema:prefix>$fxPfx</pdfaSchema:prefix>\n"
+            append li "      <pdfaSchema:property>\n"
+            append li "       <rdf:Seq>\n"
+            foreach {pname pdesc} {
+                DocumentFileName  "name of the embedded XML invoice file"
+                DocumentType      "INVOICE"
+                Version           "version of the Factur-X standard"
+                ConformanceLevel  "conformance level of the embedded XML"
+            } {
+                append li "        <rdf:li rdf:parseType=\"Resource\">\n"
+                append li "         <pdfaProperty:name>$pname</pdfaProperty:name>\n"
+                append li "         <pdfaProperty:valueType>Text</pdfaProperty:valueType>\n"
+                append li "         <pdfaProperty:category>external</pdfaProperty:category>\n"
+                append li "         <pdfaProperty:description>$pdesc</pdfaProperty:description>\n"
+                append li "        </rdf:li>\n"
+            }
+            append li "       </rdf:Seq>\n"
+            append li "      </pdfaSchema:property>\n"
+            append li "     </rdf:li>\n"
+            lappend extSchemas $li
+        }
+
+        if {$options(-pdfa) ne "" && [info exists pdf(tag,uapart)] &&
+                $pdf(tag,uapart) ne ""} {
+            set li "     <rdf:li rdf:parseType=\"Resource\">\n"
+            append li "      <pdfaSchema:schema>PDF/UA Universal Accessibility Schema</pdfaSchema:schema>\n"
+            append li "      <pdfaSchema:namespaceURI>http://www.aiim.org/pdfua/ns/id/</pdfaSchema:namespaceURI>\n"
+            append li "      <pdfaSchema:prefix>pdfuaid</pdfaSchema:prefix>\n"
+            append li "      <pdfaSchema:property>\n"
+            append li "       <rdf:Seq>\n"
+            append li "        <rdf:li rdf:parseType=\"Resource\">\n"
+            append li "         <pdfaProperty:name>part</pdfaProperty:name>\n"
+            append li "         <pdfaProperty:valueType>Integer</pdfaProperty:valueType>\n"
+            append li "         <pdfaProperty:category>internal</pdfaProperty:category>\n"
+            append li "         <pdfaProperty:description>Indicates, which part of ISO 14289 standard is followed</pdfaProperty:description>\n"
+            append li "        </rdf:li>\n"
+            append li "       </rdf:Seq>\n"
+            append li "      </pdfaSchema:property>\n"
+            append li "     </rdf:li>\n"
+            lappend extSchemas $li
+        }
+
+        if {[llength $extSchemas] > 0} {
+            append x "  <rdf:Description rdf:about=\"\"\n"
+            append x "   xmlns:pdfaExtension=\"http://www.aiim.org/pdfa/ns/extension/\"\n"
+            append x "   xmlns:pdfaSchema=\"http://www.aiim.org/pdfa/ns/schema#\"\n"
+            append x "   xmlns:pdfaProperty=\"http://www.aiim.org/pdfa/ns/property#\">\n"
+            append x "   <pdfaExtension:schemas>\n"
+            append x "    <rdf:Bag>\n"
+            foreach li $extSchemas {
+                append x $li
+            }
+            append x "    </rdf:Bag>\n"
+            append x "   </pdfaExtension:schemas>\n"
+            append x "  </rdf:Description>\n"
+        }
+
+        # Factur-X invoice fields in the fx: namespace
         if {[dict size $pdf(facturx)] > 0} {
             set fxFile [_XmlEsc [dict get $pdf(facturx) filename]]
             set fxConf [_XmlEsc [dict get $pdf(facturx) conformance]]
@@ -3625,39 +3743,6 @@ Use -pdfa-icc to specify a profile path."
             set fxVer  [_XmlEsc [dict get $pdf(facturx) version]]
             set fxNs   [_XmlEsc [dict get $pdf(facturx) namespace]]
             set fxPfx  [_XmlEsc [dict get $pdf(facturx) prefix]]
-            # (1) PDF/A extension schema description for the fx: namespace
-            append x "  <rdf:Description rdf:about=\"\"\n"
-            append x "   xmlns:pdfaExtension=\"http://www.aiim.org/pdfa/ns/extension/\"\n"
-            append x "   xmlns:pdfaSchema=\"http://www.aiim.org/pdfa/ns/schema#\"\n"
-            append x "   xmlns:pdfaProperty=\"http://www.aiim.org/pdfa/ns/property#\">\n"
-            append x "   <pdfaExtension:schemas>\n"
-            append x "    <rdf:Bag>\n"
-            append x "     <rdf:li rdf:parseType=\"Resource\">\n"
-            append x "      <pdfaSchema:schema>Factur-X PDFA Extension Schema</pdfaSchema:schema>\n"
-            append x "      <pdfaSchema:namespaceURI>$fxNs</pdfaSchema:namespaceURI>\n"
-            append x "      <pdfaSchema:prefix>$fxPfx</pdfaSchema:prefix>\n"
-            append x "      <pdfaSchema:property>\n"
-            append x "       <rdf:Seq>\n"
-            foreach {pname pdesc} {
-                DocumentFileName  "name of the embedded XML invoice file"
-                DocumentType      "INVOICE"
-                Version           "version of the Factur-X standard"
-                ConformanceLevel  "conformance level of the embedded XML"
-            } {
-                append x "        <rdf:li rdf:parseType=\"Resource\">\n"
-                append x "         <pdfaProperty:name>$pname</pdfaProperty:name>\n"
-                append x "         <pdfaProperty:valueType>Text</pdfaProperty:valueType>\n"
-                append x "         <pdfaProperty:category>external</pdfaProperty:category>\n"
-                append x "         <pdfaProperty:description>$pdesc</pdfaProperty:description>\n"
-                append x "        </rdf:li>\n"
-            }
-            append x "       </rdf:Seq>\n"
-            append x "      </pdfaSchema:property>\n"
-            append x "     </rdf:li>\n"
-            append x "    </rdf:Bag>\n"
-            append x "   </pdfaExtension:schemas>\n"
-            append x "  </rdf:Description>\n"
-            # (2) Factur-X invoice fields in the fx: namespace
             append x "  <rdf:Description rdf:about=\"\"\n"
             append x "   xmlns:$fxPfx=\"$fxNs\">\n"
             append x "   <$fxPfx:DocumentType>$fxType</$fxPfx:DocumentType>\n"
@@ -4084,6 +4169,20 @@ Use -pdfa-icc to specify a profile path."
         if {![info exists fonts($fontname)]} {
             set fonttype $::pdf4tcl::FontsAttrs($fontname,type)
             if {$fonttype eq "std"} {
+                # PDF/A requires every font program to be embedded, and the
+                # 14 standard fonts have none. Producing the file anyway is
+                # the old behaviour and stays -- it is a valid PDF, just not
+                # a valid PDF/A, and a caller may want it for a draft. But it
+                # used to happen without a word, and the file then failed
+                # validation for a reason nothing in pdf4tcl had mentioned.
+                if {$options(-pdfa) ne "" && !$pdf(pdfaFontWarned)} {
+                    set pdf(pdfaFontWarned) 1
+                    lappend ::pdf4tcl::warnings "pdfa: the standard font\
+                            $fontname has no embeddable font program, so this\
+                            document will not validate as PDF/A. Load a\
+                            TrueType or OpenType font instead.\
+                            (further occurrences are not reported)"
+                }
                 # ToUnicode CMap for WinAnsiEncoding (0.9.4.9)
                 # Enables copy/paste, search and PDF/A compliance (rule 6.3.9)
                 set cmap [MakeStdToUnicodeCMap $fontname]
@@ -11789,6 +11888,15 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set data [read $ch]
     close $ch
 
+    # Remember the header version. WritePdf used to hardcode 1.4, which
+    # silently downgraded the header of anything newer -- pdf4tcl writes 1.7
+    # as soon as a document needs it.
+    if {[regexp {^%PDF-(\d+\.\d+)} $data -> hdrVersion]} {
+        set pdfVersion $hdrVersion
+    } else {
+        set pdfVersion 1.4
+    }
+
     # Locate all incremental xref tables
     set allXref {}
     set xrefIndices {}
@@ -11858,6 +11966,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
 
     # Highest object number
     set obj [lindex [lsort -stride 2 -integer -decreasing -index 0 $xrefs] 0]
+    dict set pdfdata version $pdfVersion
     dict set pdfdata N [expr {$obj + 1}]
     dict set pdfdata "trailer" $trailer
     # Cut out objects, from the end
@@ -11921,8 +12030,18 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     set ch [open $filename wb]
     set pos 0
     set xref {}
-    WriteCh $ch "%PDF-1.4\n" pos
-    WriteCh $ch "%\xE5\xE4\xF6\n" pos
+    # Header version: the highest of the inputs, not a fixed 1.4. AppendPdf
+    # keeps the first document's value and raises it in MergeVersion.
+    set version 1.4
+    if {[dict exists $pdfd version]} {
+        set version [dict get $pdfd version]
+    }
+    WriteCh $ch "%PDF-$version\n" pos
+    # The binary comment needs at least FOUR bytes above 127. This wrote
+    # three, which is enough for a reader but not for PDF/A: ISO 19005-3
+    # clause 6.1.2 requires four, and veraPDF fails the file over it --
+    # measured, the only rule a merged PDF/A-3a document failed.
+    WriteCh $ch "%\xE5\xE4\xF6\xE7\n" pos
     foreach obj [lreverse [dict keys $pdfd]] {
         if {![string is digit -strict $obj]} continue
         dict set xref $obj $pos
@@ -12092,6 +12211,15 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
             dict set pdf1 $key full [dict get $val full]
         }
     }
+    # Keep the higher of the two header versions
+    if {[dict exists $pdf2 version]} {
+        set v2 [dict get $pdf2 version]
+        set v1 [expr {[dict exists $pdf1 version] ? [dict get $pdf1 version] : 1.4}]
+        if {[package vcompare $v2 $v1] > 0} {
+            dict set pdf1 version $v2
+        }
+    }
+
     # Update size in trailer
     dict set pdf1 trailer /Size [dict get $pdf2 N]
     dict set pdf1 N [dict get $pdf2 N]

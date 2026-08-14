@@ -16,7 +16,8 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-symbols.md` | Symbol / Unicode coverage charts? | `demo-symbole.tcl`, `demo-unicode-tabelle.tcl` |
 | `howto-stdfonts.md` | Base-14 + ToUnicode? | `demo-stdfonts-tabelle.tcl`, `demo-stdfonts-tounicode.tcl`, `fonts.tcl` |
 | `howto-otf.md` | OpenType/CFF fonts? | `demo-otf.tcl` |
-| `howto-pdfa.md` | PDF/A-1b / 2b / 3b? | `demo-pdfa.tcl`, `demo-pdfa-gs.tcl` |
+| `howto-pdfa.md` | PDF/A-1b/2b/3b and 1a/2a/3a? | `demo-pdfa.tcl`, `demo-pdfa-gs.tcl` |
+| `howto-catpdf.md` | Merge PDFs / keep tags? | (API `catPdf`; see TAGGED.md) |
 | `howto-validate.md` | Check the PDF? | (tools) |
 | `howto-links-and-bookmarks.md` | URLs and outline? | (annotations / bookmarks) |
 | `howto-headers-footers.md` | Repeating chrome? | `demo-tagged.tcl` (artifacts) |
@@ -39,6 +40,17 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-paper-sizes.md` | Paper / units? | `demo-paper-sizes.tcl` |
 | `howto-cheatsheets.md` | Printable API cheat sheets? | `demo-make-cheatsheets.tcl` |
 
-Assumes pdf4tcl **0.9.4.39** or newer. Run the suite with
+Assumes pdf4tcl **0.9.4.41** or newer. Run the suite with
 `tclsh 0.9.4.x/demo/run-all-demos.tcl` (output under `demo/out/`; see
 `howto-run-demos.md`).
+
+## Runnable scripts
+
+Every how-to above has a companion `.tcl` next to the markdown file.
+Shared bootstrap: `../_bootstrap.tcl`. PDFs land in `../out/`.
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-colors.tcl
+tclsh 0.9.4.x/doc/en/run-all-examples.tcl          # tutorials + howtos
+tclsh 0.9.4.x/doc/en/run-all-examples.tcl --alle   # + canvas, cheatsheets
+```

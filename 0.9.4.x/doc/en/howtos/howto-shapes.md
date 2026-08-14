@@ -1,5 +1,14 @@
 # How-to: Colours and basic shapes
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-shapes.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-shapes.tcl`](howto-shapes.tcl).
+
 Demo: `0.9.4.x/demo/FarbenundFormen.tcl`  
 Also: Tutorial 1, `../pdf4tcl-graphics-and-colors.md`
 

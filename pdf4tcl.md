@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.40?**
+package require **pdf4tcl ?0****.9****.4****.41?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -928,7 +928,7 @@ Being tagged is not the same as being accessible. A document in which every para
 : Natural language of the document as an RFC 3066 tag, for example **de-DE**. Written as **/Lang** in the document catalog.
 
 **-ua part**
-: Writes the PDF/UA identification schema (**pdfuaid:part**) into the XMP packet. *part* is **0** (the default, no claim), **1** or **2**.
+: Writes the PDF/UA identification schema (**pdfuaid:part**) into the XMP packet. *part* is **0** (the default, no claim), **1** or **2**. When **-pdfa** is set as well, the namespace is additionally declared through a **pdfaExtension** schema, which PDF/A requires for any property outside the predefined ones -- so a document can be archivable and accessible at the same time.
 
 **objectName tagged ?boolean? ?options?**
 : Enables or disables tagging. Must be called before the first **tagBegin**. Raises the PDF version to 1.4. If no structure element is ever opened, no structure tree is written at all.
@@ -1303,10 +1303,6 @@ $pdf endLayer
 
 All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which defines default page settings when used with a pdf4tcl object. The objects also understand the following configuration options:
 
-- An XMP metadata stream with the pdfaid identification schema (*pdfaid:part* and *pdfaid:conformance*).
-- An OutputIntent dictionary with an sRGB ICC profile (**/GTS_PDFA1**).
-- Suppresses **/Group /S /Transparency** on all pages (required for PDF/A-1).
-
 **-cmyk boolean**
 : If true, pdf4tcl will try to generate the document in CMYK color space. See **::pdf4tcl::rgb2Cmyk** for a way to control color translation. Default value is false. This option can only be set at object creation.
 
@@ -1320,7 +1316,17 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 : Defines default unit for coordinates and distances. Any value given without a unit is interpreted using this unit. See **UNITS** for valid units. Default value is "p" as in points. This option can only be set at object creation.
 
 **-pdfa level**
-: Enables PDF/A conformance for the document. Valid values are (none, default), **1b** (PDF/A-1b, ISO\u00a019005-1) and **2b** (PDF/A-2b, ISO\u00a019005-2). When set to **1b** or **2b**, pdf4tcl automatically embeds: Note: Standard Type\u00a01 fonts (Helvetica, Times, Courier) are not embedded. For full PDF/A conformance, use CID fonts created with **::pdf4tcl::createFontSpecCID**. Default value is . This option can only be set at object creation.
+: Enables PDF/A conformance for the document. Valid values are (none, default), **1b**, **2b** and **3b** for conformance level B, and **1a**, **2a** and **3a** for level A. Level A adds tagged PDF, a natural language and Unicode mappings on top of level B. pdf4tcl always writes the Unicode mappings; the other two are the caller's job and are checked when the document is finished. Without tagging, or without a language, writing the document raises an error rather than putting *pdfaid:conformance A* into a file that does not have what that claims. In other words, **3a** needs at least:
+
+```tcl
+$pdf tagged 1 -lang de-DE
+```
+
+- An XMP metadata stream with the pdfaid identification schema (*pdfaid:part* and *pdfaid:conformance*).
+- An OutputIntent dictionary with an sRGB ICC profile (**/GTS_PDFA1**).
+- Suppresses **/Group /S /Transparency** on all pages (required for PDF/A-1).
+
+- and content actually marked up with **tagBegin** and friends. What pdf4tcl cannot check is whether the markup is any good: a tree in which every paragraph is **/P** and every heading is **/H1** satisfies this and tells a reader nothing. Note that every conformance level requires all font programs to be embedded, which the 14 standard fonts cannot be. Using one of them while **-pdfa** is set produces a valid PDF that is not a valid PDF/A, and pdf4tcl notes this once in **::pdf4tcl::warnings**. When **-pdfa** is set, pdf4tcl automatically embeds: Note: Standard Type\u00a01 fonts (Helvetica, Times, Courier) are not embedded. For full PDF/A conformance, use CID fonts created with **::pdf4tcl::createFontSpecCID**. Default value is . This option can only be set at object creation.
 
 **-pdfa-icc path**
 : Explicit path to the sRGB ICC profile file used for the OutputIntent when **-pdfa** is **1b** or **2b**. If not specified, pdf4tcl searches for the profile in standard system locations (e.g. "*/usr/share/color/icc/ghostscript/srgb**.icc*"). This option can only be set at object creation.
@@ -1409,6 +1415,14 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.41
+
+- **-pdfa** accepts the conformance levels **1a**, **2a** and **3a**. Level A requires tagged PDF, a natural language and Unicode mappings; pdf4tcl always wrote the mappings, and the other two are checked when the document is finished. Missing either raises an error rather than claiming a conformance the file does not have.
+- Using one of the 14 standard fonts while **-pdfa** is set is reported in **::pdf4tcl::warnings**. Those fonts have no embeddable font program, so the document cannot validate as PDF/A -- which used to happen without a word. The file is still produced; it is a valid PDF, just not a valid PDF/A.
+- built as PDF/A-3a now, and the invoice is tagged. They demonstrate a document that is archivable and accessible at the same time.
+- header has four bytes above 127, as ISO 19005 clause 6.1.2 requires; it had three, which readers accept but PDF/A validation does not. The header version is taken from the input documents rather than a fixed 1.4.
+- A document that is both PDF/A and PDF/UA now declares the **pdfuaid** namespace through a **pdfaExtension** schema, sharing one **pdfaExtension:schemas** property with the Factur-X declaration where both apply -- XMP allows that property once. PDF/A clause 6.6.2.3.1 requires that for every XMP property outside the predefined schemas; without it veraPDF rejected the file over **pdfuaid:part**, so **-pdfa** and **tagged** with **-ua** could not be combined at all. The declaration is written only when both are set.
 
 ### VERSION 0.9.4.40
 

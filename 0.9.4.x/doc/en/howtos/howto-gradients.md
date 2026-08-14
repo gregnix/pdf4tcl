@@ -1,5 +1,14 @@
 # How-to: Gradients and blend modes
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-gradients.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-gradients.tcl`](howto-gradients.tcl).
+
 Demo: `0.9.4.x/demo/demo-gradients.tcl`
 
 ## Problem

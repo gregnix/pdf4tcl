@@ -11,6 +11,8 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 # 1.x  XMP extension schema + fx: invoice fields
 # ---------------------------------------------------------------------------
 
+testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
+
 test facturx-1.1 {fx: namespace declared in XMP} -body {
     set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
     $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
@@ -187,10 +189,18 @@ test facturx-3.4 {warning recorded when -pdfa is not 3b} -body {
     expr {[llength $::pdf4tcl::warnings] >= 1}
 } -result 1
 
-test facturx-3.5 {no warning under -pdfa 3b} -body {
+test facturx-3.5 {no warning under -pdfa 3b} -constraints FreeSans -body {
+    # An embedded font, unlike the other tests here. Factur-X is PDF/A-3, and
+    # PDF/A requires every font program to be embedded; the 14 standard fonts
+    # have none. Since 0.9.4.41 pdf4tcl says so, which is why this test --
+    # the only one asserting silence -- has to build a document that could
+    # actually validate. The others only check what facturx writes and are
+    # unaffected.
+    pdf4tcl::loadBaseTrueTypeFont BaseFxA "../examples/FreeSans.ttf"
+    pdf4tcl::createFont BaseFxA FxAFont iso8859-1
     set ::pdf4tcl::warnings {}
     set p [pdf4tcl::new %AUTO% -pdfa 3b]
-    $p startPage; $p setFont 10 Helvetica; $p text "X" -x 50 -y 700; $p endPage
+    $p startPage; $p setFont 10 FxAFont; $p text "X" -x 50 -y 700; $p endPage
     $p facturx -contents "<x/>"
     $p destroy
     llength $::pdf4tcl::warnings

@@ -1,3 +1,80 @@
+2026-08-14 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.41
+	* src/options.tcl (CheckPdfa), src/main.tcl (CheckPdfaLevelA): -pdfa
+	accepts 1a, 2a and 3a. ISO 19005 level A adds tagged PDF, a natural
+	language and Unicode mappings on top of level B. pdf4tcl has written
+	the Unicode mappings all along -- a ToUnicode CMap for the standard
+	fonts since 0.9.4.9 and for CID fonts anyway -- and tagging exists
+	since 0.9.4.36, so what was left was to accept the values and to check
+	the two things the caller has to supply. Both are checked in finish,
+	and a missing one raises an error: -pdfa 3a writes
+	pdfaid:conformance A into the XMP packet, and a reader trusts that.
+	Same reasoning as the random source in 0.9.4.35 and the colour range
+	check in 0.9.4.39 -- a document that cannot be written beats one that
+	only says it conforms.
+	* src/main.tcl (SetupFont): using one of the 14 standard fonts while
+	-pdfa is set is reported in ::pdf4tcl::warnings, once per document.
+	Those fonts have no embeddable font program, which every PDF/A level
+	requires, so the document cannot validate -- measured before: -pdfa 3b
+	with Helvetica produced a file and said nothing, and it failed
+	validation for a reason nothing in pdf4tcl had mentioned. A warning
+	rather than an error, because the result is a perfectly good PDF and a
+	caller may want it for a draft.
+	* What is NOT checked, and stays the caller's responsibility: whether
+	the tagging is any good. A tree in which every paragraph is /P and
+	every heading is /H1 passes this check and tells a reader nothing.
+	Nor is it checked that all content is tagged; see the open points in
+	0.9.4.x/doc/en/TAGGED.md.
+	* src/main.tcl (_BuildXMPStream): a document that is both PDF/A and
+	PDF/UA declares the pdfuaid namespace through a pdfaExtension schema.
+	ISO 19005 clause 6.6.2.3.1 requires that for every XMP property outside
+	the predefined schemas. Measured with veraPDF against a tagged document
+	carrying -ua 1: two failures on pdfuaid:part, "XMP property is either
+	not predefined, or is not defined in any XMP extension schema" and "XMP
+	property does not correspond to type null". So -pdfa and -ua could not
+	be combined, which is exactly the combination that gets asked for --
+	an archivable and accessible document. The declaration is written only
+	when both are set; a plain PDF/UA document does not need it. Same
+	construction as the Factur-X extension schema, which had solved the
+	same problem for the fx: namespace.
+	* tests/facturx.test (facturx-3.5): the test asserted that no warning
+	appears under -pdfa 3b while building the document with Helvetica.
+	Factur-X is PDF/A-3, so that document could never have validated; the
+	test now embeds FreeSans. The other facturx tests only check what
+	facturx writes and are unaffected.
+	* src/cat.tcl (WritePdf): the binary comment after the header line had
+	three bytes above 127 where ISO 19005 clause 6.1.2 requires four. Every
+	reader accepts three, so it never showed until a merged document was
+	validated as PDF/A: 154 of 155 rules passed and this was the one that
+	did not. pdf4tcl's own writer had four all along.
+	* src/cat.tcl (ReadPdf, WritePdf, AppendPdf): the header version is
+	taken from the inputs instead of a hardcoded 1.4, and merging keeps the
+	higher of the two. Merging documents that pdf4tcl had written as 1.7
+	used to downgrade the header to 1.4.
+	* src/main.tcl (_BuildXMPStream): the PDF/A extension schemas share one
+	pdfaExtension:schemas property with one rdf:Bag. Two namespaces can
+	need declaring -- fx: for Factur-X and pdfuaid: when the document is
+	PDF/UA as well -- and emitting a block for each produced a second
+	property. XMP allows it once, so veraPDF stopped with "Duplicate
+	property or field node 'pdfaExtension:schemas'" before validating
+	anything. It surfaced the moment examples/facturx.tcl became tagged,
+	because that is the first document needing both.
+	* examples/tagged.tcl: now built with -pdfa 3a as well, so the demo is
+	archivable and accessible at the same time. Level A wants exactly what
+	tagging already provides, so the two go together naturally.
+	* examples/facturx.tcl: the invoice is tagged and built as PDF/A-3a
+	instead of 3b. An invoice is a document that has to be read, and the
+	European Accessibility Act aims at this kind of document; level A costs
+	nothing here beyond marking up the content, since the font is embedded
+	and the metadata are set anyway. The two drawing helpers take a
+	structure type, so the layout is untouched: headings are H1 and H2, the
+	item table is a Table with TH carrying /Scope and TD below it, and the
+	horizontal rules are artifacts rather than content a screen reader
+	would announce.
+	* tests/pdfa.test: twelve tests added for the a levels, the font
+	warning and the PDF/A plus PDF/UA combination.
+
 2026-08-13 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.40

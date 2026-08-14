@@ -48,6 +48,16 @@ pdf4tcl::catPdf a.pdf b.pdf out.pdf
 foreach w $::pdf4tcl::warnings { puts stderr $w }
 ```
 
+A merged document keeps its conformance. Measured on two PDF/A-3a documents
+that also claim PDF/UA: the result carries `pdfaid 3A`, `pdfuaid:part 1`, one
+`pdfaExtension:schemas`, the OutputIntent and the joined structure tree, and
+veraPDF passes it under both profiles.
+
+That was not true before 0.9.4.41. The merged file failed PDF/A on a single
+rule -- the binary comment in the header had three bytes above 127 where
+ISO 19005 clause 6.1.2 requires four, which every reader accepts and no
+other check notices. 154 of 155 rules passed.
+
 ### What a merge does not do
 
 Two properties of `catPdf` predate this work and apply to untagged merges as
@@ -392,7 +402,7 @@ Both runtimes:
 - `examples/tagged.tcl` verified with `tools/check-tagged.py`: all checks
   pass, and the extracted per-element text matches the source, including the
   paragraph spanning the page break and the list and table nesting.
-- Tagging combined with `-pdfa 1b` and `-pdfa 2b`: `qpdf --check` clean,
+- Tagging combined with `-pdfa 1b`, `2b` and `3a`: `qpdf --check` clean,
   structure tree intact.
 - `-userpassword` with `-encversion 4`: `/Alt` does not survive in the clear.
 - `tools/check-ascii.tcl`: 54 files OK, 0 failures.
@@ -423,6 +433,12 @@ only, not to the enclosing block.
   Other attribute owners (`/Layout`, `/PrintField`) are not implemented.
 - Tagging inside an XObject (`startPage -xobject 1`) is refused rather than
   supported.
+
+Since 0.9.4.41 `-pdfa 1a`, `2a` and `3a` are available. They require tagging
+and a document language, both checked when the document is finished; a
+missing one raises an error rather than writing `pdfaid:conformance A` into a
+file that has neither. What is not checked, and what the two entries above
+describe, is whether the markup is any good.
 - Not checked with a real screen reader. veraPDF verifies that the file obeys
   the standard; it cannot tell whether the tagging is *sensible*. A document
   where every paragraph is `/P` and every heading is `/H1` passes just as

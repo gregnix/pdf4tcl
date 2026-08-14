@@ -9,7 +9,7 @@ order, and where the traps are.
 ## Tutorials
 
 Start here if you want a working PDF before reading every option.
-Full index: [`tutorials/README.md`](tutorials/README.md) (assumes **0.9.4.39+**).
+Full index: [`tutorials/README.md`](tutorials/README.md) (assumes **0.9.4.41+**).
 
 | Document | Contents |
 |---|---|
@@ -28,8 +28,8 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 |---|---|
 | Demos / reference | `howto-run-demos.md`, `howto-feature-tour.md`, `howto-cheatsheets.md`, `howto-stdfonts.md`, `howto-symbols.md` |
 | Text / fonts | `howto-unicode.md`, `howto-otf.md`, `howto-shapes.md` |
-| Colour / graphics | `howto-colors.md` (**0.9.4.39**), `howto-cmyk.md`, `howto-alpha.md`, `howto-gradients.md`, `howto-transform.md` |
-| Standards | `howto-pdfa.md`, `howto-validate.md`, `howto-facturx.md` |
+| Colour / graphics | `howto-colors.md` (0.9.4.39+), `howto-cmyk.md`, `howto-alpha.md`, `howto-gradients.md`, `howto-transform.md` |
+| Standards | `howto-pdfa.md` (a-levels since **0.9.4.41**), `howto-catpdf.md` (**0.9.4.40**), `howto-validate.md`, `howto-facturx.md` |
 | Navigation | `howto-links-and-bookmarks.md`, `howto-headers-footers.md` |
 | Security | `howto-encrypt.md`, `howto-permissions.md`, `howto-encrypted-forms.md` |
 | Structure | `howto-layers.md`, `howto-annotations.md` |
@@ -38,6 +38,13 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 
 Run demos: `tclsh 0.9.4.x/demo/run-all-demos.tcl` → `demo/out/` (see
 `howtos/howto-run-demos.md`).
+
+Runnable tutorial/howto companions:
+
+```bash
+tclsh 0.9.4.x/doc/en/run-all-examples.tcl
+# PDFs -> 0.9.4.x/doc/en/out/
+```
 
 ## Getting started (reference guides)
 
@@ -68,9 +75,10 @@ produces a page that looks plausible in the code and upside down on screen.
 
 | Document | Contents |
 |---|---|
-| `UPGRADING.md` | What changes between versions and what breaks (incl. **0.9.4.39** colour range check) |
+| `UPGRADING.md` | What changes between versions (0.9.4.39 colour, **0.9.4.40** catPdf merge, **0.9.4.41** PDF/A-a) |
 | `todo-en16931.md` | State of the Factur-X demo and what EN 16931 still needs |
-| `howtos/howto-pdfa.md` | PDF/A how-to (complements the manpage and demos) |
+| `howtos/howto-pdfa.md` | PDF/A how-to including level A |
+| `howtos/howto-catpdf.md` | Merging tagged PDFs |
 | `howtos/howto-colors.md` | Colour inputs after 0.9.4.39 |
 
 PDF/A is also demonstrated by `0.9.4.x/demo/demo-pdfa.tcl` and

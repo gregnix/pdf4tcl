@@ -1,5 +1,14 @@
 # How-to: Symbol and Unicode coverage charts
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-symbols.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-symbols.tcl`](howto-symbols.tcl).
+
 Demos:
 - `demo-symbole.tcl` -- DejaVu CID repertoire (Latin Ext, Greek, Cyrillic,
   maths, arrows, box drawing, dingbats, …)

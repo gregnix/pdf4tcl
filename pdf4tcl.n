@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.40 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.41 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.40?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.41?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1641,7 +1641,11 @@ catalog\&.
 \fB-ua\fR \fIpart\fR
 Writes the PDF/UA identification schema
 (\fBpdfuaid:part\fR) into the XMP packet\&. \fIpart\fR is \fB0\fR (the
-default, no claim), \fB1\fR or \fB2\fR\&.
+default, no claim), \fB1\fR or \fB2\fR\&. When \fB-pdfa\fR is set as
+well, the namespace is additionally declared through a
+\fBpdfaExtension\fR schema, which PDF/A requires for any property outside
+the predefined ones -- so a document can be archivable and accessible at the
+same time\&.
 .RE
 .IP
 \fB-ua\fR is deliberately opt-in and not implied by enabling tagging\&. The
@@ -2335,10 +2339,34 @@ This option can only be set at object creation\&.
 .TP
 \fB-pdfa\fR \fIlevel\fR
 Enables PDF/A conformance for the document\&.
-Valid values are \fB\fR (none, default), \fB1b\fR (PDF/A-1b,
-ISO\\u00a019005-1) and \fB2b\fR (PDF/A-2b, ISO\\u00a019005-2)\&.
+Valid values are \fB\fR (none, default), \fB1b\fR, \fB2b\fR and
+\fB3b\fR for conformance level B, and \fB1a\fR, \fB2a\fR and
+\fB3a\fR for level A\&.
 .sp
-When set to \fB1b\fR or \fB2b\fR, pdf4tcl automatically embeds:
+Level A adds tagged PDF, a natural language and Unicode mappings on top of
+level B\&. pdf4tcl always writes the Unicode mappings; the other two are the
+caller's job and are checked when the document is finished\&. Without tagging,
+or without a language, writing the document raises an error rather than
+putting \fIpdfaid:conformance A\fR into a file that does not have what
+that claims\&. In other words, \fB3a\fR needs at least:
+.CS
+
+
+$pdf tagged 1 -lang de-DE
+
+.CE
+.IP
+and content actually marked up with \fBtagBegin\fR and friends\&. What
+pdf4tcl cannot check is whether the markup is any good: a tree in which every
+paragraph is \fB/P\fR and every heading is \fB/H1\fR satisfies this and
+tells a reader nothing\&.
+.sp
+Note that every conformance level requires all font programs to be embedded,
+which the 14 standard fonts cannot be\&. Using one of them while \fB-pdfa\fR
+is set produces a valid PDF that is not a valid PDF/A, and pdf4tcl notes this
+once in \fB::pdf4tcl::warnings\fR\&.
+.sp
+When \fB-pdfa\fR is set, pdf4tcl automatically embeds:
 .RS
 .IP \(bu
 An XMP metadata stream with the pdfaid identification schema
@@ -2543,6 +2571,39 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.41"
+.PP
+.IP \(bu
+\fB-pdfa\fR accepts the conformance levels \fB1a\fR,
+\fB2a\fR and \fB3a\fR\&. Level A requires tagged PDF, a natural language
+and Unicode mappings; pdf4tcl always wrote the mappings, and the other two
+are checked when the document is finished\&. Missing either raises an error
+rather than claiming a conformance the file does not have\&.
+.IP \(bu
+Using one of the 14 standard fonts while \fB-pdfa\fR is set is
+reported in \fB::pdf4tcl::warnings\fR\&. Those fonts have no embeddable font
+program, so the document cannot validate as PDF/A -- which used to happen
+without a word\&. The file is still produced; it is a valid PDF, just not a
+valid PDF/A\&.
+.IP \(bu
+"\fIexamples/tagged\&.tcl\fR" and "\fIexamples/facturx\&.tcl\fR" are both
+built as PDF/A-3a now, and the invoice is tagged\&. They demonstrate a document
+that is archivable and accessible at the same time\&.
+.IP \(bu
+"\fIsrc/cat\&.tcl\fR" (\fBWritePdf\fR): the binary comment in the file
+header has four bytes above 127, as ISO 19005 clause 6\&.1\&.2 requires; it had
+three, which readers accept but PDF/A validation does not\&. The header version
+is taken from the input documents rather than a fixed 1\&.4\&.
+.IP \(bu
+A document that is both PDF/A and PDF/UA now declares the
+\fBpdfuaid\fR namespace through a \fBpdfaExtension\fR schema, sharing
+one \fBpdfaExtension:schemas\fR property with the Factur-X declaration
+where both apply -- XMP allows that property once\&. PDF/A
+clause 6\&.6\&.2\&.3\&.1 requires that for every XMP property outside the predefined
+schemas; without it veraPDF rejected the file over \fBpdfuaid:part\fR, so
+\fB-pdfa\fR and \fBtagged\fR with \fB-ua\fR could not be combined at
+all\&. The declaration is written only when both are set\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.40"
 .PP
 .IP \(bu

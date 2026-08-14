@@ -1,5 +1,14 @@
 # How-to: Generate API cheat sheets
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-cheatsheets.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-cheatsheets.tcl`](howto-cheatsheets.tcl).
+
 Demo: `0.9.4.x/demo/demo-make-cheatsheets.tcl`
 
 ## Problem

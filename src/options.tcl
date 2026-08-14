@@ -138,11 +138,16 @@ oo::define ::pdf4tcl::options {
         }
     }
 
-    # Validator for -pdfa: accepts "", "1b", "2b"
+    # Validator for -pdfa.
+    #
+    # The "a" levels additionally require tagged PDF, a language and Unicode
+    # mappings. pdf4tcl cannot check all of that here, at construction time,
+    # so what it can check happens in finish: see CheckPdfaLevelA.
     method CheckPdfa {option value} {
-        if {$value ni {"" "1b" "2b" "3b"}} {
+        if {$value ni {"" "1a" "1b" "2a" "2b" "3a" "3b"}} {
             throw {PDF4TCL} \
-                "invalid -pdfa value \"$value\": must be \"\", \"1b\", \"2b\", or \"3b\""
+                "invalid -pdfa value \"$value\": must be \"\", \"1a\",\
+                \"1b\", \"2a\", \"2b\", \"3a\" or \"3b\""
         }
     }
 

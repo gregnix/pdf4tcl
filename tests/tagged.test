@@ -1045,4 +1045,58 @@ test tagged-15.5 {annotation keys are shifted along with the page keys} -body {
     set ::pdf4tcl::warnings {}
 } -result {{0 2} {1 3}}
 
+# -----------------------------------------------------------------------
+# 16.x  The file header of a merged document
+# -----------------------------------------------------------------------
+
+test tagged-16.1 {the binary comment has four bytes above 127} -body {
+    # ISO 19005 clause 6.1.2: the comment after the header line needs at
+    # least four bytes above 127. WritePdf wrote three, which every reader
+    # accepts but veraPDF does not -- measured, it was the single rule a
+    # merged PDF/A-3a document failed, with 154 of 155 passing.
+    set a [mkTagged hdrA 1]
+    set b [mkTagged hdrB 1]
+    set out [file join [temporaryDirectory] hdrOut.pdf]
+    ::pdf4tcl::catPdf $a $b $out
+    set fh [open $out rb]
+    set head [read $fh 20]
+    close $fh
+    binary scan $head cu* bytes
+    # after "%PDF-x.y\n%" come the binary bytes
+    set start [expr {[string first "%" $head 1] + 1}]
+    set bin [lrange $bytes $start [expr {$start + 3}]]
+    set high 0
+    foreach b $bin { if {$b > 127} { incr high } }
+    list [llength $bin] $high
+} -cleanup {
+    foreach f {hdrA.pdf hdrB.pdf hdrOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {4 4}
+
+test tagged-16.2 {the header keeps the highest input version} -body {
+    # WritePdf hardcoded 1.4, so merging documents that pdf4tcl had written
+    # as 1.7 silently downgraded the header.
+    set a [mkTagged verA 1]
+    set b [mkTagged verB 1]
+    set out [file join [temporaryDirectory] verOut.pdf]
+    ::pdf4tcl::catPdf $a $b $out
+    set res {}
+    foreach f [list $a $out] {
+        set fh [open $f rb]
+        set head [read $fh 9]
+        close $fh
+        regexp {^%PDF-(\d+\.\d+)} $head -> v
+        lappend res $v
+    }
+    # input version and merged version must be the same
+    expr {[lindex $res 0] eq [lindex $res 1]}
+} -cleanup {
+    foreach f {verA.pdf verB.pdf verOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result 1
+
 cleanupTests

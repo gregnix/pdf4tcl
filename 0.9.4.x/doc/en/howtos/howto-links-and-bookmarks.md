@@ -1,5 +1,14 @@
 # How-to: Links and bookmarks
 
+## Runnable script
+
+```bash
+tclsh 0.9.4.x/doc/en/howtos/howto-links-and-bookmarks.tcl
+# PDF -> 0.9.4.x/doc/en/out/
+```
+
+Companion: [`howto-links-and-bookmarks.tcl`](howto-links-and-bookmarks.tcl).
+
 ## Problem
 
 Add clickable URLs and an outline (bookmarks) so readers can jump sections.
