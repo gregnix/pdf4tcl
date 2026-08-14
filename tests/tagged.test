@@ -1099,4 +1099,43 @@ test tagged-16.2 {the header keeps the highest input version} -body {
     set ::pdf4tcl::warnings {}
 } -result 1
 
+test tagged-12.20 {a form field attaches to a Form element} -body {
+    # ISO 32000-1 table 337 gives /Form as the structure type of an
+    # interactive field, and PDF/UA clause 7.18.1 wants the widget annotation
+    # attached through /OBJR. Form used to be accepted by tagBegin but not by
+    # the annotation attachment, so the element sat in the tree, the field
+    # stayed unreachable, and the "unattached annotation" warning fired for a
+    # document that had done everything right.
+    set ::pdf4tcl::warnings {}
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Form -alt "Name"
+        $p addForm text 100 700 120 16 -id name
+        $p tagEnd
+    }]
+    list [contains $data "/S /Form"] \
+            [contains $data "/OBJR"] \
+            [contains $data "/StructParent"] \
+            [llength $::pdf4tcl::warnings]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1 1 0}
+
+test tagged-12.21 {a form field outside any element is still reported} -body {
+    set ::pdf4tcl::warnings {}
+    taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p addForm text 100 700 120 16 -id name
+    }
+    list [llength $::pdf4tcl::warnings] \
+            [string match "*no structure element is open*" \
+                    [lindex $::pdf4tcl::warnings 0]]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1}
+
 cleanupTests

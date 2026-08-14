@@ -1,5 +1,35 @@
 2026-08-14 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.42
+	* src/tagged.tcl (TagAnnotEntries): an annotation is attached to an
+	open Form element as well, not only to Link and Annot. ISO 32000-1
+	table 337 gives /Form as the structure type of an interactive field and
+	PDF/UA clause 7.18.1 wants the widget annotation attached through
+	/OBJR. tagBegin accepted Form all along, so a caller who did the right
+	thing got an element in the tree, a field that stayed unreachable, and
+	the "annotation is not part of the structure tree" warning on top.
+	Measured on the pdf4tcllib form demos: check-tagged.py reported twenty
+	failures where it now reports none.
+	* src/main.tcl (SetupFont): the standard font warning fires for a
+	document claiming PDF/UA through "tagged -ua" as well, not only for
+	-pdfa. ISO 14289-1 clause 7.21.4.1 requires embedded font programs just
+	as ISO 19005 does, so a tagged form built with base-14 fonts failed
+	validation on a point pdf4tcl already knew about and kept to itself.
+	Tagging alone stays quiet, since it claims nothing.
+	* 0.9.4.x/doc/en/TAGGED.md: new section on form fields, including a
+	limitation worth knowing before building an accessible form: check
+	boxes and radio buttons draw their mark with a ZapfDingbats glyph, and
+	a standard font cannot be embedded, so those two field types cannot be
+	part of a PDF/UA conformant document today. Measured -- a document with
+	only text fields contains no ZapfDingbats, one with a single check box
+	does. Drawing the mark with vector operators would remove the
+	dependency.
+	* tests/tagged.test: tagged-12.20 checks that a field inside a Form
+	element gets /OBJR and /StructParent and raises no warning; 12.21
+	checks that a field outside any element is still reported.
+
+2026-08-14 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.41
 	* src/options.tcl (CheckPdfa), src/main.tcl (CheckPdfaLevelA): -pdfa
 	accepts 1a, 2a and 3a. ISO 19005 level A adds tagged PDF, a natural

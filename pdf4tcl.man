@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.41]
+[manpage_begin pdf4tcl n 0.9.4.42]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.41]]
+[require pdf4tcl [opt 0.9.4.42]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -2123,6 +2123,19 @@ better than one that only appears to be encrypted. Read-only; for diagnostics
 only.
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.42}]
+[para]
+[list_begin itemized]
+[item] [file src/tagged.tcl] ([cmd TagAnnotEntries]): an annotation is
+attached to an open [const Form] element as well, not only to [const Link]
+and [const Annot]. ISO 32000-1 table 337 gives [const /Form] as the structure
+type of an interactive field and PDF/UA clause 7.18.1 wants the widget
+annotation attached through [const /OBJR]; [method tagBegin] accepted the
+type all along, so the element sat in the tree while the field stayed
+unreachable, and the warning about unattached annotations fired for a
+document that had done everything right.
+[list_end]
 
 [subsection {Version 0.9.4.41}]
 [para]

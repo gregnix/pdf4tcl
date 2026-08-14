@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.41
+package provide pdf4tcl 0.9.4.42
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -4175,11 +4175,21 @@ Use -pdfa-icc to specify a profile path."
                 # a valid PDF/A, and a caller may want it for a draft. But it
                 # used to happen without a word, and the file then failed
                 # validation for a reason nothing in pdf4tcl had mentioned.
-                if {$options(-pdfa) ne "" && !$pdf(pdfaFontWarned)} {
+                # PDF/UA wants embedded font programs just as PDF/A does --
+                # ISO 14289-1 clause 7.21.4.1 against ISO 19005 clause 6.3.5 --
+                # so a document claiming UA through "tagged -ua" deserves the
+                # same word. It used to be reported only for -pdfa, which left
+                # a tagged form failing validation on a point pdf4tcl knew
+                # about.
+                set claimsUA [expr {[info exists pdf(tag,uapart)] &&
+                        $pdf(tag,uapart) ne ""}]
+                if {($options(-pdfa) ne "" || $claimsUA) &&
+                        !$pdf(pdfaFontWarned)} {
                     set pdf(pdfaFontWarned) 1
-                    lappend ::pdf4tcl::warnings "pdfa: the standard font\
+                    set std [expr {$options(-pdfa) ne "" ? "PDF/A" : "PDF/UA"}]
+                    lappend ::pdf4tcl::warnings "$std: the standard font\
                             $fontname has no embeddable font program, so this\
-                            document will not validate as PDF/A. Load a\
+                            document will not validate as $std. Load a\
                             TrueType or OpenType font instead.\
                             (further occurrences are not reported)"
                 }
@@ -11514,7 +11524,14 @@ oo::define ::pdf4tcl::pdf4tcl {
             return ""
         }
         set idx [lindex $pdf(tag,stack) end]
-        if {$pdf(tag,type,$idx) ni {Link Annot}} {
+        # Form belongs here as much as Link and Annot: ISO 32000-1 table 337
+        # gives /Form as the structure type of an interactive field, and
+        # PDF/UA clause 7.18.1 wants the widget annotation attached to it
+        # through /OBJR. Leaving it out meant tagBegin accepted the type
+        # while the field stayed unreachable -- the element was in the tree,
+        # the annotation was not, and the warning below fired for a document
+        # that had done everything right.
+        if {$pdf(tag,type,$idx) ni {Link Annot Form}} {
             my TagAnnotUnattached $pdf(tag,type,$idx)
             return ""
         }

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.41 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.42 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.41?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.42?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -2571,6 +2571,18 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.42"
+.PP
+.IP \(bu
+"\fIsrc/tagged\&.tcl\fR" (\fBTagAnnotEntries\fR): an annotation is
+attached to an open \fBForm\fR element as well, not only to \fBLink\fR
+and \fBAnnot\fR\&. ISO 32000-1 table 337 gives \fB/Form\fR as the structure
+type of an interactive field and PDF/UA clause 7\&.18\&.1 wants the widget
+annotation attached through \fB/OBJR\fR; \fBtagBegin\fR accepted the
+type all along, so the element sat in the tree while the field stayed
+unreachable, and the warning about unattached annotations fired for a
+document that had done everything right\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.41"
 .PP
 .IP \(bu

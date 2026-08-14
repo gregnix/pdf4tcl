@@ -58,6 +58,31 @@ rule -- the binary comment in the header had three bytes above 127 where
 ISO 19005 clause 6.1.2 requires four, which every reader accepts and no
 other check notices. 154 of 155 rules passed.
 
+### Form fields
+
+A form field is an annotation, so it needs a structure element to be reachable
+-- `Form` is the type ISO 32000-1 table 337 provides, and PDF/UA clause 7.18.4
+requires exactly that nesting:
+
+```tcl
+$pdf tagBegin Form -alt "Surname"
+$pdf addForm text 100 50 120 16 -id surname
+$pdf tagEnd
+```
+
+The alternate text satisfies clause 7.18.1, which wants either a `/TU` entry
+on the field or an `/Alt` on the enclosing element. With tagging on, pages
+carrying annotations also get `/Tabs /S` automatically.
+
+**Check boxes and radio buttons cannot currently be PDF/UA conformant.**
+Their appearance streams draw the mark with a glyph from ZapfDingbats, one of
+the 14 standard fonts, and clause 7.21.4.1 requires every font program to be
+embedded -- which for a standard font is impossible. Measured: a document
+with only text fields contains no ZapfDingbats, one with a single check box
+does. Text fields, choice fields and buttons with a text caption are
+unaffected. Drawing the mark with vector operators instead of a glyph would
+remove the dependency; that is not done today.
+
 ### What a merge does not do
 
 Two properties of `catPdf` predate this work and apply to untagged merges as

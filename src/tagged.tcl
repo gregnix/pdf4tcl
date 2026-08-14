@@ -520,7 +520,14 @@ oo::define ::pdf4tcl::pdf4tcl {
             return ""
         }
         set idx [lindex $pdf(tag,stack) end]
-        if {$pdf(tag,type,$idx) ni {Link Annot}} {
+        # Form belongs here as much as Link and Annot: ISO 32000-1 table 337
+        # gives /Form as the structure type of an interactive field, and
+        # PDF/UA clause 7.18.1 wants the widget annotation attached to it
+        # through /OBJR. Leaving it out meant tagBegin accepted the type
+        # while the field stayed unreachable -- the element was in the tree,
+        # the annotation was not, and the warning below fired for a document
+        # that had done everything right.
+        if {$pdf(tag,type,$idx) ni {Link Annot Form}} {
             my TagAnnotUnattached $pdf(tag,type,$idx)
             return ""
         }

@@ -561,4 +561,38 @@ test pdfa-ua-1.5 {Factur-X alone declares only its own namespace} -body {
     set ::pdf4tcl::warnings {}
 } -result {1 0}
 
+test pdfa-font-1.4 {a PDF/UA claim warns about standard fonts too} -body {
+    # ISO 14289-1 clause 7.21.4.1 requires embedded font programs just as
+    # PDF/A does. The warning used to fire only for -pdfa, so a tagged form
+    # claiming UA failed validation on a point pdf4tcl already knew about.
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1 -lang de-DE -ua 1
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    $p get
+    $p destroy
+    list [llength $::pdf4tcl::warnings] \
+            [string match "PDF/UA:*no embeddable font program*" \
+                    [lindex $::pdf4tcl::warnings 0]]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 1}
+
+test pdfa-font-1.5 {tagging without a UA claim stays quiet} -body {
+    # Tagging alone claims nothing, so a base-14 font is a legitimate choice.
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO%]
+    $p tagged 1 -lang de-DE
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "x" -x 50 -y 50
+    $p get
+    $p destroy
+    llength $::pdf4tcl::warnings
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
 cleanupTests

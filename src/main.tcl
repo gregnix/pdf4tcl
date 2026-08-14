@@ -2079,11 +2079,21 @@ Use -pdfa-icc to specify a profile path."
                 # a valid PDF/A, and a caller may want it for a draft. But it
                 # used to happen without a word, and the file then failed
                 # validation for a reason nothing in pdf4tcl had mentioned.
-                if {$options(-pdfa) ne "" && !$pdf(pdfaFontWarned)} {
+                # PDF/UA wants embedded font programs just as PDF/A does --
+                # ISO 14289-1 clause 7.21.4.1 against ISO 19005 clause 6.3.5 --
+                # so a document claiming UA through "tagged -ua" deserves the
+                # same word. It used to be reported only for -pdfa, which left
+                # a tagged form failing validation on a point pdf4tcl knew
+                # about.
+                set claimsUA [expr {[info exists pdf(tag,uapart)] &&
+                        $pdf(tag,uapart) ne ""}]
+                if {($options(-pdfa) ne "" || $claimsUA) &&
+                        !$pdf(pdfaFontWarned)} {
                     set pdf(pdfaFontWarned) 1
-                    lappend ::pdf4tcl::warnings "pdfa: the standard font\
+                    set std [expr {$options(-pdfa) ne "" ? "PDF/A" : "PDF/UA"}]
+                    lappend ::pdf4tcl::warnings "$std: the standard font\
                             $fontname has no embeddable font program, so this\
-                            document will not validate as PDF/A. Load a\
+                            document will not validate as $std. Load a\
                             TrueType or OpenType font instead.\
                             (further occurrences are not reported)"
                 }

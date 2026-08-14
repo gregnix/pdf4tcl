@@ -140,14 +140,19 @@ def text_by_mcid(data):
                     depth_errors += 1
                 else:
                     stack.pop()
-            elif op in (b"Tj", b"'", b'"'):
+            elif op in (b"Tj", b"'", b'"', b"TJ"):
                 for k, v in operands:
-                    if k == "str" and stack and stack[-1] is not None:
-                        result[stack[-1]] += v.decode("latin-1")
-            elif op == b"TJ":
-                for k, v in operands:
-                    if k == "str" and stack and stack[-1] is not None:
-                        result[stack[-1]] += v.decode("latin-1")
+                    if stack and stack[-1] is not None:
+                        if k == "str":
+                            result[stack[-1]] += v.decode("latin-1")
+                        elif k == "hex":
+                            # A CID font writes glyph indices as a hex string.
+                            # Turning those back into characters needs the
+                            # font's CMap, which is more than this tool does.
+                            # The marker keeps the element from looking empty,
+                            # which would read as a defect in the document
+                            # rather than a limit of the checker.
+                            result[stack[-1]] += "<CID>"
             operands = []
         else:
             operands.append((kind, value))

@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.41?**
+package require **pdf4tcl ?0****.9****.4****.42?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -1415,6 +1415,10 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.42
+
+- attached to an open **Form** element as well, not only to **Link** and **Annot**. ISO 32000-1 table 337 gives **/Form** as the structure type of an interactive field and PDF/UA clause 7.18.1 wants the widget annotation attached through **/OBJR**; **tagBegin** accepted the type all along, so the element sat in the tree while the field stayed unreachable, and the warning about unattached annotations fired for a document that had done everything right.
 
 ### VERSION 0.9.4.41
 
