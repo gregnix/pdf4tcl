@@ -148,13 +148,23 @@ not exist.
 
 `pdf4tcl::catPdf in1.pdf in2.pdf ... out.pdf` concatenates existing files.
 
-If any input is tagged, the logical structure is **removed** from the result
-and a note appended to `::pdf4tcl::warnings`. That is deliberate: every page
-carries a `/StructParents` key indexing the parent tree of its own document,
-and every document numbers its pages from zero, so keeping the structure
-would leave pages resolving to the wrong elements. A file that misreports its
-structure is worse than one without any, because a reader trusts `/MarkInfo`
-and follows the wrong tree instead of the paint order.
+Since 0.9.4.40 the logical structure of the inputs is merged: the parent tree
+keys of each document are shifted so they stay unique, and the `/Document`
+subtrees end up under one root. MCIDs are not renumbered, because they are
+scoped to a page and pages are not merged.
+
+Two mixed cases cannot be merged and produce a warning instead: an untagged
+document appended to a tagged one leaves its pages outside the tree, and a
+tagged document appended to an untagged one has its structure dropped, since
+adopting it would leave the first document's pages outside instead. Both
+results are legal PDF and neither is PDF/UA conformant.
+
+Two things a merge does not do, both older than the structure merge: the
+metadata of the first document wins, so the result carries its title, and
+embedded fonts are not shared, so each input keeps its own copy. Measured,
+two 24729 byte documents merge into 49296 bytes with the font embedded twice.
+The rest of the catalog -- `AcroForm`, `Metadata` and friends -- is not
+merged either.
 
 Always check the warnings after a merge:
 

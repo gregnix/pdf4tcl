@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.39]
+[manpage_begin pdf4tcl n 0.9.4.40]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.39]]
+[require pdf4tcl [opt 0.9.4.40]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1321,12 +1321,29 @@ Tagging inside an XObject ([method startPage] with [option -xobject]) is not
 supported and raises an error.
 
 [para]
-[cmd ::pdf4tcl::catPdf] removes the logical structure from tagged input
-documents and notes this in [var ::pdf4tcl::warnings]. Merging structure
-trees is not implemented: each page carries a [const /StructParents] key
-indexing the parent tree of its own document, and each document numbers its
-pages from zero, so a merge would leave pages resolving to the wrong
-structure elements.
+[cmd ::pdf4tcl::catPdf] merges the logical structure of tagged input
+documents. Each page carries a [const /StructParents] key indexing the parent
+tree of its own document and each document numbers its pages from zero, so
+the keys of the appended document are shifted, in the parent tree and in
+every [const /StructParents] and [const /StructParent]; the [const /Document]
+subtrees then hang under one [const /StructTreeRoot]. MCIDs are not
+renumbered, since they are scoped to one page's content stream and pages are
+not merged.
+
+[para]
+Mixing tagged and untagged input cannot be merged and is reported in
+[var ::pdf4tcl::warnings]: appending an untagged document to a tagged one
+leaves its pages outside the tree, and appending a tagged document to an
+untagged one drops its structure, because adopting it would leave the first
+document's pages outside instead. Both results are valid PDF and neither is
+PDF/UA conformant.
+
+[para]
+Two properties of [cmd ::pdf4tcl::catPdf] are older than the structure merge
+and matter for the result: the catalog of the first document is kept, so the
+merged file carries its title and not a combined one, and embedded fonts are
+not shared, so each input keeps its own copy. The remaining catalog entries,
+such as [const /AcroForm] and [const /Metadata], are not merged either.
 
 [para]
 Example:
@@ -2078,6 +2095,28 @@ better than one that only appears to be encrypted. Read-only; for diagnostics
 only.
 
 [section CHANGES]
+
+[subsection {Version 0.9.4.40}]
+[para]
+[list_begin itemized]
+[item] [file src/cat.tcl] ([cmd MergeStructure]): [cmd ::pdf4tcl::catPdf]
+merges the logical structure of tagged documents instead of dropping it. The
+parent tree keys of the appended document are shifted so they stay unique,
+in the tree and in every [const /StructParents] and [const /StructParent],
+and the [const /Document] subtrees end up under one root. Chainable.
+[item] MCIDs are deliberately not renumbered: they are scoped to one page's
+content stream, and merging documents does not merge pages, so only the
+parent tree keys have to be unique.
+[item] Mixing tagged and untagged input warns rather than producing a half
+tagged document, in both directions.
+[item] Two older properties of the merge are now documented: the first
+document's catalog is kept, so its title survives into the result, and
+embedded fonts are not shared between the inputs.
+[item] [file src/cat.tcl] ([cmd RenumberDict]): the reference mapping was not
+passed on, so the redirection of the appended document's Pages object was
+skipped for the trailer, root and info dictionaries. It never showed because
+[cmd AppendPdf] rebuilds the Pages object afterwards.
+[list_end]
 
 [subsection {Version 0.9.4.39}]
 [para]

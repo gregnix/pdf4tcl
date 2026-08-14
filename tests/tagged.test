@@ -494,18 +494,28 @@ test tagged-8.4 {an artifact next to an open element is not nested inside it} -b
             $data
 } -result 1
 
-test tagged-9.1 {catPdf removes the structure instead of corrupting it} -body {
-    # Both documents number their pages from 0, so both carry
-    # /StructParents 0. AppendPdf keeps the first catalog, so the merged file
-    # claimed to be tagged while page 2 resolved to page 1's structure.
-    # Measured before the fix: two pages both with /StructParents 0, a tree
-    # holding only the first heading, and no error raised.
+test tagged-9.1 {catPdf merges the two structure trees} -body {
+    # History: both documents number their pages from 0, so both carried
+    # /StructParents 0. AppendPdf keeps the first catalog, so the merge used
+    # to claim to be tagged while page 3 resolved to page 1's structure --
+    # measured then: two pages both with /StructParents 0, a tree holding
+    # only the first heading, and no error raised. 0.9.4.39 dropped the
+    # structure and warned; since 0.9.4.40 the trees are merged instead.
+    #
+    # MCIDs are not renumbered on purpose. They are scoped to one page's
+    # content stream and merging documents does not merge pages, so only the
+    # parent tree keys have to be made unique.
     foreach n {1 2} {
         set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
         $p tagged 1 -lang de-DE
         $p startPage
         $p setFont 14 Helvetica
-        $p tagText H1 "Dokument $n" -x 50 -y 700
+        $p tagText H1 "Dokument $n" -x 50 -y 60
+        $p tagBegin P
+        $p text "Absatz $n" -x 50 -y 100
+        $p tagEnd
+        $p startPage
+        $p tagText P "Seite zwei von $n" -x 50 -y 60
         $p write -file [file join [temporaryDirectory] cat$n.pdf]
         $p destroy
     }
@@ -513,31 +523,38 @@ test tagged-9.1 {catPdf removes the structure instead of corrupting it} -body {
     set ::pdf4tcl::warnings {}
     ::pdf4tcl::catPdf [file join [temporaryDirectory] cat1.pdf] \
             [file join [temporaryDirectory] cat2.pdf] $out
-    # Read back the catalog rather than grepping the raw bytes: the orphaned
-    # StructElem objects of both inputs are still in the file (removing them
-    # would mean renumbering everything again), and a byte search finds their
-    # "/Type /StructTreeRoot" even though nothing references them. What
-    # matters is what the catalog and the pages actually point at.
+
     set doc [::pdf4tcl::cat::ReadPdf $out]
     set rootId [lindex [dict get $doc trailer /Root] 0]
     set catalog [dict get $doc $rootId full]
-    # Pages are the objects referenced from /Kids of the /Pages object
+
+    # The catalog still claims a structure, and it points somewhere real
+    regexp {/StructTreeRoot\s+(\d+)\s+0\s+R} $catalog -> stId
+    set st [dict get $doc $stId full]
+
+    # Four pages, and their /StructParents keys are all different
     set pagesId [lindex [dict get $doc root /Pages] 0]
     regexp {/Kids\s*\[([^\]]*)\]} [dict get $doc $pagesId full] -> kidsvec
-    set pageSP 0
+    set keys {}
     foreach {id _ _} $kidsvec {
-        if {[regexp {/StructParents} [dict get $doc $id full]]} {
-            incr pageSP
+        if {[regexp {/StructParents\s+(\d+)} [dict get $doc $id full] -> k]} {
+            lappend keys $k
         }
     }
-    list [contains $catalog "/StructTreeRoot"] [contains $catalog "/MarkInfo"] \
-            $pageSP [llength $::pdf4tcl::warnings]
+
+    # Both documents' top level elements hang under one root
+    regexp {/K\s*\[([^\]]*)\]} $st -> kids
+    regexp {/ParentTreeNextKey\s+(\d+)} $st -> nextKey
+
+    list [llength [lsort -unique $keys]] [lsort -integer $keys] \
+            [expr {[llength $kids] / 3}] $nextKey \
+            [llength $::pdf4tcl::warnings]
 } -cleanup {
     foreach f {cat1.pdf cat2.pdf catout.pdf} {
         file delete -force [file join [temporaryDirectory] $f]
     }
     set ::pdf4tcl::warnings {}
-} -result {0 0 0 1}
+} -result {4 {0 1 2 3} 2 4 0}
 
 test tagged-9.2 {catPdf leaves untagged documents alone and stays silent} -body {
     foreach n {1 2} {
@@ -879,5 +896,153 @@ test tagged-14.5 {the message names the open element} -body {
 } -cleanup {
     set ::pdf4tcl::warnings {}
 } -result 1
+
+# -----------------------------------------------------------------------
+# 15.x  Merging structure trees
+# -----------------------------------------------------------------------
+
+proc mkTagged {name pages} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $p tagged 1
+    for {set i 1} {$i <= $pages} {incr i} {
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagText P "$name Seite $i" -x 50 -y 60
+    }
+    $p write -file [file join [temporaryDirectory] $name.pdf]
+    $p destroy
+    return [file join [temporaryDirectory] $name.pdf]
+}
+
+proc mkPlain {name} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "$name" -x 50 -y 60
+    $p write -file [file join [temporaryDirectory] $name.pdf]
+    $p destroy
+    return [file join [temporaryDirectory] $name.pdf]
+}
+
+# Return the /StructParents of every page, in page order
+proc structParents {file} {
+    set doc [::pdf4tcl::cat::ReadPdf $file]
+    set pagesId [lindex [dict get $doc root /Pages] 0]
+    regexp {/Kids\s*\[([^\]]*)\]} [dict get $doc $pagesId full] -> kidsvec
+    set keys {}
+    foreach {id _ _} $kidsvec {
+        if {[regexp {/StructParents\s+(\d+)} [dict get $doc $id full] -> k]} {
+            lappend keys $k
+        } else {
+            lappend keys -
+        }
+    }
+    return $keys
+}
+
+test tagged-15.1 {three documents merge into one tree} -body {
+    set a [mkTagged mrgA 2]
+    set b [mkTagged mrgB 2]
+    set out [file join [temporaryDirectory] mrgOut.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf $a $b $a $out
+    set keys [structParents $out]
+    list [llength $keys] $keys [llength $::pdf4tcl::warnings]
+} -cleanup {
+    foreach f {mrgA.pdf mrgB.pdf mrgOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {6 {0 1 2 3 4 5} 0}
+
+test tagged-15.2 {an untagged document appended to a tagged one warns} -body {
+    # The result keeps the first tree, so the appended pages are outside it.
+    # Legal PDF, not PDF/UA, and worth saying out loud.
+    set a [mkTagged mrgA 1]
+    set b [mkPlain mrgP]
+    set out [file join [temporaryDirectory] mrgOut.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf $a $b $out
+    list [structParents $out] \
+            [string match "*without logical structure was appended*" \
+                    [lindex $::pdf4tcl::warnings 0]]
+} -cleanup {
+    foreach f {mrgA.pdf mrgP.pdf mrgOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {{0 -} 1}
+
+test tagged-15.3 {a tagged document appended to an untagged one warns} -body {
+    # Adopting the second tree would leave the first document's pages
+    # outside it, which is the same half state and harder to notice.
+    set a [mkPlain mrgP]
+    set b [mkTagged mrgA 1]
+    set out [file join [temporaryDirectory] mrgOut.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf $a $b $out
+    set doc [::pdf4tcl::cat::ReadPdf $out]
+    set rootId [lindex [dict get $doc trailer /Root] 0]
+    list [contains [dict get $doc $rootId full] "/StructTreeRoot"] \
+            [string match "*tagged document was appended*" \
+                    [lindex $::pdf4tcl::warnings 0]]
+} -cleanup {
+    foreach f {mrgA.pdf mrgP.pdf mrgOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {0 1}
+
+test tagged-15.4 {two untagged documents merge without a word} -body {
+    set a [mkPlain mrgP1]
+    set b [mkPlain mrgP2]
+    set out [file join [temporaryDirectory] mrgOut.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf $a $b $out
+    list [file exists $out] [llength $::pdf4tcl::warnings]
+} -cleanup {
+    foreach f {mrgP1.pdf mrgP2.pdf mrgOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {1 0}
+
+test tagged-15.5 {annotation keys are shifted along with the page keys} -body {
+    # A page key and an annotation key share one counter, so both have to
+    # move by the same amount or an annotation resolves to the wrong element.
+    foreach n {1 2} {
+        set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
+        $p tagged 1
+        $p startPage
+        $p setFont 12 Helvetica
+        $p tagBegin Link -alt "Link $n"
+        $p tagText Span "here$n" -x 50 -y 60
+        $p hyperlinkAdd 50 58 40 12 "https://example.org/$n"
+        $p tagEnd
+        $p write -file [file join [temporaryDirectory] lnk$n.pdf]
+        $p destroy
+    }
+    set out [file join [temporaryDirectory] lnkOut.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] lnk1.pdf] \
+            [file join [temporaryDirectory] lnk2.pdf] $out
+
+    set doc [::pdf4tcl::cat::ReadPdf $out]
+    set annotKeys {}
+    foreach {key val} $doc {
+        if {![string is digit -strict $key]} continue
+        set obj [dict get $val full]
+        if {[regexp {/Subtype\s*/Link} $obj] &&
+                [regexp {/StructParent\s+(\d+)} $obj -> k]} {
+            lappend annotKeys $k
+        }
+    }
+    list [structParents $out] [lsort -integer $annotKeys]
+} -cleanup {
+    foreach f {lnk1.pdf lnk2.pdf lnkOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {{0 2} {1 3}}
 
 cleanupTests

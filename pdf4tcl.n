@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.39 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.40 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.39?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.40?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1800,12 +1800,27 @@ because that is what a reader announces\&. It is taken from the element's
 Tagging inside an XObject (\fBstartPage\fR with \fB-xobject\fR) is not
 supported and raises an error\&.
 .PP
-\fB::pdf4tcl::catPdf\fR removes the logical structure from tagged input
-documents and notes this in \fB::pdf4tcl::warnings\fR\&. Merging structure
-trees is not implemented: each page carries a \fB/StructParents\fR key
-indexing the parent tree of its own document, and each document numbers its
-pages from zero, so a merge would leave pages resolving to the wrong
-structure elements\&.
+\fB::pdf4tcl::catPdf\fR merges the logical structure of tagged input
+documents\&. Each page carries a \fB/StructParents\fR key indexing the parent
+tree of its own document and each document numbers its pages from zero, so
+the keys of the appended document are shifted, in the parent tree and in
+every \fB/StructParents\fR and \fB/StructParent\fR; the \fB/Document\fR
+subtrees then hang under one \fB/StructTreeRoot\fR\&. MCIDs are not
+renumbered, since they are scoped to one page's content stream and pages are
+not merged\&.
+.PP
+Mixing tagged and untagged input cannot be merged and is reported in
+\fB::pdf4tcl::warnings\fR: appending an untagged document to a tagged one
+leaves its pages outside the tree, and appending a tagged document to an
+untagged one drops its structure, because adopting it would leave the first
+document's pages outside instead\&. Both results are valid PDF and neither is
+PDF/UA conformant\&.
+.PP
+Two properties of \fB::pdf4tcl::catPdf\fR are older than the structure merge
+and matter for the result: the catalog of the first document is kept, so the
+merged file carries its title and not a combined one, and embedded fonts are
+not shared, so each input keeps its own copy\&. The remaining catalog entries,
+such as \fB/AcroForm\fR and \fB/Metadata\fR, are not merged either\&.
 .PP
 Example:
 .CS
@@ -2528,6 +2543,31 @@ AES-256 key at most 31 bits of entropy\&. A document that cannot be written is
 better than one that only appears to be encrypted\&. Read-only; for diagnostics
 only\&.
 .SH CHANGES
+.SS "VERSION 0\&.9\&.4\&.40"
+.PP
+.IP \(bu
+"\fIsrc/cat\&.tcl\fR" (\fBMergeStructure\fR): \fB::pdf4tcl::catPdf\fR
+merges the logical structure of tagged documents instead of dropping it\&. The
+parent tree keys of the appended document are shifted so they stay unique,
+in the tree and in every \fB/StructParents\fR and \fB/StructParent\fR,
+and the \fB/Document\fR subtrees end up under one root\&. Chainable\&.
+.IP \(bu
+MCIDs are deliberately not renumbered: they are scoped to one page's
+content stream, and merging documents does not merge pages, so only the
+parent tree keys have to be unique\&.
+.IP \(bu
+Mixing tagged and untagged input warns rather than producing a half
+tagged document, in both directions\&.
+.IP \(bu
+Two older properties of the merge are now documented: the first
+document's catalog is kept, so its title survives into the result, and
+embedded fonts are not shared between the inputs\&.
+.IP \(bu
+"\fIsrc/cat\&.tcl\fR" (\fBRenumberDict\fR): the reference mapping was not
+passed on, so the redirection of the appended document's Pages object was
+skipped for the trailer, root and info dictionaries\&. It never showed because
+\fBAppendPdf\fR rebuilds the Pages object afterwards\&.
+.PP
 .SS "VERSION 0\&.9\&.4\&.39"
 .PP
 .IP \(bu

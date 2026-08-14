@@ -1,5 +1,53 @@
 2026-08-13 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.40
+	* src/cat.tcl (MergeStructure): pdf4tcl::catPdf merges the logical
+	structure of tagged input documents. Since 0.9.4.36 it dropped the
+	structure and warned, because both documents number their pages from
+	zero and a naive merge left pages resolving to the wrong elements.
+	AppendPdf already renumbers every object of the appended document, so
+	its structure tree arrives intact and only needs joining: the
+	/Document children of the second root are appended to the first root's
+	/K with their /P redirected, the parent tree keys of the second
+	document are shifted by the first document's /ParentTreeNextKey in the
+	tree and in every /StructParents on a page and /StructParent on an
+	annotation, and the two /Nums arrays are merged and sorted, since
+	ISO 32000-1 clause 7.9.7 requires increasing keys.
+	* src/cat.tcl: MCIDs are deliberately not renumbered. They are scoped
+	to the content stream of one page, and merging documents does not merge
+	pages, so an MCID of 0 in one document never meets an MCID of 0 in the
+	other; only the parent tree keys have to be unique. Measured on two
+	two-page documents, both using keys 0 and 1 beforehand: the result has
+	four pages with keys 0 to 3, two /Document subtrees under one root, and
+	tools/check-tagged.py reports the content of both documents. Chaining
+	three documents gives six pages with keys 0 to 5.
+	* src/cat.tcl: mixing tagged and untagged input cannot be merged and is
+	reported in ::pdf4tcl::warnings, in both directions. Appending an
+	untagged document to a tagged one leaves its pages outside the tree;
+	appending a tagged document to an untagged one drops its structure,
+	because adopting it would leave the first document's pages outside
+	instead, which is the same half state and harder to notice. Both
+	results are valid PDF and neither is PDF/UA conformant.
+	* src/cat.tcl (RenumberDict): the reference mapping was accepted as an
+	argument and then not passed on to RenumberRef, so the redirection of
+	the appended document's Pages object was silently skipped for the
+	trailer, root and info dictionaries. It never showed because AppendPdf
+	rebuilds the Pages object afterwards.
+	* Two properties of catPdf that predate the structure merge are now in
+	the documentation, because they matter once the result is meant to be
+	PDF/UA: the catalog of the first document is kept, so the merged file
+	carries its dc:title and a reader announces the wrong one -- measured,
+	merging "Teil 1" and "Teil 2" gives a document titled "Teil 1" -- and
+	embedded fonts are not shared, so two 24729 byte documents merge into
+	49296 bytes with two /FontFile2 objects.
+	* tests/tagged.test: tagged-9.1 asserted that catPdf removes the
+	structure and now asserts the merge; five tests added for chaining,
+	the two mixed cases, two untagged documents and the shifting of
+	annotation keys. 57 tests, all green. With the merge disabled, ten
+	assertions fail.
+
+2026-08-13 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.39
 	* src/color.tcl: new. GetColor, the color setters, setBgColor and the
 	RGB/CMYK conversions moved here from src/main.tcl and

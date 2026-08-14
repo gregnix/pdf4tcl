@@ -1,3 +1,77 @@
+## Merging tagged documents
+
+`pdf4tcl::catPdf` merges the logical structure of the input documents.
+
+`AppendPdf` already renumbers every object of the second document, so its
+structure tree arrives intact, just detached. What the merge adds:
+
+* the `/Document` children of the second root are appended to the first
+  root's `/K`, and their `/P` is redirected
+* the parent tree keys of the second document are shifted by the first
+  document's `/ParentTreeNextKey`, in the tree itself and in every
+  `/StructParents` on a page and `/StructParent` on an annotation
+* the two `/Nums` arrays are merged and sorted, since ISO 32000-1
+  clause 7.9.7 requires increasing keys
+
+**MCIDs are deliberately not renumbered.** They are scoped to the content
+stream of one page, and merging documents does not merge pages, so an MCID
+of 0 in one document never meets an MCID of 0 in the other. Only the parent
+tree keys have to be unique across the result. Measured on two two-page
+documents, both using keys 0 and 1 before the merge: the result has four
+pages with keys 0, 1, 2, 3, two `/Document` subtrees under one root, and
+`tools/check-tagged.py` reports the full content of both documents.
+
+Merging is chainable -- three documents give six pages with keys 0 to 5 and
+three subtrees.
+
+### When only one side is tagged
+
+| combination | result |
+|---|---|
+| tagged + tagged | merged, no warning |
+| tagged + untagged | first tree kept, warning |
+| untagged + tagged | second structure dropped, warning |
+| untagged + untagged | nothing to do, no warning |
+
+The third row is the one worth explaining. Adopting the appended tree would
+leave the first document's pages outside it, which is the same half state as
+the second row but harder to notice, so the structure is dropped instead. In
+both mixed cases the result is legal PDF and not PDF/UA conformant, and the
+warning says which.
+
+Both mixed cases append a note to `::pdf4tcl::warnings`, so check them after
+a merge:
+
+```tcl
+set ::pdf4tcl::warnings {}
+pdf4tcl::catPdf a.pdf b.pdf out.pdf
+foreach w $::pdf4tcl::warnings { puts stderr $w }
+```
+
+### What a merge does not do
+
+Two properties of `catPdf` predate this work and apply to untagged merges as
+well, but they matter more once the result is meant to be PDF/UA:
+
+**The metadata of the first document wins.** `catPdf` keeps the first
+catalog, so the merged file carries the first document's `dc:title` --
+measured, merging "Teil 1" and "Teil 2" gives a document titled "Teil 1".
+PDF/UA is satisfied, because *a* title is present and `/DisplayDocTitle` is
+set, but a reader announces the wrong one. There is no way to correct it
+through `catPdf`, which reads and writes files without a pdf4tcl object. Where
+the title matters, either build the whole document in one run instead of
+merging, or fix the title afterwards with another tool.
+
+**Embedded fonts are not shared.** Each input keeps its own font program.
+Measured: two documents of 24729 bytes, each embedding FreeSans once, merge
+into 49296 bytes with two `/FontFile2` objects. Merging twenty chapters
+embeds the font twenty times. Nothing is wrong with the result, it is just
+larger than it needs to be.
+
+The rest of the catalog -- `AcroForm`, `Metadata` and the other entries --
+is not merged either; that carries a TODO in `src/cat.tcl` and predates this
+work.
+
 # Tagged PDF in pdf4tcl
 
 Added in 0.9.4.36, extended with annotation support in 0.9.4.37.
@@ -297,7 +371,7 @@ in every combination; the totals are only comparable within one environment.
 
 Tcl 8.6.14:
 
-- `tests/tagged.test`: 52 cases, all green.
+- `tests/tagged.test`: 57 cases, all green.
 - Full suite `tests/all.tcl`: 851 total, 827 passed, 24 skipped, 0 failed.
 
 Tcl 9.0.4 (built from `core-9-0-4`):
@@ -338,33 +412,6 @@ positives (`dict set attrs`, `dict set props`) are silenced with
 `##nagelfar ignore`. Note that the directive applies to the following line
 only, not to the enclosing block.
 
-## Merging tagged documents
-
-`pdf4tcl::catPdf` removes the logical structure and appends a note to
-`::pdf4tcl::warnings`.
-
-This is not caution, it is a repair. Every page carries a `/StructParents`
-key indexing the parent tree of its own document, and every document numbers
-its pages from 0. `AppendPdf` keeps the first document's catalog, so the
-merged file claimed to be tagged while the second document's pages pointed
-into the first document's parent tree. Measured on two one-page documents:
-two pages both carrying `/StructParents 0`, a structure tree holding only the
-first document's heading, the second document's content orphaned, and no
-error raised anywhere.
-
-A file that lies about its structure is worse than one that has none: a
-screen reader trusts `/MarkInfo` and reads the wrong tree instead of falling
-back to the paint order.
-
-The orphaned `StructElem` objects stay in the file. Removing them would mean
-renumbering every object again; unreferenced, they are inert. This is why
-`tests/tagged.test` reads the catalog back with `pdf4tcl::cat::ReadPdf`
-instead of searching the raw bytes, which would still find their
-`/Type /StructTreeRoot`.
-
-Proper merging needs the parent trees remapped and the two `/Document`
-subtrees combined under one root. Not implemented.
-
 ## Open
 
 - Untagged content stays untagged. That is legal PDF but not PDF/UA
@@ -376,7 +423,6 @@ subtrees combined under one root. Not implemented.
   Other attribute owners (`/Layout`, `/PrintField`) are not implemented.
 - Tagging inside an XObject (`startPage -xobject 1`) is refused rather than
   supported.
-- `catPdf` discards structure rather than merging it, see above.
 - Not checked with a real screen reader. veraPDF verifies that the file obeys
   the standard; it cannot tell whether the tagging is *sensible*. A document
   where every paragraph is `/P` and every heading is `/H1` passes just as

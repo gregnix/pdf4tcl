@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.39
+package provide pdf4tcl 0.9.4.40
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -11983,7 +11983,11 @@ proc pdf4tcl::cat::RenumberRef {val delta {refmapping {}}} {
 # renumber Tcl dict version of a dict
 proc pdf4tcl::cat::RenumberDict {d delta {refmapping {}}} {
     foreach {key val} $d {
-        dict set d $key [RenumberRef $val $delta]
+        # refmapping has to be passed on. Without it the redirection of
+        # pdf2's Pages object to pdf1's was silently skipped for the
+        # trailer, root and info dictionaries -- the only reason it never
+        # showed is that AppendPdf rebuilds the Pages object afterwards.
+        dict set d $key [RenumberRef $val $delta $refmapping]
     }
     return $d
 }
@@ -12071,6 +12075,15 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
         # How to do this???
         #puts $d1
         #puts $d2
+    }
+
+    # Merge the logical structure before the objects are transferred, since
+    # it rewrites objects on both sides.
+    set merged [MergeStructure $pdf1 $pdf2]
+    if {[llength $merged] == 2} {
+        lassign $merged pdf1 pdf2
+    } else {
+        set pdf1 $merged
     }
 
     # Transfer all objects from 2 to 1
@@ -12186,7 +12199,8 @@ proc pdf4tcl::catPdf {args} {
         #pdf4tcl::cat::Dump $pdf2
         set pdf1 [pdf4tcl::cat::AppendPdf $pdf1 $pdf2]
     }
-    set pdf1 [pdf4tcl::cat::StripStructure $pdf1]
+    # Structure trees are merged in AppendPdf. StripStructure remains for the
+    # case where the merge could not be completed; it is called from there.
     pdf4tcl::cat::WritePdf $outfile $pdf1
 }
 
@@ -12208,6 +12222,177 @@ proc pdf4tcl::catPdf {args} {
 #
 # Proper merging needs the parent trees remapped and the two /Document
 # subtrees combined under one root. See TAGGED.md.
+# Merge the logical structure of pdf2 into pdf1.
+#
+# Called from AppendPdf after pdf2 has been renumbered, so every object of
+# pdf2 already carries its final number and its internal references are
+# consistent. What is left to do is join the two trees:
+#
+#   1. the /Document children of pdf2's StructTreeRoot are appended to
+#      pdf1's /K, and their /P is redirected to pdf1's root
+#   2. the parent tree keys of pdf2 are shifted by pdf1's
+#      /ParentTreeNextKey, in the tree itself and in every /StructParents
+#      on a page and /StructParent on an annotation
+#   3. the two /Nums arrays are merged and sorted -- ISO 32000-1 clause
+#      7.9.7 requires increasing keys
+#
+# MCIDs are deliberately NOT renumbered. They are scoped to the content
+# stream of one page, and merging documents does not merge pages, so an MCID
+# of 0 on a page of pdf1 and an MCID of 0 on a page of pdf2 never meet. Only
+# the parent tree keys have to be unique across the result.
+#
+# Returns the merged pdf1, or the unchanged pdf1 if there is nothing to do.
+proc pdf4tcl::cat::MergeStructure {pdf1 pdf2} {
+    set root1 [lindex [dict get $pdf1 trailer /Root] 0]
+    set root2 [lindex [dict get $pdf2 trailer /Root] 0]
+    if {![dict exists $pdf1 $root1] || ![dict exists $pdf2 $root2]} {
+        return $pdf1
+    }
+    set cat1 [dict get $pdf1 $root1 full]
+    set cat2 [dict get $pdf2 $root2 full]
+
+    set has1 [regexp {/StructTreeRoot\s+(\d+)\s+0\s+R} $cat1 -> st1]
+    set has2 [regexp {/StructTreeRoot\s+(\d+)\s+0\s+R} $cat2 -> st2]
+
+    if {!$has2} {
+        # Nothing to bring over. If pdf1 is tagged its tree stays valid; the
+        # pages coming from pdf2 simply carry no structure, which is legal
+        # but not PDF/UA conformant.
+        if {$has1} {
+            lappend ::pdf4tcl::warnings "catPdf: a document without logical\
+                    structure was appended to a tagged one. The result keeps\
+                    the structure of the first document, so the appended\
+                    pages are not in the tree."
+        }
+        return $pdf1
+    }
+    if {!$has1} {
+        # pdf1 untagged, pdf2 tagged. Adopting pdf2's tree would leave
+        # pdf1's pages outside it, which is the same half state as above and
+        # harder to see. Drop pdf2's structure instead and say so.
+        lappend ::pdf4tcl::warnings "catPdf: a tagged document was appended\
+                to one without logical structure. The structure of the\
+                appended document was dropped, because keeping it would\
+                leave the first document's pages outside the tree."
+        return $pdf1
+    }
+
+    # --- the two structure tree roots ------------------------------------
+    set body1 [dict get $pdf1 $st1 full]
+    set body2 [dict get $pdf2 $st2 full]
+
+    if {![regexp {/K\s*\[([^\]]*)\]} $body1 -> kids1]} { set kids1 "" }
+    if {![regexp {/K\s*\[([^\]]*)\]} $body2 -> kids2]} { set kids2 "" }
+
+    # Every top level element of pdf2 now hangs under pdf1's root
+    foreach {oid _ _} $kids2 {
+        if {![dict exists $pdf2 $oid]} continue
+        set elem [dict get $pdf2 $oid full]
+        regsub {/P\s+\d+\s+0\s+R} $elem "/P $st1 0 R" elem
+        ##nagelfar ignore Found constant
+        dict set pdf2 $oid full $elem
+    }
+
+    # --- parent tree keys -------------------------------------------------
+    set next1 0
+    regexp {/ParentTreeNextKey\s+(\d+)} $body1 -> next1
+    set next2 0
+    regexp {/ParentTreeNextKey\s+(\d+)} $body2 -> next2
+
+    set pt1 ""
+    set pt2 ""
+    regexp {/ParentTree\s+(\d+)\s+0\s+R} $body1 -> pt1
+    regexp {/ParentTree\s+(\d+)\s+0\s+R} $body2 -> pt2
+    if {$pt1 eq "" || $pt2 eq ""} {
+        lappend ::pdf4tcl::warnings "catPdf: a structure tree without a\
+                /ParentTree was found. The structure of the appended document\
+                was dropped."
+        return $pdf1
+    }
+
+    # Shift /StructParents on pages and /StructParent on annotations of pdf2
+    foreach {key val} $pdf2 {
+        if {![string is digit -strict $key]} continue
+        set obj [dict get $val full]
+        set changed 0
+        if {[regexp {/StructParents\s+(\d+)} $obj -> old]} {
+            regsub {/StructParents\s+\d+} $obj \
+                    "/StructParents [expr {$old + $next1}]" obj
+            set changed 1
+        }
+        if {[regexp {/StructParent\s+(\d+)} $obj -> old]} {
+            regsub {/StructParent\s+\d+} $obj \
+                    "/StructParent [expr {$old + $next1}]" obj
+            set changed 1
+        }
+        if {$changed} {
+            ##nagelfar ignore Found constant
+            dict set pdf2 $key full $obj
+        }
+    }
+
+    # Merge the two number trees
+    set nums [dict merge [ParseNums [dict get $pdf1 $pt1 full]] \
+            [ShiftNums [ParseNums [dict get $pdf2 $pt2 full]] $next1]]
+    set out ""
+    foreach key [lsort -integer [dict keys $nums]] {
+        append out "$key [dict get $nums $key]\n"
+    }
+    dict set pdf1 $pt1 full "$pt1 0 obj\n<</Nums \[\n$out\]>>\nendobj"
+
+    # --- write back the merged root --------------------------------------
+    set kids [string trim "$kids1 $kids2"]
+    set body "$st1 0 obj\n<</Type /StructTreeRoot\n"
+    append body "/K \[$kids\]\n"
+    append body "/ParentTree $pt1 0 R\n"
+    append body "/ParentTreeNextKey [expr {$next1 + $next2}]\n"
+    append body ">>\nendobj"
+    dict set pdf1 $st1 full $body
+
+    # pdf2's own StructTreeRoot and ParentTree objects are now unreferenced.
+    # They stay in the file; removing them would mean renumbering everything
+    # again, and unreferenced objects are inert.
+    dict set pdf1 __mergedstructure 1
+    return [list $pdf1 $pdf2]
+}
+
+# Parse the /Nums array of a number tree into a key -> value dict.
+# The value is kept as written, since it is either an array of references or
+# a single reference and both are copied verbatim.
+proc pdf4tcl::cat::ParseNums {obj} {
+    if {![regexp {/Nums\s*\[(.*)\]\s*>>} $obj -> body]} {
+        return {}
+    }
+    set res {}
+    # Entries are "key [refs]" or "key n 0 R"
+    set rest [string trim $body]
+    while {[regexp {^(\d+)\s*(.*)$} $rest -> key rest]} {
+        set rest [string trimleft $rest]
+        if {[string index $rest 0] eq "\["} {
+            set close [string first "\]" $rest]
+            set val [string range $rest 0 $close]
+            set rest [string range $rest $close+1 end]
+        } elseif {[regexp {^(\d+\s+0\s+R)\s*(.*)$} $rest -> val rest]} {
+            # single reference
+        } else {
+            break
+        }
+        ##nagelfar ignore Found constant
+        dict set res $key [string trim $val]
+        set rest [string trimleft $rest]
+    }
+    return $res
+}
+
+proc pdf4tcl::cat::ShiftNums {nums delta} {
+    set res {}
+    foreach {key val} $nums {
+        ##nagelfar ignore Found constant
+        dict set res [expr {$key + $delta}] $val
+    }
+    return $res
+}
+
 proc pdf4tcl::cat::StripStructure {pdfd} {
     set rootId [lindex [dict get $pdfd trailer /Root] 0]
     if {![dict exists $pdfd $rootId]} {

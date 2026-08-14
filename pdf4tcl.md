@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.39?**
+package require **pdf4tcl ?0****.9****.4****.40?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -999,7 +999,11 @@ PDF/UA additionally requires a link annotation to carry **/Contents**, because t
 
 Tagging inside an XObject (**startPage** with **-xobject**) is not supported and raises an error.
 
-**::pdf4tcl::catPdf** removes the logical structure from tagged input documents and notes this in **::pdf4tcl::warnings**. Merging structure trees is not implemented: each page carries a **/StructParents** key indexing the parent tree of its own document, and each document numbers its pages from zero, so a merge would leave pages resolving to the wrong structure elements.
+**::pdf4tcl::catPdf** merges the logical structure of tagged input documents. Each page carries a **/StructParents** key indexing the parent tree of its own document and each document numbers its pages from zero, so the keys of the appended document are shifted, in the parent tree and in every **/StructParents** and **/StructParent**; the **/Document** subtrees then hang under one **/StructTreeRoot**. MCIDs are not renumbered, since they are scoped to one page's content stream and pages are not merged.
+
+Mixing tagged and untagged input cannot be merged and is reported in **::pdf4tcl::warnings**: appending an untagged document to a tagged one leaves its pages outside the tree, and appending a tagged document to an untagged one drops its structure, because adopting it would leave the first document's pages outside instead. Both results are valid PDF and neither is PDF/UA conformant.
+
+Two properties of **::pdf4tcl::catPdf** are older than the structure merge and matter for the result: the catalog of the first document is kept, so the merged file carries its title and not a combined one, and embedded fonts are not shared, so each input keeps its own copy. The remaining catalog entries, such as **/AcroForm** and **/Metadata**, are not merged either.
 
 Example:
 
@@ -1405,6 +1409,22 @@ Reset before each document with **set ::pdf4tcl::warnings {}**. The PDF is gener
 These bytes are the AES file key, the initialisation vectors and the salts, so they must come from a cryptographic source. If none of the three is available the encryption raises an error rather than falling back to **expr rand()**, whose 31 bit state seeded from the clock would give an AES-256 key at most 31 bits of entropy. A document that cannot be written is better than one that only appears to be encrypted. Read-only; for diagnostics only.
 
 ## CHANGES
+
+### VERSION 0.9.4.40
+
+- merges the logical structure of tagged documents instead of dropping it. The parent tree keys of the appended document are shifted so they stay unique, in the tree and in every **/StructParents** and **/StructParent**, and the **/Document** subtrees end up under one root. Chainable.
+- MCIDs are deliberately not renumbered: they are scoped to one page's content stream, and merging documents does not merge pages, so only the parent tree keys have to be unique.
+- Mixing tagged and untagged input warns rather than producing a half tagged document, in both directions.
+- Two older properties of the merge are now documented: the first document's catalog is kept, so its title survives into the result, and embedded fonts are not shared between the inputs.
+- passed on, so the redirection of the appended document's Pages object was skipped for the trailer, root and info dictionaries. It never showed because **AppendPdf** rebuilds the Pages object afterwards.
+
+### VERSION 0.9.4.39
+
+- RGB/CMYK conversions moved out of "*src/main**.tcl*" and **::pdf4tcl::cmyk2Rgb** keep their namespace and stay overridable.
+- Color components are range checked. Values outside 0.0 to 1.0 used to be written verbatim as operands of **rg**, **RG**, **k** or **K**, where ISO 32000-1 clause 8.6.4 requires that range. Readers clamp them silently, so the document simply had the wrong color and no tool complained. They now raise an error.
+- The 147 standard color names are resolved from a built-in table instead of **winfo rgb**, which needs Tk and a display. Color names now work in a headless script. Names outside the table still ask Tk.
+- Gradients use the same color pipeline as everything else. The separate parser knew eight names plus hex, so **linearGradient** accepted strictly less than **setFillColor** in the same document; CMYK lists and names such as **navy** were errors. The shading also declares **/DeviceCMYK** rather than always **/DeviceRGB** when the document is CMYK.
+- Tagged PDF: an annotation created while no **Link** or **Annot** element is open is reported in **::pdf4tcl::warnings**. Such an annotation is not reachable from the structure tree -- the link still works when clicked, but assistive technology never sees it, and PDF/UA rule 7.18 cannot be met. Reported once per document.
 
 ### VERSION 0.9.4.38
 

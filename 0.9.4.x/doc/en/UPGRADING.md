@@ -9,6 +9,20 @@ not listed here -- see the CHANGES section in the manpage.
 
 ---
 
+## From any version to 0.9.4.40
+
+`pdf4tcl::catPdf` merges the logical structure of tagged input documents
+instead of dropping it. Nothing in the API changes; the result simply keeps
+its structure where it used to lose it.
+
+Two cases still cannot be merged and warn in `::pdf4tcl::warnings`: an
+untagged document appended to a tagged one, and a tagged one appended to an
+untagged one. Code that relied on the structure being dropped -- there is no
+good reason for that, but it was the behaviour of 0.9.4.36 to 0.9.4.39 --
+gets a tagged result now.
+
+---
+
 ## From any version to 0.9.4.39
 
 **Color components are now range checked.** This is the one change here that
@@ -286,6 +300,7 @@ Available feature names:
 
 | Feature | Available since | Description |
 |---------|----------------|-------------|
+| `struct-merge` | 0.9.4.40 | catPdf merges structure trees |
 | `color-range` | 0.9.4.39 | color components validated, names without Tk, gradients share the pipeline |
 | `tagged-annot` | 0.9.4.37 | `tagBegin Link/Annot`, `/OBJR`, `-listnumbering`, `-id`, `-headers` |
 | `tagged` | 0.9.4.36 | Tagged PDF: `tagged`, `tagBegin`, `tagEnd`, `tagText`, `tagArtifact` |
