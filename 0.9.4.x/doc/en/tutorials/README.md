@@ -10,6 +10,7 @@ to pdf4tcl; otherwise pick the one that matches the job.
 | 3 | `tutorial-03-accessible-pdf.md` | Tagged PDF/UA-1 sketch | `demo-tagged.tcl` |
 | 4 | `tutorial-04-forms.md` | Order form with calculated sum | `demo-forms-calc.tcl` |
 | 5 | `tutorial-05-graphics-lab.md` | Alpha + gradient + transform | `demo-alpha` / `gradients` / `transform` |
+| 6 | `tutorial-06-assemble-pack.md` | Reading pack: images + text + catPdf | — |
 
 After these, use the feature guides in the parent directory and the recipes
 under `../howtos/`. Full demo list: `0.9.4.x/demo/run-all-demos.tcl`.

@@ -18,6 +18,7 @@ Full index: [`tutorials/README.md`](tutorials/README.md) (assumes **0.9.4.41+**)
 | [`tutorial-03-accessible-pdf.md`](tutorials/tutorial-03-accessible-pdf.md) | Tagged PDF/UA-1 sketch with a link |
 | [`tutorial-04-forms.md`](tutorials/tutorial-04-forms.md) | Order form with calculated sum |
 | [`tutorial-05-graphics-lab.md`](tutorials/tutorial-05-graphics-lab.md) | Alpha + gradient + transform |
+| [`tutorial-06-assemble-pack.md`](tutorials/tutorial-06-assemble-pack.md) | Reading pack from images, text, PDFs |
 
 ## How-tos
 
@@ -30,7 +31,7 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 | Text / fonts | `howto-unicode.md`, `howto-otf.md`, `howto-shapes.md` |
 | Colour / graphics | `howto-colors.md` (0.9.4.39+), `howto-cmyk.md`, `howto-alpha.md`, `howto-gradients.md`, `howto-transform.md` |
 | Standards | `howto-pdfa.md` (a-levels since **0.9.4.41**), `howto-catpdf.md` (**0.9.4.40**), `howto-validate.md`, `howto-facturx.md` |
-| Navigation | `howto-links-and-bookmarks.md`, `howto-headers-footers.md` |
+| Navigation | `howto-links-and-bookmarks.md`, `howto-headers-footers.md`, `howto-assemble-pack.md` |
 | Security | `howto-encrypt.md`, `howto-permissions.md`, `howto-encrypted-forms.md` |
 | Structure | `howto-layers.md`, `howto-annotations.md` |
 | Forms / files | `howto-forms.md`, `howto-embed-file.md`, `howto-images.md` |

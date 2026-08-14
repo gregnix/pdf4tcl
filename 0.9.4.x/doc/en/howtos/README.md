@@ -18,6 +18,7 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-otf.md` | OpenType/CFF fonts? | `demo-otf.tcl` |
 | `howto-pdfa.md` | PDF/A-1b/2b/3b and 1a/2a/3a? | `demo-pdfa.tcl`, `demo-pdfa-gs.tcl` |
 | `howto-catpdf.md` | Merge PDFs / keep tags? | (API `catPdf`; see TAGGED.md) |
+| `howto-assemble-pack.md` | Reading pack from images+text+PDFs? | `tutorial-06-assemble-pack.tcl` |
 | `howto-validate.md` | Check the PDF? | (tools) |
 | `howto-links-and-bookmarks.md` | URLs and outline? | (annotations / bookmarks) |
 | `howto-headers-footers.md` | Repeating chrome? | `demo-tagged.tcl` (artifacts) |
