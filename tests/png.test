@@ -9,7 +9,11 @@ source [file join $thisDir init.tcl]
 # "PNG Suite from Willem van Schaik" available from libpng.org
 
 set ::pngdir [file join $thisDir pngsuite]
-if {![file exists [file join $::pngdir basn0g01.png]]} return
+# A "return" here would leave the file out of the count and, with Tk
+# loaded by init.tcl, skip the exit that cleanupTests performs -- the
+# process then waits for a main window that never appears.
+tcltest::testConstraint pngsuite \
+        [file exists [file join $::pngdir basn0g01.png]]
 
 proc JpegReference {file} {
     set jpeg [file rootname $file].jpg
@@ -82,7 +86,7 @@ proc TestPngFail {args} {
 # basn6a08    -   3x8 bits rgb color + 8 bit alpha-channel
 # basn6a16    -   3x16 bits rgb color + 16 bit alpha-channel
 
-test png-1.1 {png} -body {
+test png-1.1 {png} -constraints pngsuite -body {
     TestPng basn0g01.png basn0g02.png basn0g04.png basn0g08.png basn0g16.png \
             basn2c08.png basn2c16.png \
             basn3p01.png basn3p02.png basn3p04.png basn3p08.png \
@@ -90,13 +94,13 @@ test png-1.1 {png} -body {
             basn6a08.png basn6a16.png
 } -result 1
 
-test png-1.2 {png, unsupported colour modes} -body {
+test png-1.2 {png, unsupported colour modes} -constraints pngsuite -body {
     TestPngFail \
              \
 
 } -result {}
 
-test png-1.3 {png, interlaced unsupported} -body {
+test png-1.3 {png, interlaced unsupported} -constraints pngsuite -body {
     TestPngFail \
         basi0g01.png \
         basi0g02.png \
@@ -115,7 +119,7 @@ test png-1.3 {png, interlaced unsupported} -body {
         basi6a16.png
 } -result {}
 
-test png-1.4 {png, bad file} -body {
+test png-1.4 {png, bad file} -constraints pngsuite -body {
     TestPngFail \
             x00n0g01.png \
             xcrn0g04.png \

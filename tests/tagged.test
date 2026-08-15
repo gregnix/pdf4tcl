@@ -58,6 +58,8 @@ proc inflatedStreams {data} {
 # 1.x  Off by default -- no cost for untagged documents
 # -----------------------------------------------------------------------
 
+testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
+
 test tagged-1.1 {untagged document has no structure tree} -body {
     set data [taggedPdf {
         $p startPage
@@ -1137,5 +1139,87 @@ test tagged-12.21 {a form field outside any element is still reported} -body {
 } -cleanup {
     set ::pdf4tcl::warnings {}
 } -result {1 1}
+
+# -----------------------------------------------------------------------
+# 17.x  Folding identical objects
+# -----------------------------------------------------------------------
+
+test tagged-17.1 {an embedded font survives a merge only once} -constraints \
+        FreeSans -body {
+    # Merging documents built from the same template duplicates everything
+    # they share. Measured before: two documents of 28961 bytes, each
+    # embedding FreeSans, produced 57757 bytes with the font twice in it.
+    ::pdf4tcl::loadBaseTrueTypeFont BaseDup "../examples/FreeSans.ttf"
+    ::pdf4tcl::createFont BaseDup DupFont iso8859-1
+    foreach n {1 2} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -margin 40]
+        $p startPage
+        $p setFont 12 DupFont
+        $p text "Teil $n" -x 0 -y 20
+        $p write -file [file join [temporaryDirectory] dup$n.pdf]
+        $p destroy
+    }
+    set out [file join [temporaryDirectory] dupOut.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] dup1.pdf] \
+            [file join [temporaryDirectory] dup2.pdf] $out
+
+    set fh [open $out rb]
+    set data [read $fh]
+    close $fh
+    # every /FontFile2 reference must name the same object
+    set targets {}
+    foreach {- num} [regexp -all -inline {/FontFile2 (\d+) 0 R} $data] {
+        lappend targets $num
+    }
+    list [llength $targets] [llength [lsort -unique $targets]]
+} -cleanup {
+    foreach f {dup1.pdf dup2.pdf dupOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+} -result {2 1}
+
+test tagged-17.2 {folding leaves the object numbering dense} -body {
+    # WritePdf writes one xref entry per number from 1 to N and has no way to
+    # skip a hole -- its own comment says "TBD handle missing objects?". So
+    # the fold renumbers rather than leaving gaps.
+    set a [mkTagged foldA 1]
+    set b [mkTagged foldB 1]
+    set out [file join [temporaryDirectory] foldOut.pdf]
+    ::pdf4tcl::catPdf $a $b $out
+    set doc [::pdf4tcl::cat::ReadPdf $out]
+    set nums {}
+    foreach key [dict keys $doc] {
+        if {[string is digit -strict $key]} { lappend nums $key }
+    }
+    set nums [lsort -integer $nums]
+    # first is 1 and there is no gap
+    set gaps 0
+    set prev 0
+    foreach n $nums {
+        if {$n != $prev + 1} { incr gaps }
+        set prev $n
+    }
+    set gaps
+} -cleanup {
+    foreach f {foldA.pdf foldB.pdf foldOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+test tagged-17.3 {the structure survives the fold} -body {
+    # The fold rewrites every reference in the file, so the parent tree and
+    # the page keys have to come through it intact.
+    set a [mkTagged foldA 2]
+    set b [mkTagged foldB 2]
+    set out [file join [temporaryDirectory] foldOut.pdf]
+    ::pdf4tcl::catPdf $a $b $out
+    structParents $out
+} -cleanup {
+    foreach f {foldA.pdf foldB.pdf foldOut.pdf} {
+        file delete -force [file join [temporaryDirectory] $f]
+    }
+    set ::pdf4tcl::warnings {}
+} -result {0 1 2 3}
 
 cleanupTests

@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09442
+VERSION = 09443
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -134,8 +134,7 @@ verify:
 bump:
 	@$(TCLSH) tools/bump.tcl \
 	    $(if $(TO),--to $(TO),) \
-	    $(if $(MSG),--msg "$(MSG)",) \
-	    --no-test
+	    $(if $(MSG),--msg "$(MSG)",)
 
 bump-git:
 	@$(TCLSH) tools/bump.tcl \

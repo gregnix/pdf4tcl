@@ -138,6 +138,14 @@ oo::define ::pdf4tcl::options {
         }
     }
 
+    method CheckMarkStyle {option value} {
+        if {$value ni {auto font vector}} {
+            throw {PDF4TCL} \
+                "invalid -markstyle value \"$value\": must be \"auto\",\
+                \"font\" or \"vector\""
+        }
+    }
+
     # Validator for -pdfa.
     #
     # The "a" levels additionally require tagged PDF, a language and Unicode

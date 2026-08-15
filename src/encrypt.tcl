@@ -817,7 +817,17 @@ $b = New-Object byte\[\] $n; $rng.GetBytes($b); \
         set plaintext [string range $body $sstart ${send}-1]
         set ciphertext [my EncryptBytes $oid $plaintext]
         set newlen [string length $ciphertext]
-        set newbody [string replace $body $sstart ${send}-1 $ciphertext]
+        # Zusammensetzen statt [string replace]: bei einem leeren Stream ist
+        # send == sstart, also last == first-1, und "string replace" laesst
+        # den String dann unveraendert -- der Chiffretext fiele weg, waehrend
+        # /Length darunter auf seine Laenge gesetzt wird. Das Ergebnis war
+        # "/Length 32" ueber null Bytes: jeder Leser oeffnet die Datei, qpdf
+        # meldet "expected endstream" und stellt die Laenge selbst richtig.
+        # Leere Streams entstehen seit 0.9.4.42 durch Erscheinungswoerter-
+        # buecher von Feldern ohne Anfangswert.
+        set newbody [string range $body 0 ${sstart}-1]
+        append newbody $ciphertext
+        append newbody [string range $body $send end]
         # /Length kann direkt (/Length 123) oder indirekt (/Length 6 0 R) sein.
         # Indirekten Fall vollstaendig ersetzen (inkl. "N 0 R").
         # Direkten Fall einfach ersetzen.

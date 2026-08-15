@@ -18,7 +18,7 @@ Full index: [`tutorials/README.md`](tutorials/README.md) (assumes **0.9.4.41+**)
 | [`tutorial-03-accessible-pdf.md`](tutorials/tutorial-03-accessible-pdf.md) | Tagged PDF/UA-1 sketch with a link |
 | [`tutorial-04-forms.md`](tutorials/tutorial-04-forms.md) | Order form with calculated sum |
 | [`tutorial-05-graphics-lab.md`](tutorials/tutorial-05-graphics-lab.md) | Alpha + gradient + transform |
-| [`tutorial-06-assemble-pack.md`](tutorials/tutorial-06-assemble-pack.md) | Reading pack from images, text, PDFs |
+| [`tutorial-07-multilingual.md`](tutorials/tutorial-07-multilingual.md) | One page in five scripts, and where the font gives up |
 
 ## How-tos
 
@@ -28,10 +28,11 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 | Cluster | Examples |
 |---|---|
 | Demos / reference | `howto-run-demos.md`, `howto-feature-tour.md`, `howto-cheatsheets.md`, `howto-stdfonts.md`, `howto-symbols.md` |
-| Text / fonts | `howto-unicode.md`, `howto-otf.md`, `howto-shapes.md` |
+| Text / fonts | `howto-unicode.md`, `howto-otf.md`, `howto-font-coverage.md`, `howto-shapes.md` |
 | Colour / graphics | `howto-colors.md` (0.9.4.39+), `howto-cmyk.md`, `howto-alpha.md`, `howto-gradients.md`, `howto-transform.md` |
 | Standards | `howto-pdfa.md` (a-levels since **0.9.4.41**), `howto-catpdf.md` (**0.9.4.40**), `howto-validate.md`, `howto-facturx.md` |
-| Navigation | `howto-links-and-bookmarks.md`, `howto-headers-footers.md`, `howto-assemble-pack.md` |
+| Fonts / Unicode | `pdf4tcl-fonts-and-unicode.md`, `howto-font-coverage.md`, `howto-unicode.md`, `howto-stdfonts.md` |
+| Navigation | `howto-links-and-bookmarks.md`, `howto-headers-footers.md` |
 | Security | `howto-encrypt.md`, `howto-permissions.md`, `howto-encrypted-forms.md` |
 | Structure | `howto-layers.md`, `howto-annotations.md` |
 | Forms / files | `howto-forms.md`, `howto-embed-file.md`, `howto-images.md` |
@@ -53,6 +54,7 @@ tclsh 0.9.4.x/doc/en/run-all-examples.tcl
 |---|---|
 | `pdf4tcl-basics.md` | Installation, coordinate system, `-orient`, units, first steps |
 | `pdf4tcl-text-and-fonts.md` | Text API, the 14 standard fonts, encoding |
+| `pdf4tcl-fonts-and-unicode.md` | Standard font, subset or CID: sizes, traps, Tcl 8.6 against 9 |
 | `pdf4tcl-graphics-and-colors.md` | Lines, shapes, arcs, colors, clipping, transformations, transparency |
 | `pdf4tcl-images.md` | Loading, scaling and placing images |
 | `pdf4tcl-layout-patterns.md` | Reusable layout patterns and page design |
@@ -76,7 +78,7 @@ produces a page that looks plausible in the code and upside down on screen.
 
 | Document | Contents |
 |---|---|
-| `UPGRADING.md` | What changes between versions (0.9.4.39 colour, **0.9.4.40** catPdf merge, **0.9.4.41** PDF/A-a) |
+| `UPGRADING.md` | What changes between versions (**0.9.4.43** structure checks, **0.9.4.42** accessible forms, **0.9.4.41** PDF/A-a, **0.9.4.40** catPdf merge, 0.9.4.39 colour) |
 | `todo-en16931.md` | State of the Factur-X demo and what EN 16931 still needs |
 | `howtos/howto-pdfa.md` | PDF/A how-to including level A |
 | `howtos/howto-catpdf.md` | Merging tagged PDFs |
@@ -88,11 +90,24 @@ PDF/A is also demonstrated by `0.9.4.x/demo/demo-pdfa.tcl` and
 ## Checking the output
 
 ```bash
-qpdf --check out.pdf                     # syntax and streams
-verapdf -f 3b out.pdf                    # PDF/A-3B
-verapdf -f ua1 out.pdf                   # PDF/UA-1
-python3 tools/check-tagged.py out.pdf    # logical structure
+qpdf --check out.pdf                          # syntax and streams
+python3 tools/check-tagged.py out.pdf         # logical structure
+python3 tools/check-conformance.py out.pdf    # veraPDF, profiles from the
+                                              # document's own claims
+verapdf -f 3b out.pdf                         # a single profile by hand
 ```
+
+`check-conformance.py` reads each file's XMP, works out which profiles it
+claims -- `pdfaid` for PDF/A, `pdfuaid` for PDF/UA -- and runs veraPDF
+against exactly those. Point it at a directory to check a whole batch:
+
+```bash
+python3 tools/check-conformance.py --rules 0.9.4.x/demo/out
+```
+
+A document claiming nothing is reported as such rather than failed against a
+profile it never promised. That is the useful part: it finds the gap between
+what a document says about itself and what it is.
 
 None of these judge whether a document is any *good*. A file where every
 paragraph is `/P` and every heading is `/H1` passes PDF/UA cleanly and still

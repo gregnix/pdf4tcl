@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.42
+package provide pdf4tcl 0.9.4.43
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2047,6 +2047,14 @@ oo::define ::pdf4tcl::options {
         }
     }
 
+    method CheckMarkStyle {option value} {
+        if {$value ni {auto font vector}} {
+            throw {PDF4TCL} \
+                "invalid -markstyle value \"$value\": must be \"auto\",\
+                \"font\" or \"vector\""
+        }
+    }
+
     # Validator for -pdfa.
     #
     # The "a" levels additionally require tagged PDF, a language and Unicode
@@ -2168,6 +2176,20 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -readonly 1
         # Path to sRGB ICC profile for OutputIntent (auto-searched if empty)
         my Option -pdfa-icc  -default ""     -readonly 1
+        # How the mark of a check box or radio button is drawn.
+        #
+        #   font    a glyph from ZapfDingbats, as pdf4tcl always did
+        #   vector  lines and curves, no font at all
+        #   auto    vector where conformance is claimed, font otherwise
+        #
+        # The glyph cannot be embedded -- ZapfDingbats is one of the 14
+        # standard fonts -- and both PDF/A and PDF/UA require every font
+        # program to be embedded. So a document with a check box could not
+        # conform, whatever else it did right. "auto" switches only those
+        # documents to vector marks and leaves everything else looking
+        # exactly as before.
+        my Option -markstyle -default auto   -validatemethod CheckMarkStyle \
+                -readonly 1
         # Encryption (AES-128, V=4/R=4, PDF 1.5+).
         # Setting either password enables encryption.
         # If ownerpassword is empty, userpassword is used for both.
@@ -2365,7 +2387,8 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagAnnotRegister {oid} {}
     method TagPageStart {} {}
     method TagPageEnd {} {}
-    method TagEnsureMC {} {}
+    method TagEnsureMC {{op ""}} {}
+    method TagUntaggedReport {} {}
     method TagPageDict {} { return "" }
     method TagCatalogEntries {} {}
     method TagWriteObjects {} {}
@@ -2383,10 +2406,12 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Helper to format a line consisting of numbers and last a command
     method Pdfoutcmd {args} {
-        # Tagged PDF: every content stream operator is a painting operation,
-        # so this is where a pending structure element gets its marked
-        # content. No-op when tagging is off. See src/tagged.tcl.
-        my TagEnsureMC
+        # Tagged PDF: this is where a pending structure element gets its
+        # marked content. The operator is passed on because only painting
+        # operators count as content -- setting a colour or a font outside
+        # any element is not a defect. No-op when tagging is off.
+        # See src/tagged.tcl.
+        my TagEnsureMC [lindex $args end]
         set str ""
         foreach num [lrange $args 0 end-1] {
             append str [Nf $num] " "
@@ -2839,6 +2864,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
         my CheckPdfaLevelA
+        # Leftover content: reported here because the page count is only
+        # final once endPage has run. See src/tagged.tcl.
+        my TagUntaggedReport
         my TagCatalogEntries
         # XMP Metadata stream -- OID reserved now, written at end of endPDF
         # (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2)
@@ -4809,6 +4837,7 @@ Use -pdfa-icc to specify a profile path."
             my SetTextPosition $x $y
         }
 
+        my TagEnsureMC Tj
         my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
         set pdf(xpos) [expr {$x + $strWidth}]
         return $strWidth
@@ -4828,6 +4857,7 @@ Use -pdfa-icc to specify a profile path."
         }
         my BeginTextObj
         my SetTextPosition $x $y
+        my TagEnsureMC Tj
         my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
     }
 
@@ -7667,13 +7697,88 @@ Use -pdfa-icc to specify a profile path."
         return $obj
     }
 
+    # Should the mark be drawn with vectors rather than a glyph?
+    #
+    # A ZapfDingbats glyph cannot be embedded, and both PDF/A (ISO 19005
+    # clause 6.3.5) and PDF/UA (ISO 14289-1 clause 7.21.4.1) require every
+    # font program to be embedded. So a check box made the document
+    # non-conformant no matter what else was right -- measured: a document
+    # with only text fields contains no ZapfDingbats, one with a single check
+    # box does.
+    method UseVectorMark {} {
+        switch -- $options(-markstyle) {
+            vector { return 1 }
+            font   { return 0 }
+        }
+        # auto: only where the document claims a conformance that the glyph
+        # would break. Everything else keeps the appearance it always had.
+        if {[info exists pdf(tag,uapart)] && $pdf(tag,uapart) ne ""} {
+            return 1
+        }
+        if {$options(-pdfa) ne "" &&
+                [string index $options(-pdfa) 1] eq "a"} {
+            return 1
+        }
+        return 0
+    }
+
+    # A check mark as two strokes, in a box of the given size.
+    #
+    # The proportions follow the ZapfDingbats glyph closely enough that a
+    # form does not visibly change: the short arm reaches down to about a
+    # third of the height, the long one up to three quarters. Round caps and
+    # joins, because a mitred corner at this size looks like a defect.
+    method _VectorCheckStream {width height} {
+        set lw [expr {max(0.8, 0.14 * min($width, $height))}]
+        set x1 [expr {0.22 * $width}]
+        set y1 [expr {0.52 * $height}]
+        set x2 [expr {0.42 * $width}]
+        set y2 [expr {0.28 * $height}]
+        set x3 [expr {0.80 * $width}]
+        set y3 [expr {0.75 * $height}]
+        set stream "/Tx BMC q 0 G [Nf $lw] w 1 J 1 j "
+        append stream "[Nf $x1] [Nf $y1] m [Nf $x2] [Nf $y2] l "
+        append stream "[Nf $x3] [Nf $y3] l S Q EMC"
+        return $stream
+    }
+
+    # A filled circle, for the on state of a radio button. Four Bezier
+    # segments; the 0.5523 is the usual constant for approximating a quarter
+    # circle with a cubic curve.
+    method _VectorDotStream {width height} {
+        set r  [expr {0.28 * min($width, $height)}]
+        set cx [expr {$width / 2.0}]
+        set cy [expr {$height / 2.0}]
+        set k  [expr {$r * 0.5523}]
+        set stream "/Tx BMC q 0 g "
+        append stream "[Nf [expr {$cx + $r}]] [Nf $cy] m "
+        append stream "[Nf [expr {$cx + $r}]] [Nf [expr {$cy + $k}]] \
+                [Nf [expr {$cx + $k}]] [Nf [expr {$cy + $r}]] \
+                [Nf $cx] [Nf [expr {$cy + $r}]] c "
+        append stream "[Nf [expr {$cx - $k}]] [Nf [expr {$cy + $r}]] \
+                [Nf [expr {$cx - $r}]] [Nf [expr {$cy + $k}]] \
+                [Nf [expr {$cx - $r}]] [Nf $cy] c "
+        append stream "[Nf [expr {$cx - $r}]] [Nf [expr {$cy - $k}]] \
+                [Nf [expr {$cx - $k}]] [Nf [expr {$cy - $r}]] \
+                [Nf $cx] [Nf [expr {$cy - $r}]] c "
+        append stream "[Nf [expr {$cx + $k}]] [Nf [expr {$cy - $r}]] \
+                [Nf [expr {$cx + $r}]] [Nf [expr {$cy - $k}]] \
+                [Nf [expr {$cx + $r}]] [Nf $cy] c f Q EMC"
+        return $stream
+    }
+
     # Build checkbox appearance: returns {onid offid}
     method _BuildCheckboxAP {width height onObj offObj} {
-        my SetupZaDbFont
+        set vector [my UseVectorMark]
+        if {!$vector} { my SetupZaDbFont }
         set obj [my _FormXObjHeader $width $height]
         # On-state appearance
         if {$onObj ne ""} {
             set onid [lindex $images($onObj) 2]
+        } elseif {$vector} {
+            set body [MakeStream $obj \
+                    [my _VectorCheckStream $width $height] $pdf(compress)]
+            set onid [my AddObject $body]
         } else {
             # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
             set fs [expr {$height * 0.9}]
@@ -7784,6 +7889,17 @@ Use -pdfa-icc to specify a profile path."
 
     # Build radiobutton appearance: returns {onid offid}
     method _BuildRadioAP {width height} {
+        set vector [my UseVectorMark]
+        if {$vector} {
+            set obj [my _FormXObjHeader $width $height]
+            set body [MakeStream $obj \
+                    [my _VectorDotStream $width $height] $pdf(compress)]
+            set onid [my AddObject $body]
+            set body [MakeStream [my _FormXObjHeader $width $height] "" \
+                    $pdf(compress)]
+            set offid [my AddObject $body]
+            return [list $onid $offid]
+        }
         my SetupZaDbFont
         set obj [my _FormXObjHeader $width $height]
         # On state: filled circle (bullet char 108 in ZapfDingbats = (bullet))
@@ -8322,6 +8438,28 @@ Use -pdfa-icc to specify a profile path."
             }
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor)\n"
+            # ISO 19005 clause 6.3.3 wants an appearance dictionary on every
+            # annotation, widgets included, and a text field had none. A
+            # reader builds the look from /DA and /V either way, which is why
+            # nobody noticed until PDF/A asked.
+            #
+            # _BuildTextAP returns the empty string for a field without an
+            # initial value -- there is nothing to draw. An empty stream is
+            # still needed, because the rule asks for the dictionary, not for
+            # its contents. Testing [info exists onid] instead of the value
+            # wrote "/AP << /N  0 R >>" into the file, which is not a valid
+            # dictionary; every reader here accepted it and veraPDF refused
+            # to parse the object at all.
+            if {$options(-pdfa) ne ""} {
+                if {$onid eq ""} {
+                    set onid [my AddObject [MakeStream \
+                            [my _FormXObjHeader $width $height] "" \
+                            $pdf(compress)]]
+                }
+                append andict "  /AP << /N $onid 0 R >>\n"
+            } elseif {$onid ne ""} {
+                append andict "  /AP << /N $onid 0 R >>\n"
+            }
             # Text alignment (0 left, 1 center, 2 right)
             append andict "  /Q $quadding\n"
             append andict $mkStr
@@ -8329,8 +8467,13 @@ Use -pdfa-icc to specify a profile path."
             # Value
             if {$initValue ne ""} {
                 append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
-                # Appearance
-                append andict "  /AP << /N $onid 0 R >>\n"
+                # Kein zweites /AP hier: seit 0.9.4.42 schreiben die beiden
+                # Zweige oben es in jedem Fall, in dem $onid gesetzt ist --
+                # und ein Feld mit Anfangswert hat immer einen. Der Eintrag
+                # an dieser Stelle stammt aus der Zeit davor und ergab ein
+                # Woerterbuch mit doppeltem /AP, was ISO 32000-1 7.3.7
+                # ausschliesst. Leser nehmen das letzte Vorkommen; beide
+                # zeigten auf dasselbe Objekt, deshalb sah man nichts.
             }
         } elseif {$ftype in {combobox listbox}} {
             # Form type choice (/Ch)
@@ -8409,7 +8552,13 @@ Use -pdfa-icc to specify a profile path."
             # Appearance
             append andict "  /AP << "
             append andict "   /N << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
-            append andict "   /D << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
+            # ISO 19005 clause 6.3.3 allows only /N in an appearance
+            # dictionary. /D is the pressed look, which no reader needs
+            # and PDF/A refuses, so it is left out where conformance is
+            # claimed.
+            if {$options(-pdfa) eq ""} {
+                append andict "   /D << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
+            }
             append andict "  >>\n"
             # Highlight mode = Push
             append andict "  /H /P\n"
@@ -8484,7 +8633,13 @@ Use -pdfa-icc to specify a profile path."
             # Appearance
             append andict "  /AP << "
             append andict "   /N << /Yes $onid 0 R /Off $offid 0 R >>\n"
-            append andict "   /D << /Yes $onid 0 R /Off $offid 0 R >>\n"
+            # ISO 19005 clause 6.3.3 allows only /N in an appearance
+            # dictionary. /D is the pressed look, which no reader needs
+            # and PDF/A refuses, so it is left out where conformance is
+            # claimed.
+            if {$options(-pdfa) eq ""} {
+                append andict "   /D << /Yes $onid 0 R /Off $offid 0 R >>\n"
+            }
             append andict "  >>\n"
             # Highlight mode = Push
             append andict "  /H /P\n"
@@ -10827,7 +10982,17 @@ $b = New-Object byte\[\] $n; $rng.GetBytes($b); \
         set plaintext [string range $body $sstart ${send}-1]
         set ciphertext [my EncryptBytes $oid $plaintext]
         set newlen [string length $ciphertext]
-        set newbody [string replace $body $sstart ${send}-1 $ciphertext]
+        # Zusammensetzen statt [string replace]: bei einem leeren Stream ist
+        # send == sstart, also last == first-1, und "string replace" laesst
+        # den String dann unveraendert -- der Chiffretext fiele weg, waehrend
+        # /Length darunter auf seine Laenge gesetzt wird. Das Ergebnis war
+        # "/Length 32" ueber null Bytes: jeder Leser oeffnet die Datei, qpdf
+        # meldet "expected endstream" und stellt die Laenge selbst richtig.
+        # Leere Streams entstehen seit 0.9.4.42 durch Erscheinungswoerter-
+        # buecher von Feldern ohne Anfangswert.
+        set newbody [string range $body 0 ${sstart}-1]
+        append newbody $ciphertext
+        append newbody [string range $body $send end]
         # /Length kann direkt (/Length 123) oder indirekt (/Length 6 0 R) sein.
         # Indirekten Fall vollstaendig ersetzen (inkl. "N 0 R").
         # Direkten Fall einfach ersetzen.
@@ -11057,7 +11222,64 @@ namespace eval pdf4tcl {
         Link Annot
     }
 
-    # Encode a Tcl string as a PDF text string (ISO 32000-1 clause 7.9.2.2).
+    # Where a structure type may appear, ISO 32000-1 Table 335 and 337.
+    #
+    # Only the relations the standard fixes without exception are listed.
+    # A cell outside a row or a list item outside a list is a defect no
+    # validator reports and no reader repairs: the element lands in the tree,
+    # the file passes, and a screen reader announces a table with no rows.
+    # Types absent from this dict are not restricted -- P, Span, Figure and
+    # the rest may legitimately appear almost anywhere.
+    variable StructParents {
+        LI     {L}
+        LBody  {LI}
+        THead  {Table}
+        TBody  {Table}
+        TFoot  {Table}
+        TR     {Table THead TBody TFoot}
+        TH     {TR}
+        TD     {TR}
+        TOCI   {TOC}
+    }
+
+    # What a container must contain, ISO 32000-1 Table 335.
+    #
+    # The mirror image of StructParents. tagBegin catches a cell outside a
+    # row; this catches a table with no rows at all. Both pass every
+    # validator and both leave a screen reader with nothing to announce.
+    # An entry means: at least one child of one of these types.
+    variable StructChildren {
+        L      {LI}
+        LI     {LBody}
+        Table  {TR THead TBody TFoot}
+        THead  {TR}
+        TBody  {TR}
+        TFoot  {TR}
+        TR     {TH TD}
+    }
+
+    # Operators that put marks on the page. Everything else in a content
+    # stream sets state -- colour, font, matrix, graphics state -- and may
+    # legitimately stand outside any structure element. Counting those as
+    # untagged content would report every document, however careful.
+    # ISO 32000-1 table 51: path-painting, text-showing, XObject and
+    # shading operators.
+    # The quote operators need escaping -- an unescaped " would break the
+    # list, which is exactly what happened the first time round.
+    variable PaintingOps {
+        S s f F f* B B* b b*
+        Tj TJ \' \"
+        Do sh EI
+    }
+
+    # Types that carry no structural meaning of their own. ISO 32000-1
+    # clause 14.8.4.2: NonStruct is skipped when the structure is examined,
+    # so it must be skipped when the parent is determined as well --
+    # otherwise wrapping a row in NonStruct would turn a legal document into
+    # a rejected one.
+    variable TransparentStructTypes {NonStruct}
+
+
     #
     # Pure ASCII is written as PDFDocEncoding, anything else as UTF-16BE with
     # a byte order mark. The result is always a *literal* string -- a hex
@@ -11132,6 +11354,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(tag,annotwarned) 0   ;# unattached annotation reported once
         set pdf(tag,rootoid)  ""
         set pdf(tag,uapart)   ""   ;# pdfuaid:part, empty unless -ua given
+        set pdf(tag,untagged) 0    ;# painting operations outside any element
+        set pdf(tag,untagpage) {}  ;# page numbers where that happened
     }
 
     method TagActive {} {
@@ -11282,6 +11506,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         } else {
             set parent $pdf(tag,root)
         }
+        my TagCheckNesting $type $parent
         set idx [my TagNewElem $type $parent $attrs]
         lappend pdf(tag,stack) $idx
         return $idx
@@ -11294,11 +11519,66 @@ oo::define ::pdf4tcl::pdf4tcl {
             throw {PDF4TCL} "tagEnd without matching tagBegin"
         }
         set idx [lindex $pdf(tag,stack) end]
+        # Vor dem Ablegen pruefen: schlaegt es fehl, bleibt das Element
+        # offen und der Aufrufer kann den fehlenden Inhalt nachtragen.
+        my TagCheckContent $idx
         set pdf(tag,stack) [lrange $pdf(tag,stack) 0 end-1]
         if {$pdf(tag,open) eq $idx} {
             my TagCloseMC
         }
         return
+    }
+
+    # Refuse to close a container the standard requires to hold something --
+    # a table without rows, a list without items. tagBegin cannot see this:
+    # at that point the element has no children yet.
+    method TagCheckContent {idx} {
+        variable ::pdf4tcl::StructChildren
+        set type $pdf(tag,type,$idx)
+        # Ein Element ohne jeden Inhalt bezeichnet nichts: es besteht jede
+        # Pruefung, und ein Screenreader kuendigt einen Absatz an, in dem
+        # nichts steht. Verboten ist es aber nicht -- deshalb eine Warnung
+        # und kein Fehler.
+        #
+        # Ausgenommen sind TD und TH: eine leere Zelle ist alltaeglich und
+        # gehoert in den Baum, sonst verrutscht die Spaltenzuordnung. Ein
+        # fehlendes TD ist schlimmer als ein leeres.
+        #
+        # Als Inhalt zaehlt dreierlei: ein Kindelement (E), ausgezeichneter
+        # Inhalt (M) und ein Objektverweis (O). Das O ist wesentlich -- ein
+        # Link oder ein Formularfeld besteht rechtmaessig nur aus seiner
+        # /OBJR und traegt nie eine MCID. Wer allein auf MCIDs prueft,
+        # meldet genau die Anbindung, die 0.9.4.42 moeglich gemacht hat.
+        if {[llength $pdf(tag,kids,$idx)] == 0 && $type ni {TD TH}} {
+            lappend ::pdf4tcl::warnings "tagged: the $type element is empty\
+                    -- no content, no child element and no annotation. It\
+                    passes every validator and tells a reader nothing."
+        }
+        if {![dict exists $::pdf4tcl::StructChildren $type]} { return }
+        set wanted [dict get $::pdf4tcl::StructChildren $type]
+        foreach kidType [my TagEffectiveKids $idx] {
+            if {$kidType in $wanted} { return }
+        }
+        set names [join $wanted " or "]
+        throw {PDF4TCL} "$type must contain at least one $names"
+    }
+
+    # Types of the child elements, looking through transparent ones: a row
+    # wrapped in NonStruct still counts as a row for its table.
+    method TagEffectiveKids {idx} {
+        variable ::pdf4tcl::TransparentStructTypes
+        set res {}
+        foreach kid $pdf(tag,kids,$idx) {
+            if {[lindex $kid 0] ne "E"} { continue }
+            set kidIdx [lindex $kid 1]
+            set kidType $pdf(tag,type,$kidIdx)
+            if {$kidType in $::pdf4tcl::TransparentStructTypes} {
+                lappend res {*}[my TagEffectiveKids $kidIdx]
+            } else {
+                lappend res $kidType
+            }
+        }
+        return $res
     }
 
     # Convenience: a complete element around a single text call.
@@ -11353,9 +11633,12 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
         if {!$pdf(inPage)} { my startPage }
-        if {$pdf(inXObject)} {
-            throw {PDF4TCL} "tagging inside an XObject is not supported"
-        }
+        # Kein Verbot im XObject: ein Artefakt traegt nie eine MCID, weil
+        # nichts darauf verweist. Es braucht deshalb weder einen
+        # Parent-Tree-Eintrag noch ein /Stm in einer /MCR -- genau das,
+        # woran Struktur in XObjects scheitert. Fuer einen rein dekorativen
+        # Block ist "/Artifact BMC ... EMC" die richtige und einzige noetige
+        # Auszeichnung.
         # PDF/UA forbids an artifact inside tagged content and tagged content
         # inside an artifact (ISO 14289-1 clause 7.1). An element may still be
         # open here -- a running foot on the second page of a paragraph that
@@ -11392,6 +11675,32 @@ oo::define ::pdf4tcl::pdf4tcl {
     ###########################################################################
     # Structure tree bookkeeping
     ###########################################################################
+
+    # Refuse a structure element whose parent the standard does not allow.
+    # Called from tagBegin before the element exists, so a rejected call
+    # leaves the tree exactly as it was.
+    method TagCheckNesting {type parent} {
+        variable ::pdf4tcl::StructParents
+        if {![dict exists $::pdf4tcl::StructParents $type]} { return }
+        set allowed [dict get $::pdf4tcl::StructParents $type]
+        set ptype [my TagEffectiveParent $parent]
+        if {$ptype in $allowed} { return }
+        set names [join $allowed " or "]
+        throw {PDF4TCL} "$type must be inside $names, not $ptype"
+    }
+
+    # Type of the element a child is structurally attached to: the nearest
+    # ancestor that is not transparent. The root element is a Document even
+    # before anything is nested in it.
+    method TagEffectiveParent {idx} {
+        variable ::pdf4tcl::TransparentStructTypes
+        while {$idx >= 0} {
+            set type $pdf(tag,type,$idx)
+            if {$type ni $::pdf4tcl::TransparentStructTypes} { return $type }
+            set idx $pdf(tag,parent,$idx)
+        }
+        return Document
+    }
 
     method TagNewElem {type parent attrs} {
         set idx $pdf(tag,n)
@@ -11452,12 +11761,61 @@ oo::define ::pdf4tcl::pdf4tcl {
     # and a new one opened. An element may therefore own several marked
     # content sequences on one page; that is normal and is what /K arrays with
     # multiple /MCR entries are for.
-    method TagEnsureMC {} {
+    # Number of painting operations that belonged to neither a structure
+    # element nor an artifact. Zero is what PDF/UA clause 7.1 asks for.
+    method getUntaggedCount {} {
+        my TagInit
+        return $pdf(tag,untagged)
+    }
+
+    # Report leftover content once, when the document is finished. A warning
+    # and not an error: untagged content is legal PDF, and a caller who tags
+    # part of a page may well mean it. What it is not is PDF/UA conformant,
+    # and nothing else in the toolchain says so -- veraPDF cannot know which
+    # operators were meant to be content.
+    method TagUntaggedReport {} {
+        my TagInit
+        if {!$pdf(tag,active)} { return }
+        if {$pdf(tag,untagged) == 0} { return }
+        set pages [llength $pdf(tag,untagpage)]
+        set what "tagged: $pdf(tag,untagged) painting operation(s) on\
+                $pages page(s) belong to neither a structure element nor an\
+                artifact."
+        if {$pdf(tag,uapart) ne "" || [string match {*a} $options(-pdfa)]} {
+            append what " ISO 14289-1 clause 7.1 requires every piece of\
+                    content to be one or the other, so this document does not\
+                    meet the level it claims."
+        } else {
+            append what " That is legal PDF but not PDF/UA conformant."
+        }
+        append what " Wrap the content in tagBegin/tagEnd, or mark it with\
+                tagArtifact if it carries no meaning."
+        lappend ::pdf4tcl::warnings $what
+    }
+
+    method TagEnsureMC {{op ""}} {
         if {![my TagActive]} { return }
         # Artifacts own the marked content while they are open, and the guard
         # keeps the Pdfout calls below from re-entering this method.
         if {$pdf(tag,artdepth) > 0 || $pdf(tag,mcguard)} { return }
-        if {[llength $pdf(tag,stack)] == 0} { return }
+        if {[llength $pdf(tag,stack)] == 0} {
+            # Nothing is open and no artifact is running: this painting
+            # operation belongs to neither. ISO 14289-1 clause 7.1 wants
+            # every piece of content either tagged or marked as an artifact,
+            # so count it -- see TagUntaggedReport, called from finish.
+            # Content inside an XObject is covered by the tag on the "Do"
+            # that places it, so it does not count here.
+            variable ::pdf4tcl::PaintingOps
+            if {$pdf(inPage) && !$pdf(inXObject)
+                    && $op in $::pdf4tcl::PaintingOps} {
+                incr pdf(tag,untagged)
+                set pg [llength $pdf(tag,pagelist)]
+                if {$pg ni $pdf(tag,untagpage)} {
+                    lappend pdf(tag,untagpage) $pg
+                }
+            }
+            return
+        }
         if {!$pdf(inPage) || $pdf(inXObject)} { return }
         set inner [lindex $pdf(tag,stack) end]
         if {$pdf(tag,open) eq $inner} { return }
@@ -12329,6 +12687,147 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
 # Currently the implementation limits the PDFs a lot since not all details
 # are taken care of yet. Straightforward ones like those created with pdf4tcl
 # or ps2pdf should work mostly ok.
+# Fold objects with an identical body onto one.
+#
+# Merging documents built from the same template duplicates everything they
+# share -- above all the embedded font programs. Measured on two documents of
+# 24729 bytes each, both embedding FreeSans: the result was 49296 bytes with
+# the font twice in it, and three pairs of streams byte for byte identical,
+# together about 39 KB of 57. Twenty chapters from one template embed the
+# font twenty times.
+#
+# The comparison is over the complete object body, so two objects are folded
+# together only when nothing distinguishes them. That is deliberately strict:
+# two font subsets that merely look alike must stay apart, since their glyph
+# indices need not agree. Where the bytes are equal there is nothing to get
+# wrong.
+#
+# Objects that carry the document structure are left alone. The page tree,
+# the catalog and the parent tree are legitimately similar between documents
+# and folding them would join things that only look the same.
+proc pdf4tcl::cat::DedupObjects {pdfd} {
+    set bodies {}
+    set mapping {}
+    set saved 0
+
+    # The dict also holds "trailer", "root" and "version", so filter before
+    # sorting numerically.
+    set numeric {}
+    foreach key [dict keys $pdfd] {
+        if {[string is digit -strict $key]} { lappend numeric $key }
+    }
+    foreach key [lsort -integer $numeric] {
+        set body [dict get $pdfd $key full]
+
+        # Strip the object header, which holds the number and would make
+        # every object unique.
+        if {![regexp {^\s*\d+\s+\d+\s+obj\s*(.*)$} $body -> rest]} continue
+
+        # Never fold anything the document structure hangs on.
+        if {[regexp {/Type\s*/(Page|Pages|Catalog|StructTreeRoot|StructElem)\M} $rest]} {
+            continue
+        }
+
+        if {[dict exists $bodies $rest]} {
+        ##nagelfar ignore Found constant
+            dict set mapping $key [dict get $bodies $rest]
+            incr saved [string length $rest]
+        } else {
+            ##nagelfar ignore Found constant
+        dict set bodies $rest $key
+        }
+    }
+
+    if {[dict size $mapping] == 0} {
+        return $pdfd
+    }
+
+    # Dropping objects leaves gaps in the numbering, and WritePdf writes one
+    # xref entry per number from 1 to N -- its own comment says "TBD handle
+    # missing objects?". So renumber densely: the mapping gets a second half
+    # that closes the gaps, and both are applied in one pass.
+    set renumber {}
+    set next 1
+    foreach key [lsort -integer $numeric] {
+        if {[dict exists $mapping $key]} continue
+        ##nagelfar ignore Found constant
+        dict set renumber $key $next
+        incr next
+    }
+    # A folded object points at its survivor, which then points at its new
+    # number.
+    foreach {from to} $mapping {
+        ##nagelfar ignore Found constant
+        dict set renumber $from [dict get $renumber $to]
+    }
+
+    set out {}
+    foreach {key val} $pdfd {
+        if {![string is digit -strict $key]} {
+        ##nagelfar ignore Found constant
+            dict set out $key $val
+            continue
+        }
+        if {[dict exists $mapping $key]} continue
+        set body [RemapRefs [dict get $val full] $renumber]
+        set newKey [dict get $renumber $key]
+        # The object header carries the number as well.
+        regsub {^\s*\d+(\s+\d+\s+obj)} $body "$newKey\\1" body
+        ##nagelfar ignore Found constant
+        dict set out $newKey full $body
+    }
+    ##nagelfar ignore Found constant
+    dict set out trailer [RemapDict [dict get $pdfd trailer] $renumber]
+    if {[dict exists $pdfd root]} {
+        ##nagelfar ignore Found constant
+        dict set out root [RemapDict [dict get $pdfd root] $renumber]
+    }
+    ##nagelfar ignore Found constant
+    dict set out N $next
+    ##nagelfar ignore Found constant
+    dict set out trailer /Size $next
+    return $out
+}
+
+# Rewrite "N 0 R" for every renumbered object.
+#
+# regsub cannot call a command per match -- the replacement is text, not
+# code. Passing a script there writes the script itself into the document,
+# which is what a first attempt did: the font dictionaries ended up
+# containing "/FontFile2 apply {{mapping num rest} ...". So walk the matches
+# and rebuild the string.
+proc pdf4tcl::cat::RemapRefs {body mapping} {
+    set out ""
+    set rest $body
+    while {[regexp -indices {(\m\d+)(\s+0\s+R\M)} $rest all num tail]} {
+        lassign $all aStart aEnd
+        lassign $num nStart nEnd
+        append out [string range $rest 0 [expr {$nStart - 1}]]
+        set n [string range $rest $nStart $nEnd]
+        if {[dict exists $mapping $n]} {
+            append out [dict get $mapping $n]
+        } else {
+            append out $n
+        }
+        append out [string range $rest [expr {$nEnd + 1}] $aEnd]
+        set rest [string range $rest [expr {$aEnd + 1}] end]
+    }
+    append out $rest
+    return $out
+}
+
+proc pdf4tcl::cat::RemapDict {d mapping} {
+    foreach {key val} $d {
+        if {[llength $val] == 3 && [lindex $val 2] eq "R"} {
+            set num [lindex $val 0]
+            if {[dict exists $mapping $num]} {
+                dict set d $key [lreplace $val 0 0 [dict get $mapping $num]]
+            }
+        }
+    }
+    return $d
+}
+
 proc pdf4tcl::catPdf {args} {
     if {[llength $args] < 3} {
         throw {PDF4TCL} "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
@@ -12346,6 +12845,11 @@ proc pdf4tcl::catPdf {args} {
     }
     # Structure trees are merged in AppendPdf. StripStructure remains for the
     # case where the merge could not be completed; it is called from there.
+    #
+    # Folding identical objects happens once at the end rather than per
+    # append, so a font shared by five documents collapses to one copy and
+    # not to four.
+    set pdf1 [pdf4tcl::cat::DedupObjects $pdf1]
     pdf4tcl::cat::WritePdf $outfile $pdf1
 }
 

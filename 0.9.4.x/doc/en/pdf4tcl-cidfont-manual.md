@@ -284,7 +284,28 @@ foreach ch [split $text {}] {
 ```
 
 Missing glyphs render as an empty box (.notdef, GlyphID 0). No error is
-raised.
+raised, and `getSubstCount` stays at zero -- that counter tracks encoding
+substitutions, and a CID font encodes every codepoint whether or not the
+font has a picture for it.
+
+Measured with DejaVu Sans, `text "AB\u65E5\u672CCD"`:
+
+```
+content stream   <002400250000000000260027>
+pdftotext        AB
+```
+
+Not `ABCD`, not `AB??CD`. The run of glyph 0 ends the extractable text, so a
+missing glyph costs the rest of that string as well. Extraction is therefore
+no test for coverage -- check with `glyphAvailable` before writing.
+
+A ready-made script that reports coverage per Unicode block is
+[`howtos/howto-font-coverage.md`](../en/howtos/howto-font-coverage.md).
+
+Note that coverage says nothing about shaping: Arabic and Hebrew report as
+complete and still come out unjoined and in visual order, because pdf4tcl
+writes glyphs in the order the codepoints arrive. See "Bidirectional Text"
+below.
 
 ---
 

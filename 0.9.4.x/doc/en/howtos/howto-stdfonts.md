@@ -53,3 +53,30 @@ tclsh 0.9.4.x/demo/demo-stdfonts-tabelle.tcl out
 
 PDF/UA and long-term archival still want an **embedded** TrueType/OTF, not
 Base-14 alone.
+
+## The limits, measured
+
+Anything outside WinAnsi/CP1252 becomes `?` on the page and in the clipboard:
+
+```
+$pdf setFont 12 Helvetica
+$pdf text "Grüße Ελλάδα Привет" ...
+pdftotext ->  Grüße ?????? ??????
+```
+
+`getSubstCount` reports how many characters were replaced -- **under Tcl 9
+only**. On 8.6 `encoding convertto` substitutes without raising an error, so
+pdf4tcl never sees the failure and the counter stays at zero. The page looks
+the same in both.
+
+Standard fonts also rule out PDF/A and PDF/UA: the Base-14 fonts have no
+embeddable font program, and both standards require embedding. pdf4tcl warns
+at `finish`:
+
+```
+::pdf4tcl::warnings ->
+  PDF/A: the standard font Helvetica has no embeddable font program ...
+```
+
+The same document with a CID font produces no warning. See
+[`../pdf4tcl-fonts-and-unicode.md`](../pdf4tcl-fonts-and-unicode.md).

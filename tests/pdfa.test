@@ -595,4 +595,152 @@ test pdfa-font-1.5 {tagging without a UA claim stays quiet} -body {
     set ::pdf4tcl::warnings {}
 } -result 0
 
+# -----------------------------------------------------------------------
+# Vector marks for check boxes and radio buttons (0.9.4.42)
+# -----------------------------------------------------------------------
+# A ZapfDingbats glyph cannot be embedded, and both PDF/A and PDF/UA require
+# every font program to be embedded, so a check box used to make a document
+# non-conformant no matter what else was right. -markstyle auto draws the
+# mark with lines and curves where a conformance is claimed, and leaves
+# every other document looking exactly as before.
+
+proc markProbe {newArgs {tagArgs {}}} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 {*}$newArgs]
+    if {[llength $tagArgs]} {
+        $p tagged {*}$tagArgs
+    }
+    $p startPage
+    $p setFont 10 Helvetica
+    if {[llength $tagArgs]} {
+        $p tagBegin P ; $p text "x" -x 20 -y 20 ; $p tagEnd
+    }
+    $p addForm checkbutton 50 50 16 16 -id c
+    $p addForm radiobutton 50 80 16 16 -id r -group g -value a
+    set data [$p get]
+    $p destroy
+    return [contains $data "ZapfDingbats"]
+}
+
+test mark-1.1 {without a claim the glyph is kept} -body {
+    # The important half: existing documents must not change appearance.
+    markProbe {}
+} -result 1
+
+test mark-1.2 {a PDF/UA claim switches to vector marks} -body {
+    markProbe {} {1 -lang de-DE -ua 1}
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+test mark-1.3 {conformance level A switches too} -body {
+    markProbe {-pdfa 3a} {1 -lang de-DE}
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+test mark-1.4 {level B keeps the glyph} -body {
+    # Level B has no structure requirement and the glyph is not what makes
+    # it fail, so there is no reason to change the look.
+    markProbe {-pdfa 3b}
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
+test mark-1.5 {-markstyle font overrides the claim} -body {
+    markProbe {-markstyle font} {1 -lang de-DE -ua 1}
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
+test mark-1.6 {-markstyle vector works without any claim} -body {
+    markProbe {-markstyle vector}
+} -result 0
+
+test mark-1.7 {an unknown -markstyle is refused} -body {
+    set res [catch {::pdf4tcl::new %AUTO% -markstyle dingbat} err]
+    list $res [string match "*invalid -markstyle value*" $err]
+} -result {1 1}
+
+test mark-1.8 {the vector check mark is actually drawn} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -markstyle vector]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 50 50 16 16 -id c
+    set data [$p get]
+    $p destroy
+    # two line segments and a stroke, no text operator
+    list [contains $data " l "] [contains $data " S "] \
+            [contains $data "/ZaDb"]
+} -result {1 1 0}
+
+# -----------------------------------------------------------------------
+# Appearance dictionaries on form fields (0.9.4.42)
+# -----------------------------------------------------------------------
+# ISO 19005 clause 6.3.3 wants an appearance dictionary on every annotation,
+# widgets included, and allows only /N in it. Both were wrong: a text field
+# carried no /AP at all -- _BuildTextAP produced the stream but nobody
+# referenced it -- and a check box wrote /D beside /N. A reader builds the
+# look from /DA and /V either way, which is why it went unnoticed until
+# PDF/A asked.
+
+test pdfa-ap-1.0 {no appearance reference is left dangling} -body {
+    # The first attempt tested [info exists onid] rather than its value.
+    # _BuildTextAP returns the empty string for a field without an initial
+    # value, so the file got "/AP << /N  0 R >>" -- not a valid dictionary.
+    # qpdf, pypdf and check-tagged.py all accepted it; veraPDF refused to
+    # parse the object. Hence this test looks at the bytes.
+    set p [::pdf4tcl::new %AUTO% -compress 0 -pdfa 3b]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 50 120 16 -id empty
+    $p addForm text 50 80 120 16 -id filled -init "Wert"
+    $p addForm checkbutton 50 110 16 16 -id c
+    set data [$p get]
+    $p destroy
+    # every "N <ref>" must name a real object number
+    set bad 0
+    foreach {- ref} [regexp -all -inline {/N\s+(\S*)\s+0 R} $data] {
+        if {![string is integer -strict $ref]} { incr bad }
+    }
+    set bad
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 0
+
+test pdfa-ap-1.1 {a text field carries /AP with /N under -pdfa} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -pdfa 3b]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 50 120 16 -id t
+    set data [$p get]
+    $p destroy
+    contains $data "/AP << /N "
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
+test pdfa-ap-1.2 {a check box writes no /D under -pdfa} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -pdfa 3b]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 50 50 16 16 -id c
+    set data [$p get]
+    $p destroy
+    list [contains $data "/N << /Yes"] [contains $data "/D << /Yes"]
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result {1 0}
+
+test pdfa-ap-1.3 {without -pdfa the /D appearance is kept} -body {
+    # /D is the pressed look. No reader needs it, but removing it everywhere
+    # would change files that were perfectly fine.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 50 50 16 16 -id c
+    set data [$p get]
+    $p destroy
+    contains $data "/D << /Yes"
+} -result 1
+
 cleanupTests

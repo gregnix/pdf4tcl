@@ -9,12 +9,36 @@
 #   tclsh tools/bump.tcl           -- alles ausfuehren
 #   tclsh tools/bump.tcl --show    -- nur anzeigen, nichts schreiben
 #   tclsh tools/bump.tcl --verify  -- Versionskonsistenz pruefen
+#   tclsh tools/bump.tcl --to 0.9.4.X [--msg "..."]
+#                                  -- Ziel abweichend von tools/next.tcl
+#
+# Ein unbekanntes Argument ist ein Fehler. Frueher wurde es verworfen,
+# und ein "--dry-run" nach dem Vorbild anderer Werkzeuge schrieb dann in
+# Wahrheit alle Dateien -- der Schalter heisst hier --show.
 
-set dryRun  0
-set verify  0
-foreach a $argv {
-    if {$a eq "--show"}   { set dryRun 1 }
-    if {$a eq "--verify"} { set verify 1 }
+set dryRun    0
+set verify    0
+set optVersion ""
+set optMsg     ""
+for {set i 0} {$i < [llength $argv]} {incr i} {
+    set a [lindex $argv $i]
+    switch -exact -- $a {
+        --show   { set dryRun 1 }
+        --dry-run { set dryRun 1 }
+        --verify { set verify 1 }
+        --to     { incr i; set optVersion [lindex $argv $i] }
+        --msg    { incr i; set optMsg     [lindex $argv $i] }
+        default  {
+            puts stderr "Unbekanntes Argument \"$a\".\
+                    Erlaubt: --show, --dry-run, --verify, --to VERSION,\
+                    --msg TEXT"
+            exit 2
+        }
+    }
+}
+if {$optVersion ne "" && ![regexp {^\d+(\.\d+)+$} $optVersion]} {
+    puts stderr "Keine Versionsnummer: \"$optVersion\""
+    exit 2
 }
 
 # --- Hilfsprozeduren ---
@@ -43,11 +67,13 @@ proc regsubInFile {f pat sub label} {
     puts "  OK  $f ($label)"
 }
 
-# --- next.tcl lesen ---
+# --- next.tcl lesen; --to/--msg haben Vorrang ---
 set nextFile [file join [file dirname [info script]] next.tcl]
 source $nextFile
 set newVersion $NEXT_VERSION
 set newMsg     $NEXT_MSG
+if {$optVersion ne ""} { set newVersion $optVersion }
+if {$optMsg     ne ""} { set newMsg     $optMsg }
 
 # --- aktuelle Version aus src/prologue.tcl ---
 if {![file exists src/prologue.tcl]} {
@@ -198,8 +224,31 @@ if {[file exists $f]} {
 # ---------------------------------------------------------------
 # 7. Assemblieren
 # ---------------------------------------------------------------
-set parts {src/prologue.tcl src/fonts.tcl src/helpers.tcl
-           src/options.tcl  src/main.tcl  src/encrypt.tcl src/cat.tcl}
+# Die Reihenfolge steht im Makefile (CATFILES) und wird von dort gelesen.
+# Eine zweite Liste hier ging schief: sie kannte src/color.tcl (0.9.4.39)
+# und src/tagged.tcl nicht, und jeder Bump schrieb ein pdf4tcl.tcl ohne
+# Farben und ohne Tagging -- mit der Meldung "OK". Aufgefallen ist es
+# allein durch "make checkbuild".
+set parts {}
+if {[catch {
+    set mk [readFile Makefile]
+    if {[regexp -line {^CATFILES\s*=\s*(.*)$} $mk -> line]} {
+        set parts $line
+    }
+} e]} {
+    puts stderr "Makefile nicht lesbar: $e"
+    exit 1
+}
+foreach f $parts {
+    if {![file exists $f]} {
+        puts stderr "CATFILES nennt $f -- nicht vorhanden"
+        exit 1
+    }
+}
+if {[llength $parts] < 2} {
+    puts stderr "CATFILES im Makefile nicht gefunden"
+    exit 1
+}
 set out ""
 foreach p $parts {
     set fh [open $p r]; fconfigure $fh -encoding utf-8

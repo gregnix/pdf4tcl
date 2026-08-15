@@ -1,3 +1,81 @@
+2026-08-15 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.43
+	* src/tagged.tcl (TagCheckNesting, TagEffectiveParent): tagBegin
+	refuses a structure element whose parent the standard does not allow.
+	ISO 32000-1 tables 335 and 337 fix where TR, TH, TD, THead, TBody,
+	TFoot, LI, LBody and TOCI may appear; a cell outside a row or a list
+	item outside a list used to land in the tree unremarked. No validator
+	reports it -- veraPDF checks conformance, not sense -- and no reader
+	repairs it: the file passes and a screen reader announces a table with
+	no rows. Only the relations the standard fixes without exception are
+	checked; P, Span, Figure and the rest stay unrestricted. NonStruct is
+	transparent (clause 14.8.4.2), so wrapping a row in one still passes.
+	A refused call throws before the element is created and leaves the
+	tree and the open-element stack untouched.
+	* src/tagged.tcl (TagCheckContent, TagEffectiveKids): tagEnd refuses to
+	close a container the standard requires to hold something -- a table
+	without rows, a list without items, a row without cells. tagBegin
+	cannot see this: at that point the element has no children yet. Marked
+	content does not count, so a table holding only text is still a table
+	without rows. A refused tagEnd leaves the element open, so the missing
+	content can be added and the element closed afterwards.
+	* src/tagged.tcl (TagCheckContent): an element closed without any
+	content -- no marked content, no child element and no annotation -- is
+	reported in ::pdf4tcl::warnings. Not refused: the standard permits it,
+	it just designates nothing. TD and TH are exempt, because a blank cell
+	belongs in the tree and a missing one shifts the column mapping. An
+	element holding only an annotation is not empty: a Link or a Form
+	consists of its /OBJR and never carries an MCID, so checking marked
+	content alone would report the attachment 0.9.4.42 made possible.
+	* src/tagged.tcl (TagEnsureMC, TagUntaggedReport), src/main.tcl
+	(Pdfoutcmd, DrawTextAt, Text): content that belongs to neither a
+	structure element nor an artifact is counted and reported once, at
+	finish. ISO 14289-1 clause 7.1 requires every piece of content to be
+	one or the other; nothing enforced it, and nothing else in the
+	toolchain notices, because a validator cannot know which operators were
+	meant to be content. A warning and not an error -- untagged content is
+	legal PDF and a caller may mean it. Only painting operators count
+	(ISO 32000-1 table 51): setting a colour or a font outside an element
+	is not a defect, and counting those would report every document however
+	carefully marked up. Content inside an XObject does not count, since
+	the tag on the Do that places it covers the block. New method
+	getUntaggedCount for asking before finish.
+	* src/tagged.tcl (tagArtifact): works inside an XObject now. An
+	artifact never carries an MCID, because nothing refers to it -- no
+	parent tree entry, no /Stm in an /MCR. That is what structure inside an
+	XObject would need, which is why tagBegin stays refused there. For a
+	purely decorative block the artifact is the correct marking.
+	* tests/new-0.9.4.43.test: 42 tests, both directions -- eight refused
+	arrangements, eleven permitted ones, the two cases proving a refusal
+	leaves no trace, ten for the containers, seven for empty elements,
+	three for artifacts in XObjects and eleven for leftover content. With
+	the checks removed, 29 fail.
+	* src/encrypt.tcl (EncryptStreamBody): the ciphertext of an empty
+	stream was dropped while /Length below it was set to the ciphertext
+	length. [string replace $body $sstart ${send}-1 ...] leaves the string
+	untouched when last is first-1, which is exactly the case for a stream
+	of zero bytes. The result was "/Length 32" over no bytes at all: every
+	reader opens the file, qpdf reports "expected endstream" and recovers
+	the length itself. Empty streams arrived with 0.9.4.42, which gives a
+	field without an initial value an appearance dictionary whose stream is
+	empty -- ISO 19005 6.3.3 asks for the dictionary, not for contents.
+	Two features correct on their own and wrong together. Now assembled
+	from three ranges instead of replaced in place.
+	* src/main.tcl (addForm): a text field with an initial value carried
+	/AP twice. 0.9.4.42 added the key for every text field and the older
+	line in the -init branch stayed. ISO 32000-1 7.3.7 does not allow a
+	duplicated key; both occurrences pointed at the same object, so no
+	reader showed anything.
+	* tests/encrypt.test, tests/form.test: seven tests for the two above,
+	each with a guard that fails when the helper finds nothing -- the first
+	version of both passed on an empty result and measured nothing.
+	* tools/bump.tcl: --to and --msg work again and unknown arguments end
+	the run with rc=2. They used to be dropped without a word, which made
+	"--dry-run" -- a switch this tool never had, it is --show -- write
+	every file it was meant to leave alone. Makefile and bumprev.txt
+	brought in line with what the tool actually accepts.
+
 2026-08-14 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.42
@@ -10,6 +88,72 @@
 	the "annotation is not part of the structure tree" warning on top.
 	Measured on the pdf4tcllib form demos: check-tagged.py reported twenty
 	failures where it now reports none.
+	* src/cat.tcl (DedupObjects): pdf4tcl::catPdf folds objects with an
+	identical body onto one and renumbers densely. Documents built from the
+	same template duplicate everything they share, above all the embedded
+	font programs -- measured on two documents of 28961 bytes, each
+	embedding FreeSans: 57757 bytes before, 33762 after, with both font
+	descriptors pointing at one /FontFile2 object.
+	The comparison covers the complete object body, so two objects are
+	folded only when nothing distinguishes them; two font subsets that
+	merely look alike must stay apart, since their glyph indices need not
+	agree. Pages, the catalog and structure elements are never folded.
+	Renumbering is dense rather than leaving gaps, because WritePdf writes
+	one xref entry per number from 1 to N and cannot skip a hole -- its own
+	comment had asked "TBD handle missing objects?".
+	* src/cat.tcl (RemapRefs): regsub cannot call a command per match, the
+	replacement is text. A first attempt passed a script there and wrote it
+	into the document: the font dictionaries came out containing
+	"/FontFile2 apply {{mapping num rest} ...". The rewrite walks the
+	matches instead.
+	* src/main.tcl: a text field without an initial value gets an empty
+	appearance stream rather than a dangling reference. _BuildTextAP
+	returns the empty string when there is nothing to draw, and testing
+	whether the variable existed instead of what it held wrote
+	"/AP << /N  0 R >>" into the file. qpdf, pypdf and tools/check-tagged.py
+	all accepted that; veraPDF refused to parse the object. Test
+	pdfa-ap-1.0 reads the bytes and checks every /N reference names a real
+	object number.
+	* src/main.tcl: form fields carry an appearance dictionary under -pdfa,
+	and it holds only /N. ISO 19005 clause 6.3.3 requires both. A text
+	field had no /AP at all -- _BuildTextAP had been producing the stream
+	all along, but nobody referenced it, so the object sat in the file
+	unused; a check box wrote /D beside /N, which the clause forbids. A
+	reader builds the look from /DA and /V either way, which is why it went
+	unnoticed: it only surfaced once a form with a check box could get far
+	enough through PDF/A validation for these two rules to be reached.
+	Without -pdfa the /D appearance is kept, since removing it everywhere
+	would change files that were perfectly fine.
+	* src/main.tcl, src/options.tcl: new option -markstyle. The appearance
+	of a check box or radio button drew its mark with a ZapfDingbats glyph.
+	That font is one of the 14 standard fonts and cannot be embedded, while
+	PDF/A clause 6.3.5 and PDF/UA clause 7.21.4.1 both require every font
+	program to be embedded -- so a single check box made a document
+	non-conformant whatever else it did right. Measured beforehand: a
+	document with only text fields contains no ZapfDingbats, one with a
+	check box does.
+	The mark is now two strokes and the radio dot four Bezier segments,
+	needing no font. -markstyle auto, the default, uses them where the
+	document claims PDF/UA or a level A conformance and keeps the glyph
+	otherwise, so nothing that exists today changes appearance; font and
+	vector force one or the other. Rendered side by side at 10, 14, 20 and
+	30 point, the two are hard to tell apart.
+	* 0.9.4.x/demo/demo-pdfa-3a.tcl: new. The other PDF/A demos show
+	conformance level B -- archivable but not accessible. This one is
+	PDF/A-3a and PDF/UA-1 at once, which is less work than it sounds:
+	level A wants a structure tree, a document language and Unicode
+	mappings, and tagging provides all three. Shows headings, a numbered
+	list, a table with /Scope on the header cells, a tagged link, and the
+	rule and footer as artifacts.
+	* tools/check-conformance.py: new. Reads each file's XMP, works out
+	which profiles it claims -- pdfaid for PDF/A, pdfuaid for PDF/UA -- and
+	runs veraPDF against exactly those. Takes files or directories, so a
+	whole output directory can be checked at once; --rules lists the failing
+	rules rather than only the verdict. A document claiming nothing is
+	reported as such rather than failed against a profile it never
+	promised, which is what makes the output worth reading: running
+	everything against a fixed profile list mostly produces failures that
+	were never in question.
 	* src/main.tcl (SetupFont): the standard font warning fires for a
 	document claiming PDF/UA through "tagged -ua" as well, not only for
 	-pdfa. ISO 14289-1 clause 7.21.4.1 requires embedded font programs just

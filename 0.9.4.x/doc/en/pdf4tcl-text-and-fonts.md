@@ -190,7 +190,20 @@ $pdf text "Chinese characters" -x 50 -y 140    ;# question marks only
 
 Characters outside WinAnsi/CP1252 are not rendered correctly.
 For full Unicode support, TrueType fonts must be embedded, which
-pdf4tcl does not support for standard fonts.
+pdf4tcl does not support for standard fonts. Which route to take --
+standard font, 256-character subset or full CID font -- is compared with
+measured file sizes in
+[`pdf4tcl-fonts-and-unicode.md`](pdf4tcl-fonts-and-unicode.md).
+
+The substitution is counted by `getSubstCount`, but only under Tcl 9:
+
+```
+Tcl 9.0.4    encoding convertto cp1252 "<Greek>"  ->  error, pdf4tcl counts
+Tcl 8.6.14   the same call                        ->  "??????", no error
+```
+
+Both write `??????` onto the page. On 8.6 the counter stays at zero, so it
+cannot be used as a safety net there.
 
 Typical problematic characters and their substitutes:
 

@@ -53,7 +53,64 @@ namespace eval pdf4tcl {
         Link Annot
     }
 
-    # Encode a Tcl string as a PDF text string (ISO 32000-1 clause 7.9.2.2).
+    # Where a structure type may appear, ISO 32000-1 Table 335 and 337.
+    #
+    # Only the relations the standard fixes without exception are listed.
+    # A cell outside a row or a list item outside a list is a defect no
+    # validator reports and no reader repairs: the element lands in the tree,
+    # the file passes, and a screen reader announces a table with no rows.
+    # Types absent from this dict are not restricted -- P, Span, Figure and
+    # the rest may legitimately appear almost anywhere.
+    variable StructParents {
+        LI     {L}
+        LBody  {LI}
+        THead  {Table}
+        TBody  {Table}
+        TFoot  {Table}
+        TR     {Table THead TBody TFoot}
+        TH     {TR}
+        TD     {TR}
+        TOCI   {TOC}
+    }
+
+    # What a container must contain, ISO 32000-1 Table 335.
+    #
+    # The mirror image of StructParents. tagBegin catches a cell outside a
+    # row; this catches a table with no rows at all. Both pass every
+    # validator and both leave a screen reader with nothing to announce.
+    # An entry means: at least one child of one of these types.
+    variable StructChildren {
+        L      {LI}
+        LI     {LBody}
+        Table  {TR THead TBody TFoot}
+        THead  {TR}
+        TBody  {TR}
+        TFoot  {TR}
+        TR     {TH TD}
+    }
+
+    # Operators that put marks on the page. Everything else in a content
+    # stream sets state -- colour, font, matrix, graphics state -- and may
+    # legitimately stand outside any structure element. Counting those as
+    # untagged content would report every document, however careful.
+    # ISO 32000-1 table 51: path-painting, text-showing, XObject and
+    # shading operators.
+    # The quote operators need escaping -- an unescaped " would break the
+    # list, which is exactly what happened the first time round.
+    variable PaintingOps {
+        S s f F f* B B* b b*
+        Tj TJ \' \"
+        Do sh EI
+    }
+
+    # Types that carry no structural meaning of their own. ISO 32000-1
+    # clause 14.8.4.2: NonStruct is skipped when the structure is examined,
+    # so it must be skipped when the parent is determined as well --
+    # otherwise wrapping a row in NonStruct would turn a legal document into
+    # a rejected one.
+    variable TransparentStructTypes {NonStruct}
+
+
     #
     # Pure ASCII is written as PDFDocEncoding, anything else as UTF-16BE with
     # a byte order mark. The result is always a *literal* string -- a hex
@@ -128,6 +185,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(tag,annotwarned) 0   ;# unattached annotation reported once
         set pdf(tag,rootoid)  ""
         set pdf(tag,uapart)   ""   ;# pdfuaid:part, empty unless -ua given
+        set pdf(tag,untagged) 0    ;# painting operations outside any element
+        set pdf(tag,untagpage) {}  ;# page numbers where that happened
     }
 
     method TagActive {} {
@@ -278,6 +337,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         } else {
             set parent $pdf(tag,root)
         }
+        my TagCheckNesting $type $parent
         set idx [my TagNewElem $type $parent $attrs]
         lappend pdf(tag,stack) $idx
         return $idx
@@ -290,11 +350,66 @@ oo::define ::pdf4tcl::pdf4tcl {
             throw {PDF4TCL} "tagEnd without matching tagBegin"
         }
         set idx [lindex $pdf(tag,stack) end]
+        # Vor dem Ablegen pruefen: schlaegt es fehl, bleibt das Element
+        # offen und der Aufrufer kann den fehlenden Inhalt nachtragen.
+        my TagCheckContent $idx
         set pdf(tag,stack) [lrange $pdf(tag,stack) 0 end-1]
         if {$pdf(tag,open) eq $idx} {
             my TagCloseMC
         }
         return
+    }
+
+    # Refuse to close a container the standard requires to hold something --
+    # a table without rows, a list without items. tagBegin cannot see this:
+    # at that point the element has no children yet.
+    method TagCheckContent {idx} {
+        variable ::pdf4tcl::StructChildren
+        set type $pdf(tag,type,$idx)
+        # Ein Element ohne jeden Inhalt bezeichnet nichts: es besteht jede
+        # Pruefung, und ein Screenreader kuendigt einen Absatz an, in dem
+        # nichts steht. Verboten ist es aber nicht -- deshalb eine Warnung
+        # und kein Fehler.
+        #
+        # Ausgenommen sind TD und TH: eine leere Zelle ist alltaeglich und
+        # gehoert in den Baum, sonst verrutscht die Spaltenzuordnung. Ein
+        # fehlendes TD ist schlimmer als ein leeres.
+        #
+        # Als Inhalt zaehlt dreierlei: ein Kindelement (E), ausgezeichneter
+        # Inhalt (M) und ein Objektverweis (O). Das O ist wesentlich -- ein
+        # Link oder ein Formularfeld besteht rechtmaessig nur aus seiner
+        # /OBJR und traegt nie eine MCID. Wer allein auf MCIDs prueft,
+        # meldet genau die Anbindung, die 0.9.4.42 moeglich gemacht hat.
+        if {[llength $pdf(tag,kids,$idx)] == 0 && $type ni {TD TH}} {
+            lappend ::pdf4tcl::warnings "tagged: the $type element is empty\
+                    -- no content, no child element and no annotation. It\
+                    passes every validator and tells a reader nothing."
+        }
+        if {![dict exists $::pdf4tcl::StructChildren $type]} { return }
+        set wanted [dict get $::pdf4tcl::StructChildren $type]
+        foreach kidType [my TagEffectiveKids $idx] {
+            if {$kidType in $wanted} { return }
+        }
+        set names [join $wanted " or "]
+        throw {PDF4TCL} "$type must contain at least one $names"
+    }
+
+    # Types of the child elements, looking through transparent ones: a row
+    # wrapped in NonStruct still counts as a row for its table.
+    method TagEffectiveKids {idx} {
+        variable ::pdf4tcl::TransparentStructTypes
+        set res {}
+        foreach kid $pdf(tag,kids,$idx) {
+            if {[lindex $kid 0] ne "E"} { continue }
+            set kidIdx [lindex $kid 1]
+            set kidType $pdf(tag,type,$kidIdx)
+            if {$kidType in $::pdf4tcl::TransparentStructTypes} {
+                lappend res {*}[my TagEffectiveKids $kidIdx]
+            } else {
+                lappend res $kidType
+            }
+        }
+        return $res
     }
 
     # Convenience: a complete element around a single text call.
@@ -349,9 +464,12 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
         if {!$pdf(inPage)} { my startPage }
-        if {$pdf(inXObject)} {
-            throw {PDF4TCL} "tagging inside an XObject is not supported"
-        }
+        # Kein Verbot im XObject: ein Artefakt traegt nie eine MCID, weil
+        # nichts darauf verweist. Es braucht deshalb weder einen
+        # Parent-Tree-Eintrag noch ein /Stm in einer /MCR -- genau das,
+        # woran Struktur in XObjects scheitert. Fuer einen rein dekorativen
+        # Block ist "/Artifact BMC ... EMC" die richtige und einzige noetige
+        # Auszeichnung.
         # PDF/UA forbids an artifact inside tagged content and tagged content
         # inside an artifact (ISO 14289-1 clause 7.1). An element may still be
         # open here -- a running foot on the second page of a paragraph that
@@ -388,6 +506,32 @@ oo::define ::pdf4tcl::pdf4tcl {
     ###########################################################################
     # Structure tree bookkeeping
     ###########################################################################
+
+    # Refuse a structure element whose parent the standard does not allow.
+    # Called from tagBegin before the element exists, so a rejected call
+    # leaves the tree exactly as it was.
+    method TagCheckNesting {type parent} {
+        variable ::pdf4tcl::StructParents
+        if {![dict exists $::pdf4tcl::StructParents $type]} { return }
+        set allowed [dict get $::pdf4tcl::StructParents $type]
+        set ptype [my TagEffectiveParent $parent]
+        if {$ptype in $allowed} { return }
+        set names [join $allowed " or "]
+        throw {PDF4TCL} "$type must be inside $names, not $ptype"
+    }
+
+    # Type of the element a child is structurally attached to: the nearest
+    # ancestor that is not transparent. The root element is a Document even
+    # before anything is nested in it.
+    method TagEffectiveParent {idx} {
+        variable ::pdf4tcl::TransparentStructTypes
+        while {$idx >= 0} {
+            set type $pdf(tag,type,$idx)
+            if {$type ni $::pdf4tcl::TransparentStructTypes} { return $type }
+            set idx $pdf(tag,parent,$idx)
+        }
+        return Document
+    }
 
     method TagNewElem {type parent attrs} {
         set idx $pdf(tag,n)
@@ -448,12 +592,61 @@ oo::define ::pdf4tcl::pdf4tcl {
     # and a new one opened. An element may therefore own several marked
     # content sequences on one page; that is normal and is what /K arrays with
     # multiple /MCR entries are for.
-    method TagEnsureMC {} {
+    # Number of painting operations that belonged to neither a structure
+    # element nor an artifact. Zero is what PDF/UA clause 7.1 asks for.
+    method getUntaggedCount {} {
+        my TagInit
+        return $pdf(tag,untagged)
+    }
+
+    # Report leftover content once, when the document is finished. A warning
+    # and not an error: untagged content is legal PDF, and a caller who tags
+    # part of a page may well mean it. What it is not is PDF/UA conformant,
+    # and nothing else in the toolchain says so -- veraPDF cannot know which
+    # operators were meant to be content.
+    method TagUntaggedReport {} {
+        my TagInit
+        if {!$pdf(tag,active)} { return }
+        if {$pdf(tag,untagged) == 0} { return }
+        set pages [llength $pdf(tag,untagpage)]
+        set what "tagged: $pdf(tag,untagged) painting operation(s) on\
+                $pages page(s) belong to neither a structure element nor an\
+                artifact."
+        if {$pdf(tag,uapart) ne "" || [string match {*a} $options(-pdfa)]} {
+            append what " ISO 14289-1 clause 7.1 requires every piece of\
+                    content to be one or the other, so this document does not\
+                    meet the level it claims."
+        } else {
+            append what " That is legal PDF but not PDF/UA conformant."
+        }
+        append what " Wrap the content in tagBegin/tagEnd, or mark it with\
+                tagArtifact if it carries no meaning."
+        lappend ::pdf4tcl::warnings $what
+    }
+
+    method TagEnsureMC {{op ""}} {
         if {![my TagActive]} { return }
         # Artifacts own the marked content while they are open, and the guard
         # keeps the Pdfout calls below from re-entering this method.
         if {$pdf(tag,artdepth) > 0 || $pdf(tag,mcguard)} { return }
-        if {[llength $pdf(tag,stack)] == 0} { return }
+        if {[llength $pdf(tag,stack)] == 0} {
+            # Nothing is open and no artifact is running: this painting
+            # operation belongs to neither. ISO 14289-1 clause 7.1 wants
+            # every piece of content either tagged or marked as an artifact,
+            # so count it -- see TagUntaggedReport, called from finish.
+            # Content inside an XObject is covered by the tag on the "Do"
+            # that places it, so it does not count here.
+            variable ::pdf4tcl::PaintingOps
+            if {$pdf(inPage) && !$pdf(inXObject)
+                    && $op in $::pdf4tcl::PaintingOps} {
+                incr pdf(tag,untagged)
+                set pg [llength $pdf(tag,pagelist)]
+                if {$pg ni $pdf(tag,untagpage)} {
+                    lappend pdf(tag,untagpage) $pg
+                }
+            }
+            return
+        }
         if {!$pdf(inPage) || $pdf(inXObject)} { return }
         set inner [lindex $pdf(tag,stack) end]
         if {$pdf(tag,open) eq $inner} { return }

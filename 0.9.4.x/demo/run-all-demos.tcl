@@ -34,6 +34,32 @@ set runAll [expr {[lsearch -exact $argv --alle] >= 0}]
 set hasTk [expr {[info exists env(DISPLAY)] && $env(DISPLAY) ne ""}]
 
 # ---------------------------------------------------------------------------
+# Zeitgrenze je Demo
+# ---------------------------------------------------------------------------
+#
+# exec wartet ohne Grenze. Eine Demo, die Tk laedt und kein exit hat, geht am
+# Skriptende in die Event-Loop und haelt den Sammellauf fest -- und zwar nur
+# auf einer Maschine mit Anzeige. Ohne DISPLAY wird dieselbe Demo
+# uebersprungen, der Lauf ist gruen, und niemand sieht es.
+#
+# timeout(1) stammt aus den coreutils und fehlt auf Windows. Wo es fehlt,
+# laeuft es wie bisher -- eine Zeitgrenze in reinem Tcl braeuchte
+# nichtblockierende Kanaele und eine eigene Event-Schleife, was fuer einen
+# Demo-Runner zu viel Apparat ist.
+
+set demoTimeout 120
+set timeoutCmd {}
+if {[llength [auto_execok timeout]] > 0} {
+    set timeoutCmd [list timeout $demoTimeout]
+}
+
+# timeout(1) beendet mit 124, wenn die Grenze zuschlug.
+proc TimedOut {} {
+    return [expr {[lindex $::errorCode 0] eq "CHILDSTATUS"
+                  && [lindex $::errorCode 2] == 124}]
+}
+
+# ---------------------------------------------------------------------------
 # Demo-Liste
 # Eintraege: {skriptname tk_erforderlich beschreibung}
 # ---------------------------------------------------------------------------
@@ -70,6 +96,7 @@ set DEMOS {
     {demo-layers.tcl             0  dir        "Layer / OCG (0.9.4.21)"}
     {demo-annotations.tcl        0  dir        "Annotationen (Note/FreeText/Stamp/Markup/Line 0.9.4.23)"}
     {demo-pdfa.tcl               0  --out      "PDF/A direkt"}
+    {demo-pdfa-3a.tcl            0  --out      "PDF/A-3a und PDF/UA-1"}
     {demo-pdfa-gs.tcl            0  --out      "PDF/A via Ghostscript"}
     {demo-stdfonts-tabelle.tcl   0  dir        "Standard-Fonts Tabelle"}
     {demo-stdfonts-tounicode.tcl 0  dir        "Standard-Fonts ToUnicode"}
@@ -77,7 +104,8 @@ set DEMOS {
     {demo-unicode-tabelle.tcl    0  none       "Unicode-Tabelle"}
     {fonts.tcl                   0  dir        "Font-Demo"}
     {demo-forms-calc.tcl         0  dir        "Formular + Summenberechnung (-calculate 0.9.4.32)"}
-    {demo-forms-tk.tcl           1  none       "Formulare (Tk-GUI)"}
+    {demo-forms-tk.tcl           1  none       "Formulare (Tk-GUI)"
+        "interaktiv -- oeffnet ein Fenster und wartet, kein Stapellauf"}
     {demo-tagged.tcl             0  dir        "Tagged PDF / PDF-UA (0.9.4.36+0.9.4.37)"}
     {demo-forms.tcl              0  dir        "Bestellformular ohne Verschluesselung"}
     {demo-gradients.tcl          0  dir        "Verlaeufe und Blendmodi"}
@@ -162,10 +190,16 @@ foreach demo $DEMOS {
     puts -nonewline "  RUN    $script ... "
     flush stdout
 
-    set cmd [list tclsh $scriptpath {*}$extraargs]
+    set cmd [list {*}$timeoutCmd [info nameofexecutable] $scriptpath {*}$extraargs]
     if {[catch {exec {*}$cmd 2>@stdout} result]} {
-        puts "FEHLER"
-        if {$result ne ""} { puts "         $result" }
+        if {[TimedOut]} {
+            puts "ZEITGRENZE (${demoTimeout}s)"
+            puts "         Laeuft die Demo in eine Event-Loop? Ein Skript, das"
+            puts "         Tk laedt und kein exit hat, wartet hier unbegrenzt."
+        } else {
+            puts "FEHLER"
+            if {$result ne ""} { puts "         $result" }
+        }
         lappend failed $script
         incr n_fail
     } else {

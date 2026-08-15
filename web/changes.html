@@ -11,6 +11,17 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.43 (2026-08-15, fork gregnix):<br>
+<ul>
+  <li>tagBegin refuses a structure element whose parent the standard does not allow -- a cell outside a row or a list item outside a list is a defect no validator reports and no reader repairs</li>
+  <li>tagEnd refuses to close a container the standard requires to hold something -- a table without rows, a list without items</li>
+  <li>content belonging to neither a structure element nor an artifact is counted and reported at finish -- PDF/UA clause 7.1; new method getUntaggedCount</li>
+  <li>an element closed with no content at all is reported in ::pdf4tcl::warnings -- empty cells excepted, they belong in the tree</li>
+  <li>tagArtifact works inside an XObject; structure there is still refused</li>
+  <li>encrypted documents: the ciphertext of an empty stream was dropped while /Length claimed its size -- affected appearance streams of form fields without an initial value, introduced in 0.9.4.42</li>
+  <li>a text field with an initial value carried /AP twice, which ISO 32000-1 7.3.7 does not allow</li>
+</ul>
+
 Changes in v0.9.4.42 (2026-08-14, fork gregnix):<br>
 <ul>
   <li>an annotation is attached to an open Form element as well -- interactive form fields can be reached from the structure tree, which ISO 32000-1 table 337 and PDF/UA 7.18.1 require</li>

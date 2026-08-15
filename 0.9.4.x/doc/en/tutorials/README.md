@@ -11,6 +11,7 @@ to pdf4tcl; otherwise pick the one that matches the job.
 | 4 | `tutorial-04-forms.md` | Order form with calculated sum | `demo-forms-calc.tcl` |
 | 5 | `tutorial-05-graphics-lab.md` | Alpha + gradient + transform | `demo-alpha` / `gradients` / `transform` |
 | 6 | `tutorial-06-assemble-pack.md` | Reading pack: images + text + catPdf | — |
+| 7 | `tutorial-07-multilingual.md` | One page in five scripts; font choice and its limits | `demo-cidfont.tcl`, `demo-symbole.tcl` |
 
 After these, use the feature guides in the parent directory and the recipes
 under `../howtos/`. Full demo list: `0.9.4.x/demo/run-all-demos.tcl`.

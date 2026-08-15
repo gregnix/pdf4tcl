@@ -3,11 +3,8 @@ Version bump for pdf4tcl fork -- using tools/bump.tcl
 
 QUICK BUMP (all files updated automatically):
 
+  tclsh tools/bump.tcl                       # target read from tools/next.tcl
   tclsh tools/bump.tcl --to 0.9.4.X --msg "short description"
-
-WITH GIT (commit + tag + push in one step):
-
-  tclsh tools/bump.tcl --to 0.9.4.X --msg "short description" --git
 
 VIA MAKEFILE:
 
@@ -16,7 +13,14 @@ VIA MAKEFILE:
 
 DRY RUN (show what would change):
 
-  tclsh tools/bump.tcl --to 0.9.4.X --msg "..." --dry-run --no-test
+  tclsh tools/bump.tcl --to 0.9.4.X --msg "..." --show
+
+Note: the switch is --show. Everything bump.tcl does not recognise now
+ends the run with rc=2 instead of being dropped -- a "--dry-run" that
+went unrecognised used to write every file.
+
+There is no --git: commit, tag and push are listed at the end of the run
+and stay manual.
 
 
 Files updated automatically by bump.tcl:

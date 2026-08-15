@@ -289,6 +289,70 @@ test encrypt-8.1 {multi-page encrypted document builds without error} {
 } 1
 
 # ---------------------------------------------------------------------------
+# Empty streams under encryption (0.9.4.43)
+# ---------------------------------------------------------------------------
+#
+# A form field without an initial value gets an appearance dictionary whose
+# stream is empty -- the rule asks for the dictionary, not for its contents.
+# EncryptStreamBody used [string replace $body $sstart ${send}-1 ...], and
+# with an empty stream send equals sstart, so last is first-1 and Tcl leaves
+# the string untouched. The ciphertext was dropped while /Length below it was
+# set to the ciphertext length: /Length 32 over zero bytes. Every reader
+# opened the file; qpdf reported "expected endstream" and recovered the
+# length itself.
+
+# Declared and actual length of the first /Subtype /Form stream.
+# Returns {} when there is none -- the tests treat that as a failure, not as
+# a pass: a helper that finds nothing must not make a test green.
+proc formStreamLengths {data} {
+    set idx [string first "/Subtype /Form" $data]
+    if {$idx < 0} { return {} }
+    set sstart [string first "stream\n" $data $idx]
+    if {$sstart < 0} { return {} }
+    incr sstart 7
+    set send [string first "\nendstream" $data $sstart]
+    if {$send < 0} { return {} }
+    set head [string range $data $idx $sstart]
+    if {![regexp {/Length ([0-9]+)} $head -> declared]} { return {} }
+    return [list $declared [expr {$send - $sstart}]]
+}
+
+# A text field without an initial value under -pdfa: the appearance stream is
+# empty, because ISO 19005 6.3.3 asks for the dictionary, not for contents.
+proc emptyApDoc {args} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -pdfa 3b {*}$args]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id leer
+    set data [$p get]
+    $p destroy
+    return $data
+}
+
+test encrypt-empty-1.1 {without encryption an empty stream stays empty} -body {
+    formStreamLengths [emptyApDoc]
+} -result {0 0}
+
+test encrypt-empty-1.2 {encrypted: declared length matches the bytes written} -body {
+    lassign [formStreamLengths [emptyApDoc -userpassword geheim]] declared actual
+    expr {$declared ne "" && $declared == $actual}
+} -result 1
+
+test encrypt-empty-1.3 {encrypted: the ciphertext is present, not dropped} -body {
+    lassign [formStreamLengths [emptyApDoc -userpassword geheim]] declared actual
+    # Encrypting an empty string yields at least one cipher block. Zero bytes
+    # here would mean the ciphertext went missing while /Length claimed it.
+    expr {$actual ne "" && $actual > 0}
+} -result 1
+
+test encrypt-empty-1.4 {the helper finds a stream at all} -body {
+    # Guards the three tests above: if addForm ever stops writing an empty
+    # appearance stream, they would pass on an empty result instead of
+    # measuring anything.
+    llength [formStreamLengths [emptyApDoc]]
+} -result 2
+
+# ---------------------------------------------------------------------------
 # Cleanup
 # ---------------------------------------------------------------------------
 cleanupTests

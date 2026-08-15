@@ -9,6 +9,93 @@ not listed here -- see the CHANGES section in the manpage.
 
 ---
 
+## From any version to 0.9.4.43
+
+Two checks that refuse calls which used to be accepted, one new warning, and
+two fixes that change the bytes of existing documents.
+
+**`tagBegin` refuses a structure element the standard does not allow there.**
+ISO 32000-1 tables 335 and 337 fix where a few types may appear:
+
+```
+LI                    in L
+LBody                 in LI
+THead, TBody, TFoot   in Table
+TR                    in Table, THead, TBody or TFoot
+TH, TD                in TR
+TOCI                  in TOC
+```
+
+Every other type is unrestricted, and `NonStruct` is transparent -- a row
+wrapped in one is still a row. Code that produced a cell outside a row now
+gets an error where it previously got a document that passed every validator
+and told a screen reader nothing.
+
+**`tagEnd` refuses to close a container that must hold something.** The other
+half of the same rule: `Table` needs rows, `L` needs items, `TR` needs cells.
+Marked content does not count -- a table holding only text is still a table
+without rows. A refused `tagEnd` leaves the element open, so the missing
+content can be added and the element closed afterwards.
+
+If existing code marked up an empty table or list, it now raises an error.
+Such documents validated but were unusable, so the break is deliberate.
+
+**An element closed with no content at all is reported, not refused.** No
+marked content, no child element, no annotation -- the entry goes to
+`::pdf4tcl::warnings`. `TD` and `TH` are exempt: a blank cell belongs in the
+tree, and a missing one shifts the column mapping. An element holding only an
+annotation is not empty, since `Link` and `Form` consist of an `/OBJR` and
+never carry an MCID.
+
+**Leftover content is reported at `finish`.** Painting operations that belong
+to neither a structure element nor an artifact are counted, and a document
+that has any gets an entry in `::pdf4tcl::warnings`. ISO 14289-1 clause 7.1
+requires every piece of content to be one or the other; nothing said so
+before. Existing code that tags only part of a page will now hear about it --
+the output itself is unchanged. `getUntaggedCount` asks the same question
+before finishing.
+
+Only painting operators count (ISO 32000-1 table 51). Setting a colour or a
+font outside an element is not a defect, and content inside an XObject is
+covered by the tag on the `Do` that places it.
+
+**`tagArtifact` works inside an XObject now.** An artifact carries no MCID,
+so it needs neither a parent tree entry nor `/Stm` in an `/MCR`. `tagBegin`
+inside an XObject stays refused.
+
+**Two fixes that change output.** Both affect documents produced by 0.9.4.42:
+
+* An encrypted document with a form field lost the ciphertext of empty
+  appearance streams while `/Length` claimed its size. Readers opened such
+  files anyway; `qpdf --check` reported `expected endstream`.
+* A text field with an initial value carried `/AP` twice, which ISO 32000-1
+  7.3.7 does not allow.
+
+Documents written with 0.9.4.42 are worth regenerating for both reasons.
+
+---
+
+## From any version to 0.9.4.42
+
+**Form fields can be part of the structure tree.** `tagBegin Form` was
+accepted before, but annotations only attached to `Link` and `Annot`, so the
+element stood in the tree and the field stayed unreachable. Existing tagged
+forms gain the attachment automatically; the warning about an unattached
+annotation stops appearing.
+
+**The standard-font warning now applies to `tagged -ua` as well**, not only
+to `-pdfa`. PDF/UA requires embedded fonts just as PDF/A does (7.21.4.1
+against 6.3.5).
+
+**Checkboxes and radio buttons draw their mark as vectors** where conformance
+is claimed, instead of using a ZapfDingbats glyph that cannot be embedded.
+The appearance changes slightly.
+
+**Text fields get an `/AP` dictionary, checkboxes no longer write `/D` beside
+`/N`.** ISO 19005 6.3.3 requires the dictionary and permits only `/N`.
+
+---
+
 ## From any version to 0.9.4.41
 
 Two additions, one of which may produce warnings in existing code.

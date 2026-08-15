@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.42 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.43 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.42?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.43?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -417,6 +417,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.42?\fR
 \fIobjectName\fR \fBtagText\fR \fItype\fR \fIstr\fR ?\fIoptions\fR?
 .sp
 \fIobjectName\fR \fBtagArtifact\fR ?\fIoptions\fR?
+.sp
+\fIobjectName\fR \fBgetUntaggedCount\fR
 .sp
 \fIobjectName\fR \fBtagArtifactEnd\fR
 .sp
@@ -1673,6 +1675,59 @@ Table 333 to 337:
 \fBForm\fR\&.
 Any other type would require a \fB/RoleMap\fR entry and is refused rather
 than written out and then silently ignored by readers\&.
+.sp
+Where the standard fixes the parent of a type, a call that would put it
+somewhere else is refused as well:
+.RS
+.TP
+\fBLI\fR in \fBL\fR
+.TP
+\fBLBody\fR in \fBLI\fR
+.TP
+\fBTHead\fR, \fBTBody\fR, \fBTFoot\fR in \fBTable\fR
+.TP
+\fBTR\fR in \fBTable\fR, \fBTHead\fR, \fBTBody\fR or \fBTFoot\fR
+.TP
+\fBTH\fR, \fBTD\fR in \fBTR\fR
+.TP
+\fBTOCI\fR in \fBTOC\fR
+.RE
+.IP
+Every other type may appear anywhere\&. \fBNonStruct\fR carries no structural
+meaning of its own (ISO 32000-1 clause 14\&.8\&.4\&.2) and is skipped when the
+parent is determined, so a row wrapped in one is still a row\&. A refused call
+raises an error before the element exists and leaves the tree unchanged\&.
+.sp
+This closes a class of defect that goes unreported otherwise: a validator
+checks conformance, not sense, and a reader repairs nothing\&. A cell outside
+a row passes every check and is announced as a table without rows\&.
+.sp
+\fBtagEnd\fR checks the other direction and refuses to close a container
+the standard requires to hold something:
+.RS
+.TP
+\fBL\fR holds at least one \fBLI\fR
+.TP
+\fBLI\fR holds an \fBLBody\fR
+.TP
+\fBTable\fR holds \fBTR\fR, \fBTHead\fR, \fBTBody\fR or \fBTFoot\fR
+.TP
+\fBTHead\fR, \fBTBody\fR, \fBTFoot\fR hold at least one \fBTR\fR
+.TP
+\fBTR\fR holds at least one \fBTH\fR or \fBTD\fR
+.RE
+.IP
+Marked content does not count here -- a table holding only text is still a
+table without rows\&. A refused \fBtagEnd\fR leaves the element open, so the
+missing content can be added and the element closed afterwards\&.
+.sp
+An element closed without any content at all -- no marked content, no child
+element and no annotation -- is reported in \fB::pdf4tcl::warnings\fR rather
+than refused: the standard permits it, but such an element designates
+nothing\&. \fBTD\fR and \fBTH\fR are exempt, because a blank cell belongs
+in the tree; without it the column mapping shifts\&. An element that holds only
+an annotation, such as a \fBLink\fR or a \fBForm\fR, is not empty --
+these consist of an \fB/OBJR\fR and never carry an MCID\&.
 .RS
 .TP
 \fB-alt\fR \fItext\fR
@@ -1734,6 +1789,29 @@ Options are split by name: \fB-alt\fR, \fB-actualtext\fR,
 everything else to \fBtext\fR\&. Returns whatever \fBtext\fR returns\&.
 .TP
 \fIobjectName\fR \fBtagArtifact\fR ?\fIoptions\fR?
+.sp
+Unlike \fBtagBegin\fR, this works inside an XObject as well\&. An artifact
+never carries an MCID, because nothing refers to it -- no parent tree entry
+and no \fB/Stm\fR in an \fB/MCR\fR\&. For a purely decorative block that is
+the correct and only marking required\&.
+.sp
+Content that belongs to neither a structure element nor an artifact is
+counted while the document is built and reported once, at \fBfinish\fR\&.
+ISO 14289-1 clause 7\&.1 requires every piece of content to be one or the
+other, and nothing else in the toolchain notices when it is not: a validator
+cannot know which operators were meant to be content\&. The entry goes to
+\fB::pdf4tcl::warnings\fR; it is a warning and not an error, because
+untagged content is legal PDF and a caller may mean it\&.
+.sp
+Only operators that put marks on the page count -- path painting, text
+showing, XObjects and shadings\&. Setting a colour, a font or a matrix outside
+an element is not a defect\&. Content inside an XObject does not count either,
+since the tag on the \fBDo\fR that places it covers the whole block\&.
+.TP
+\fIobjectName\fR \fBgetUntaggedCount\fR
+Number of painting operations so far that belonged to neither a structure
+element nor an artifact\&. Zero is what PDF/UA asks for\&. Always zero while
+tagging is off\&.
 .TP
 \fIobjectName\fR \fBtagArtifactEnd\fR
 Marks content that is not part of the document: running heads, page numbers,
@@ -2573,6 +2651,31 @@ only\&.
 .SH CHANGES
 .SS "VERSION 0\&.9\&.4\&.42"
 .PP
+.IP \(bu
+\fB::pdf4tcl::catPdf\fR folds objects with an identical body onto one
+and renumbers densely\&. Documents built from the same template share their
+embedded font programs; measured on two documents of 28961 bytes each, the
+result went from 57757 to 33762 bytes\&. Pages, the catalog and structure
+elements are never folded\&.
+.IP \(bu
+\fB::pdf4tcl::catPdf\fR folds objects with an identical body onto one
+and renumbers densely\&. Documents built from the same template share their
+embedded font programs; measured on two documents of 28961 bytes each, the
+result went from 57757 to 33762 bytes\&. Pages, the catalog and structure
+elements are never folded\&.
+.IP \(bu
+\fB-markstyle\fR decides how the mark of a check box or radio
+button is drawn: \fBfont\fR uses a ZapfDingbats glyph as before,
+\fBvector\fR draws it with lines and curves, and \fBauto\fR, the default,
+picks vectors where the document claims PDF/UA or a level A conformance\&. The
+glyph cannot be embedded and both standards require embedded font programs,
+so a single check box used to make a document non-conformant whatever else it
+did right\&. Documents claiming nothing keep the appearance they always had\&.
+.IP \(bu
+"\fItools/check-conformance\&.py\fR": new\&. Reads a document's XMP, works
+out which profiles it claims and runs veraPDF against those; takes files or
+directories\&. A document claiming nothing is reported as such rather than
+failed against a profile it never promised\&.
 .IP \(bu
 "\fIsrc/tagged\&.tcl\fR" (\fBTagAnnotEntries\fR): an annotation is
 attached to an open \fBForm\fR element as well, not only to \fBLink\fR

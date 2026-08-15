@@ -72,6 +72,20 @@ oo::define ::pdf4tcl::pdf4tcl {
                 -readonly 1
         # Path to sRGB ICC profile for OutputIntent (auto-searched if empty)
         my Option -pdfa-icc  -default ""     -readonly 1
+        # How the mark of a check box or radio button is drawn.
+        #
+        #   font    a glyph from ZapfDingbats, as pdf4tcl always did
+        #   vector  lines and curves, no font at all
+        #   auto    vector where conformance is claimed, font otherwise
+        #
+        # The glyph cannot be embedded -- ZapfDingbats is one of the 14
+        # standard fonts -- and both PDF/A and PDF/UA require every font
+        # program to be embedded. So a document with a check box could not
+        # conform, whatever else it did right. "auto" switches only those
+        # documents to vector marks and leaves everything else looking
+        # exactly as before.
+        my Option -markstyle -default auto   -validatemethod CheckMarkStyle \
+                -readonly 1
         # Encryption (AES-128, V=4/R=4, PDF 1.5+).
         # Setting either password enables encryption.
         # If ownerpassword is empty, userpassword is used for both.
@@ -269,7 +283,8 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagAnnotRegister {oid} {}
     method TagPageStart {} {}
     method TagPageEnd {} {}
-    method TagEnsureMC {} {}
+    method TagEnsureMC {{op ""}} {}
+    method TagUntaggedReport {} {}
     method TagPageDict {} { return "" }
     method TagCatalogEntries {} {}
     method TagWriteObjects {} {}
@@ -287,10 +302,12 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Helper to format a line consisting of numbers and last a command
     method Pdfoutcmd {args} {
-        # Tagged PDF: every content stream operator is a painting operation,
-        # so this is where a pending structure element gets its marked
-        # content. No-op when tagging is off. See src/tagged.tcl.
-        my TagEnsureMC
+        # Tagged PDF: this is where a pending structure element gets its
+        # marked content. The operator is passed on because only painting
+        # operators count as content -- setting a colour or a font outside
+        # any element is not a defect. No-op when tagging is off.
+        # See src/tagged.tcl.
+        my TagEnsureMC [lindex $args end]
         set str ""
         foreach num [lrange $args 0 end-1] {
             append str [Nf $num] " "
@@ -743,6 +760,9 @@ oo::define ::pdf4tcl::pdf4tcl {
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
         my CheckPdfaLevelA
+        # Leftover content: reported here because the page count is only
+        # final once endPage has run. See src/tagged.tcl.
+        my TagUntaggedReport
         my TagCatalogEntries
         # XMP Metadata stream -- OID reserved now, written at end of endPDF
         # (ISO 32000 SS7.11.3, PDF/A-1 SS6.7.2)
@@ -2713,6 +2733,7 @@ Use -pdfa-icc to specify a profile path."
             my SetTextPosition $x $y
         }
 
+        my TagEnsureMC Tj
         my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
         set pdf(xpos) [expr {$x + $strWidth}]
         return $strWidth
@@ -2732,6 +2753,7 @@ Use -pdfa-icc to specify a profile path."
         }
         my BeginTextObj
         my SetTextPosition $x $y
+        my TagEnsureMC Tj
         my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
     }
 
@@ -5571,13 +5593,88 @@ Use -pdfa-icc to specify a profile path."
         return $obj
     }
 
+    # Should the mark be drawn with vectors rather than a glyph?
+    #
+    # A ZapfDingbats glyph cannot be embedded, and both PDF/A (ISO 19005
+    # clause 6.3.5) and PDF/UA (ISO 14289-1 clause 7.21.4.1) require every
+    # font program to be embedded. So a check box made the document
+    # non-conformant no matter what else was right -- measured: a document
+    # with only text fields contains no ZapfDingbats, one with a single check
+    # box does.
+    method UseVectorMark {} {
+        switch -- $options(-markstyle) {
+            vector { return 1 }
+            font   { return 0 }
+        }
+        # auto: only where the document claims a conformance that the glyph
+        # would break. Everything else keeps the appearance it always had.
+        if {[info exists pdf(tag,uapart)] && $pdf(tag,uapart) ne ""} {
+            return 1
+        }
+        if {$options(-pdfa) ne "" &&
+                [string index $options(-pdfa) 1] eq "a"} {
+            return 1
+        }
+        return 0
+    }
+
+    # A check mark as two strokes, in a box of the given size.
+    #
+    # The proportions follow the ZapfDingbats glyph closely enough that a
+    # form does not visibly change: the short arm reaches down to about a
+    # third of the height, the long one up to three quarters. Round caps and
+    # joins, because a mitred corner at this size looks like a defect.
+    method _VectorCheckStream {width height} {
+        set lw [expr {max(0.8, 0.14 * min($width, $height))}]
+        set x1 [expr {0.22 * $width}]
+        set y1 [expr {0.52 * $height}]
+        set x2 [expr {0.42 * $width}]
+        set y2 [expr {0.28 * $height}]
+        set x3 [expr {0.80 * $width}]
+        set y3 [expr {0.75 * $height}]
+        set stream "/Tx BMC q 0 G [Nf $lw] w 1 J 1 j "
+        append stream "[Nf $x1] [Nf $y1] m [Nf $x2] [Nf $y2] l "
+        append stream "[Nf $x3] [Nf $y3] l S Q EMC"
+        return $stream
+    }
+
+    # A filled circle, for the on state of a radio button. Four Bezier
+    # segments; the 0.5523 is the usual constant for approximating a quarter
+    # circle with a cubic curve.
+    method _VectorDotStream {width height} {
+        set r  [expr {0.28 * min($width, $height)}]
+        set cx [expr {$width / 2.0}]
+        set cy [expr {$height / 2.0}]
+        set k  [expr {$r * 0.5523}]
+        set stream "/Tx BMC q 0 g "
+        append stream "[Nf [expr {$cx + $r}]] [Nf $cy] m "
+        append stream "[Nf [expr {$cx + $r}]] [Nf [expr {$cy + $k}]] \
+                [Nf [expr {$cx + $k}]] [Nf [expr {$cy + $r}]] \
+                [Nf $cx] [Nf [expr {$cy + $r}]] c "
+        append stream "[Nf [expr {$cx - $k}]] [Nf [expr {$cy + $r}]] \
+                [Nf [expr {$cx - $r}]] [Nf [expr {$cy + $k}]] \
+                [Nf [expr {$cx - $r}]] [Nf $cy] c "
+        append stream "[Nf [expr {$cx - $r}]] [Nf [expr {$cy - $k}]] \
+                [Nf [expr {$cx - $k}]] [Nf [expr {$cy - $r}]] \
+                [Nf $cx] [Nf [expr {$cy - $r}]] c "
+        append stream "[Nf [expr {$cx + $k}]] [Nf [expr {$cy - $r}]] \
+                [Nf [expr {$cx + $r}]] [Nf [expr {$cy - $k}]] \
+                [Nf [expr {$cx + $r}]] [Nf $cy] c f Q EMC"
+        return $stream
+    }
+
     # Build checkbox appearance: returns {onid offid}
     method _BuildCheckboxAP {width height onObj offObj} {
-        my SetupZaDbFont
+        set vector [my UseVectorMark]
+        if {!$vector} { my SetupZaDbFont }
         set obj [my _FormXObjHeader $width $height]
         # On-state appearance
         if {$onObj ne ""} {
             set onid [lindex $images($onObj) 2]
+        } elseif {$vector} {
+            set body [MakeStream $obj \
+                    [my _VectorCheckStream $width $height] $pdf(compress)]
+            set onid [my AddObject $body]
         } else {
             # Use char 4 from Zapf, which is a checkmark (unicode 0x2714)
             set fs [expr {$height * 0.9}]
@@ -5688,6 +5785,17 @@ Use -pdfa-icc to specify a profile path."
 
     # Build radiobutton appearance: returns {onid offid}
     method _BuildRadioAP {width height} {
+        set vector [my UseVectorMark]
+        if {$vector} {
+            set obj [my _FormXObjHeader $width $height]
+            set body [MakeStream $obj \
+                    [my _VectorDotStream $width $height] $pdf(compress)]
+            set onid [my AddObject $body]
+            set body [MakeStream [my _FormXObjHeader $width $height] "" \
+                    $pdf(compress)]
+            set offid [my AddObject $body]
+            return [list $onid $offid]
+        }
         my SetupZaDbFont
         set obj [my _FormXObjHeader $width $height]
         # On state: filled circle (bullet char 108 in ZapfDingbats = (bullet))
@@ -6226,6 +6334,28 @@ Use -pdfa-icc to specify a profile path."
             }
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor)\n"
+            # ISO 19005 clause 6.3.3 wants an appearance dictionary on every
+            # annotation, widgets included, and a text field had none. A
+            # reader builds the look from /DA and /V either way, which is why
+            # nobody noticed until PDF/A asked.
+            #
+            # _BuildTextAP returns the empty string for a field without an
+            # initial value -- there is nothing to draw. An empty stream is
+            # still needed, because the rule asks for the dictionary, not for
+            # its contents. Testing [info exists onid] instead of the value
+            # wrote "/AP << /N  0 R >>" into the file, which is not a valid
+            # dictionary; every reader here accepted it and veraPDF refused
+            # to parse the object at all.
+            if {$options(-pdfa) ne ""} {
+                if {$onid eq ""} {
+                    set onid [my AddObject [MakeStream \
+                            [my _FormXObjHeader $width $height] "" \
+                            $pdf(compress)]]
+                }
+                append andict "  /AP << /N $onid 0 R >>\n"
+            } elseif {$onid ne ""} {
+                append andict "  /AP << /N $onid 0 R >>\n"
+            }
             # Text alignment (0 left, 1 center, 2 right)
             append andict "  /Q $quadding\n"
             append andict $mkStr
@@ -6233,8 +6363,13 @@ Use -pdfa-icc to specify a profile path."
             # Value
             if {$initValue ne ""} {
                 append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
-                # Appearance
-                append andict "  /AP << /N $onid 0 R >>\n"
+                # Kein zweites /AP hier: seit 0.9.4.42 schreiben die beiden
+                # Zweige oben es in jedem Fall, in dem $onid gesetzt ist --
+                # und ein Feld mit Anfangswert hat immer einen. Der Eintrag
+                # an dieser Stelle stammt aus der Zeit davor und ergab ein
+                # Woerterbuch mit doppeltem /AP, was ISO 32000-1 7.3.7
+                # ausschliesst. Leser nehmen das letzte Vorkommen; beide
+                # zeigten auf dasselbe Objekt, deshalb sah man nichts.
             }
         } elseif {$ftype in {combobox listbox}} {
             # Form type choice (/Ch)
@@ -6313,7 +6448,13 @@ Use -pdfa-icc to specify a profile path."
             # Appearance
             append andict "  /AP << "
             append andict "   /N << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
-            append andict "   /D << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
+            # ISO 19005 clause 6.3.3 allows only /N in an appearance
+            # dictionary. /D is the pressed look, which no reader needs
+            # and PDF/A refuses, so it is left out where conformance is
+            # claimed.
+            if {$options(-pdfa) eq ""} {
+                append andict "   /D << /$radioValue $onid 0 R /Off $offid 0 R >>\n"
+            }
             append andict "  >>\n"
             # Highlight mode = Push
             append andict "  /H /P\n"
@@ -6388,7 +6529,13 @@ Use -pdfa-icc to specify a profile path."
             # Appearance
             append andict "  /AP << "
             append andict "   /N << /Yes $onid 0 R /Off $offid 0 R >>\n"
-            append andict "   /D << /Yes $onid 0 R /Off $offid 0 R >>\n"
+            # ISO 19005 clause 6.3.3 allows only /N in an appearance
+            # dictionary. /D is the pressed look, which no reader needs
+            # and PDF/A refuses, so it is left out where conformance is
+            # claimed.
+            if {$options(-pdfa) eq ""} {
+                append andict "   /D << /Yes $onid 0 R /Off $offid 0 R >>\n"
+            }
             append andict "  >>\n"
             # Highlight mode = Push
             append andict "  /H /P\n"

@@ -1,0 +1,464 @@
+# Test structure nesting checks                                      -*-tcl-*-
+# Version: 0.9.4.43
+#
+# tagBegin refuses a structure element whose parent the standard does not
+# allow: a cell outside a row, a list item outside a list. Neither veraPDF
+# nor any reader reports this -- the element lands in the tree, the file
+# validates, and a screen reader announces a table with no rows.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# A tagged document with one page, ready for tagBegin.
+proc NewTagged {} {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startPage
+    $p setFont 10 Helvetica
+    return $p
+}
+
+# Error message of a tagBegin sequence, or the empty string when it passes.
+proc TagSeq {args} {
+    set p [NewTagged]
+    set res ""
+    foreach step $args {
+        if {[catch {$p {*}$step} e]} { set res $e; break }
+    }
+    catch {$p destroy}
+    return $res
+}
+
+###########################################################################
+# Refused: the parent is not one the standard allows
+###########################################################################
+
+test nesting-1.1 {TD outside a row} -body {
+    TagSeq {tagBegin TD}
+} -result {TD must be inside TR, not Document}
+
+test nesting-1.2 {TD in a table but not in a row} -body {
+    TagSeq {tagBegin Table} {tagBegin TD}
+} -result {TD must be inside TR, not Table}
+
+test nesting-1.3 {TH outside a row} -body {
+    TagSeq {tagBegin Table} {tagBegin TH}
+} -result {TH must be inside TR, not Table}
+
+test nesting-1.4 {LI outside a list} -body {
+    TagSeq {tagBegin LI}
+} -result {LI must be inside L, not Document}
+
+test nesting-1.5 {LBody directly in the list} -body {
+    TagSeq {tagBegin L} {tagBegin LBody}
+} -result {LBody must be inside LI, not L}
+
+test nesting-1.6 {TBody outside a table} -body {
+    TagSeq {tagBegin TBody}
+} -result {TBody must be inside Table, not Document}
+
+test nesting-1.7 {TR under a paragraph} -body {
+    TagSeq {tagBegin P} {tagBegin TR}
+} -result {TR must be inside Table or THead or TBody or TFoot, not P}
+
+test nesting-1.8 {TOCI outside a TOC} -body {
+    TagSeq {tagBegin TOCI}
+} -result {TOCI must be inside TOC, not Document}
+
+###########################################################################
+# Accepted: every arrangement the standard permits
+###########################################################################
+
+test nesting-2.1 {table with rows} -body {
+    TagSeq {tagBegin Table} {tagBegin TR} {tagBegin TD} \
+           {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+test nesting-2.2 {row group between table and row} -body {
+    TagSeq {tagBegin Table} {tagBegin TBody} {tagBegin TR} {tagBegin TH} \
+           {tagEnd} {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+test nesting-2.3 {head and foot groups} -body {
+    TagSeq {tagBegin Table} \
+           {tagBegin THead} {tagBegin TR} {tagBegin TH} {tagEnd} {tagEnd} {tagEnd} \
+           {tagBegin TFoot} {tagBegin TR} {tagBegin TD} {tagEnd} {tagEnd} {tagEnd} \
+           {tagEnd}
+} -result {}
+
+test nesting-2.4 {list with label and body} -body {
+    TagSeq {tagBegin L} {tagBegin LI} {tagBegin Lbl} {tagEnd} \
+           {tagBegin LBody} {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+test nesting-2.5 {nested table of contents} -body {
+    TagSeq {tagBegin TOC} {tagBegin TOCI} {tagBegin TOC} {tagBegin TOCI} \
+           {tagEnd} {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+test nesting-2.6 {unrestricted types stay unrestricted} -body {
+    TagSeq {tagBegin P} {tagEnd} {tagBegin Figure} {tagEnd} \
+           {tagBegin Span} {tagEnd}
+} -result {}
+
+test nesting-2.7 {figure inside a cell} -body {
+    TagSeq {tagBegin Table} {tagBegin TR} {tagBegin TD} {tagBegin Figure} \
+           {tagEnd} {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+###########################################################################
+# NonStruct is transparent (ISO 32000-1 clause 14.8.4.2)
+###########################################################################
+
+test nesting-3.1 {NonStruct between table and row} -body {
+    TagSeq {tagBegin Table} {tagBegin NonStruct} {tagBegin TR} {tagBegin TD} \
+           {tagEnd} {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+test nesting-3.2 {two NonStruct levels} -body {
+    TagSeq {tagBegin L} {tagBegin NonStruct} {tagBegin NonStruct} \
+           {tagBegin LI} {tagBegin LBody} {tagEnd} {tagEnd} \
+           {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+test nesting-3.3 {NonStruct does not hide a wrong parent} -body {
+    TagSeq {tagBegin P} {tagBegin NonStruct} {tagBegin TD}
+} -result {TD must be inside TR, not P}
+
+###########################################################################
+# A refused call leaves no trace
+###########################################################################
+
+test nesting-4.1 {rejected tagBegin adds no element} -body {
+    set p [NewTagged]
+    $p tagBegin Table
+    catch {$p tagBegin TD}
+    $p tagBegin TR
+    $p tagBegin TD
+    $p text "cell" -x 50 -y 700
+    $p tagEnd
+    $p tagEnd
+    $p tagEnd
+    set data [$p get]
+    $p destroy
+    list [regexp -all {/S /TD} $data] [regexp -all {/S /TR} $data]
+} -result {1 1}
+
+test nesting-4.2 {the stack is unchanged after a refusal} -body {
+    set p [NewTagged]
+    $p tagBegin L
+    catch {$p tagBegin TD}
+    # If the refused call had pushed, the first tagEnd would close it
+    # instead of the list, and the second would still find something open.
+    $p tagBegin LI
+    $p tagBegin LBody
+    $p tagEnd
+    $p tagEnd
+    $p tagEnd
+    set res [catch {$p tagEnd} e]
+    catch {$p destroy}
+    list $res $e
+} -result {1 {tagEnd without matching tagBegin}}
+
+###########################################################################
+# The other direction: a container the standard requires to hold something
+###########################################################################
+#
+# tagBegin cannot see this -- at that point the element has no children yet.
+# tagEnd can, and refuses to close an empty table or list. Same class of
+# defect: it passes every validator and leaves a screen reader with nothing.
+
+test nesting-6.1 {table without rows} -body {
+    TagSeq {tagBegin Table} {tagEnd}
+} -result {Table must contain at least one TR or THead or TBody or TFoot}
+
+test nesting-6.2 {list without items} -body {
+    TagSeq {tagBegin L} {tagEnd}
+} -result {L must contain at least one LI}
+
+test nesting-6.3 {list item without body} -body {
+    TagSeq {tagBegin L} {tagBegin LI} {tagEnd}
+} -result {LI must contain at least one LBody}
+
+test nesting-6.4 {row without cells} -body {
+    TagSeq {tagBegin Table} {tagBegin TR} {tagEnd}
+} -result {TR must contain at least one TH or TD}
+
+test nesting-6.5 {row group without rows} -body {
+    TagSeq {tagBegin Table} {tagBegin TBody} {tagEnd}
+} -result {TBody must contain at least one TR}
+
+test nesting-6.6 {a label alone is not a list item} -body {
+    # Lbl is allowed in LI, but it does not stand in for LBody.
+    TagSeq {tagBegin L} {tagBegin LI} {tagBegin Lbl} {tagEnd} {tagEnd}
+} -result {LI must contain at least one LBody}
+
+test nesting-6.7 {content alone does not fill a table} -body {
+    # Marked content is not a child element: a table holding only text is
+    # still a table without rows.
+    set p [NewTagged]
+    $p tagBegin Table
+    $p text "kein TR" -x 50 -y 700
+    set res [catch {$p tagEnd} e]
+    catch {$p destroy}
+    list $res $e
+} -result {1 {Table must contain at least one TR or THead or TBody or TFoot}}
+
+test nesting-6.8 {a refused tagEnd leaves the element open} -body {
+    # The caller can add what is missing and close it afterwards.
+    set p [NewTagged]
+    $p tagBegin Table
+    catch {$p tagEnd}
+    $p tagBegin TR
+    $p tagBegin TD
+    $p tagEnd
+    $p tagEnd
+    set res [catch {$p tagEnd} e]
+    catch {$p destroy}
+    list $res $e
+} -result {0 {}}
+
+test nesting-6.9 {unregulated containers may be empty} -body {
+    TagSeq {tagBegin Div} {tagEnd} {tagBegin Sect} {tagEnd} \
+           {tagBegin P} {tagEnd}
+} -result {}
+
+test nesting-6.10 {NonStruct passes the children up} -body {
+    TagSeq {tagBegin Table} {tagBegin NonStruct} {tagBegin TR} {tagBegin TD} \
+           {tagEnd} {tagEnd} {tagEnd} {tagEnd}
+} -result {}
+
+###########################################################################
+# Empty elements are reported, not refused
+###########################################################################
+#
+# An element with no content at all designates nothing: it passes every
+# validator and a reader announces a paragraph that holds nothing. The
+# standard does not forbid it, so this warns instead of throwing.
+
+# Warnings raised while running a tagBegin/tagEnd sequence.
+proc TagWarnings {args} {
+    set ::pdf4tcl::warnings {}
+    set p [NewTagged]
+    foreach step $args { catch {$p {*}$step} }
+    catch {$p destroy}
+    return $::pdf4tcl::warnings
+}
+
+test nesting-7.1 {an empty paragraph is reported} -body {
+    llength [TagWarnings {tagBegin P} {tagEnd}]
+} -result 1
+
+test nesting-7.2 {an empty heading is reported} -body {
+    llength [TagWarnings {tagBegin H1} {tagEnd}]
+} -result 1
+
+test nesting-7.3 {a paragraph with content is not} -body {
+    llength [TagWarnings {tagBegin P} {text "hallo" -x 50 -y 700} {tagEnd}]
+} -result 0
+
+test nesting-7.4 {an empty cell is allowed} -body {
+    # A blank cell belongs in the tree -- without it the column mapping
+    # shifts, and a missing TD is worse than an empty one.
+    llength [TagWarnings {tagBegin Table} {tagBegin TR} {tagBegin TD} \
+                         {tagEnd} {tagEnd} {tagEnd}]
+} -result 0
+
+test nesting-7.5 {an element holding only an annotation is not empty} -body {
+    # A Link consists of its /OBJR and never carries an MCID. Checking for
+    # marked content alone would report exactly the attachment 0.9.4.42
+    # made possible.
+    llength [TagWarnings {tagBegin Link} \
+                {hyperlinkAdd 50 700 100 15 "https://example.org"} {tagEnd}]
+} -result 0
+
+test nesting-7.6 {a form element holding only a field is not empty} -body {
+    llength [TagWarnings {tagBegin Form} \
+                {addForm text 50 600 100 20 -id f1} {tagEnd}]
+} -result 0
+
+test nesting-7.7 {an element holding only a child element is not empty} -body {
+    llength [TagWarnings {tagBegin Div} {tagBegin P} \
+                {text "x" -x 50 -y 700} {tagEnd} {tagEnd}]
+} -result 0
+
+###########################################################################
+# Artifacts inside an XObject
+###########################################################################
+#
+# An artifact never carries an MCID, because nothing refers to it: no
+# parent tree entry, no /Stm in an /MCR. That is precisely what structure
+# inside an XObject would need, and why structure stays refused there.
+
+test nesting-8.1 {tagArtifact works inside an XObject} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startXObject -paper {100p 50p}
+    $p setFont 10 Helvetica
+    set res [catch {
+        $p tagArtifact -type Layout
+        $p text "Zierlinie" -x 5 -y 10
+        $p tagArtifactEnd
+    } e]
+    $p endXObject
+    catch {$p destroy}
+    list $res $e
+} -result {0 {}}
+
+test nesting-8.2 {structure inside an XObject stays refused} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startXObject -paper {100p 50p}
+    $p setFont 10 Helvetica
+    set res [catch {$p tagBegin P} e]
+    catch {$p endXObject}
+    catch {$p destroy}
+    list $res $e
+} -result {1 {tagging inside an XObject is not supported}}
+
+test nesting-8.3 {the artifact reaches the XObject stream} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    set xo [$p startXObject -paper {100p 50p}]
+    $p setFont 10 Helvetica
+    $p tagArtifact -type Layout
+    $p text "Zierlinie" -x 5 -y 10
+    $p tagArtifactEnd
+    $p endXObject
+    $p startPage
+    $p setFont 10 Helvetica
+    $p tagBegin Figure -alt "Logo"
+    $p putImage $xo 50 700
+    $p tagEnd
+    set data [$p get]
+    $p destroy
+    list [regexp -all {/Artifact} $data] [regexp -all {/S /Figure} $data]
+} -result {1 1}
+
+###########################################################################
+# Content that belongs to no element and no artifact
+###########################################################################
+#
+# ISO 14289-1 clause 7.1 wants every piece of content either tagged or
+# marked as an artifact. Nothing enforced that: a caller who tagged half a
+# page got a file that validated and read badly. Painting operations outside
+# both are counted now and reported once, at finish.
+#
+# A warning and not an error -- untagged content is legal PDF, and a caller
+# who tags part of a page may well mean it.
+
+# Untagged painting operations after running a body.
+proc UntaggedAfter {body} {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startPage
+    $p setFont 10 Helvetica
+    foreach step $body { $p {*}$step }
+    set n [$p getUntaggedCount]
+    catch {$p destroy}
+    return $n
+}
+
+test untagged-1.1 {fully tagged content counts nothing} -body {
+    UntaggedAfter {{tagBegin P} {text "x" -x 50 -y 700} {tagEnd}}
+} -result 0
+
+test untagged-1.2 {text outside any element is counted} -body {
+    UntaggedAfter {{text "x" -x 50 -y 700}}
+} -result 1
+
+test untagged-1.3 {a line outside any element is counted} -body {
+    UntaggedAfter {{line 50 50 100 100}}
+} -result 1
+
+test untagged-1.4 {an artifact is not untagged content} -body {
+    UntaggedAfter {{tagArtifact} {text "running head" -x 50 -y 800}
+                   {tagArtifactEnd}}
+} -result 0
+
+test untagged-1.5 {half a page is caught} -body {
+    UntaggedAfter {{tagBegin P} {text "a" -x 50 -y 700} {tagEnd}
+                   {text "b" -x 50 -y 680}}
+} -result 1
+
+test untagged-1.6 {state operators do not count} -body {
+    # Setting a colour or a font outside an element is not a defect --
+    # only operators that put marks on the page are content. Counting
+    # these would report every document, however carefully marked up.
+    UntaggedAfter {{setFillColor 1 0 0} {setLineWidth 2}
+                   {tagBegin P} {text "x" -x 50 -y 700} {tagEnd}}
+} -result 0
+
+test untagged-1.7 {drawTextBox outside an element is counted} -body {
+    UntaggedAfter {{drawTextBox 50 600 200 60 "some wrapped text"}}
+} -result 1
+
+test untagged-1.8 {nothing is counted while tagging is off} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p text "x" -x 50 -y 700
+    set n [$p getUntaggedCount]
+    catch {$p destroy}
+    set n
+} -result 0
+
+test untagged-2.1 {finish reports leftover content} -body {
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startPage
+    $p setFont 10 Helvetica
+    $p text "x" -x 50 -y 700
+    $p finish
+    catch {$p destroy}
+    llength $::pdf4tcl::warnings
+} -result 1
+
+test untagged-2.2 {a complete document is not reported} -body {
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startPage
+    $p setFont 10 Helvetica
+    $p tagBegin P
+    $p text "x" -x 50 -y 700
+    $p tagEnd
+    $p finish
+    catch {$p destroy}
+    llength $::pdf4tcl::warnings
+} -result 0
+
+test untagged-2.3 {the report names the standard when UA is claimed} -body {
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1 -ua 1
+    $p startPage
+    $p setFont 10 Helvetica
+    $p text "x" -x 50 -y 700
+    $p finish
+    catch {$p destroy}
+    # The standard-font warning comes too; look for the clause reference.
+    set found 0
+    foreach w $::pdf4tcl::warnings {
+        if {[string match "*14289*" $w]} { set found 1 }
+    }
+    set found
+} -result 1
+
+###########################################################################
+# Unchanged behaviour
+###########################################################################
+
+test nesting-5.1 {unknown type still refused first} -body {
+    TagSeq {tagBegin Zelle}
+} -result {unknown structure type "Zelle"}
+
+test nesting-5.2 {no check without tagging} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    set res [catch {$p tagBegin TD} e]
+    catch {$p destroy}
+    list $res $e
+} -result {1 {tagging is not enabled, call "tagged 1" first}}
+
+::tcltest::cleanupTests

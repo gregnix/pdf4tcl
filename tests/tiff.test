@@ -58,3 +58,5 @@ test tiff-1.1 {tif} -constraints Tiff2 -body {
         }
     }
 } -result {}
+
+::tcltest::cleanupTests

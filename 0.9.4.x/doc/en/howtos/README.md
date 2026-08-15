@@ -14,6 +14,7 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-shapes.md` | Coloured text / boxes / lines? | `FarbenundFormen.tcl` |
 | `howto-unicode.md` | Non-Latin-1 text? | `demo-cidfont.tcl`, `demo-api-vergleich.tcl`, `demo-unicode-tabelle.tcl` |
 | `howto-symbols.md` | Symbol / Unicode coverage charts? | `demo-symbole.tcl`, `demo-unicode-tabelle.tcl` |
+| `howto-font-coverage.md` | Does the font have the glyph at all? | `demo-unicode-tabelle.tcl` |
 | `howto-stdfonts.md` | Base-14 + ToUnicode? | `demo-stdfonts-tabelle.tcl`, `demo-stdfonts-tounicode.tcl`, `fonts.tcl` |
 | `howto-otf.md` | OpenType/CFF fonts? | `demo-otf.tcl` |
 | `howto-pdfa.md` | PDF/A-1b/2b/3b and 1a/2a/3a? | `demo-pdfa.tcl`, `demo-pdfa-gs.tcl` |

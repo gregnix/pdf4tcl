@@ -74,14 +74,25 @@ The alternate text satisfies clause 7.18.1, which wants either a `/TU` entry
 on the field or an `/Alt` on the enclosing element. With tagging on, pages
 carrying annotations also get `/Tabs /S` automatically.
 
-**Check boxes and radio buttons cannot currently be PDF/UA conformant.**
-Their appearance streams draw the mark with a glyph from ZapfDingbats, one of
-the 14 standard fonts, and clause 7.21.4.1 requires every font program to be
-embedded -- which for a standard font is impossible. Measured: a document
-with only text fields contains no ZapfDingbats, one with a single check box
-does. Text fields, choice fields and buttons with a text caption are
-unaffected. Drawing the mark with vector operators instead of a glyph would
-remove the dependency; that is not done today.
+**Check boxes and radio buttons draw their mark with vectors where a
+conformance is claimed.** Their appearance streams used to use a glyph from
+ZapfDingbats, one of the 14 standard fonts, and clause 7.21.4.1 requires
+every font program to be embedded -- which for a standard font is
+impossible, so a single check box made the whole document non-conformant.
+
+Since 0.9.4.42 the mark is two strokes and the radio dot four Bezier
+segments, needing no font at all. The option `-markstyle` decides:
+
+| value | |
+|---|---|
+| `auto` (default) | vectors where PDF/UA or a level A conformance is claimed, the glyph otherwise |
+| `font` | always the glyph, as before |
+| `vector` | always vectors |
+
+The default leaves every existing document looking exactly as it did:
+measured, a document without a claim still contains ZapfDingbats, one with
+`-ua 1` or `-pdfa 3a` does not. The proportions follow the glyph closely
+enough that a form does not visibly change.
 
 ### What a merge does not do
 
@@ -447,17 +458,68 @@ positives (`dict set attrs`, `dict set props`) are silenced with
 `##nagelfar ignore`. Note that the directive applies to the following line
 only, not to the enclosing block.
 
+## Checked since 0.9.4.43
+
+`/TD` outside a `/TR` used to be accepted and produced a tree no checker
+would like. Both directions are now refused:
+
+| when | what |
+|---|---|
+| `tagBegin` | `LI` in `L`; `LBody` in `LI`; `THead`, `TBody`, `TFoot` in `Table`; `TR` in `Table`/`THead`/`TBody`/`TFoot`; `TH`, `TD` in `TR`; `TOCI` in `TOC` |
+| `tagEnd` | `L` holds an `LI`; `LI` an `LBody`; `Table` a `TR` or a row group; a row group a `TR`; `TR` a `TH` or `TD` |
+
+Only relations the standard fixes without exception are checked; `P`, `Span`,
+`Figure` and the rest stay unrestricted. `NonStruct` is transparent in both
+directions (clause 14.8.4.2). A refused `tagBegin` leaves no trace, and a
+refused `tagEnd` leaves the element open so the missing content can be added.
+
+An element closed with nothing in it at all -- no marked content, no child
+element, no annotation -- is reported in `::pdf4tcl::warnings` rather than
+refused. The standard permits it; it just designates nothing. `TD` and `TH`
+are exempt, since a blank cell belongs in the tree.
+
 ## Open
 
-- Untagged content stays untagged. That is legal PDF but not PDF/UA
-  conformant -- PDF/UA wants every piece of content either tagged or marked
-  as an artifact. There is no check for leftover content yet.
-- No table validation. `/TD` outside a `/TR` is accepted and produces a tree
-  no checker will like. Same for `/LI` outside `/L`.
+- Untagged content is reported, not prevented. Since 0.9.4.43 pdf4tcl counts
+  painting operations that belong to neither an element nor an artifact and
+  says so once, at `finish`:
+
+  ```
+  tagged: 3 painting operation(s) on 1 page(s) belong to neither a structure
+  element nor an artifact. ISO 14289-1 clause 7.1 requires every piece of
+  content to be one or the other, so this document does not meet the level
+  it claims.
+  ```
+
+  Ask before finishing with `[$pdf getUntaggedCount]`. Only painting
+  operators count -- setting a colour or a font outside an element is not a
+  defect -- and content inside an XObject is covered by the tag on the `Do`
+  that places it. Measured: `examples/tagged.tcl` and the pdf4tcllib table
+  export both report zero.
+
+  It stays a warning. Untagged content is legal PDF, and a caller who marks
+  up part of a page may mean it; only PDF/UA and level A rule it out.
 - `/Attributes` covers `/Scope`, `/Headers`, `/ID` and `/ListNumbering`.
   Other attribute owners (`/Layout`, `/PrintField`) are not implemented.
-- Tagging inside an XObject (`startPage -xobject 1`) is refused rather than
-  supported.
+- Structure inside an XObject is still refused. `tagArtifact` works there
+  since 0.9.4.43 -- an artifact carries no MCID and therefore needs neither a
+  parent tree entry nor `/Stm` in an `/MCR`, which is exactly what structure
+  would need. Note that placing an XObject and tagging *that* has always
+  worked and covers the whole block:
+
+  ```tcl
+  set xo [$pdf startXObject -paper {100p 50p}]
+  $pdf text "Logo" -x 5 -y 10
+  $pdf endXObject
+  $pdf tagBegin Figure -alt "Company logo"
+  $pdf putImage $xo 50 700
+  $pdf tagEnd
+  ```
+
+  What remains impossible is several structure elements *within* one XObject.
+  Beyond the bookkeeping, the real obstacle is reuse: an XObject drawn twice
+  has one structure tree and two appearances, and where its content sits in
+  the reading order is then undecidable.
 
 Since 0.9.4.41 `-pdfa 1a`, `2a` and `3a` are available. They require tagging
 and a document language, both checked when the document is finished; a
@@ -468,9 +530,9 @@ describe, is whether the markup is any good.
   the standard; it cannot tell whether the tagging is *sensible*. A document
   where every paragraph is `/P` and every heading is `/H1` passes just as
   cleanly as a well structured one.
-- Nothing enforces that content is tagged in the first place. A caller who
-  never calls `tagBegin` gets a valid untagged PDF, and a caller who tags
-  only half the page gets a file that validates but reads badly.
+- Nothing *enforces* tagging. A caller who never calls `tagBegin` gets a
+  valid untagged PDF; a caller who tags half the page now gets a warning,
+  but the file is still written.
 
 ## veraPDF
 

@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.42]
+[manpage_begin pdf4tcl n 0.9.4.43]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.42]]
+[require pdf4tcl [opt 0.9.4.43]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1205,6 +1205,54 @@ Table 333 to 337:
 Any other type would require a [const /RoleMap] entry and is refused rather
 than written out and then silently ignored by readers.
 
+[para]
+Where the standard fixes the parent of a type, a call that would put it
+somewhere else is refused as well:
+
+[list_begin definitions]
+[def "[const LI] in [const L]"]
+[def "[const LBody] in [const LI]"]
+[def "[const THead], [const TBody], [const TFoot] in [const Table]"]
+[def "[const TR] in [const Table], [const THead], [const TBody] or [const TFoot]"]
+[def "[const TH], [const TD] in [const TR]"]
+[def "[const TOCI] in [const TOC]"]
+[list_end]
+
+Every other type may appear anywhere. [const NonStruct] carries no structural
+meaning of its own (ISO 32000-1 clause 14.8.4.2) and is skipped when the
+parent is determined, so a row wrapped in one is still a row. A refused call
+raises an error before the element exists and leaves the tree unchanged.
+
+[para]
+This closes a class of defect that goes unreported otherwise: a validator
+checks conformance, not sense, and a reader repairs nothing. A cell outside
+a row passes every check and is announced as a table without rows.
+
+[para]
+[method tagEnd] checks the other direction and refuses to close a container
+the standard requires to hold something:
+
+[list_begin definitions]
+[def "[const L] holds at least one [const LI]"]
+[def "[const LI] holds an [const LBody]"]
+[def "[const Table] holds [const TR], [const THead], [const TBody] or [const TFoot]"]
+[def "[const THead], [const TBody], [const TFoot] hold at least one [const TR]"]
+[def "[const TR] holds at least one [const TH] or [const TD]"]
+[list_end]
+
+Marked content does not count here -- a table holding only text is still a
+table without rows. A refused [method tagEnd] leaves the element open, so the
+missing content can be added and the element closed afterwards.
+
+[para]
+An element closed without any content at all -- no marked content, no child
+element and no annotation -- is reported in [var ::pdf4tcl::warnings] rather
+than refused: the standard permits it, but such an element designates
+nothing. [const TD] and [const TH] are exempt, because a blank cell belongs
+in the tree; without it the column mapping shifts. An element that holds only
+an annotation, such as a [const Link] or a [const Form], is not empty --
+these consist of an [const /OBJR] and never carry an MCID.
+
 [list_begin options]
 [opt_def -alt [arg text]] Alternative description, written as
 [const /Alt]. For a [const Figure] this is the only text a screen reader can
@@ -1252,6 +1300,33 @@ Options are split by name: [option -alt], [option -actualtext],
 everything else to [method text]. Returns whatever [method text] returns.
 
 [call [arg objectName] [method tagArtifact] [opt [arg options]]]
+
+[para]
+Unlike [method tagBegin], this works inside an XObject as well. An artifact
+never carries an MCID, because nothing refers to it -- no parent tree entry
+and no [const /Stm] in an [const /MCR]. For a purely decorative block that is
+the correct and only marking required.
+
+[para]
+Content that belongs to neither a structure element nor an artifact is
+counted while the document is built and reported once, at [method finish].
+ISO 14289-1 clause 7.1 requires every piece of content to be one or the
+other, and nothing else in the toolchain notices when it is not: a validator
+cannot know which operators were meant to be content. The entry goes to
+[var ::pdf4tcl::warnings]; it is a warning and not an error, because
+untagged content is legal PDF and a caller may mean it.
+
+[para]
+Only operators that put marks on the page count -- path painting, text
+showing, XObjects and shadings. Setting a colour, a font or a matrix outside
+an element is not a defect. Content inside an XObject does not count either,
+since the tag on the [const Do] that places it covers the whole block.
+
+[call [arg objectName] [method getUntaggedCount]]
+
+Number of painting operations so far that belonged to neither a structure
+element nor an artifact. Zero is what PDF/UA asks for. Always zero while
+tagging is off.
 [call [arg objectName] [method tagArtifactEnd]]
 
 Marks content that is not part of the document: running heads, page numbers,
@@ -2127,6 +2202,27 @@ only.
 [subsection {Version 0.9.4.42}]
 [para]
 [list_begin itemized]
+[item] [cmd ::pdf4tcl::catPdf] folds objects with an identical body onto one
+and renumbers densely. Documents built from the same template share their
+embedded font programs; measured on two documents of 28961 bytes each, the
+result went from 57757 to 33762 bytes. Pages, the catalog and structure
+elements are never folded.
+[item] [cmd ::pdf4tcl::catPdf] folds objects with an identical body onto one
+and renumbers densely. Documents built from the same template share their
+embedded font programs; measured on two documents of 28961 bytes each, the
+result went from 57757 to 33762 bytes. Pages, the catalog and structure
+elements are never folded.
+[item] [option -markstyle] decides how the mark of a check box or radio
+button is drawn: [const font] uses a ZapfDingbats glyph as before,
+[const vector] draws it with lines and curves, and [const auto], the default,
+picks vectors where the document claims PDF/UA or a level A conformance. The
+glyph cannot be embedded and both standards require embedded font programs,
+so a single check box used to make a document non-conformant whatever else it
+did right. Documents claiming nothing keep the appearance they always had.
+[item] [file tools/check-conformance.py]: new. Reads a document's XMP, works
+out which profiles it claims and runs veraPDF against those; takes files or
+directories. A document claiming nothing is reported as such rather than
+failed against a profile it never promised.
 [item] [file src/tagged.tcl] ([cmd TagAnnotEntries]): an annotation is
 attached to an open [const Form] element as well, not only to [const Link]
 and [const Annot]. ISO 32000-1 table 337 gives [const /Form] as the structure
