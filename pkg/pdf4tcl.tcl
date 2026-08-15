@@ -1142,6 +1142,20 @@ space instead of the usual empty rectangle."
             throw {PDF4TCL} "createFontSpecEnc: subset must not exceed 256 codepoints\
                 (got [llength $subset])"
         }
+        # An empty subset used to reach MakeTTFSubset and die there with
+        # "can't read \"tlist\": no such variable" -- a crash inside the
+        # subsetting code, several frames away from the mistake. The subset
+        # is the list of codepoints the font is to carry; an empty one asks
+        # for a font that can show nothing.
+        if {[llength $subset] == 0} {
+            throw {PDF4TCL} "createFontSpecEnc: subset is empty -- pass the\
+                codepoints the font should carry"
+        }
+        foreach cp $subset {
+            if {![string is integer -strict $cp] || $cp < 0 || $cp > 0x10FFFF} {
+                throw {PDF4TCL} "createFontSpecEnc: \"$cp\" is not a codepoint"
+            }
+        }
 
         if {$BFA($bfname,FontType) eq "TTF"} {
             # Create TTF subset here:
@@ -8467,13 +8481,13 @@ Use -pdfa-icc to specify a profile path."
             # Value
             if {$initValue ne ""} {
                 append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
-                # Kein zweites /AP hier: seit 0.9.4.42 schreiben die beiden
-                # Zweige oben es in jedem Fall, in dem $onid gesetzt ist --
-                # und ein Feld mit Anfangswert hat immer einen. Der Eintrag
-                # an dieser Stelle stammt aus der Zeit davor und ergab ein
-                # Woerterbuch mit doppeltem /AP, was ISO 32000-1 7.3.7
-                # ausschliesst. Leser nehmen das letzte Vorkommen; beide
-                # zeigten auf dasselbe Objekt, deshalb sah man nichts.
+                # No second /AP here: since 0.9.4.42 the two branches above
+                # write it whenever $onid is set -- and a field with an
+                # initial value always has one. The entry at this point is
+                # older and produced a dictionary with a duplicated /AP,
+                # which ISO 32000-1 7.3.7 does not allow. Readers take the
+                # last occurrence, and both pointed at the same object, so
+                # nothing looked wrong.
             }
         } elseif {$ftype in {combobox listbox}} {
             # Form type choice (/Ch)
@@ -10982,14 +10996,14 @@ $b = New-Object byte\[\] $n; $rng.GetBytes($b); \
         set plaintext [string range $body $sstart ${send}-1]
         set ciphertext [my EncryptBytes $oid $plaintext]
         set newlen [string length $ciphertext]
-        # Zusammensetzen statt [string replace]: bei einem leeren Stream ist
-        # send == sstart, also last == first-1, und "string replace" laesst
-        # den String dann unveraendert -- der Chiffretext fiele weg, waehrend
-        # /Length darunter auf seine Laenge gesetzt wird. Das Ergebnis war
-        # "/Length 32" ueber null Bytes: jeder Leser oeffnet die Datei, qpdf
-        # meldet "expected endstream" und stellt die Laenge selbst richtig.
-        # Leere Streams entstehen seit 0.9.4.42 durch Erscheinungswoerter-
-        # buecher von Feldern ohne Anfangswert.
+        # Assembled from ranges instead of [string replace]: with an empty
+        # stream send equals sstart, so last is first-1, and string replace
+        # then leaves the string untouched -- the ciphertext would be
+        # dropped while /Length below it is set to its size. The result was
+        # "/Length 32" over zero bytes: every reader opens the file, qpdf
+        # reports "expected endstream" and recovers the length itself.
+        # Empty streams arrived with 0.9.4.42, through appearance
+        # dictionaries of fields without an initial value.
         set newbody [string range $body 0 ${sstart}-1]
         append newbody $ciphertext
         append newbody [string range $body $send end]
@@ -11519,8 +11533,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             throw {PDF4TCL} "tagEnd without matching tagBegin"
         }
         set idx [lindex $pdf(tag,stack) end]
-        # Vor dem Ablegen pruefen: schlaegt es fehl, bleibt das Element
-        # offen und der Aufrufer kann den fehlenden Inhalt nachtragen.
+        # Check before popping: if it fails the element stays open, so the
+        # caller can add what is missing and close it afterwards.
         my TagCheckContent $idx
         set pdf(tag,stack) [lrange $pdf(tag,stack) 0 end-1]
         if {$pdf(tag,open) eq $idx} {
@@ -11535,20 +11549,20 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagCheckContent {idx} {
         variable ::pdf4tcl::StructChildren
         set type $pdf(tag,type,$idx)
-        # Ein Element ohne jeden Inhalt bezeichnet nichts: es besteht jede
-        # Pruefung, und ein Screenreader kuendigt einen Absatz an, in dem
-        # nichts steht. Verboten ist es aber nicht -- deshalb eine Warnung
-        # und kein Fehler.
+        # An element with no content at all designates nothing: it passes
+        # every check, and a reader announces a paragraph that holds
+        # nothing. The standard does not forbid it, so this warns rather
+        # than throwing.
         #
-        # Ausgenommen sind TD und TH: eine leere Zelle ist alltaeglich und
-        # gehoert in den Baum, sonst verrutscht die Spaltenzuordnung. Ein
-        # fehlendes TD ist schlimmer als ein leeres.
+        # TD and TH are exempt: a blank cell is everyday and belongs in the
+        # tree, otherwise the column mapping shifts. A missing TD is worse
+        # than an empty one.
         #
-        # Als Inhalt zaehlt dreierlei: ein Kindelement (E), ausgezeichneter
-        # Inhalt (M) und ein Objektverweis (O). Das O ist wesentlich -- ein
-        # Link oder ein Formularfeld besteht rechtmaessig nur aus seiner
-        # /OBJR und traegt nie eine MCID. Wer allein auf MCIDs prueft,
-        # meldet genau die Anbindung, die 0.9.4.42 moeglich gemacht hat.
+        # Three things count as content: a child element (E), marked
+        # content (M) and an object reference (O). The O matters -- a Link
+        # or a form field legitimately consists of its /OBJR alone and
+        # never carries an MCID. Checking marked content only would report
+        # exactly the attachment 0.9.4.42 made possible.
         if {[llength $pdf(tag,kids,$idx)] == 0 && $type ni {TD TH}} {
             lappend ::pdf4tcl::warnings "tagged: the $type element is empty\
                     -- no content, no child element and no annotation. It\
@@ -11633,12 +11647,11 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
         if {!$pdf(inPage)} { my startPage }
-        # Kein Verbot im XObject: ein Artefakt traegt nie eine MCID, weil
-        # nichts darauf verweist. Es braucht deshalb weder einen
-        # Parent-Tree-Eintrag noch ein /Stm in einer /MCR -- genau das,
-        # woran Struktur in XObjects scheitert. Fuer einen rein dekorativen
-        # Block ist "/Artifact BMC ... EMC" die richtige und einzige noetige
-        # Auszeichnung.
+        # Not refused inside an XObject: an artifact never carries an MCID,
+        # because nothing refers to it. It needs neither a parent tree entry
+        # nor /Stm in an /MCR -- which is precisely what structure inside an
+        # XObject would need. For a purely decorative block
+        # "/Artifact BMC ... EMC" is the correct and only marking required.
         # PDF/UA forbids an artifact inside tagged content and tagged content
         # inside an artifact (ISO 14289-1 clause 7.1). An element may still be
         # open here -- a running foot on the second page of a paragraph that

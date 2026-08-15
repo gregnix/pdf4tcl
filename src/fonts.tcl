@@ -1001,6 +1001,20 @@ space instead of the usual empty rectangle."
             throw {PDF4TCL} "createFontSpecEnc: subset must not exceed 256 codepoints\
                 (got [llength $subset])"
         }
+        # An empty subset used to reach MakeTTFSubset and die there with
+        # "can't read \"tlist\": no such variable" -- a crash inside the
+        # subsetting code, several frames away from the mistake. The subset
+        # is the list of codepoints the font is to carry; an empty one asks
+        # for a font that can show nothing.
+        if {[llength $subset] == 0} {
+            throw {PDF4TCL} "createFontSpecEnc: subset is empty -- pass the\
+                codepoints the font should carry"
+        }
+        foreach cp $subset {
+            if {![string is integer -strict $cp] || $cp < 0 || $cp > 0x10FFFF} {
+                throw {PDF4TCL} "createFontSpecEnc: \"$cp\" is not a codepoint"
+            }
+        }
 
         if {$BFA($bfname,FontType) eq "TTF"} {
             # Create TTF subset here:

@@ -1,0 +1,70 @@
+EINBAU -- createFontSpecEnc prueft seine Argumente, VOLLSTAENDIG
+
+Setzt den Stand vom 15.08. 14:32 voraus, samt dem Paket
+"kommentare-englisch" (pdf4tcl.tcl ist daraus erzeugt).
+
+    cp src/fonts.tcl   <pdf4tcl>/src/
+    cp tests/font.test <pdf4tcl>/tests/
+    cp pdf4tcl.tcl     <pdf4tcl>/
+    cp pkg/pdf4tcl.tcl <pdf4tcl>/pkg/
+    cp ChangeLog       <pdf4tcl>/
+
+    make checkbuild        # zweimal OK
+    make test TCLSH=tclsh9.0
+
+
+WAS BEHOBEN IST
+
+    pdf4tcl::createFontSpecEnc $base $name {}
+    -> can't read "tlist": no such variable      (in MakeTTFSubset)
+
+Ein leeres Subset erreichte die Subset-Erzeugung und starb dort, drei
+Rahmen von der Ursache entfernt. Auch Codepoints, die keine Zahlen sind
+oder ausserhalb von 0..0x10FFFF liegen, wurden stillschweigend
+weitergereicht.
+
+Jetzt:
+
+    leer             createFontSpecEnc: subset is empty -- pass the
+                     codepoints the font should carry
+    kein Codepoint   createFontSpecEnc: "x" is not a codepoint
+    negativ          createFontSpecEnc: "-1" is not a codepoint
+    zu gross         createFontSpecEnc: "1200000" is not a codepoint
+    zu viele         createFontSpecEnc: subset must not exceed 256
+                     codepoints (got 300)          [unveraendert]
+    gueltig          laeuft
+
+
+DER TEST, DER NICHTS MASS
+
+tests/font.test hatte:
+
+    test font-7.3 {createFontSpecEnc: empty subset allowed} ... {
+        catch {pdf4tcl::createFontSpecEnc FreeSans TestEncEmpty {}} err
+        expr {![string match "*must not exceed 256*" $err]}
+    } -result 1
+
+Der Name behauptet, ein leeres Subset sei erlaubt; geprueft wird nur, dass
+die Meldung nicht die 256er ist. Der Absturz erfuellte das -- der Test war
+gruen, waehrend der Aufruf abstuerzte.
+
+Er prueft jetzt, was er sagt. Dazu font-7.4 und 7.5 fuer die
+Codepoint-Pruefung und font-7.6 als Waechter: eine Pruefung, die ALLES
+ablehnt, wuerde die drei anderen genauso zufriedenstellen.
+
+Beim Schreiben von 7.6 fiel nebenbei auf, dass "FreeSans" in 7.1 bis 7.5
+der Name der Randbedingung ist und kein geladener Basisfont -- die Tests
+kommen nie so weit, ihre Argumentpruefung feuert vorher. 7.6 laedt den
+Font deshalb selbst.
+
+GEGENPROBE: mit entfernter Pruefung fallen 7.3, 7.4 und 7.5 um; 7.6 bleibt
+gruen.
+
+
+GEMESSEN
+
+    tests/all.tcl mit DISPLAY   Total 1005  Passed 977  Skipped 28
+                                Failed 0, 45 s
+    make checkbuild             zweimal OK
+    run-all-demos.tcl           27 OK / 8 uebersprungen / 1 Fehler
+                                (Ghostscript fehlt in der Sandbox)

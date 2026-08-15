@@ -6363,13 +6363,13 @@ Use -pdfa-icc to specify a profile path."
             # Value
             if {$initValue ne ""} {
                 append andict "  /V [PdfText $initValue $pdf(current_font)]\n"
-                # Kein zweites /AP hier: seit 0.9.4.42 schreiben die beiden
-                # Zweige oben es in jedem Fall, in dem $onid gesetzt ist --
-                # und ein Feld mit Anfangswert hat immer einen. Der Eintrag
-                # an dieser Stelle stammt aus der Zeit davor und ergab ein
-                # Woerterbuch mit doppeltem /AP, was ISO 32000-1 7.3.7
-                # ausschliesst. Leser nehmen das letzte Vorkommen; beide
-                # zeigten auf dasselbe Objekt, deshalb sah man nichts.
+                # No second /AP here: since 0.9.4.42 the two branches above
+                # write it whenever $onid is set -- and a field with an
+                # initial value always has one. The entry at this point is
+                # older and produced a dictionary with a duplicated /AP,
+                # which ISO 32000-1 7.3.7 does not allow. Readers take the
+                # last occurrence, and both pointed at the same object, so
+                # nothing looked wrong.
             }
         } elseif {$ftype in {combobox listbox}} {
             # Form type choice (/Ch)

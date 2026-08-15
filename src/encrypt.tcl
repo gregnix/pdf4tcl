@@ -817,14 +817,14 @@ $b = New-Object byte\[\] $n; $rng.GetBytes($b); \
         set plaintext [string range $body $sstart ${send}-1]
         set ciphertext [my EncryptBytes $oid $plaintext]
         set newlen [string length $ciphertext]
-        # Zusammensetzen statt [string replace]: bei einem leeren Stream ist
-        # send == sstart, also last == first-1, und "string replace" laesst
-        # den String dann unveraendert -- der Chiffretext fiele weg, waehrend
-        # /Length darunter auf seine Laenge gesetzt wird. Das Ergebnis war
-        # "/Length 32" ueber null Bytes: jeder Leser oeffnet die Datei, qpdf
-        # meldet "expected endstream" und stellt die Laenge selbst richtig.
-        # Leere Streams entstehen seit 0.9.4.42 durch Erscheinungswoerter-
-        # buecher von Feldern ohne Anfangswert.
+        # Assembled from ranges instead of [string replace]: with an empty
+        # stream send equals sstart, so last is first-1, and string replace
+        # then leaves the string untouched -- the ciphertext would be
+        # dropped while /Length below it is set to its size. The result was
+        # "/Length 32" over zero bytes: every reader opens the file, qpdf
+        # reports "expected endstream" and recovers the length itself.
+        # Empty streams arrived with 0.9.4.42, through appearance
+        # dictionaries of fields without an initial value.
         set newbody [string range $body 0 ${sstart}-1]
         append newbody $ciphertext
         append newbody [string range $body $send end]

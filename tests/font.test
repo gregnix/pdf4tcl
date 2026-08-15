@@ -181,8 +181,37 @@ test font-7.2 {createFontSpecEnc: 257 codepoints throws error} -constraints Free
     string match "*must not exceed 256*" $err
 } -result 1
 
-test font-7.3 {createFontSpecEnc: empty subset allowed} -constraints FreeSans -body {
+test font-7.3 {createFontSpecEnc: empty subset is refused} -constraints FreeSans -body {
+    # This test used to be called "empty subset allowed" and checked only
+    # that the message was not the 256 one. It was green while the call
+    # died inside MakeTTFSubset with "can't read \"tlist\"" -- an error
+    # three frames away from the mistake. A subset is the list of
+    # codepoints the font is to carry; an empty one asks for a font that
+    # can show nothing.
     catch {pdf4tcl::createFontSpecEnc FreeSans TestEncEmpty {}} err
-    expr {![string match "*must not exceed 256*" $err]}
+    string match "*subset is empty*" $err
 } -result 1
+
+test font-7.4 {createFontSpecEnc: non-integer codepoint is refused} -constraints FreeSans -body {
+    catch {pdf4tcl::createFontSpecEnc FreeSans TestEncBad {65 x 67}} err
+    string match "*not a codepoint*" $err
+} -result 1
+
+test font-7.5 {createFontSpecEnc: codepoint out of range is refused} -constraints FreeSans -body {
+    set res {}
+    catch {pdf4tcl::createFontSpecEnc FreeSans TestEncNeg {65 -1}} err
+    lappend res [string match "*not a codepoint*" $err]
+    catch {pdf4tcl::createFontSpecEnc FreeSans TestEncBig {65 1200000}} err
+    lappend res [string match "*not a codepoint*" $err]
+} -result {1 1}
+
+test font-7.6 {createFontSpecEnc: a valid subset still works} -constraints FreeSans -body {
+    # Guards the three above: a check that refuses everything would make
+    # them pass just as well. Note the base font has to be loaded here --
+    # the tests above never get that far, their argument check fires first,
+    # so "FreeSans" there is a name nothing ever loaded.
+    pdf4tcl::loadBaseTrueTypeFont BaseEncOk "../examples/FreeSans.ttf"
+    catch {pdf4tcl::createFontSpecEnc BaseEncOk TestEncOk {63 65 66 67}} err
+    set err
+} -result {}
 

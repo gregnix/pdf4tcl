@@ -28,6 +28,16 @@
 	element holding only an annotation is not empty: a Link or a Form
 	consists of its /OBJR and never carries an MCID, so checking marked
 	content alone would report the attachment 0.9.4.42 made possible.
+	* src/fonts.tcl (createFontSpecEnc): an empty subset reached
+	MakeTTFSubset and died there with 'can't read "tlist"' -- a crash
+	inside the subsetting code, several frames from the mistake. Codepoints
+	that are not integers or lie outside 0..0x10FFFF were passed on just as
+	silently. Both are refused now, by name.
+	* tests/font.test: font-7.3 was called "empty subset allowed" and
+	checked only that the message was not the 256 one, so it stayed green
+	while the call crashed. It now checks what it says. font-7.4 and 7.5
+	for the codepoint check, 7.6 as a guard -- a check that refused
+	everything would satisfy the other three just as well.
 	* src/tagged.tcl (TagEnsureMC, TagUntaggedReport), src/main.tcl
 	(Pdfoutcmd, DrawTextAt, Text): content that belongs to neither a
 	structure element nor an artifact is counted and reported once, at

@@ -350,8 +350,8 @@ oo::define ::pdf4tcl::pdf4tcl {
             throw {PDF4TCL} "tagEnd without matching tagBegin"
         }
         set idx [lindex $pdf(tag,stack) end]
-        # Vor dem Ablegen pruefen: schlaegt es fehl, bleibt das Element
-        # offen und der Aufrufer kann den fehlenden Inhalt nachtragen.
+        # Check before popping: if it fails the element stays open, so the
+        # caller can add what is missing and close it afterwards.
         my TagCheckContent $idx
         set pdf(tag,stack) [lrange $pdf(tag,stack) 0 end-1]
         if {$pdf(tag,open) eq $idx} {
@@ -366,20 +366,20 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagCheckContent {idx} {
         variable ::pdf4tcl::StructChildren
         set type $pdf(tag,type,$idx)
-        # Ein Element ohne jeden Inhalt bezeichnet nichts: es besteht jede
-        # Pruefung, und ein Screenreader kuendigt einen Absatz an, in dem
-        # nichts steht. Verboten ist es aber nicht -- deshalb eine Warnung
-        # und kein Fehler.
+        # An element with no content at all designates nothing: it passes
+        # every check, and a reader announces a paragraph that holds
+        # nothing. The standard does not forbid it, so this warns rather
+        # than throwing.
         #
-        # Ausgenommen sind TD und TH: eine leere Zelle ist alltaeglich und
-        # gehoert in den Baum, sonst verrutscht die Spaltenzuordnung. Ein
-        # fehlendes TD ist schlimmer als ein leeres.
+        # TD and TH are exempt: a blank cell is everyday and belongs in the
+        # tree, otherwise the column mapping shifts. A missing TD is worse
+        # than an empty one.
         #
-        # Als Inhalt zaehlt dreierlei: ein Kindelement (E), ausgezeichneter
-        # Inhalt (M) und ein Objektverweis (O). Das O ist wesentlich -- ein
-        # Link oder ein Formularfeld besteht rechtmaessig nur aus seiner
-        # /OBJR und traegt nie eine MCID. Wer allein auf MCIDs prueft,
-        # meldet genau die Anbindung, die 0.9.4.42 moeglich gemacht hat.
+        # Three things count as content: a child element (E), marked
+        # content (M) and an object reference (O). The O matters -- a Link
+        # or a form field legitimately consists of its /OBJR alone and
+        # never carries an MCID. Checking marked content only would report
+        # exactly the attachment 0.9.4.42 made possible.
         if {[llength $pdf(tag,kids,$idx)] == 0 && $type ni {TD TH}} {
             lappend ::pdf4tcl::warnings "tagged: the $type element is empty\
                     -- no content, no child element and no annotation. It\
@@ -464,12 +464,11 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
         if {!$pdf(inPage)} { my startPage }
-        # Kein Verbot im XObject: ein Artefakt traegt nie eine MCID, weil
-        # nichts darauf verweist. Es braucht deshalb weder einen
-        # Parent-Tree-Eintrag noch ein /Stm in einer /MCR -- genau das,
-        # woran Struktur in XObjects scheitert. Fuer einen rein dekorativen
-        # Block ist "/Artifact BMC ... EMC" die richtige und einzige noetige
-        # Auszeichnung.
+        # Not refused inside an XObject: an artifact never carries an MCID,
+        # because nothing refers to it. It needs neither a parent tree entry
+        # nor /Stm in an /MCR -- which is precisely what structure inside an
+        # XObject would need. For a purely decorative block
+        # "/Artifact BMC ... EMC" is the correct and only marking required.
         # PDF/UA forbids an artifact inside tagged content and tagged content
         # inside an artifact (ISO 14289-1 clause 7.1). An element may still be
         # open here -- a running foot on the second page of a paragraph that
