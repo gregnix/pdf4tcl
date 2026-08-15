@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.42?**
+package require **pdf4tcl ?0****.9****.4****.43?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -147,6 +147,8 @@ package require **pdf4tcl ?0****.9****.4****.42?**
 *objectName* **tagText** *type* *str* ?*options*?
 
 *objectName* **tagArtifact** ?*options*?
+
+*objectName* **getUntaggedCount**
 
 *objectName* **tagArtifactEnd**
 
@@ -935,6 +937,42 @@ Being tagged is not the same as being accessible. A document in which every para
 
 - **-ua** is deliberately opt-in and not implied by enabling tagging. The entry asserts conformance that pdf4tcl cannot verify: embedded font programs, a document title, tagging of *all* content and a sensible heading order are the caller's responsibility. A document that claims PDF/UA and then fails validation is worse than one that claims nothing.
 
+**LI**
+: in **L**
+
+**LBody**
+: in **LI**
+
+**THead**
+: , **TBody**, **TFoot** in **Table**
+
+**TR**
+: in **Table**, **THead**, **TBody** or **TFoot**
+
+**TH**
+: , **TD** in **TR**
+
+**TOCI**
+: in **TOC**
+
+**objectName tagBegin type ?options?**
+: Opens a structure element. Everything painted until the matching **tagEnd** belongs to it. Elements nest, and the nesting of the calls is the nesting of the tree. *type* must be one of the standard structure types of ISO 32000-1 Table 333 to 337: **Document**, **Part**, **Art**, **Sect**, **Div**, **BlockQuote**, **Caption**, **TOC**, **TOCI**, **Index**, **NonStruct**, **Private**, **P**, **H**, **H1** to **H6**, **L**, **LI**, **Lbl**, **LBody**, **Table**, **TR**, **TH**, **TD**, **THead**, **TBody**, **TFoot**, **Span**, **Quote**, **Note**, **Reference**, **BibEntry**, **Code**, **Figure**, **Formula** and **Form**. Any other type would require a **/RoleMap** entry and is refused rather than written out and then silently ignored by readers. Where the standard fixes the parent of a type, a call that would put it somewhere else is refused as well:
+
+**L**
+: holds at least one **LI**
+
+**LI**
+: holds an **LBody**
+
+**Table**
+: holds **TR**, **THead**, **TBody** or **TFoot**
+
+**THead**
+: , **TBody**, **TFoot** hold at least one **TR**
+
+**TR**
+: holds at least one **TH** or **TD**
+
 **-alt text**
 : Alternative description, written as **/Alt**. For a **Figure** this is the only text a screen reader can announce.
 
@@ -959,10 +997,10 @@ Being tagged is not the same as being accessible. A document in which every para
 **-scope scope**
 : Applies to **TH** only and writes **/A <</O /Table /Scope ****.****.****.>>**. *scope* is **Row**, **Column** or **Both**. ISO 14289-1 clause 7.5 requires it wherever the relation between a header cell and its data cells cannot be derived algorithmically.
 
-**objectName tagBegin type ?options?**
-: Opens a structure element. Everything painted until the matching **tagEnd** belongs to it. Elements nest, and the nesting of the calls is the nesting of the tree. *type* must be one of the standard structure types of ISO 32000-1 Table 333 to 337: **Document**, **Part**, **Art**, **Sect**, **Div**, **BlockQuote**, **Caption**, **TOC**, **TOCI**, **Index**, **NonStruct**, **Private**, **P**, **H**, **H1** to **H6**, **L**, **LI**, **Lbl**, **LBody**, **Table**, **TR**, **TH**, **TD**, **THead**, **TBody**, **TFoot**, **Span**, **Quote**, **Note**, **Reference**, **BibEntry**, **Code**, **Figure**, **Formula** and **Form**. Any other type would require a **/RoleMap** entry and is refused rather than written out and then silently ignored by readers.
-
+- Every other type may appear anywhere. **NonStruct** carries no structural meaning of its own (ISO 32000-1 clause 14.8.4.2) and is skipped when the parent is determined, so a row wrapped in one is still a row. A refused call raises an error before the element exists and leaves the tree unchanged. This closes a class of defect that goes unreported otherwise: a validator checks conformance, not sense, and a reader repairs nothing. A cell outside a row passes every check and is announced as a table without rows. **tagEnd** checks the other direction and refuses to close a container the standard requires to hold something:
+- Marked content does not count here -- a table holding only text is still a table without rows. A refused **tagEnd** leaves the element open, so the missing content can be added and the element closed afterwards. An element closed without any content at all -- no marked content, no child element and no annotation -- is reported in **::pdf4tcl::warnings** rather than refused: the standard permits it, but such an element designates nothing. **TD** and **TH** are exempt, because a blank cell belongs in the tree; without it the column mapping shifts. An element that holds only an annotation, such as a **Link** or a **Form**, is not empty -- these consist of an **/OBJR** and never carry an MCID.
 - Text passed to these options is written as a UTF-16BE string when it contains anything outside printable ASCII, so it is not restricted to Latin-1 the way **bookmarkAdd** titles are.
+
 **-type type**
 : One of **Pagination**, **Layout**, **Page** or **Background**.
 
@@ -975,8 +1013,11 @@ Being tagged is not the same as being accessible. A document in which every para
 **objectName tagText type str ?options?**
 : Convenience for a complete element around a single **text** call. Options are split by name: **-alt**, **-actualtext**, **-title**, **-lang** and **-scope** go to **tagBegin**, everything else to **text**. Returns whatever **text** returns.
 
-**objectName**
-: **tagArtifact** ?*options*?
+**objectName tagArtifact ?options?**
+: Unlike **tagBegin**, this works inside an XObject as well. An artifact never carries an MCID, because nothing refers to it -- no parent tree entry and no **/Stm** in an **/MCR**. For a purely decorative block that is the correct and only marking required. Content that belongs to neither a structure element nor an artifact is counted while the document is built and reported once, at **finish**. ISO 14289-1 clause 7.1 requires every piece of content to be one or the other, and nothing else in the toolchain notices when it is not: a validator cannot know which operators were meant to be content. The entry goes to **::pdf4tcl::warnings**; it is a warning and not an error, because untagged content is legal PDF and a caller may mean it. Only operators that put marks on the page count -- path painting, text showing, XObjects and shadings. Setting a colour, a font or a matrix outside an element is not a defect. Content inside an XObject does not count either, since the tag on the **Do** that places it covers the whole block.
+
+**objectName getUntaggedCount**
+: Number of painting operations so far that belonged to neither a structure element nor an artifact. Zero is what PDF/UA asks for. Always zero while tagging is off.
 
 **objectName tagArtifactEnd**
 : Marks content that is not part of the document: running heads, page numbers, rules, background decoration. Artifacts carry no **/MCID** and are skipped by assistive technology (ISO 32000-1 clause 14.8.2.2).
@@ -1418,6 +1459,10 @@ These bytes are the AES file key, the initialisation vectors and the salts, so t
 
 ### VERSION 0.9.4.42
 
+- **::pdf4tcl::catPdf** folds objects with an identical body onto one and renumbers densely. Documents built from the same template share their embedded font programs; measured on two documents of 28961 bytes each, the result went from 57757 to 33762 bytes. Pages, the catalog and structure elements are never folded.
+- **::pdf4tcl::catPdf** folds objects with an identical body onto one and renumbers densely. Documents built from the same template share their embedded font programs; measured on two documents of 28961 bytes each, the result went from 57757 to 33762 bytes. Pages, the catalog and structure elements are never folded.
+- **-markstyle** decides how the mark of a check box or radio button is drawn: **font** uses a ZapfDingbats glyph as before, **vector** draws it with lines and curves, and **auto**, the default, picks vectors where the document claims PDF/UA or a level A conformance. The glyph cannot be embedded and both standards require embedded font programs, so a single check box used to make a document non-conformant whatever else it did right. Documents claiming nothing keep the appearance they always had.
+- out which profiles it claims and runs veraPDF against those; takes files or directories. A document claiming nothing is reported as such rather than failed against a profile it never promised.
 - attached to an open **Form** element as well, not only to **Link** and **Annot**. ISO 32000-1 table 337 gives **/Form** as the structure type of an interactive field and PDF/UA clause 7.18.1 wants the widget annotation attached through **/OBJR**; **tagBegin** accepted the type all along, so the element sat in the tree while the field stayed unreachable, and the warning about unattached annotations fired for a document that had done everything right.
 
 ### VERSION 0.9.4.41
