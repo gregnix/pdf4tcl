@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-write-chan.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-write-chan.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-write-chan.tcl`](howto-write-chan.tcl).
 
-Demo: `0.9.4.x/demo/demo-write-chan.tcl`
+Demo: `demo/demo-write-chan.tcl`
 
 ## Problem
 

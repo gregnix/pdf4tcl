@@ -164,5 +164,5 @@ runs of the same script can produce PDFs of different size for that reason.
 
 - `pdf4tcl-images.md` -- how images are placed and scaled generally
 - `pdf4tcl-basics.md` -- the coordinate system the placement area uses
-- `0.9.4.x/demo/demo-canvas-0.9.4.24.tcl` -- classic canvas and `tko::path`
-- `0.9.4.x/demo/demo-canvas-tkpath.tcl` -- `tkpath` items
+- `demo/demo-canvas-0.9.4.24.tcl` -- classic canvas and `tko::path`
+- `demo/demo-canvas-tkpath.tcl` -- `tkpath` items

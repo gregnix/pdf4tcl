@@ -12,8 +12,8 @@ include them.
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-06-assemble-pack.tcl
-# PDF -> 0.9.4.x/doc/en/out/tutorial-06-reading-pack.pdf
+tclsh doc/en/tutorials/tutorial-06-assemble-pack.tcl
+# PDF -> doc/en/out/tutorial-06-reading-pack.pdf
 ```
 
 Companion: [`tutorial-06-assemble-pack.tcl`](tutorial-06-assemble-pack.tcl).

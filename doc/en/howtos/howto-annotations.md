@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-annotations.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-annotations.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-annotations.tcl`](howto-annotations.tcl).
 
-Demo: `0.9.4.x/demo/demo-annotations.tcl`
+Demo: `demo/demo-annotations.tcl`
 
 ## Problem
 
@@ -29,7 +29,7 @@ $pdf addAnnotStrikeOut 50 340 200 14 -color {1 0 0}
 $pdf addAnnotLine 50 400 200 400 -color {0 0 0}
 ```
 
-Exact option names and defaults: `../pdf4tcl-annotations.md` and the demo.
+Exact option names and defaults: `../reference/pdf4tcl-annotations.md` and the demo.
 
 ## Tagged documents
 
@@ -39,7 +39,7 @@ clickable but invisible to assistive technology.
 
 Since **0.9.4.39** that case appends a message to `::pdf4tcl::warnings`
 (once per document) instead of failing silently. It is still legal PDF; for
-PDF/UA wrap the annotation. See `../TAGGED.md`.
+PDF/UA wrap the annotation. See `../reference/TAGGED.md`.
 
 ## Related
 

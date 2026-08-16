@@ -237,7 +237,7 @@ And one for `pdf4tcl::catPdf`:
   from zero, so keeping the structure would leave pages resolving to the
   wrong elements. Merging untagged documents is unchanged.
 
-See `0.9.4.x/doc/en/TAGGED.md` for what tagging does and where it stops.
+See `doc/en/TAGGED.md` for what tagging does and where it stops.
 
 ---
 

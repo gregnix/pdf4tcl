@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-02-simple-report.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/tutorials/tutorial-02-simple-report.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`tutorial-02-simple-report.tcl`](tutorial-02-simple-report.tcl).

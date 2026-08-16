@@ -240,7 +240,7 @@ Install on Debian/Ubuntu: `apt install fonts-dejavu-core`
 | Enclosed Alphanumerics      | U+2460..U+24FF  |      9 | Circled digits and letters       |
 
 A visual overview of all available glyphs is provided by `demo-symbole.tcl`
-(4 pages, in `0.9.4.x/demo/`).
+(4 pages, in `demo/`).
 
 ### IPAGothic / IPAexGothic
 
@@ -300,7 +300,7 @@ missing glyph costs the rest of that string as well. Extraction is therefore
 no test for coverage -- check with `glyphAvailable` before writing.
 
 A ready-made script that reports coverage per Unicode block is
-[`howtos/howto-font-coverage.md`](../en/howtos/howto-font-coverage.md).
+[`howtos/howto-font-coverage.md`](../howtos/howto-font-coverage.md).
 
 Note that coverage says nothing about shaping: Arabic and Hebrew report as
 complete and still come out unjoined and in visual order, because pdf4tcl
@@ -420,7 +420,7 @@ CJK characters are typically full-width (advance = unitsPerEm), which
 | `demo-symbole.tcl`            | All DejaVu glyph blocks, 4 pages             |
 | `demo-cidfont.tcl`            | Basic CID font usage example                 |
 
-All demo files are located in `0.9.4.x/demo/` and require DejaVuSans.ttf.
+All demo files are located in `demo/` and require DejaVuSans.ttf.
 
 ---
 
@@ -472,5 +472,5 @@ $pdf text "Text with OTF font" -x 72 -y 200
 
 ### Demo
 
-`demo-otf.tcl` in `0.9.4.x/demo/` demonstrates OTF font loading across
+`demo-otf.tcl` in `demo/` demonstrates OTF font loading across
 three pages with Latin, Greek, and CJK characters.

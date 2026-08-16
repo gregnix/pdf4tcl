@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-facturx.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-facturx.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-facturx.tcl`](howto-facturx.tcl).
@@ -24,7 +24,7 @@ Factur-X XMP extension.
 ## What pdf4tcl does *not* do
 
 Validate the invoice **business content** against EN 16931 / XRechnung
-Schematron. That is application data. See `../todo-en16931.md`.
+Schematron. That is application data. See `../reference/todo-en16931.md`.
 
 ## Recipe
 

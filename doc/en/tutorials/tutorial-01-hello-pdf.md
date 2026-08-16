@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-01-hello-pdf.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/tutorials/tutorial-01-hello-pdf.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`tutorial-01-hello-pdf.tcl`](tutorial-01-hello-pdf.tcl).
@@ -31,7 +31,7 @@ package require pdf4tcl 0.9
 
 Always set `-orient` explicitly. With the default `-orient 1`, **y grows
 downward** from the top margin; `(0,0)` is the top-left of the drawable area
-once margins are applied. See `../pdf4tcl-basics.md` if that surprises you.
+once margins are applied. See `../reference/pdf4tcl-basics.md` if that surprises you.
 
 ```tcl
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1 -margin 50]

@@ -9,8 +9,8 @@ tree or scripts against it.
 top level now. Paths in your own scripts change accordingly:
 
 ```
-0.9.4.x/demo/run-all-demos.tcl   ->  demo/run-all-demos.tcl
-0.9.4.x/doc/en/...               ->  doc/en/...
+demo/run-all-demos.tcl   ->  demo/run-all-demos.tcl
+doc/en/...               ->  doc/en/...
 ```
 
 **`make web` and `make webt` no longer exist**, and neither does `web/`.
@@ -281,7 +281,7 @@ And one for `pdf4tcl::catPdf`:
   from zero, so keeping the structure would leave pages resolving to the
   wrong elements. Merging untagged documents is unchanged.
 
-See `0.9.4.x/doc/en/TAGGED.md` for what tagging does and where it stops.
+See `doc/en/TAGGED.md` for what tagging does and where it stops.
 
 ---
 

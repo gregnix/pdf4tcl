@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-headers-footers.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-headers-footers.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-headers-footers.tcl`](howto-headers-footers.tcl).
@@ -60,7 +60,7 @@ $pdf tagArtifact -type Pagination -subtype Footer
 $pdf tagArtifactEnd
 ```
 
-See `../tutorials/tutorial-03-accessible-pdf.md` and `../TAGGED.md`.
+See `../tutorials/tutorial-03-accessible-pdf.md` and `../reference/TAGGED.md`.
 
 ## Limits
 

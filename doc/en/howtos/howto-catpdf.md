@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-catpdf.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-catpdf.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-catpdf.tcl`](howto-catpdf.tcl).
 
-Guide: `../TAGGED.md`, `../pdf4tcl-annotations.md`  
+Guide: `../reference/TAGGED.md`, `../reference/pdf4tcl-annotations.md`  
 Since **0.9.4.40** structure trees are merged instead of dropped.
 
 ## Problem
@@ -53,4 +53,4 @@ Prefer tagging all parts the same way before merging.
 ## Upgrade note
 
 Code written against 0.9.4.36–0.9.4.39 that expected structure to disappear
-now gets a tagged result. See `../UPGRADING.md` (0.9.4.40).
+now gets a tagged result. See `../reference/UPGRADING.md` (0.9.4.40).

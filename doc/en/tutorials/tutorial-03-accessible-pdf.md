@@ -3,15 +3,15 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-03-accessible-pdf.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/tutorials/tutorial-03-accessible-pdf.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`tutorial-03-accessible-pdf.tcl`](tutorial-03-accessible-pdf.tcl).
 
 Build a small PDF/UA-1-oriented document: title metadata, embedded font,
 headings, a paragraph, a tagged link, and an artifact footer. Full detail is
-in `../TAGGED.md`; this page is the shortest path that usually validates.
+in `../reference/TAGGED.md`; this page is the shortest path that usually validates.
 
 ## Requirements that trip people up
 
@@ -95,6 +95,6 @@ raises. Embed a real font (not Helvetica). See `../howtos/howto-pdfa.md`.
 ## Next
 
 - Lists, tables, figures with `/Alt`: `examples/tagged.tcl` and
-  `0.9.4.x/demo/demo-tagged.tcl`
-- Theory and limits: `../TAGGED.md`
+  `demo/demo-tagged.tcl`
+- Theory and limits: `../reference/TAGGED.md`
 - Validation recipes: `../howtos/howto-validate.md`

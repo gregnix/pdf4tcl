@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-gradients.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-gradients.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-gradients.tcl`](howto-gradients.tcl).
 
-Demo: `0.9.4.x/demo/demo-gradients.tcl`
+Demo: `demo/demo-gradients.tcl`
 
 ## Problem
 
@@ -54,4 +54,4 @@ $pdf setBlendMode Normal
 ## CMYK documents
 
 With `-cmyk 1` the shading dictionary uses `/DeviceCMYK`. See
-`howto-cmyk.md`, `howto-colors.md`, `../pdf4tcl-graphics-and-colors.md`.
+`howto-cmyk.md`, `howto-colors.md`, `../reference/pdf4tcl-graphics-and-colors.md`.

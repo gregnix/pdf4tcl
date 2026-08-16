@@ -127,4 +127,4 @@ the code and wrong on screen.
 - `pdf4tcl-basics.md` -- the coordinate system every placement depends on
 - `pdf4tcl-canvas.md` -- exporting a Tk canvas, which embeds images among
   everything else
-- `0.9.4.x/demo/demo-interlaced-png.tcl` -- interlaced PNG handling
+- `demo/demo-interlaced-png.tcl` -- interlaced PNG handling

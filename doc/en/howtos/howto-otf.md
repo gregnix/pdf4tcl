@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-otf.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-otf.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-otf.tcl`](howto-otf.tcl).
 
-Demo: `0.9.4.x/demo/demo-otf.tcl` (skipped unless an OTF is found, or pass
+Demo: `demo/demo-otf.tcl` (skipped unless an OTF is found, or pass
 `--font`; `run-all-demos.tcl --alle` forces the attempt)
 
 ## Problem
@@ -40,8 +40,8 @@ pdf4tcl::createFont BaseLoma Body iso8859-1
 ## Run the demo
 
 ```bash
-tclsh 0.9.4.x/demo/demo-otf.tcl --out 0.9.4.x/demo/out
-tclsh 0.9.4.x/demo/demo-otf.tcl --out out --font /path/to/font.otf
+tclsh demo/demo-otf.tcl --out demo/out
+tclsh demo/demo-otf.tcl --out out --font /path/to/font.otf
 ```
 
 ## Notes

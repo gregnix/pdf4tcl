@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-cmyk.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-cmyk.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-cmyk.tcl`](howto-cmyk.tcl).
@@ -46,4 +46,4 @@ $pdf destroy
   `::pdf4tcl::rgb2Cmyk` / `cmyk2Rgb` if you need a better mapping.
 - Since 0.9.4.39 gradients share `GetColor` and declare CMYK in CMYK
   documents (they used to be fixed DeviceRGB with a narrower colour parser).
-- Details: `howto-colors.md`, `../pdf4tcl-graphics-and-colors.md`.
+- Details: `howto-colors.md`, `../reference/pdf4tcl-graphics-and-colors.md`.

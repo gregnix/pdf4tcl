@@ -159,7 +159,7 @@ foreach ch [split $text {}] {
 
 Measured against DejaVu Sans: `A`, `ü`, `Ω`, `Ж`, `→`, `✓` all present,
 `日` absent. A ready-made script is in
-[`howtos/howto-font-coverage.md`](howtos/howto-font-coverage.md).
+[`howtos/howto-font-coverage.md`](../howtos/howto-font-coverage.md).
 
 ---
 

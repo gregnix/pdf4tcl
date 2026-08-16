@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-unicode.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-unicode.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-unicode.tcl`](howto-unicode.tcl).
@@ -35,8 +35,8 @@ $pdf destroy
   the scripts you need; CJK needs a CJK face.
 - Colour-bitmap emoji fonts (CBDT/CBLC) and COLR fonts are detected and
   rejected -- outline fonts only.
-- Full manual: `../pdf4tcl-cidfont-manual.md`.
-- Side-by-side WinAnsi vs CID: `0.9.4.x/demo/demo-api-vergleich.tcl`.
+- Full manual: `../reference/pdf4tcl-cidfont-manual.md`.
+- Side-by-side WinAnsi vs CID: `demo/demo-api-vergleich.tcl`.
 - If text shows as `?` or blanks, check `getSubstCount` and switch to CID.
 
 ## Two things the recipe does not tell you
@@ -72,7 +72,7 @@ U+FFFF in code that must run on 8.6, and measure widths with
 
 ## See also
 
-- [`../pdf4tcl-fonts-and-unicode.md`](../pdf4tcl-fonts-and-unicode.md) --
+- [`../reference/pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md) --
   the three routes compared, with sizes
 - [`howto-font-coverage.md`](howto-font-coverage.md) -- does the font
   actually have the glyph?

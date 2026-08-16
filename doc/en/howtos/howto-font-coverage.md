@@ -3,11 +3,11 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-font-coverage.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-font-coverage.tcl
+# PDF -> doc/en/out/
 
 # a different font
-tclsh 0.9.4.x/doc/en/howtos/howto-font-coverage.tcl "" \
+tclsh doc/en/howtos/howto-font-coverage.tcl "" \
       /usr/share/fonts/truetype/freefont/FreeSerif.ttf
 ```
 
@@ -102,8 +102,8 @@ Three ways out, in order of how often they are right:
 
 ## See also
 
-- [`pdf4tcl-fonts-and-unicode.md`](../pdf4tcl-fonts-and-unicode.md) --
+- [`pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md) --
   choosing between standard font, subset and CID
 - [`howto-symbols.md`](howto-symbols.md) -- printed coverage charts
 - [`howto-unicode.md`](howto-unicode.md) -- the CID recipe itself
-- `0.9.4.x/demo/demo-unicode-tabelle.tcl` -- full tables per font
+- `demo/demo-unicode-tabelle.tcl` -- full tables per font

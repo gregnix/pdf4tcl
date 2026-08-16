@@ -3,14 +3,14 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-canvas.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-canvas.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-canvas.tcl`](howto-canvas.tcl).
 
 Demos: `demo-canvas-0.9.4.24.tcl`, `demo-canvas-tkpath.tcl`  
-Guide: `../pdf4tcl-canvas.md`
+Guide: `../reference/pdf4tcl-canvas.md`
 
 ## Problem
 

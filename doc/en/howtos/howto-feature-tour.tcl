@@ -8,8 +8,8 @@ $pdf startPage
 $pdf setFont 16 Helvetica-Bold
 $pdf text "Feature tour (short)" -x 0 -y 24
 $pdf setFont 11 Helvetica
-$pdf text "Full tour: 0.9.4.x/demo/demo-all.tcl" -x 0 -y 50
-$pdf text "Minimal: 0.9.4.x/demo/minimalPdf.tcl" -x 0 -y 70
+$pdf text "Full tour: demo/demo-all.tcl" -x 0 -y 50
+$pdf text "Minimal: demo/minimalPdf.tcl" -x 0 -y 70
 $pdf setFillColor 0.2 0.4 0.7
 $pdf rectangle 0 90 120 40 -filled 1
 $pdf hyperlinkAdd 0 140 200 14 "https://github.com/gregnix/pdf4tcl"

@@ -1,6 +1,6 @@
 #!/usr/bin/env tclsh
 # demo-forms.tcl \u2014 Bestellformular ohne Verschluesselung
-# Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/0.9.4.x/demo/
+# Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/demo/
 # Aufruf:    tclsh demo-forms.tcl
 
 set scriptDir [file dirname [file normalize [info script]]]

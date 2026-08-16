@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-cheatsheets.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-cheatsheets.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-cheatsheets.tcl`](howto-cheatsheets.tcl).
 
-Demo: `0.9.4.x/demo/demo-make-cheatsheets.tcl`
+Demo: `demo/demo-make-cheatsheets.tcl`
 
 ## Problem
 
@@ -19,8 +19,8 @@ Print compact two-column PDF reference sheets for the current pdf4tcl API.
 
 ```bash
 cd /path/to/pdf4tcl
-tclsh 0.9.4.x/demo/demo-make-cheatsheets.tcl
-# writes under 0.9.4.x/demo/out/
+tclsh demo/demo-make-cheatsheets.tcl
+# writes under demo/out/
 ```
 
 The script builds several cheat-sheet PDFs (methods, options, patterns) using

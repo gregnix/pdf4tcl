@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-run-demos.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-run-demos.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-run-demos.tcl`](howto-run-demos.tcl).
 
-Script: `0.9.4.x/demo/run-all-demos.tcl`
+Script: `demo/run-all-demos.tcl`
 
 ## Problem
 
@@ -19,11 +19,11 @@ Regenerate every demo PDF after a change, or smoke-test the install.
 
 ```bash
 cd /path/to/pdf4tcl
-tclsh 0.9.4.x/demo/run-all-demos.tcl
-# PDFs land in 0.9.4.x/demo/out/
+tclsh demo/run-all-demos.tcl
+# PDFs land in demo/out/
 
-tclsh 0.9.4.x/demo/run-all-demos.tcl --outdir /tmp/pdfout
-tclsh 0.9.4.x/demo/run-all-demos.tcl --alle    # include slow / optional demos
+tclsh demo/run-all-demos.tcl --outdir /tmp/pdfout
+tclsh demo/run-all-demos.tcl --alle    # include slow / optional demos
 ```
 
 ## Behaviour

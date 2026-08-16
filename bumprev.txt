@@ -32,8 +32,6 @@ pkg/pkgIndex.tcl           package ifneeded
 Makefile                   VERSION (no dots)
 pdf4tcl.man                two places
 README.md                  heading only (no version in package require)
-web/index.html             version number
-web/changes.html           new entry added (edit to expand)
 ChangeLog                  stub entry added (edit to expand)
 nogit/scripts/sync-pdf4tcl.tcl     paths (two places)
 nogit/scripts/make-release.tcl   (nicht im Repo)     VERSION + REPODIR + TAGMSG
@@ -48,7 +46,6 @@ symlink directory (see INSTALL.md).
 Still manual after bump:
 --------------------------
 ChangeLog                  expand stub entry
-web/changes.html           expand stub entry
 make doc                   regenerate pdf4tcl.html + pdf4tcl.n
 nogit/doc/docs/de/regelbuch-pdf4tcl.md   new "Neue Fixes" section
 nogit/doc/docs/de/TODO.md      version table + GitHub command
@@ -62,7 +59,7 @@ Release checklist:
 [ ] make doc
 [ ] make test  (check for new failures)
 [ ] regenerate examples/test*.pdf if needed
-[ ] expand ChangeLog + web/changes.html
+[ ] expand ChangeLog
 [ ] write uebergabe-0.9.4.X.md
 [ ] update regelbuch-pdf4tcl.md + TODO.md
 [ ] git add -A && git commit -m "0.9.4.X: ..."

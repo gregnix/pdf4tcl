@@ -3,14 +3,14 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-04-forms.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/tutorials/tutorial-04-forms.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`tutorial-04-forms.tcl`](tutorial-04-forms.tcl).
 
 Build an interactive order form: name fields, amount fields, a calculated
-total, and submit/reset buttons. Based on `0.9.4.x/demo/demo-forms-calc.tcl`.
+total, and submit/reset buttons. Based on `demo/demo-forms-calc.tcl`.
 
 ## Script
 
@@ -76,5 +76,5 @@ puts "wrote order-form.pdf"
 ## Next
 
 - Styling options: `../howtos/howto-forms.md`
-- Full forms manual: `../pdf4tcl-forms-manual.md`
+- Full forms manual: `../reference/pdf4tcl-forms-manual.md`
 - Graphics next: [Tutorial 5](tutorial-05-graphics-lab.md)

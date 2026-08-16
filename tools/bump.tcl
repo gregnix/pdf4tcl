@@ -175,7 +175,6 @@ foreach f {
     pkgIndex.tcl
     pkg/pkgIndex.tcl
     README.md
-    web/index.html
 } {
     if {![file exists $f]} { puts "  SKIP $f"; continue }
     replaceInFile $f $oldVersion $newVersion $oldVersion
@@ -261,21 +260,10 @@ if {![string match "*Bumped revision to ${newVersion}*" $c]} {
     puts "  --  ChangeLog (Stub bereits vorhanden)"
 }
 
-# ---------------------------------------------------------------
-# 6. web/changes.html: Eintrag oben einfuegen (einmalig)
-# ---------------------------------------------------------------
-set f web/changes.html
-if {[file exists $f]} {
-    set c [readFile $f]
-    if {![string match "*Changes in v${newVersion}*" $c]} {
-        set htmlEntry "\nChanges in v${newVersion} (${today}, fork gregnix):<br>\n<ul>\n  <li>${newMsg}</li>\n</ul>\n"
-        set c2 [regsub {\nChanges in v} $c "${htmlEntry}\nChanges in v"]
-        writeFile $f $c2
-        puts "  OK  $f (Eintrag eingefuegt)"
-    } else {
-        puts "  --  $f (Eintrag bereits vorhanden)"
-    }
-}
+# Der frueher hier stehende Schritt fuer web/changes.html ist mit dem
+# Verzeichnis web/ entfallen (0.9.4.45). Die Projektseite gehoerte dem
+# Original und war aus diesem Fork nicht veroeffentlichbar; der Eintrag
+# waere ins Leere gelaufen.
 
 # ---------------------------------------------------------------
 # 7. Assemblieren
@@ -338,7 +326,7 @@ if {[string is integer -strict $last]} {
 # Zusammenfassung
 # ---------------------------------------------------------------
 puts "\nFertig. Noch manuell:"
-puts "  - ChangeLog ausformulieren (web/changes.html ggf. praezisieren)"
+puts "  - ChangeLog ausformulieren"
 puts "  - make doc   (pdf4tcl.html + pdf4tcl.n aus pdf4tcl.man)"
 puts "  - make md    (pdf4tcl.md aus pdf4tcl.n)"
 puts "  - make example (Referenz-PDFs neu generieren -- Version steckt in /Creator + komprimierten Metadaten)"

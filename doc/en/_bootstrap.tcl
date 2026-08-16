@@ -32,7 +32,7 @@ proc ::pdf4tcl::doc::init {{scriptfile ""} {extraOut {}}} {
     #
     # A fixed count is wrong the moment anything moves, and it was already
     # wrong in two ways at once: it assumed four levels, which fitted
-    # 0.9.4.x/doc/en/howtos but not doc/en/run-all-examples.tcl one level
+    # doc/en/howtos but not doc/en/run-all-examples.tcl one level
     # up. After the fork directory was flattened, the howtos resolved the
     # root one level too high and every script needing a font or the
     # package died with a path that pointed outside the tree

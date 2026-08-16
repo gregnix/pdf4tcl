@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-pdfa.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-pdfa.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-pdfa.tcl`](howto-pdfa.tcl).
@@ -83,10 +83,10 @@ verapdf -f ua1 archive-3a.pdf
 - `setAlpha` &lt; 1 with `-pdfa 1b`/`1a` violates PDF/A-1 (warning).
 - Embedded files are forbidden in PDF/A-1; use 3b/3a for Factur-X.
 - Level A does **not** check that tagging is sensible -- only that tagging
-  and `-lang` are present. See `../TAGGED.md` and tutorial 03.
+  and `-lang` are present. See `../reference/TAGGED.md` and tutorial 03.
 
 ## Demos
 
-- `0.9.4.x/demo/demo-pdfa.tcl` -- native `-pdfa`
+- `demo/demo-pdfa.tcl` -- native `-pdfa`
 - `examples/facturx.tcl` -- PDF/A-3b + embedded XML
 - Ghostscript path (optional): `demo-pdfa-gs.tcl`

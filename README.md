@@ -58,6 +58,34 @@ $pdf destroy
 
 
 
+## pdf4tcllib -- the companion library
+
+pdf4tcl draws; it does not lay out. Line wrapping, tables with page
+breaks, form layout, a table of contents with real page numbers, charts,
+label sheets -- those live in a separate project built on top of it:
+
+**[pdf4tcllib](https://github.com/gregnix/pdf4tcllib)**
+
+```tcl
+package require pdf4tcllib          ;# fonts, text, tables, page, drawing, form
+package require pdf4tcltable        ;# export a Tk tablelist widget
+package require pdf4tcltext         ;# export a Tk text widget
+package require pdf4tclforms        ;# declarative AcroForm layouts
+package require pdf4tcllabels       ;# label sheets and roll labels
+package require pdf4tcltoc          ;# contents page, two-pass layout
+package require pdf4tclchart        ;# bar, line and pie charts
+package require pdf4tclflow         ;# text through columns and pages
+```
+
+Each module is usable on its own; the only shared dependency is
+`pdf4tcllib` itself, and its only external dependency is pdf4tcl.
+
+The two projects are developed together. Several features in this fork
+exist because pdf4tcllib needed them -- `getUntaggedCount`, the structure
+nesting checks and the `-newyvar` fix all came from building something on
+top and finding out what was missing. Tagging works best with pdf4tcl
+0.9.4.43 or later, where the building blocks mark up what they draw.
+
 ## Tagged PDF
 
 Since 0.9.4.36 documents can carry a logical structure (ISO 32000-1
@@ -78,7 +106,7 @@ $pdf tagEnd
 `examples/tagged.tcl` produces a document that veraPDF 1.28.2 validates as
 PDF/UA-1 conformant: 106 rules and 1492 checks passed, none failed. The
 manual page describes the methods under *OBJECT METHODS, TAGGED PDF*,
-`0.9.4.x/doc/en/TAGGED.md` goes into the background and the open ends, and
+`doc/en/TAGGED.md` goes into the background and the open ends, and
 `tools/check-tagged.py` verifies the structure of a generated file.
 
 Being tagged is not the same as being accessible. A document in which every
@@ -88,8 +116,10 @@ still tells a reader nothing useful.
 
 ## Upstream
 
-Patches for individual tickets are in `0.9.4.x/ticket*/` and can be
-applied independently to a clean upstream clone.
+Patches for the individual SourceForge tickets (9 to 24, fixed in
+0.9.4.1 through 0.9.4.24) were kept as `ticket*/` directories until
+0.9.4.45. They are all in the released code by now; the patches
+themselves remain in the git history.
 
 Original project: https://sourceforge.net/projects/pdf4tcl/
 

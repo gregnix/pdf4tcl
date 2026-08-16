@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-07-multilingual.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/tutorials/tutorial-07-multilingual.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`tutorial-07-multilingual.tcl`](tutorial-07-multilingual.tcl).
@@ -70,7 +70,7 @@ The same call carries every script. That is the whole point of the CID font,
 and the reason the file is 760 KB: the entire font goes in. If the repertoire
 is fixed and small, `createFontSpecEnc` embeds a subset instead and lands
 under 30 KB -- see
-[`../pdf4tcl-fonts-and-unicode.md`](../pdf4tcl-fonts-and-unicode.md).
+[`../reference/pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md).
 
 ## Step 3 -- mixing two fonts on one line
 
@@ -120,9 +120,9 @@ rather than pretending the zero means success.
 
 ## Next
 
-- [`../pdf4tcl-fonts-and-unicode.md`](../pdf4tcl-fonts-and-unicode.md) --
+- [`../reference/pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md) --
   standard font against subset against CID, with sizes
 - [`../howtos/howto-font-coverage.md`](../howtos/howto-font-coverage.md) --
   the coverage check as a standalone script
-- [`../pdf4tcl-cidfont-manual.md`](../pdf4tcl-cidfont-manual.md) -- the CID
+- [`../reference/pdf4tcl-cidfont-manual.md`](../reference/pdf4tcl-cidfont-manual.md) -- the CID
   API in full, including OTF/CFF

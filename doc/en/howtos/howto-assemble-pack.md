@@ -8,9 +8,9 @@ reader goes through them in order -- without attachments or a zip file.
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-assemble-pack.tcl
+tclsh doc/en/howtos/howto-assemble-pack.tcl
 # or the fuller walkthrough:
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-06-assemble-pack.tcl
+tclsh doc/en/tutorials/tutorial-06-assemble-pack.tcl
 ```
 
 Companion: [`howto-assemble-pack.tcl`](howto-assemble-pack.tcl).  

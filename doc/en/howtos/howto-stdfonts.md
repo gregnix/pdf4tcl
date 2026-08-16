@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-stdfonts.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-stdfonts.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-stdfonts.tcl`](howto-stdfonts.tcl).
@@ -47,8 +47,8 @@ Latin-1 -- use CID (`howto-unicode.md`) for that.
 ## Generate the reference PDFs
 
 ```bash
-tclsh 0.9.4.x/demo/demo-stdfonts-tounicode.tcl out
-tclsh 0.9.4.x/demo/demo-stdfonts-tabelle.tcl out
+tclsh demo/demo-stdfonts-tounicode.tcl out
+tclsh demo/demo-stdfonts-tabelle.tcl out
 ```
 
 PDF/UA and long-term archival still want an **embedded** TrueType/OTF, not
@@ -79,4 +79,4 @@ at `finish`:
 ```
 
 The same document with a CID font produces no warning. See
-[`../pdf4tcl-fonts-and-unicode.md`](../pdf4tcl-fonts-and-unicode.md).
+[`../reference/pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md).

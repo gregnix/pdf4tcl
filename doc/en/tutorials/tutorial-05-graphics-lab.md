@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-05-graphics-lab.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/tutorials/tutorial-05-graphics-lab.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`tutorial-05-graphics-lab.tcl`](tutorial-05-graphics-lab.tcl).

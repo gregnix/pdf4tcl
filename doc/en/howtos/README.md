@@ -1,7 +1,7 @@
 # How-tos
 
 Task-oriented recipes. Each page answers one question with a minimal working
-snippet and points at the matching demo under `0.9.4.x/demo/`. For longer
+snippet and points at the matching demo under `demo/`. For longer
 walkthroughs see `../tutorials/`. For full option lists see the manual page
 (`pdf4tcl.man` / `pdf4tcl.md`).
 
@@ -43,7 +43,7 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-cheatsheets.md` | Printable API cheat sheets? | `demo-make-cheatsheets.tcl` |
 
 Assumes pdf4tcl **0.9.4.41** or newer. Run the suite with
-`tclsh 0.9.4.x/demo/run-all-demos.tcl` (output under `demo/out/`; see
+`tclsh demo/run-all-demos.tcl` (output under `demo/out/`; see
 `howto-run-demos.md`).
 
 ## Runnable scripts
@@ -52,7 +52,7 @@ Every how-to above has a companion `.tcl` next to the markdown file.
 Shared bootstrap: `../_bootstrap.tcl`. PDFs land in `../out/`.
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-colors.tcl
-tclsh 0.9.4.x/doc/en/run-all-examples.tcl          # tutorials + howtos
-tclsh 0.9.4.x/doc/en/run-all-examples.tcl --alle   # + canvas, cheatsheets
+tclsh doc/en/howtos/howto-colors.tcl
+tclsh doc/en/run-all-examples.tcl          # tutorials + howtos
+tclsh doc/en/run-all-examples.tcl --alle   # + canvas, cheatsheets
 ```

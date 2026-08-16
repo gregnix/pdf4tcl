@@ -1,6 +1,6 @@
 #!/usr/bin/env tclsh
 # demo-forms-enc.tcl \u2014 Bestellformular mit AES-128-Verschluesselung
-# Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/0.9.4.x/demo/
+# Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/demo/
 # Aufruf:    tclsh demo-forms-enc.tcl
 #
 # Viewer: Firefox / Evince / Acrobat (Chrome zeigt AcroForm nicht an)

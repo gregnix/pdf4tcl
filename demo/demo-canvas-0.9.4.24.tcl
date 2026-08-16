@@ -15,7 +15,7 @@
 # ---------------------------------------------------------------------------
 # Wurzel suchen, nicht zaehlen.
 #
-# Zwei Ebenen hoch stimmte, solange die Demos unter 0.9.4.x/demo lagen.
+# Zwei Ebenen hoch stimmte, solange die Demos unter demo lagen.
 # Nach dem Flachlegen des fork-Verzeichnisses zeigte es aus dem Repo
 # hinaus. Sichtbar wurde das nur in den Demos, die daraus einen Dateipfad
 # bauen (demo-tagged brach ab); die uebrigen legten still ein falsches
@@ -337,7 +337,7 @@ puts "Geschrieben: $outfile"
 #   Tcl_IncrRefCount(clientdata->option);   /* fehlte */
 #
 # Das PDF ist zu diesem Zeitpunkt vollstaendig geschrieben; kaputt ist nur
-# der Exit-Code. Ausfuehrlich in 0.9.4.x/doc/en/pdf4tcl-canvas.md.
+# der Exit-Code. Ausfuehrlich in doc/en/pdf4tcl-canvas.md.
 #
 # tclsh zeigt es nie, weil es sich am Skriptende ohne Tk-Abbau beendet.
 # wish9.0 zeigt es ebenfalls nicht -- sehr wahrscheinlich nur, weil Tcl 9 den

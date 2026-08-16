@@ -35,7 +35,7 @@ tclsh tools/bump.tcl --show   # nur anzeigen, nichts schreiben
 
 Aktualisierte Dateien: `src/prologue.tcl`, `tests/init.tcl`,
 `pkgIndex.tcl`, `pkg/pkgIndex.tcl`, `Makefile`, `pdf4tcl.man`,
-`README.md`, `web/index.html`, `web/changes.html`, `ChangeLog`,
+`README.md`, `ChangeLog`,
 `sync-pdf4tcl.tcl`, `pdf4tcl.tcl`, `pkg/pdf4tcl.tcl`.
 
 ### next.tcl

@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-feature-tour.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-feature-tour.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-feature-tour.tcl`](howto-feature-tour.tcl).
@@ -22,8 +22,8 @@ See “what can pdf4tcl do” without opening every specialised demo.
 ## Recipe
 
 ```bash
-tclsh 0.9.4.x/demo/minimalPdf.tcl out
-tclsh 0.9.4.x/demo/demo-all.tcl out
+tclsh demo/minimalPdf.tcl out
+tclsh demo/demo-all.tcl out
 # -> demo/out/minimalPdf.pdf (name depends on script)
 # -> demo/out/demo-all-output.pdf
 ```

@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-alpha.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-alpha.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-alpha.tcl`](howto-alpha.tcl).
 
-Demo: `0.9.4.x/demo/demo-alpha.tcl`
+Demo: `demo/demo-alpha.tcl`
 
 ## Problem
 

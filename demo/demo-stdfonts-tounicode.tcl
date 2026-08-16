@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------
 # Wurzel suchen, nicht zaehlen.
 #
-# Zwei Ebenen hoch stimmte, solange die Demos unter 0.9.4.x/demo lagen.
+# Zwei Ebenen hoch stimmte, solange die Demos unter demo lagen.
 # Nach dem Flachlegen des fork-Verzeichnisses zeigte es aus dem Repo
 # hinaus. Sichtbar wurde das nur in den Demos, die daraus einen Dateipfad
 # bauen (demo-tagged brach ab); die uebrigen legten still ein falsches

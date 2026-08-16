@@ -27,7 +27,7 @@ set dryrun [expr {[lsearch $argv --dry-run] >= 0}]
 if {$dryrun} { puts "*** DRY-RUN -- keine Aenderungen ***\n" }
 
 # REPODIR wird GESUCHT, nicht gezaehlt. "../../.." stimmte, solange das
-# Skript unter 0.9.4.x/nogit/scripts/ lag; nach dem Flachlegen zeigte es
+# Skript unter nogit/scripts/ lag; nach dem Flachlegen zeigte es
 # eine Ebene zu hoch, und das Skript brach mit
 #   FEHLER: Version nicht erkennbar aus /home/.../tk/src/prologue.tcl
 # ab -- einem Pfad ausserhalb des Repos.

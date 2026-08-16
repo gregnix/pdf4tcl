@@ -22,7 +22,7 @@ Full index: [`tutorials/README.md`](tutorials/README.md) (assumes **0.9.4.41+**)
 
 ## How-tos
 
-Short recipes for a single job, each linked to a demo under `0.9.4.x/demo/`.
+Short recipes for a single job, each linked to a demo under `demo/`.
 Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 
 | Cluster | Examples |
@@ -38,14 +38,14 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 | Forms / files | `howto-forms.md`, `howto-embed-file.md`, `howto-images.md` |
 | I/O / canvas | `howto-write-chan.md`, `howto-canvas.md`, `howto-paper-sizes.md` |
 
-Run demos: `tclsh 0.9.4.x/demo/run-all-demos.tcl` → `demo/out/` (see
+Run demos: `tclsh demo/run-all-demos.tcl` → `demo/out/` (see
 `howtos/howto-run-demos.md`).
 
 Runnable tutorial/howto companions:
 
 ```bash
-tclsh 0.9.4.x/doc/en/run-all-examples.tcl
-# PDFs -> 0.9.4.x/doc/en/out/
+tclsh doc/en/run-all-examples.tcl
+# PDFs -> doc/en/out/
 ```
 
 ## Getting started (reference guides)
@@ -84,7 +84,7 @@ produces a page that looks plausible in the code and upside down on screen.
 | `howtos/howto-catpdf.md` | Merging tagged PDFs |
 | `howtos/howto-colors.md` | Colour inputs after 0.9.4.39 |
 
-PDF/A is also demonstrated by `0.9.4.x/demo/demo-pdfa.tcl` and
+PDF/A is also demonstrated by `demo/demo-pdfa.tcl` and
 `examples/facturx.tcl`.
 
 ## Checking the output
@@ -102,7 +102,7 @@ claims -- `pdfaid` for PDF/A, `pdfuaid` for PDF/UA -- and runs veraPDF
 against exactly those. Point it at a directory to check a whole batch:
 
 ```bash
-python3 tools/check-conformance.py --rules 0.9.4.x/demo/out
+python3 tools/check-conformance.py --rules demo/out
 ```
 
 A document claiming nothing is reported as such rather than failed against a

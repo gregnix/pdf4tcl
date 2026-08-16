@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-encrypt.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-encrypt.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-encrypt.tcl`](howto-encrypt.tcl).
@@ -38,6 +38,6 @@ $pdf destroy
 ## Check
 
 Open `secret.pdf` in a viewer and confirm the password prompt. For automated
-checks, use the encryption demos under `0.9.4.x/demo/`.
+checks, use the encryption demos under `demo/`.
 
-Full reference: `../pdf4tcl-encryption.md`.
+Full reference: `../reference/pdf4tcl-encryption.md`.

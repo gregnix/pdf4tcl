@@ -2,9 +2,9 @@
 # run-all-examples.tcl -- run tutorial + howto companion scripts
 #
 # Usage:
-#   tclsh 0.9.4.x/doc/en/run-all-examples.tcl
-#   tclsh 0.9.4.x/doc/en/run-all-examples.tcl --outdir /tmp/docout
-#   tclsh 0.9.4.x/doc/en/run-all-examples.tcl --alle   # include canvas/otf/cheatsheets
+#   tclsh doc/en/run-all-examples.tcl
+#   tclsh doc/en/run-all-examples.tcl --outdir /tmp/docout
+#   tclsh doc/en/run-all-examples.tcl --alle   # include canvas/otf/cheatsheets
 
 set here [file dirname [file normalize [info script]]]
 set outdir [file join $here out]

@@ -3,16 +3,16 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-colors.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-colors.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-colors.tcl`](howto-colors.tcl).
 
 Since **0.9.4.39** colours live in `src/color.tcl` and share one pipeline
 (`GetColor`) for fill, stroke, background, annotations, forms, and gradients.
-Details: `../pdf4tcl-graphics-and-colors.md` (section "Color input"),
-`../UPGRADING.md`.
+Details: `../reference/pdf4tcl-graphics-and-colors.md` (section "Color input"),
+`../reference/UPGRADING.md`.
 
 ## Problem
 

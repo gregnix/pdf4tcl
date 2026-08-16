@@ -3,13 +3,13 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-permissions.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-permissions.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-permissions.tcl`](howto-permissions.tcl).
 
-Demo: `0.9.4.x/demo/demo-permissions.tcl`
+Demo: `demo/demo-permissions.tcl`
 
 ## Problem
 
@@ -40,7 +40,7 @@ set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient 1 \
 
 ```bash
 qpdf --password=user --show-encryption out.pdf
-tclsh 0.9.4.x/demo/demo-permissions.tcl out
+tclsh demo/demo-permissions.tcl out
 ```
 
 Related: `howto-encrypt.md`, `howto-encrypted-forms.md`.

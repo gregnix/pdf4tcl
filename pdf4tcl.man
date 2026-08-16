@@ -2320,13 +2320,13 @@ rule 7.18 cannot be met. Reported once per document.
 [para]
 [list_begin itemized]
 [item] Demos and documentation. No change to the library API.
-[item] [file 0.9.4.x/demo]: the demo suite is complete again. All 35 scripts
+[item] [file demo]: the demo suite is complete again. All 35 scripts
 are covered by [file run-all-demos.tcl], entries carry an optional reason for
 being skipped, and [option --alle] runs those too. Five scripts that never
 ran are fixed, and output goes to [file demo/out] instead of next to the
 scripts.
-[item] [file 0.9.4.x/demo/demo-tagged.tcl]: new, demonstrates Tagged PDF.
-[item] [file 0.9.4.x/demo/demo-unicode-tabelle.tcl]: warns that the blocks
+[item] [file demo/demo-tagged.tcl]: new, demonstrates Tagged PDF.
+[item] [file demo/demo-unicode-tabelle.tcl]: warns that the blocks
 above U+FFFF cannot be rendered under Tcl 8, detected at runtime rather than
 from the version number.
 [item] [file src/main.tcl] ([cmd CanvasDoTkoPathItem]): the item id was
@@ -2334,7 +2334,7 @@ overwritten with the PDF image id before being used to ask the widget for
 coordinates. Coordinates are determined first now.
 [item] [file src/main.tcl]: both window branches delete the photo created by
 [cmd {image create photo -format window}] after reading the pixels.
-[item] [file 0.9.4.x/doc/en]: 27 of the 93 documented methods appeared in no
+[item] [file doc/en]: 27 of the 93 documented methods appeared in no
 guide. New documents for images, canvas export and annotations, plus a
 README index; bookmarks, XObjects, the text cursor, arcs, clipping and the
 state queries added to the existing ones.
@@ -2412,9 +2412,9 @@ Ported from the AndroWish fork, contributed by Christian Werner.
 [item] [file tests/new-0.9.4.25.test]: 8 new tests -- write-1.1..1.3
 (channel output) and paper-1.1..1.8 (B/C-series dimensions, backward
 compatibility of a4).
-[item] [file 0.9.4.x/demo/demo-paper-sizes.tcl]: new demo showing A/B/C
+[item] [file demo/demo-paper-sizes.tcl]: new demo showing A/B/C
 paper series (4 pages).
-[item] [file 0.9.4.x/demo/demo-write-chan.tcl]: new demo showing three
+[item] [file demo/demo-write-chan.tcl]: new demo showing three
 [option -chan] use cases (file channel, memory channel, stdout).
 [list_end]
 
@@ -2695,7 +2695,7 @@ half the shorter side.
 [cmd _ValidatePdfDate] validates and normalises PDF date strings for
 [option -creationdate] and [option -moddate]. Throws [const {PDF4TCL BADDATE}]
 on invalid format.
-[item] Extended [file 0.9.4.x/demo/demo-alpha.tcl] with sections
+[item] Extended [file demo/demo-alpha.tcl] with sections
 demonstrating [method roundedRect] and unit conversion procs.
 [item] New test file [file tests/new-0.9.4.12.test]: 17 tests.
 [list_end]

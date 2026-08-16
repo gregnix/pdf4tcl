@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-links-and-bookmarks.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-links-and-bookmarks.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-links-and-bookmarks.tcl`](howto-links-and-bookmarks.tcl).
@@ -38,7 +38,7 @@ $pdf hyperlinkAdd 50 90 40 14 "https://www.tcl.tk"
 $pdf tagEnd
 ```
 
-Details: `../TAGGED.md`, `../pdf4tcl-annotations.md`.
+Details: `../reference/TAGGED.md`, `../reference/pdf4tcl-annotations.md`.
 
 ## Bookmarks
 
@@ -62,4 +62,4 @@ Titles are Latin-1 oriented; prefer ASCII/Latin-1 for outline text.
 ## See also
 
 - File attachments / embedded files: `addEmbeddedFile`, Factur-X howto
-- Internal page links and other annot types: `../pdf4tcl-annotations.md`
+- Internal page links and other annot types: `../reference/pdf4tcl-annotations.md`

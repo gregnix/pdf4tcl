@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-validate.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-validate.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-validate.tcl`](howto-validate.tcl).

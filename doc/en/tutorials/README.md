@@ -14,7 +14,7 @@ to pdf4tcl; otherwise pick the one that matches the job.
 | 7 | `tutorial-07-multilingual.md` | One page in five scripts; font choice and its limits | `demo-cidfont.tcl`, `demo-symbole.tcl` |
 
 After these, use the feature guides in the parent directory and the recipes
-under `../howtos/`. Full demo list: `0.9.4.x/demo/run-all-demos.tcl`.
+under `../howtos/`. Full demo list: `demo/run-all-demos.tcl`.
 
 Assumes pdf4tcl **0.9.4.41** or newer on the `auto_path`, Tcl 8.6 or 9.
 
@@ -23,6 +23,6 @@ Assumes pdf4tcl **0.9.4.41** or newer on the `auto_path`, Tcl 8.6 or 9.
 Each tutorial has a matching `.tcl` file. Output goes to `../out/`.
 
 ```bash
-tclsh 0.9.4.x/doc/en/tutorials/tutorial-01-hello-pdf.tcl
-tclsh 0.9.4.x/doc/en/run-all-examples.tcl
+tclsh doc/en/tutorials/tutorial-01-hello-pdf.tcl
+tclsh doc/en/run-all-examples.tcl
 ```

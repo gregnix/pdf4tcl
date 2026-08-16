@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-encrypted-forms.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-encrypted-forms.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-encrypted-forms.tcl`](howto-encrypted-forms.tcl).
@@ -58,4 +58,4 @@ qpdf --password=geheim --show-encryption form-aes128.pdf
 ```
 
 See `howto-encrypt.md`, `howto-forms.md`, `howto-permissions.md`, and
-`../pdf4tcl-encryption.md`.
+`../reference/pdf4tcl-encryption.md`.

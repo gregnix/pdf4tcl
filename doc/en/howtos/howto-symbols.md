@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-symbols.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-symbols.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-symbols.tcl`](howto-symbols.tcl).
@@ -23,10 +23,10 @@ See which characters a font actually paints before shipping a document.
 
 ```bash
 # needs fonts-dejavu-core (or pass a path)
-tclsh 0.9.4.x/demo/demo-symbole.tcl
-tclsh 0.9.4.x/demo/demo-symbole.tcl /path/to/DejaVuSans.ttf
+tclsh demo/demo-symbole.tcl
+tclsh demo/demo-symbole.tcl /path/to/DejaVuSans.ttf
 
-tclsh 0.9.4.x/demo/demo-unicode-tabelle.tcl
+tclsh demo/demo-unicode-tabelle.tcl
 ```
 
 In your own code, load CID as usual:
@@ -42,4 +42,4 @@ Check substitutions with `getSubstCount` after drawing. For SMP emoji and
 code points above U+FFFF, prefer Tcl 9 and an outline font that covers them;
 bitmap emoji fonts are not supported.
 
-See also `howto-unicode.md`, `howto-stdfonts.md`, `../pdf4tcl-cidfont-manual.md`.
+See also `howto-unicode.md`, `howto-stdfonts.md`, `../reference/pdf4tcl-cidfont-manual.md`.

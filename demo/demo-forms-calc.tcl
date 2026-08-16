@@ -1,7 +1,7 @@
 #!/usr/bin/env tclsh
 # demo-forms-calc.tcl -- Bestellformular mit Feld-Ausrichtung, Farbe/Rahmen
 #                        und automatischer Summenberechnung.
-# Ablageort: pdf4tcl/0.9.4.x/demo/
+# Ablageort: pdf4tcl/demo/
 # Aufruf:    tclsh demo-forms-calc.tcl
 #
 # Zeigt:

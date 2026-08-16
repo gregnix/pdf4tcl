@@ -3,8 +3,8 @@
 ## Runnable script
 
 ```bash
-tclsh 0.9.4.x/doc/en/howtos/howto-forms.tcl
-# PDF -> 0.9.4.x/doc/en/out/
+tclsh doc/en/howtos/howto-forms.tcl
+# PDF -> doc/en/out/
 ```
 
 Companion: [`howto-forms.tcl`](howto-forms.tcl).
@@ -51,4 +51,4 @@ Firefox, Chromium, Foxit, etc.
 
 - Form text is practically Base-14 / Latin-1 (CID in AcroForm is hard).
 - Styling: `-color`, `-bgcolor`, `-bordercolor`, `-borderwidth`, `-align`.
-- Full guide: `../pdf4tcl-forms-manual.md`.
+- Full guide: `../reference/pdf4tcl-forms-manual.md`.
