@@ -36,11 +36,13 @@ web/index.html             version number
 web/changes.html           new entry added (edit to expand)
 ChangeLog                  stub entry added (edit to expand)
 nogit/scripts/sync-pdf4tcl.tcl     paths (two places)
-nogit/scripts/make-release.tcl     VERSION + REPODIR + TAGMSG
+nogit/scripts/make-release.tcl   (nicht im Repo)     VERSION + REPODIR + TAGMSG
 pdf4tcl.tcl                reassembled
 pkg/pdf4tcl.tcl            reassembled
 
-Note: restore-pkg-symlinks.tcl reads VERSION from src/prologue.tcl automatically.
+Note: tools/restore-pkg-symlinks.tcl reads VERSION from src/prologue.tcl
+automatically. Run it after cloning and after "make distclean" -- pkg/ is a
+symlink directory (see INSTALL.md).
 
 
 Still manual after bump:
@@ -48,9 +50,9 @@ Still manual after bump:
 ChangeLog                  expand stub entry
 web/changes.html           expand stub entry
 make doc                   regenerate pdf4tcl.html + pdf4tcl.n
-nogit/docs/de/regelbuch-pdf4tcl.md   new "Neue Fixes" section
-nogit/docs/de/TODO.md      version table + GitHub command
-nogit/docs/de/uebergabe-0.9.4.X.md  new handover file
+nogit/doc/docs/de/regelbuch-pdf4tcl.md   new "Neue Fixes" section
+nogit/doc/docs/de/TODO.md      version table + GitHub command
+nogit/doc/docs/de/uebegabe/uebergabe-0.9.4.X.md  new handover file
 examples/test*.pdf         regenerate if PDF structure changed
 
 
@@ -70,4 +72,4 @@ Release checklist:
 Release with full make pipeline:
 ----------------------------------
 [ ] make release   (builds tarball in pkg/)
-[ ] tclsh 0.9.4.x/nogit/scripts/make-release.tcl  (verify + tag + push)
+[ ] tclsh nogit/scripts/make-release.tcl   (nicht im Repo)  (verify + tag + push)

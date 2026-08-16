@@ -30,8 +30,16 @@ web/pdf4tcl.html
 web/mypdf.pdf
 
 # Scratch / Experiment
-exp.tcl
-tools/next.tcl
+#
+# tools/next.tcl stand hier und wird von tools/bump.tcl GELESEN. In einem
+# frischen Klon fehlte die Datei damit, und bump.tcl brach ab, bevor es
+# irgendetwas tat:
+#     couldn't read file "tools/next.tcl": no such file or directory
+# Sie gehoert ins Repo -- sie ist kein Kratzblatt, sondern sagt, welche
+# Version als naechste vergeben wird.
+#
+# exp.tcl ist geloescht (war ausserdem versioniert, der Eintrag hier hat
+# also ohnehin nichts bewirkt).
 
 # OS / Editor artefacts
 .DS_Store

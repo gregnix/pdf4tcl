@@ -87,28 +87,79 @@ if {$verify} {
     # --- Versionspruefung ---
     puts "Versionspruefung: $oldVersion"
     set ok 1
+    # Die Muster muessen zu den Dateien passen -- tests/init.tcl wurde mit
+    # {set version \S+} gesucht und enthaelt "package require pdf4tcl X".
+    # Das Muster traf nie, und der Zweig darunter schwieg dazu: die Datei
+    # stand in der Liste und wurde nie geprueft. Ein Muster ohne Treffer
+    # ist jetzt selbst ein Befund.
     foreach {f pat} {
         src/prologue.tcl   {package provide pdf4tcl \S+}
-        tests/init.tcl     {set version \S+}
+        tests/init.tcl     {package require pdf4tcl \S+}
         pkgIndex.tcl       {pdf4tcl \S+}
+        pkg/pkgIndex.tcl   {pdf4tcl \S+}
         pdf4tcl.man        {manpage_begin pdf4tcl n \S+}
+        Makefile           {VERSION\s*=\s*\S+}
     } {
         if {![file exists $f]} { puts "  SKIP $f"; continue }
         set c [readFile $f]
-        if {[regexp $pat $c m]} {
-            if {[string match "*$oldVersion*" $m]} {
-                puts "  OK   $f: $m"
-            } else {
-                puts "  WARN $f: $m (erwartet $oldVersion)"
-                set ok 0
-            }
+        if {![regexp $pat $c m]} {
+            puts "  WARN $f: Muster \"$pat\" trifft nicht -- ungeprueft"
+            set ok 0
+            continue
+        }
+        # Makefile fuehrt die Version ohne Punkte (09444).
+        set want $oldVersion
+        if {$f eq "Makefile"} { set want [regsub -all {\.} $oldVersion {}] }
+        if {[string match "*$want*" $m]} {
+            puts "  OK   $f: $m"
+        } else {
+            puts "  WARN $f: $m (erwartet $want)"
+            set ok 0
         }
     }
     exit [expr {$ok ? 0 : 1}]
 }
 
+# Vergleicht zwei Versionen der Form a.b.c.d numerisch je Feld.
+# Rueckgabe: -1, 0 oder 1.
+proc versionCompare {a b} {
+    set as [split $a .]
+    set bs [split $b .]
+    set n [expr {max([llength $as], [llength $bs])}]
+    for {set i 0} {$i < $n} {incr i} {
+        set x [lindex $as $i] ; if {$x eq ""} { set x 0 }
+        set y [lindex $bs $i] ; if {$y eq ""} { set y 0 }
+        if {![string is integer -strict $x] || ![string is integer -strict $y]} {
+            if {$x eq $y} continue
+            return [expr {$x < $y ? -1 : 1}]
+        }
+        if {$x < $y} { return -1 }
+        if {$x > $y} { return 1 }
+    }
+    return 0
+}
+
 puts "Bump: $oldVersion --> $newVersion"
 puts "Msg:  $newMsg"
+
+# Eine Version darf nicht rueckwaerts gehen. Gemessen 2026-08-16: nach dem
+# Bump auf 0.9.4.44 stand in next.tcl weiterhin 0.9.4.43, und ein Aufruf
+# ohne --to meldete "Bump: 0.9.4.44 --> 0.9.4.43" -- mit der Beschreibung
+# der vorletzten Version dazu. Das Werkzeug haette den Baum bereitwillig
+# zurueckdatiert.
+set cmp [versionCompare $newVersion $oldVersion]
+if {$cmp < 0} {
+    puts stderr "Fehler: $newVersion ist AELTER als $oldVersion."
+    puts stderr "  tools/next.tcl steht auf $NEXT_VERSION und ist offenbar"
+    puts stderr "  nicht fortgeschrieben worden. Entweder --to angeben oder"
+    puts stderr "  next.tcl auf die naechste Version setzen."
+    exit 1
+}
+if {$cmp == 0} {
+    puts stderr "Fehler: $newVersion ist die aktuelle Version -- nichts zu tun."
+    exit 1
+}
+
 if {$dryRun} { puts "(--show: keine Aenderungen)"; exit 0 }
 
 set oldNd [regsub -all {\.} $oldVersion {}]
@@ -178,8 +229,13 @@ regsubInFile Makefile \
 # ---------------------------------------------------------------
 # 4. sync-pdf4tcl.tcl: Pfade
 # ---------------------------------------------------------------
-set sf 0.9.4.x/nogit/scripts/sync-pdf4tcl.tcl
-if {[file exists $sf]} {
+# Der Pfad ist mit dem Flachlegen des fork-Verzeichnisses gewandert. Ein
+# fehlendes Skript wird jetzt GENANNT statt stillschweigend uebersprungen:
+# "nicht gefunden" und "nichts zu aendern" sahen vorher gleich aus.
+set sf nogit/scripts/sync-pdf4tcl.tcl
+if {![file exists $sf]} {
+    puts "  --  $sf (nicht vorhanden -- nogit liegt nicht im Repo)"
+} else {
     set c [readFile $sf]
     set c2 [string map [list \
         "pdf4tcl${oldVersion}" "pdf4tcl${newVersion}" \
@@ -257,6 +313,26 @@ foreach p $parts {
 writeFile pdf4tcl.tcl $out
 writeFile pkg/pdf4tcl.tcl $out
 puts "  OK  pdf4tcl.tcl + pkg/pdf4tcl.tcl"
+
+# ---------------------------------------------------------------
+# X. tools/next.tcl fortschreiben
+# ---------------------------------------------------------------
+#
+# Sonst steht dort nach dem Bump weiterhin die eben vergebene Version,
+# und der naechste Aufruf ohne --to zeigt rueckwaerts. Die letzte Stelle
+# wird hochgezaehlt; die Beschreibung wird geleert, damit sie beim
+# naechsten Mal auffaellt, statt still die alte zu wiederholen.
+set nv [split $newVersion .]
+set last [lindex $nv end]
+if {[string is integer -strict $last]} {
+    lset nv end [expr {$last + 1}]
+    set following [join $nv .]
+    set nextTxt "set NEXT_VERSION $following\nset NEXT_MSG \"\"\n"
+    writeFile $nextFile $nextTxt
+    puts "  OK  tools/next.tcl ($newVersion -> $following, Msg geleert)"
+} else {
+    puts "  --  tools/next.tcl (letzte Stelle \"$last\" ist keine Zahl)"
+}
 
 # ---------------------------------------------------------------
 # Zusammenfassung

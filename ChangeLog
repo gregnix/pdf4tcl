@@ -1,5 +1,49 @@
 2026-08-16 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.45
+	* Directory layout: the fork subtree 0.9.4.x/ is gone. demo/, doc/,
+	fonts/ and nogit/ now sit at the top level. The old name carried a
+	version number that had not matched the fork for twenty releases.
+
+	* Removed web/, contrib/, exp.tcl and mkweb.tcl. web/ was the upstream
+	project page: "make webt" rsynced it to pspjuth@web.sourceforge.net,
+	an account this fork cannot publish to. contrib/ held a third-party
+	table helper referenced by nothing in the Makefile, the tests or the
+	demos. exp.tcl was a scratch file using snit, which the project
+	dropped in 0.9 -- and which was listed in .gitignore while being
+	tracked, so the entry did nothing.
+
+	* Makefile: "all" and "doc" no longer depend on web/, and the targets
+	web/webt are gone with it. New: "clean" and "distclean" -- there was no
+	clean target at all, only cleancc for the coverage artefacts. clean
+	deliberately leaves examples/*.pdf alone: they are reference output,
+	they are in the repository, and tests/examples.test diffs freshly
+	generated PDFs against them. A first version removed them and
+	"make clean && make test" then reported 8 failures, reproducibly.
+
+	* tools/restore-pkg-symlinks.tcl moved here from nogit/scripts/, and
+	tools/next.tcl is now in the repository. Both are needed to work with
+	the tree: pkg/ is a symlink directory and the first tool creates it,
+	bump.tcl reads the second one and used to die in a fresh clone with
+	"couldn't read file \"tools/next.tcl\"".
+
+	* Every path that counted directory levels was broken by the move and
+	now searches instead: doc/en/_bootstrap.tcl (four levels, and already
+	inconsistent between doc/en and doc/en/howtos -- the doc runner went
+	from FAIL=6 to FAIL=0), 33 demo scripts (two levels; only three built
+	file paths from it and failed visibly, the other 30 quietly put a
+	directory OUTSIDE the repository on auto_path and tested whatever
+	pdf4tcl happened to be installed), tools/restore-pkg-symlinks.tcl and
+	two howtos. The marker is pkgIndex.tcl beside src/.
+
+	* INSTALL.md: new. Describes the tree, pkg/ as a symlink directory and
+	every make target, with measured numbers -- including the fact that
+	the Makefile sets TCLSH ?= tclsh8.6, so "make test" measures 8.6
+	(1005 passed, 30 skipped) while a direct tclsh9.0 run measures 9.0
+	(1007 passed, 28 skipped).
+
+2026-08-16 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.44
 	* src/encrypt.tcl (_EncRandBytes): the PowerShell branch of the random
 	source never reached PowerShell. Its script was built in DOUBLE

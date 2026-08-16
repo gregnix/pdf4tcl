@@ -1,0 +1,77 @@
+#!/usr/bin/env tclsh
+# ---------------------------------------------------------------------------
+# Wurzel suchen, nicht zaehlen.
+#
+# Zwei Ebenen hoch stimmte, solange die Demos unter 0.9.4.x/demo lagen.
+# Nach dem Flachlegen des fork-Verzeichnisses zeigte es aus dem Repo
+# hinaus. Sichtbar wurde das nur in den Demos, die daraus einen Dateipfad
+# bauen (demo-tagged brach ab); die uebrigen legten still ein falsches
+# Verzeichnis in auto_path und pruefen dann das pdf4tcl, das auf dem
+# Rechner zufaellig installiert ist -- gruen, und ueber die falsche
+# Fassung.
+#
+# Markierung ist pkgIndex.tcl neben src/; beides gibt es nur in der Wurzel.
+# ---------------------------------------------------------------------------
+proc pdf4tclRepoRoot {start} {
+    set dir [file normalize $start]
+    for {set i 0} {$i < 8} {incr i} {
+        if {[file exists [file join $dir pkgIndex.tcl]]
+                && [file isdirectory [file join $dir src]]} { return $dir }
+        set parent [file dirname $dir]
+        if {$parent eq $dir} break
+        set dir $parent
+    }
+    return -code error "pdf4tcl-Wurzel nicht gefunden ueber $start"
+}
+set demodir  [file dirname [file normalize [info script]]]
+set reporoot [pdf4tclRepoRoot $demodir]
+set auto_path [linsert $auto_path 0 $reporoot]
+
+package require pdf4tcl
+
+# Resolve exact file and version of loaded pdf4tcl
+set pkgfile [lindex [package ifneeded pdf4tcl [package require pdf4tcl]] end]
+set pkgver  [package require pdf4tcl]
+
+# Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
+# Datei als erstes Argument.
+set demoOutDir [file join $demodir out]
+if {$argc > 0} { set demoOutDir [lindex $argv 0] }
+file mkdir [expr {[file isdirectory $demoOutDir] || ![file exists $demoOutDir]
+                  ? $demoOutDir : [file dirname $demoOutDir]}]
+if {[file isdirectory $demoOutDir]} {
+    set outfile [file join $demoOutDir farbenundFormen.pdf]
+} else {
+    set outfile $demoOutDir
+}
+
+puts "Written: $outfile"
+puts "Package: pdf4tcl $pkgver"
+puts "File:    $pkgfile"
+
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -orient true]
+$pdf startPage
+
+# Farbiger Text
+$pdf setFont 16 Helvetica-Bold
+$pdf setFillColor 0.8 0.0 0.0
+$pdf text "Roter Text" -x 50 -y 50
+
+# Linie
+$pdf setStrokeColor 0.0 0.0 0.0
+$pdf setLineWidth 1
+$pdf line 50 70 300 70
+
+# Gefuelltes Rechteck
+$pdf setFillColor 0.9 0.9 0.9
+$pdf rectangle 50 90 250 80 -filled 1
+
+# Text auf Rechteck
+$pdf setFillColor 0.0 0.0 0.0
+$pdf setFont 12 Helvetica
+$pdf text "Text auf grauem Hintergrund" -x 60 -y 120
+
+$pdf endPage
+$pdf write -file $outfile
+$pdf destroy
+

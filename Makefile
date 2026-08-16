@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09444
+VERSION = 09445
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -8,7 +8,7 @@ NAGELFAR = nagelfar -encoding iso8859-1 -s syntaxdb86.tcl
 NAGELFAR90 = nagelfar -encoding iso8859-1 -s syntaxdb90.tcl
 ESKIL    = eskil
 
-all: pdf4tcl.tcl pkg/pdf4tcl.tcl doc web
+all: pdf4tcl.tcl pkg/pdf4tcl.tcl doc
 
 # Build from source
 CATFILES = src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl src/main.tcl src/color.tcl src/encrypt.tcl src/tagged.tcl src/cat.tcl
@@ -16,16 +16,20 @@ CATFILES = src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl src/ma
 pdf4tcl.tcl: $(CATFILES)
 	cat $(CATFILES) > pdf4tcl.tcl
 
-# pkg/pdf4tcl.tcl is a copy of pdf4tcl.tcl (the installed/symlinked layout loads
-# it). Own target so it is (re)built whenever pdf4tcl.tcl changes or it is
-# missing -- mkweb.tcl sources it via "package require pdf4tcl".
+# pkg/pdf4tcl.tcl haelt den Paketstand. Eigenes Ziel, damit es neu entsteht,
+# sobald pdf4tcl.tcl sich aendert oder fehlt.
+#
+# Ist pkg/ als Symlink-Verzeichnis eingerichtet (nogit/scripts/restore-pkg-
+# symlinks.tcl), schreibt dieses cp durch den Symlink auf dieselbe Datei --
+# der Symlink bleibt erhalten, und pkg/ kann nicht mehr veralten. Siehe
+# INSTALL.md.
 pkg/pdf4tcl.tcl: pdf4tcl.tcl
 	cp pdf4tcl.tcl pkg/pdf4tcl.tcl
 
 # CI guard: fail if the generated files are stale -- src/ changed but
 # pdf4tcl.tcl not rebuilt, or pkg/pdf4tcl.tcl drifted from pdf4tcl.tcl.
 # Read-only. ('check' is already the Nagelfar target.)
-.PHONY: checkbuild
+.PHONY: checkbuild clean distclean
 checkbuild:
 	@cat $(CATFILES) > pdf4tcl.tcl.chk
 	@if cmp -s pdf4tcl.tcl.chk pdf4tcl.tcl; then \
@@ -43,7 +47,7 @@ checkbuild:
 	fi
 
 # Documentation
-doc : pdf4tcl.html pdf4tcl.n web/mypdf.pdf
+doc : pdf4tcl.html pdf4tcl.n
 
 pdf4tcl.html pdf4tcl.n : pdf4tcl.man mkdoc.tcl
 	./mkdoc.tcl
@@ -58,16 +62,10 @@ checkdoc: pdf4tcl.tcl
 	@$(ESKIL) -block _srcmeth _docmeth
 	@rm _srcmeth _docmeth
 
-web/mypdf.pdf: pkg/pdf4tcl.tcl mkweb.tcl web/index.html
-	./mkweb.tcl
-
-web/pdf4tcl.html: pdf4tcl.html
-	/bin/cp pdf4tcl.html web/pdf4tcl.html
-
-web : web/mypdf.pdf web/pdf4tcl.html
-
-webt: web
-	rsync -e ssh -rv web/* pspjuth@web.sourceforge.net:/home/project-web/pdf4tcl/htdocs
+# Die Ziele web/webt sind mit dem Verzeichnis web/ entfallen. Sie luden per
+# rsync nach pspjuth@web.sourceforge.net -- das Konto des Originalprojekts,
+# nicht das des Forks. Die Seite war fuer diesen Baum nicht
+# veroeffentlichbar. mkweb.tcl ist damit ebenfalls weg.
 
 example:
 	@cd examples && $(TCLSH) test0.tcl
@@ -126,6 +124,30 @@ icheck: $(MFILES)
 
 cleancc:
 	@rm -f $(LOGFILES) $(IFILES) $(MFILES)
+
+# Alles Erzeugte weg. Was hier steht, entsteht mit "make" oder einem der
+# anderen Ziele neu -- Quelldateien fasst es nicht an.
+#
+# pdf4tcl.tcl und pkg/pdf4tcl.tcl SIND erzeugt (aus src/), stehen aber im
+# Repo, weil das Original sie mitliefert. Deshalb loescht clean sie NICHT;
+# dafuer gibt es distclean.
+clean: cleancc
+	@rm -f pdf4tcl_h.syntax pdf4tcl_h90.syntax
+	@rm -rf demo/out doc/en/out tests/out
+	@rm -rf release
+	@echo "clean: erzeugte Dateien entfernt (pdf4tcl.tcl bleibt -- siehe distclean)"
+
+# examples/*.pdf wird BEWUSST nicht geloescht: die Dateien sind
+# Referenzausgabe und im Repo versioniert -- tests/examples.test
+# vergleicht die frisch erzeugten gegen sie. Eine erste Fassung dieses
+# Ziels raeumte sie mit weg, und "make clean && make test" meldete
+# reproduzierbar 8 Fehler. Neu erzeugt werden sie mit "make example".
+
+# Zusaetzlich die assemblierten Dateien. Danach ist "make" noetig, bevor
+# irgendetwas laeuft.
+distclean: clean
+	@rm -f pdf4tcl.tcl pkg/pdf4tcl.tcl pdf4tcl.html pdf4tcl.n
+	@echo "distclean: auch die assemblierten Dateien entfernt -- jetzt 'make'"
 
 # Version management
 verify:

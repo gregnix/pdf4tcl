@@ -1,5 +1,49 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.45 -- directory layout
+
+Nothing in the library changed. This affects anyone who builds from the
+tree or scripts against it.
+
+**`0.9.4.x/` is gone.** `demo/`, `doc/`, `fonts/` and `nogit/` are at the
+top level now. Paths in your own scripts change accordingly:
+
+```
+0.9.4.x/demo/run-all-demos.tcl   ->  demo/run-all-demos.tcl
+0.9.4.x/doc/en/...               ->  doc/en/...
+```
+
+**`make web` and `make webt` no longer exist**, and neither does `web/`.
+The page was uploaded by rsync to `pspjuth@web.sourceforge.net`, the
+upstream account. A call now ends with
+
+```
+make: *** No rule to make target 'web'.  Stop.
+```
+
+**`contrib/` and `exp.tcl` are removed.** Nothing in the Makefile, the
+tests or the demos referred to them.
+
+**New targets `clean` and `distclean`.** There was no `clean` before.
+`clean` removes generated output but keeps `pdf4tcl.tcl` and
+`examples/*.pdf`; `distclean` also removes the assembled files, after
+which `make` is required before anything runs.
+
+**`pkg/` is a symlink directory.** After cloning, and after
+`make distclean`, run
+
+```bash
+tclsh tools/restore-pkg-symlinks.tcl
+```
+
+Without it, `pkg/` is a set of copies that go stale: on the tree this
+release was cut from, `pkg/pdf4tcl.man` was four versions behind
+`pdf4tcl.man`, and a release built from it would have shipped that manual.
+`make checkbuild` does not catch this -- it only compares `pdf4tcl.tcl`.
+
+See `INSTALL.md` for the whole build, test and packaging story.
+
+
 ## 0.9.4.44 -- drawTextBox -newyvar, and catPdf merges the form
 
 ### catPdf merges the interactive form
