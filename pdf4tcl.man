@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.43]
+[manpage_begin pdf4tcl n 0.9.4.44]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.43]]
+[require pdf4tcl [opt 0.9.4.44]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1096,7 +1096,10 @@ a new line in the output. If [arg "str"] is too long to fit in the specified box
          Gives the name of a variable which will be set to the number of lines written.
       [opt_def -newyvar "[arg var]"]
          Gives the name of a variable which will be set to the Y position after
-         the last rendered line, in the current unit (0.9.4.23+).
+         the last rendered line, in the current unit and in the same
+         coordinate system as the [arg y] passed in -- that is, following
+         [option -orient] (0.9.4.23+, corrected in 0.9.4.44: before that it
+         reported the internal page coordinate).
          Allows the caller to continue drawing below the text box:
 [example {
 $pdf drawTextBox $x $y $w $h $text -newyvar nextY

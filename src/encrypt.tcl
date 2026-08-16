@@ -153,6 +153,7 @@ namespace eval ::pdf4tcl::sha2pure {
             set blk [string range $bytes $off [expr {$off+255}]]
             for {set i 0} {$i < 16} {incr i} {
                 set s [expr {$i * 16}]
+                ##nagelfar ignore Found constant
                 binary scan [binary decode hex [string range $blk $s [expr {$s+15}]]] W W($i)
                 set W($i) [expr {$W($i) & $MASK64}]
             }
@@ -234,11 +235,17 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     method _SHA256 {data} {
         package require sha256
+        ##nagelfar ignore Unknown command
         binary decode hex [sha2::sha256 $data]
     }
 
     method _SHA384 {data} {
         my _InitSHABackend
+        # "sha" kommt aus dem optionalen Tcl-sha-Paket; nagelfar kann es
+        # nicht kennen. Die Markierung gehoert VOR das switch -- innerhalb
+        # des Rumpfes liest nagelfar sie als Sprungmarke ("Switch pattern
+        # starting with #") und meldet dann drei Dinge statt einem.
+        ##nagelfar ignore #3 Unknown command
         switch $::pdf4tcl::_shaBackend {
             tcl-sha  { return [binary decode hex [sha -bits 384 -output hex -databin $data]] }
             pure-tcl { return [::pdf4tcl::sha2pure::sha384bin $data] }
@@ -257,6 +264,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     method _SHA512 {data} {
         my _InitSHABackend
+        ##nagelfar ignore #3 Unknown command
         switch $::pdf4tcl::_shaBackend {
             tcl-sha  { return [binary decode hex [sha -bits 512 -output hex -databin $data]] }
             pure-tcl { return [::pdf4tcl::sha2pure::sha512bin $data] }
@@ -359,13 +367,26 @@ oo::define ::pdf4tcl::pdf4tcl {
                 close $fh
             }
             twapi {
+                ##nagelfar ignore Unknown command
                 set bytes [::twapi::random_bytes $n]
             }
             powershell {
-                set script "$rng = \
-[System.Security.Cryptography.RandomNumberGenerator]::Create(); \
-$b = New-Object byte\[\] $n; $rng.GetBytes($b); \
-[System.BitConverter]::ToString($b) -replace '-',''"
+                # BRACES, not quotes. The script is PowerShell, and PowerShell
+                # uses $ for its variables and [] for its type literals -- both
+                # of which Tcl substitutes inside "...". Written with quotes,
+                # this line never reached PowerShell at all: Tcl tried to read
+                # a variable named rng and threw
+                #
+                #     can't read "rng": no such variable
+                #
+                # So on Windows without /dev/urandom and without twapi,
+                # encryption failed with a message about a Tcl variable.
+                # Found by nagelfar, which flagged exactly these three
+                # substitutions as errors (make check).
+                #
+                # The byte count is the one thing that has to come from Tcl,
+                # so it goes in through string map rather than substitution.
+                set script [string map [list @N@ $n] {$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create(); $b = New-Object byte[] @N@; $rng.GetBytes($b); [System.BitConverter]::ToString($b) -replace '-',''}]
                 set hex [string trim [exec powershell -NoProfile -Command $script]]
                 set bytes [binary decode hex $hex]
             }

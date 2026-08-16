@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.43 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.44 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.43?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.44?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1570,7 +1570,10 @@ Gives the name of a variable which will be set to the number of lines written\&.
 .TP
 \fB-newyvar\fR \fIvar\fR
 Gives the name of a variable which will be set to the Y position after
-the last rendered line, in the current unit (0\&.9\&.4\&.23+)\&.
+the last rendered line, in the current unit and in the same
+coordinate system as the \fIy\fR passed in -- that is, following
+\fB-orient\fR (0\&.9\&.4\&.23+, corrected in 0\&.9\&.4\&.44: before that it
+reported the internal page coordinate)\&.
 Allows the caller to continue drawing below the text box:
 .CS
 

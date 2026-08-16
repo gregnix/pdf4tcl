@@ -289,6 +289,42 @@ test rand-1.1 {a cryptographic backend is selected} -constraints {unix hasCrypto
     expr {$::pdf4tcl::_randBackend in {urandom twapi powershell}}
 } -result 1
 
+# Der PowerShell-Zweig laeuft auf keinem Linux-Rechner -- und war deshalb
+# nie ausgefuehrt worden. nagelfar hat ihn gefunden (make check, drei
+# E-Meldungen): das Skript stand in DOPPELTEN Anfuehrungszeichen, und
+# PowerShell benutzt $ fuer seine Variablen und [] fuer Typliterale.
+# Beides ersetzt Tcl selbst. Der Zweig kam nie bis PowerShell:
+#
+#     can't read "rng": no such variable
+#
+# Auf Windows ohne /dev/urandom und ohne twapi war die Verschluesselung
+# damit unbenutzbar, mit einer Meldung ueber eine Tcl-Variable.
+#
+# Der Test prueft, was sich auf jeder Plattform pruefen laesst: dass das
+# Skript ueberhaupt gebaut wird und der Aufruf erst an PowerShell selbst
+# scheitert. Vor dem Fix nennt die Meldung "rng", danach "powershell".
+test rand-1.1b {der PowerShell-Zweig baut sein Skript, statt an Tcl zu scheitern} \
+        -constraints hasCrypto -body {
+    set pdf [::pdf4tcl::new %AUTO% -paper a4]
+    oo::objdefine $pdf export _EncRandBytes
+    set saved {}
+    if {[info exists ::pdf4tcl::_randBackend]} {
+        set saved $::pdf4tcl::_randBackend
+    }
+    set ::pdf4tcl::_randBackend powershell
+    catch {$pdf _EncRandBytes 16} err
+    if {$saved eq ""} {
+        catch {unset ::pdf4tcl::_randBackend}
+    } else {
+        set ::pdf4tcl::_randBackend $saved
+    }
+    $pdf destroy
+    # Auf Windows mit PowerShell liefert es Bytes und wirft gar nicht;
+    # ueberall sonst scheitert der exec. Was NICHT vorkommen darf, ist ein
+    # Tcl-Fehler ueber eine Variable des Skripts.
+    expr {![string match {*no such variable*} $err]}
+} -result 1
+
 test rand-1.2 {two documents get different keys} -constraints {unix hasCrypto} -body {
     proc _mk {} {
         set pdf [::pdf4tcl::new %AUTO% -paper a4 -userpassword "x"]

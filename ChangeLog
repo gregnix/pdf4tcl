@@ -1,3 +1,111 @@
+2026-08-16 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.44
+	* src/encrypt.tcl (_EncRandBytes): the PowerShell branch of the random
+	source never reached PowerShell. Its script was built in DOUBLE
+	QUOTES, and PowerShell uses $ for variables and [] for type literals
+	-- both of which Tcl substitutes. The branch died on
+	"can't read \"rng\": no such variable" before exec was called, so on
+	Windows without /dev/urandom and without twapi, encryption failed with
+	a message about a Tcl variable. Now built in braces, with the byte
+	count substituted through string map. Found by nagelfar, which had
+	been reporting it as three E lines and two unknown commands.
+
+	* tests/new-0.9.4.35.test (rand-1.1b): a test for that branch, which
+	no Linux run had ever entered. It forces the backend and checks that
+	the failure is about powershell rather than about a Tcl variable --
+	counter-checked, it goes red with the old code.
+
+	* src/main.tcl, src/cat.tcl, src/encrypt.tcl: nagelfar inline markers
+	for thirteen "Found constant" warnings (dict keys spelled like the
+	variables holding their values) and the two optional sha backends.
+	make check now prints nothing at all, where it used to print 27 lines
+	in which the three real errors were easy to miss.
+
+	Two things about the markers, both learnt the hard way: "##nagelfar
+	ignore" covers exactly ONE following line, so a multi-line dict create
+	needs "#7"; and inside a switch body the comment is read as a pattern
+	("Switch pattern starting with #"), so it belongs before the switch.
+	Verified by running nagelfar 1.3.5, and counter-checked with a
+	deliberately broken method -- the silent check still reports it.
+
+	* src/cat.tcl (MergeAcroForm, AcroFieldRefs, MergeResourceDicts,
+	WarnDuplicateFieldNames): catPdf merges the interactive form instead
+	of keeping the first document's. Until now AppendPdf read both
+	dictionaries and ended in the comment "How to do this???", and the
+	result kept the /AcroForm of the first document alone. Measured on two
+	one-field documents: the second document's widget sat on its page,
+	fully formed, with /FT, /T, /Rect and /DA -- and the root catalog
+	listed one field. pdftk dump_data_fields reported one field where two
+	had gone in, qpdf --check was happy, and nothing warned.
+
+	/Fields is now the concatenation of both arrays. /DR is combined per
+	sub-dictionary, with pdf1 keeping its object on a name collision,
+	because its appearance streams already point at it. /SigFlags is the
+	bitwise OR. /DA and /Q are taken from pdf2 only when pdf1 has none.
+	When only the appended document has a form, its (already renumbered)
+	AcroForm object is adopted into the first catalog.
+
+	/NeedAppearances is not set, per the fork's standing rule: it damages
+	digital signatures, and every field type here writes its own
+	appearance stream.
+
+	Field names are deliberately NOT made unique. Two fields of the same
+	name are one field with one shared value (ISO 32000-1 clause
+	12.7.3.2); that is sometimes what the caller wants, and renaming would
+	break the /T reference in any JavaScript shipped with the document.
+	The collision is reported through ::pdf4tcl::warnings instead.
+
+	* tests/cat-acroform.test: 11 tests -- both documents with a form,
+	three documents, only one side with a form, neither side, colliding
+	names, and the two things that must not happen (NeedAppearances
+	appearing, the page count changing). Counter-checked: with
+	MergeAcroForm removed, five go red.
+
+	Not addressed, and unchanged: fonts. The embedded font stream is
+	already shared -- DedupObjects folds it, measured 772348 bytes of
+	input to 387881 in the merge -- but the font dictionaries around it
+	stay duplicated, because renumbering makes their bodies differ. That
+	costs a few hundred bytes per font, not the megabyte the handover
+	notes assumed.
+
+	* src/main.tcl (TransBackY, drawTextBox): -newyvar reported the Y
+	position in internal page coordinates instead of the caller's. Trans
+	turns an incoming y into the internal, bottom-up value; anything
+	reported back has to make the same trip in reverse, and this did not.
+	Under the default -orient 1 a text box starting at y=200 answered
+	633.5 where 208.4 was meant; under -orient 0 the 10000 pt height of a
+	tall box leaked into the result. The offset was constant at any y,
+	which is what identified it: the value returned was
+	pageHeight - (y + height). The documented promise -- "the Y position
+	after the last rendered line", with an example that draws a line at
+	that position -- was never met. New method TransBackY does the inverse
+	of Trans for the y axis, and both -newyvar sites use it.
+
+	Found from the outside: pdf4tcllib's text::writeParagraph passes the
+	value on as its return value, and a table of contents was the first
+	caller anywhere to stack text and need to know where the last
+	paragraph ended. No caller in either tree had used the value before,
+	which is how this survived from 0.9.4.23 to 0.9.4.43.
+
+	* tests/new-0.9.4.23.test: the test for -newyvar accepted both the
+	right answer and the wrong one. At y=700 it asked for "> 0 and < 700";
+	the internal value (about 129) satisfies that, and so does anything
+	else below the page top. The correct answer is greater than 700, so
+	the test could only ever have caught the fix, not the bug. Replaced by
+	three tests: one line down from y, a constant step per line, and the
+	same in both orientations. Counter-checked -- with the change to
+	main.tcl reverted, all three go red.
+
+	* tests/new-0.9.4.23.test: the file carried THREE cleanupTests. It had
+	been extended twice and the closing call came along each time.
+	cleanupTests resets the counters, so each section was reported as a
+	run of its own and everything after the first one started from zero.
+	The consequence is worse than untidy: 23-6.1 failed and tests/all.tcl
+	still reported "Failed 0". 16 of the file's 28 tests never reached the
+	total. One cleanupTests now, at the end -- the file counts 30 tests,
+	and the suite goes from 1005 to 1023.
+
 2026-08-15 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.43

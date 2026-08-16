@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.43?**
+package require **pdf4tcl ?0****.9****.4****.44?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -850,7 +850,7 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 : Gives the name of a variable which will be set to the number of lines written.
 
 **-newyvar var**
-: Gives the name of a variable which will be set to the Y position after the last rendered line, in the current unit (0.9.4.23+). Allows the caller to continue drawing below the text box:
+: Gives the name of a variable which will be set to the Y position after the last rendered line, in the current unit and in the same coordinate system as the *y* passed in -- that is, following **-orient** (0.9.4.23+, corrected in 0.9.4.44: before that it reported the internal page coordinate). Allows the caller to continue drawing below the text box:
 
 ```tcl
 $pdf drawTextBox $x $y $w $h $text -newyvar nextY

@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.43 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.44 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.43?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.44?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -1150,7 +1150,10 @@ a new line in the output. If <i class="arg">str</i> is too long to fit in the sp
 <dd><p>Gives the name of a variable which will be set to the number of lines written.</p></dd>
 <dt><b class="option">-newyvar</b> <i class="arg">var</i></dt>
 <dd><p>Gives the name of a variable which will be set to the Y position after
-         the last rendered line, in the current unit (0.9.4.23+).
+         the last rendered line, in the current unit and in the same
+         coordinate system as the <i class="arg">y</i> passed in -- that is, following
+         <b class="option">-orient</b> (0.9.4.23+, corrected in 0.9.4.44: before that it
+         reported the internal page coordinate).
          Allows the caller to continue drawing below the text box:</p>
 <pre class="doctools_example">
 $pdf drawTextBox $x $y $w $h $text -newyvar nextY

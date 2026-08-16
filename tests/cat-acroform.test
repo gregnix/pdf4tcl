@@ -1,0 +1,199 @@
+# cat-acroform.test -- catPdf: die interaktive Form zusammenfuehren
+#
+# Bis 0.9.4.44 war das ein Rumpf: AppendPdf las beide Woerterbuecher und
+# endete im Kommentar "How to do this???". Der Wurzelkatalog behielt die
+# /AcroForm des ERSTEN Dokuments, das Feld des zweiten sass fertig
+# gezeichnet auf seiner Seite, und kein Leser bot es zum Ausfuellen an.
+# Gemessen mit pdftk: ein Feld, wo zwei hineingegangen waren. Gewarnt hat
+# nichts.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Ein Dokument mit einem Textfeld je Seite.
+proc catFormDoc {file id {title {}}} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4 -orient 1]
+    if {$title ne ""} { $p metadata -title $title }
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "Formular $id" -x 60 -y 60
+    $p addForm text 60 100 200 20 -id $id
+    $p write -file $file
+    $p destroy
+}
+
+proc catPlainDoc {file text} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4 -orient 1]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text $text -x 60 -y 60
+    $p write -file $file
+    $p destroy
+}
+
+# Die /Fields des Wurzelkatalogs -- also das, was ein Leser sieht. Die
+# uebrigen /Fields-Arrays im File gehoeren zu den verwaisten Katalogen der
+# angehaengten Dokumente und zaehlen nicht.
+proc catRootFields {file} {
+    set doc [::pdf4tcl::cat::ReadPdf $file]
+    set rootId [lindex [dict get $doc trailer /Root] 0]
+    set root [::pdf4tcl::cat::PdfObjToTclDict [dict get $doc $rootId full]]
+    if {![dict exists $root /AcroForm]} { return {} }
+    set acroId [lindex [dict get $root /AcroForm] 0]
+    if {![dict exists $doc $acroId]} { return {} }
+    set acro [::pdf4tcl::cat::PdfObjToTclDict [dict get $doc $acroId full]]
+    if {![dict exists $acro /Fields]} { return {} }
+    set out {}
+    foreach {full num} [regexp -all -inline {(\d+)\s+\d+\s+R} \
+            [dict get $acro /Fields]] {
+        lappend out $num
+    }
+    return $out
+}
+
+# Die Feldnamen hinter diesen Referenzen.
+proc catFieldNames {file} {
+    set doc [::pdf4tcl::cat::ReadPdf $file]
+    set out {}
+    foreach num [catRootFields $file] {
+        if {[dict exists $doc $num]
+                && [regexp {/T\s*\(([^)]*)\)} [dict get $doc $num full] -> n]} {
+            lappend out $n
+        }
+    }
+    return [lsort $out]
+}
+
+# ---------------------------------------------------------------------------
+# cat-acroform-1.x  Beide Dokumente haben ein Formular
+# ---------------------------------------------------------------------------
+
+test cat-acroform-1.1 {beide Felder stehen im Wurzelkatalog} -body {
+    catFormDoc [file join [temporaryDirectory] af1.pdf] feld_1
+    catFormDoc [file join [temporaryDirectory] af2.pdf] feld_2
+    set out [file join [temporaryDirectory] afout.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] af1.pdf] \
+            [file join [temporaryDirectory] af2.pdf] $out
+    catFieldNames $out
+} -result {feld_1 feld_2}
+
+test cat-acroform-1.2 {drei Dokumente, drei Felder} -body {
+    foreach n {1 2 3} {
+        catFormDoc [file join [temporaryDirectory] a3_$n.pdf] "f$n"
+    }
+    set out [file join [temporaryDirectory] a3out.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] a3_1.pdf] \
+            [file join [temporaryDirectory] a3_2.pdf] \
+            [file join [temporaryDirectory] a3_3.pdf] $out
+    catFieldNames $out
+} -result {f1 f2 f3}
+
+test cat-acroform-1.3 {das Ergebnis ist lesbar} -body {
+    set out [file join [temporaryDirectory] afout.pdf]
+    # ReadPdf faellt ueber ein kaputtes Dokument her, bevor irgendetwas
+    # anderes es tut.
+    set doc [::pdf4tcl::cat::ReadPdf $out]
+    expr {[dict exists $doc trailer] && [dict get $doc N] > 1}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# cat-acroform-2.x  Nur eines der Dokumente hat ein Formular
+# ---------------------------------------------------------------------------
+
+test cat-acroform-2.1 {Text plus Formular: das Feld ueberlebt} -body {
+    catPlainDoc [file join [temporaryDirectory] ap1.pdf] "Nur Text"
+    catFormDoc  [file join [temporaryDirectory] ap2.pdf] nur_dieses
+    set out [file join [temporaryDirectory] apout1.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] ap1.pdf] \
+            [file join [temporaryDirectory] ap2.pdf] $out
+    catFieldNames $out
+} -result nur_dieses
+
+test cat-acroform-2.2 {Formular plus Text: das Feld bleibt} -body {
+    set out [file join [temporaryDirectory] apout2.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] ap2.pdf] \
+            [file join [temporaryDirectory] ap1.pdf] $out
+    catFieldNames $out
+} -result nur_dieses
+
+test cat-acroform-2.3 {zwei Dokumente ohne Formular bekommen keines} -body {
+    catPlainDoc [file join [temporaryDirectory] ap3.pdf] "Auch nur Text"
+    set out [file join [temporaryDirectory] apout3.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] ap1.pdf] \
+            [file join [temporaryDirectory] ap3.pdf] $out
+    catRootFields $out
+} -result {}
+
+# ---------------------------------------------------------------------------
+# cat-acroform-3.x  Gleiche Feldnamen
+# ---------------------------------------------------------------------------
+
+test cat-acroform-3.1 {gleiche Namen werden gemeldet} -body {
+    # Zwei Felder desselben Namens sind fuer einen Leser EIN Feld mit einem
+    # gemeinsamen Wert (ISO 32000-1 12.7.3.2). Das ist manchmal gewollt --
+    # deshalb eine Warnung und kein Fehler, und deshalb wird auch nicht
+    # umbenannt: ein /T-Verweis in mitgeliefertem JavaScript zeigte danach
+    # ins Leere.
+    catFormDoc [file join [temporaryDirectory] ad1.pdf] name
+    catFormDoc [file join [temporaryDirectory] ad2.pdf] name
+    set out [file join [temporaryDirectory] adout.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] ad1.pdf] \
+            [file join [temporaryDirectory] ad2.pdf] $out
+    set hit 0
+    foreach w $::pdf4tcl::warnings {
+        if {[string match "*form field name*shared value*name*" $w]} { set hit 1 }
+    }
+    return $hit
+} -result 1
+
+test cat-acroform-3.2 {beide Verweise bleiben trotzdem stehen} -body {
+    set out [file join [temporaryDirectory] adout.pdf]
+    llength [catRootFields $out]
+} -result 2
+
+test cat-acroform-3.3 {verschiedene Namen erzeugen keine Warnung} -body {
+    set out [file join [temporaryDirectory] afout.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] af1.pdf] \
+            [file join [temporaryDirectory] af2.pdf] $out
+    set hit 0
+    foreach w $::pdf4tcl::warnings {
+        if {[string match "*form field name*" $w]} { set hit 1 }
+    }
+    return $hit
+} -result 0
+
+# ---------------------------------------------------------------------------
+# cat-acroform-4.x  Was NICHT passieren darf
+# ---------------------------------------------------------------------------
+
+test cat-acroform-4.1 {NeedAppearances wird nicht gesetzt} -body {
+    # Es beschaedigt digitale Signaturen, und jeder Feldtyp schreibt seinen
+    # eigenen Erscheinungsstream.
+    set out [file join [temporaryDirectory] afout.pdf]
+    set ch [open $out rb]
+    set data [read $ch]
+    close $ch
+    string match "*NeedAppearances*" $data
+} -result 0
+
+test cat-acroform-4.2 {die Seitenzahl stimmt weiterhin} -body {
+    set out [file join [temporaryDirectory] afout.pdf]
+    set doc [::pdf4tcl::cat::ReadPdf $out]
+    set rootId [lindex [dict get $doc trailer /Root] 0]
+    set root [::pdf4tcl::cat::PdfObjToTclDict [dict get $doc $rootId full]]
+    set pagesId [lindex [dict get $root /Pages] 0]
+    regexp {/Count\s+(\d+)} [dict get $doc $pagesId full] -> count
+    set count
+} -result 2
+
+# Die erzeugten Dateien wieder wegraeumen -- tcltest meldet sonst
+# "files left behind", und das ist beim naechsten Lauf Rauschen, in dem ein
+# echter Befund untergeht.
+foreach pat {af*.pdf ap*.pdf ad*.pdf a3*.pdf} {
+    foreach f [glob -nocomplain -directory [temporaryDirectory] $pat] {
+        file delete $f
+    }
+}
+
+::tcltest::cleanupTests

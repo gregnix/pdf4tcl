@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.43
+package provide pdf4tcl 0.9.4.44
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -3413,6 +3413,30 @@ Use -pdfa-icc to specify a profile path."
         }
     }
 
+    # Transform an internal page y back into user coordinates -- the
+    # inverse of Trans for the y axis.
+    #
+    # Trans turns the y a caller passes in into the internal, bottom-up
+    # page coordinate; anything reported BACK to the caller has to make
+    # the same trip in reverse. -newyvar did not, and returned the
+    # internal value divided by the unit: under the default -orient 1 a
+    # text box starting at y=200 reported 633.5 where 216.0 was meant,
+    # and under -orient 0 the box height leaked into the result.
+    #
+    # Measured 2026-08-15 against the documented promise, "the Y position
+    # after the last rendered line".
+    method TransBackY {py} {
+        if {$pdf(rawcoords)} {
+            return [expr {$py / $pdf(unit)}]
+        }
+        if {$pdf(orient)} {
+            set uy [expr {$pdf(height) - $py - $pdf(margintop)}]
+        } else {
+            set uy [expr {$py - $pdf(marginbottom)}]
+        }
+        return [expr {$uy / $pdf(unit)}]
+    }
+
     # Returns width and height of drawable area, excluding margins.
     method currentPage {} {
         # Returns the current page number (1-based).
@@ -5018,7 +5042,7 @@ Use -pdfa-icc to specify a profile path."
                 if {($ystart - ($y + $bboxb)) > $height} {
                     if {$newYVar ne ""} {
                         upvar 1 $newYVar newY_
-                        set newY_ [expr {($y + $font_height) / $pdf(unit)}]
+                        set newY_ [my TransBackY [expr {$y + $font_height}]]
                     }
                     return [string range $txt $start end]
                 }
@@ -5029,7 +5053,7 @@ Use -pdfa-icc to specify a profile path."
         }
         if {$newYVar ne ""} {
             upvar 1 $newYVar newY_
-            set newY_ [expr {($y + $font_height) / $pdf(unit)}]
+            set newY_ [my TransBackY [expr {$y + $font_height}]]
         }
         return ""
     }
@@ -7269,6 +7293,13 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Record the XMP fields; emitted by _BuildXMPStream at finish.
+        # The keys happen to be spelled like the variables holding their
+        # values, which nagelfar flags as "Found constant X which is also a
+        # variable" -- once per continuation line, so the directive needs a
+        # count: "#7" covers the statement and its six continuations. A bare
+        # "ignore" covers exactly one line and would have silenced nothing
+        # here, which is what a first attempt did.
+        ##nagelfar ignore #7 Found constant
         set pdf(facturx) [dict create \
             filename     $filename \
             conformance  $conformance \
@@ -8542,15 +8573,19 @@ Use -pdfa-icc to specify a profile path."
             # Get or create the radio group
             if {![dict exists $pdf(radiogroups) $groupName]} {
                 set parentOid [my GetOid 1]
+                ##nagelfar ignore #2 Found constant
                 dict set pdf(radiogroups) $groupName \
                     [dict create parentOid $parentOid kids {} selectedValue "" readonly 0 required 0]
             }
+            ##nagelfar ignore Found constant
             set parentOid [dict get $pdf(radiogroups) $groupName parentOid]
             # If any button in the group is readonly, mark the group
             if {$readonly} {
+                ##nagelfar ignore Found constant
                 dict set pdf(radiogroups) $groupName readonly 1
             }
             if {$required} {
+                ##nagelfar ignore Found constant
                 dict set pdf(radiogroups) $groupName required 1
             }
             # Reference to parent group field
@@ -8686,6 +8721,7 @@ Use -pdfa-icc to specify a profile path."
         if {$ftype eq "radiobutton"} {
             set kids [dict get $pdf(radiogroups) $groupName kids]
             lappend kids $anid
+            ##nagelfar ignore Found constant
             dict set pdf(radiogroups) $groupName kids $kids
         } else {
             lappend pdf(forms) "$anid 0 R"
@@ -10332,6 +10368,7 @@ namespace eval ::pdf4tcl::sha2pure {
             set blk [string range $bytes $off [expr {$off+255}]]
             for {set i 0} {$i < 16} {incr i} {
                 set s [expr {$i * 16}]
+                ##nagelfar ignore Found constant
                 binary scan [binary decode hex [string range $blk $s [expr {$s+15}]]] W W($i)
                 set W($i) [expr {$W($i) & $MASK64}]
             }
@@ -10413,11 +10450,17 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     method _SHA256 {data} {
         package require sha256
+        ##nagelfar ignore Unknown command
         binary decode hex [sha2::sha256 $data]
     }
 
     method _SHA384 {data} {
         my _InitSHABackend
+        # "sha" kommt aus dem optionalen Tcl-sha-Paket; nagelfar kann es
+        # nicht kennen. Die Markierung gehoert VOR das switch -- innerhalb
+        # des Rumpfes liest nagelfar sie als Sprungmarke ("Switch pattern
+        # starting with #") und meldet dann drei Dinge statt einem.
+        ##nagelfar ignore #3 Unknown command
         switch $::pdf4tcl::_shaBackend {
             tcl-sha  { return [binary decode hex [sha -bits 384 -output hex -databin $data]] }
             pure-tcl { return [::pdf4tcl::sha2pure::sha384bin $data] }
@@ -10436,6 +10479,7 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     method _SHA512 {data} {
         my _InitSHABackend
+        ##nagelfar ignore #3 Unknown command
         switch $::pdf4tcl::_shaBackend {
             tcl-sha  { return [binary decode hex [sha -bits 512 -output hex -databin $data]] }
             pure-tcl { return [::pdf4tcl::sha2pure::sha512bin $data] }
@@ -10538,13 +10582,26 @@ oo::define ::pdf4tcl::pdf4tcl {
                 close $fh
             }
             twapi {
+                ##nagelfar ignore Unknown command
                 set bytes [::twapi::random_bytes $n]
             }
             powershell {
-                set script "$rng = \
-[System.Security.Cryptography.RandomNumberGenerator]::Create(); \
-$b = New-Object byte\[\] $n; $rng.GetBytes($b); \
-[System.BitConverter]::ToString($b) -replace '-',''"
+                # BRACES, not quotes. The script is PowerShell, and PowerShell
+                # uses $ for its variables and [] for its type literals -- both
+                # of which Tcl substitutes inside "...". Written with quotes,
+                # this line never reached PowerShell at all: Tcl tried to read
+                # a variable named rng and threw
+                #
+                #     can't read "rng": no such variable
+                #
+                # So on Windows without /dev/urandom and without twapi,
+                # encryption failed with a message about a Tcl variable.
+                # Found by nagelfar, which flagged exactly these three
+                # substitutions as errors (make check).
+                #
+                # The byte count is the one thing that has to come from Tcl,
+                # so it goes in through string map rather than substitution.
+                set script [string map [list @N@ $n] {$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create(); $b = New-Object byte[] @N@; $rng.GetBytes($b); [System.BitConverter]::ToString($b) -replace '-',''}]
                 set hex [string trim [exec powershell -NoProfile -Command $script]]
                 set bytes [binary decode hex $hex]
             }
@@ -12354,6 +12411,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
 
     # Highest object number
     set obj [lindex [lsort -stride 2 -integer -decreasing -index 0 $xrefs] 0]
+    ##nagelfar ignore Found constant
     dict set pdfdata version $pdfVersion
     dict set pdfdata N [expr {$obj + 1}]
     dict set pdfdata "trailer" $trailer
@@ -12421,6 +12479,7 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     # Header version: the highest of the inputs, not a fixed 1.4. AppendPdf
     # keeps the first document's value and raises it in MergeVersion.
     set version 1.4
+    ##nagelfar ignore #2 Found constant
     if {[dict exists $pdfd version]} {
         set version [dict get $pdfd version]
     }
@@ -12540,6 +12599,171 @@ proc pdf4tcl::cat::RenumberPdf {pdfd delta {refmapping {}}} {
 }
 
 # Add one pdf's contents to another
+# Merge the interactive form of pdf2 into pdf1.
+#
+# Called from AppendPdf AFTER pdf2 has been renumbered, so every reference
+# in pdf2 already carries its final number.
+#
+# Until 0.9.4.44 this was a stub -- the code read both dictionaries and
+# ended in the comment "How to do this???". The consequence was measurable
+# and silent: merging two one-field documents produced a file whose root
+# catalog kept the /AcroForm of the FIRST document only. The second
+# document's widget sat on its page, fully formed, and no reader offered it
+# for filling. pdftk dump_data_fields listed one field where two had gone
+# in. Nothing warned.
+#
+# What is merged:
+#   /Fields    the two arrays are concatenated -- this is the point
+#   /DR        resource dictionaries are combined per sub-dictionary
+#              (/Font, /Encoding, ...); on a name collision pdf1 wins,
+#              because its objects are the ones the first document's
+#              appearance streams refer to
+#   /SigFlags  bitwise OR, so a signature flag from either survives
+#   /DA /Q     kept from pdf1 if it has them, otherwise taken from pdf2
+#
+# What is NOT set: /NeedAppearances. It damages digital signatures, and
+# every field type here writes its own appearance stream.
+#
+# Field names are NOT made unique. Two fields of the same name are one
+# field to a reader, with one shared value -- that is what the standard
+# says (ISO 32000-1 clause 12.7.3.2) and it is sometimes what the caller
+# wants. Renaming would break the /T reference in any JavaScript that
+# comes with the document. A collision is reported through
+# ::pdf4tcl::warnings so it is at least visible.
+proc pdf4tcl::cat::MergeAcroForm {pdf1 pdf2} {
+    set has1 [dict exists $pdf1 root /AcroForm]
+    set has2 [dict exists $pdf2 root /AcroForm]
+    if {!$has2} { return $pdf1 }
+
+    set ob2 [lindex [dict get $pdf2 root /AcroForm] 0]
+    if {![dict exists $pdf2 $ob2]} { return $pdf1 }
+    set d2 [PdfObjToTclDict [dict get $pdf2 $ob2 full]]
+
+    # Only pdf2 has a form: adopt its object, which is already renumbered.
+    if {!$has1} {
+        set rootid [dict get $pdf1 rootid]
+        set body [dict get $pdf1 $rootid full]
+        if {[regexp {/AcroForm} $body]} { return $pdf1 }
+        regsub {>>\s*endobj\s*$} $body "/AcroForm $ob2 0 R\n>>\nendobj" body
+        dict set pdf1 $rootid full $body
+        dict set pdf1 root /AcroForm [list $ob2 0 R]
+        return $pdf1
+    }
+
+    set ob1 [lindex [dict get $pdf1 root /AcroForm] 0]
+    if {![dict exists $pdf1 $ob1]} { return $pdf1 }
+    set d1 [PdfObjToTclDict [dict get $pdf1 $ob1 full]]
+
+    # --- /Fields ---------------------------------------------------------
+    set f1 [AcroFieldRefs $d1]
+    set f2 [AcroFieldRefs $d2]
+    if {[llength $f2]} {
+        WarnDuplicateFieldNames $pdf1 $pdf2 $f1 $f2
+        dict set d1 /Fields "\[[join [concat $f1 $f2] { }]\]"
+    }
+
+    # --- /DR -------------------------------------------------------------
+    if {[dict exists $d2 /DR]} {
+        if {![dict exists $d1 /DR]} {
+            dict set d1 /DR [dict get $d2 /DR]
+        } else {
+            set dr1 [lindex [dict get $d1 /DR] 0]
+            set dr2 [lindex [dict get $d2 /DR] 0]
+            if {[string is digit -strict $dr1] && [string is digit -strict $dr2]
+                    && [dict exists $pdf1 $dr1] && [dict exists $pdf2 $dr2]} {
+                set pdf1 [MergeResourceDicts $pdf1 $dr1 $pdf2 $dr2]
+            }
+        }
+    }
+
+    # --- /SigFlags, /DA, /Q ----------------------------------------------
+    if {[dict exists $d2 /SigFlags]} {
+        set s2 [dict get $d2 /SigFlags]
+        set s1 [expr {[dict exists $d1 /SigFlags] ? [dict get $d1 /SigFlags] : 0}]
+        if {[string is integer -strict $s1] && [string is integer -strict $s2]} {
+            dict set d1 /SigFlags [expr {$s1 | $s2}]
+        }
+    }
+    foreach key {/DA /Q} {
+        if {![dict exists $d1 $key] && [dict exists $d2 $key]} {
+            dict set d1 $key [dict get $d2 $key]
+        }
+    }
+
+    dict set pdf1 $ob1 full "$ob1 0 obj\n[TclDictToPdfDict $d1]\nendobj"
+    return $pdf1
+}
+
+# The /Fields entry is an array of references. Returns them as a flat list
+# of "N 0 R" triples, ready to be joined.
+proc pdf4tcl::cat::AcroFieldRefs {d} {
+    if {![dict exists $d /Fields]} { return {} }
+    set raw [dict get $d /Fields]
+    set out {}
+    foreach {full num} [regexp -all -inline {(\d+)\s+\d+\s+R} $raw] {
+        lappend out $num 0 R
+    }
+    return $out
+}
+
+# Two fields of the same name are one field to a reader. Say so.
+proc pdf4tcl::cat::WarnDuplicateFieldNames {pdf1 pdf2 refs1 refs2} {
+    set names1 {}
+    foreach {num z r} $refs1 {
+        if {[dict exists $pdf1 $num]
+                && [regexp {/T\s*\(([^)]*)\)} [dict get $pdf1 $num full] -> n]} {
+            lappend names1 $n
+        }
+    }
+    set dups {}
+    foreach {num z r} $refs2 {
+        set src [expr {[dict exists $pdf2 $num] ? $pdf2 : $pdf1}]
+        if {[dict exists $src $num]
+                && [regexp {/T\s*\(([^)]*)\)} [dict get $src $num full] -> n]} {
+            if {$n in $names1 && $n ni $dups} { lappend dups $n }
+        }
+    }
+    if {[llength $dups]} {
+        lappend ::pdf4tcl::warnings "catPdf: form field name(s) appear in\
+                both documents and will act as one field with one shared\
+                value: [join $dups {, }]"
+    }
+}
+
+# Combine two resource dictionaries entry by entry. Sub-dictionaries such
+# as /Font are merged key by key; on a collision pdf1 keeps its object,
+# because its appearance streams already point at it.
+proc pdf4tcl::cat::MergeResourceDicts {pdf1 id1 pdf2 id2} {
+    set r1 [PdfObjToTclDict [dict get $pdf1 $id1 full]]
+    set r2 [PdfObjToTclDict [dict get $pdf2 $id2 full]]
+    set changed 0
+    foreach {key val2} $r2 {
+        if {![dict exists $r1 $key]} {
+            dict set r1 $key $val2
+            set changed 1
+            continue
+        }
+        set val1 [dict get $r1 $key]
+        # Both inline sub-dictionaries? Merge their entries.
+        if {[string match "<<*" [string trim $val1]]
+                && [string match "<<*" [string trim $val2]]} {
+            set sub1 [PdfDictToTclDict $val1]
+            set sub2 [PdfDictToTclDict $val2]
+            foreach {k v} $sub2 {
+                if {![dict exists $sub1 $k]} {
+                    dict set sub1 $k $v
+                    set changed 1
+                }
+            }
+            dict set r1 $key [TclDictToPdfDict $sub1]
+        }
+    }
+    if {$changed} {
+        dict set pdf1 $id1 full "$id1 0 obj\n[TclDictToPdfDict $r1]\nendobj"
+    }
+    return $pdf1
+}
+
 proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
     # Get the pages from first pdf
     set pages1id [lindex [dict get $pdf1 root /Pages] 0]
@@ -12571,18 +12795,8 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
     append newobj ">>\nendobj"
     dict set pdf1 $pages1id full $newobj
 
-    # TODO: Merge other stuff in Catalog, like AcroForm or Metadata
-    if {[dict exists $pdf1 root /AcroForm] && \
-                [dict exists $pdf2 root /AcroForm]
-    } {
-        set ob1 [lindex [dict get $pdf1 root /AcroForm] 0]
-        set ob2 [lindex [dict get $pdf2 root /AcroForm] 0]
-        set d1 [PdfObjToTclDict [dict get $pdf1 $ob1 full]]
-        set d2 [PdfObjToTclDict [dict get $pdf2 $ob2 full]]
-        # How to do this???
-        #puts $d1
-        #puts $d2
-    }
+    # The interactive form of the result is the union of both.
+    set pdf1 [MergeAcroForm $pdf1 $pdf2]
 
     # Merge the logical structure before the objects are transferred, since
     # it rewrites objects on both sides.
@@ -12604,6 +12818,7 @@ proc pdf4tcl::cat::AppendPdf {pdf1 pdf2} {
         set v2 [dict get $pdf2 version]
         set v1 [expr {[dict exists $pdf1 version] ? [dict get $pdf1 version] : 1.4}]
         if {[package vcompare $v2 $v1] > 0} {
+            ##nagelfar ignore Found constant
             dict set pdf1 version $v2
         }
     }

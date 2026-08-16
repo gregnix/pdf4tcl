@@ -118,11 +118,14 @@ test new-0.9.4.23-3.5 {AS-Array: bei -pdfa 3b + Layer vorhanden} -body {
     expr {[string first "/AS \[" $d] >= 0}
 } -result 1
 
-# ---------------------------------------------------------------------------
-# Cleanup
-# ---------------------------------------------------------------------------
-
-::tcltest::cleanupTests
+# Kein cleanupTests hier -- die Datei ist dreimal erweitert worden, und
+# jedes Mal kam der Abschluss mit. cleanupTests SETZT DIE ZAEHLER ZURUECK:
+# alles davor wurde als eigener Lauf gemeldet, alles danach begann bei
+# null, und ein Fehlschlag in einem der spaeteren Abschnitte verschwand
+# aus der Gesamtzahl. Gemessen 2026-08-16: 23-6.1 schlug fehl, und
+# tests/all.tcl meldete trotzdem "Failed 0".
+#
+# Genau ein cleanupTests, ganz am Ende.
 
 # ---------------------------------------------------------------------------
 # 23-4.x  getStringWidth -font -size (SS keine -- API-Erweiterung)
@@ -212,15 +215,56 @@ test new-0.9.4.23-5.5 {pageCount: abgeschlossene Seiten} -body {
 # 23-6.x  drawTextBox -newyvar
 # ---------------------------------------------------------------------------
 
-test new-0.9.4.23-6.1 {drawTextBox: -newyvar liefert Y-Position} -body {
+# -newyvar meldet die Y-Position NACH der letzten gesetzten Zeile, in
+# denselben Koordinaten, in denen y uebergeben wurde.
+#
+# Die alte Fassung dieses Tests verlangte nur "> 0 und < 700" bei y=700.
+# Der falsche Wert (von unten gezaehlt, rund 129) erfuellte das ebenso wie
+# der richtige -- ausser dass der richtige groesser als 700 ist. Ein Test,
+# dessen Bereich beide Antworten einschliesst, misst nichts.
+test new-0.9.4.23-6.1 {drawTextBox: -newyvar liegt eine Zeile unter y} -body {
     set p [pdf4tcl::new %AUTO% -compress 0]
     $p startPage
     $p setFont 12 Helvetica
     set newY 0
     $p drawTextBox 50 700 400 200 "Kurztext" -newyvar newY
     $p endPage; $p destroy
-    expr {$newY > 0 && $newY < 700}
+    # eine Zeile bei Groesse 12: mehr als y, weniger als y + 2 Zeilen
+    expr {$newY > 700 && $newY < 700 + 2 * 12}
 } -result 1
+
+test new-0.9.4.23-6.3 {drawTextBox: jede weitere Zeile ruecht newyvar weiter} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    set y1 0 ; set y3 0 ; set n1 0 ; set n3 0
+    $p drawTextBox 50 100 200 300 "Kurz" -newyvar y1 -linesvar n1
+    $p drawTextBox 50 100 200 300 [string repeat "Wort " 40] \
+            -newyvar y3 -linesvar n3
+    $p endPage; $p destroy
+    # Der Abstand je Zeile ist konstant: (y3-y1) / (n3-n1) ist die
+    # Zeilenhoehe, und die liegt zwischen Schriftgroesse und dem Doppelten.
+    set step [expr {($y3 - $y1) / double($n3 - $n1)}]
+    expr {$step >= 12 && $step <= 24}
+} -result 1
+
+test new-0.9.4.23-6.4 {drawTextBox: -newyvar folgt der Orientierung} -body {
+    # orient 1 zaehlt von oben, y waechst nach unten; orient 0 von unten.
+    # In beiden Faellen ist die gemeldete Position die NACH der letzten
+    # Zeile -- unter orient 0 also kleiner als der Kastenoberrand.
+    set res {}
+    foreach orient {1 0} {
+        set p [pdf4tcl::new %AUTO% -compress 0 -orient $orient]
+        $p startPage
+        $p setFont 12 Helvetica
+        set ny 0
+        $p drawTextBox 50 100 200 300 "Kurz" -newyvar ny
+        $p endPage; $p destroy
+        lappend res [expr {$orient ? ($ny > 100 && $ny < 130)
+                                   : ($ny > 370 && $ny < 400)}]
+    }
+    set res
+} -result {1 1}
 
 test new-0.9.4.23-6.2 {drawTextBox: ohne -newyvar unveraendert} -body {
     set p [pdf4tcl::new %AUTO% -compress 0]
@@ -230,8 +274,6 @@ test new-0.9.4.23-6.2 {drawTextBox: ohne -newyvar unveraendert} -body {
     $p endPage; $p destroy
     string length $overflow
 } -result 0
-
-::tcltest::cleanupTests
 
 # ---------------------------------------------------------------------------
 # 23-7.x  exportForms (FDF/XFDF)

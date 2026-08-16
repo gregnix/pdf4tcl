@@ -1295,6 +1295,30 @@ Use -pdfa-icc to specify a profile path."
         }
     }
 
+    # Transform an internal page y back into user coordinates -- the
+    # inverse of Trans for the y axis.
+    #
+    # Trans turns the y a caller passes in into the internal, bottom-up
+    # page coordinate; anything reported BACK to the caller has to make
+    # the same trip in reverse. -newyvar did not, and returned the
+    # internal value divided by the unit: under the default -orient 1 a
+    # text box starting at y=200 reported 633.5 where 216.0 was meant,
+    # and under -orient 0 the box height leaked into the result.
+    #
+    # Measured 2026-08-15 against the documented promise, "the Y position
+    # after the last rendered line".
+    method TransBackY {py} {
+        if {$pdf(rawcoords)} {
+            return [expr {$py / $pdf(unit)}]
+        }
+        if {$pdf(orient)} {
+            set uy [expr {$pdf(height) - $py - $pdf(margintop)}]
+        } else {
+            set uy [expr {$py - $pdf(marginbottom)}]
+        }
+        return [expr {$uy / $pdf(unit)}]
+    }
+
     # Returns width and height of drawable area, excluding margins.
     method currentPage {} {
         # Returns the current page number (1-based).
@@ -2900,7 +2924,7 @@ Use -pdfa-icc to specify a profile path."
                 if {($ystart - ($y + $bboxb)) > $height} {
                     if {$newYVar ne ""} {
                         upvar 1 $newYVar newY_
-                        set newY_ [expr {($y + $font_height) / $pdf(unit)}]
+                        set newY_ [my TransBackY [expr {$y + $font_height}]]
                     }
                     return [string range $txt $start end]
                 }
@@ -2911,7 +2935,7 @@ Use -pdfa-icc to specify a profile path."
         }
         if {$newYVar ne ""} {
             upvar 1 $newYVar newY_
-            set newY_ [expr {($y + $font_height) / $pdf(unit)}]
+            set newY_ [my TransBackY [expr {$y + $font_height}]]
         }
         return ""
     }
@@ -5151,6 +5175,13 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Record the XMP fields; emitted by _BuildXMPStream at finish.
+        # The keys happen to be spelled like the variables holding their
+        # values, which nagelfar flags as "Found constant X which is also a
+        # variable" -- once per continuation line, so the directive needs a
+        # count: "#7" covers the statement and its six continuations. A bare
+        # "ignore" covers exactly one line and would have silenced nothing
+        # here, which is what a first attempt did.
+        ##nagelfar ignore #7 Found constant
         set pdf(facturx) [dict create \
             filename     $filename \
             conformance  $conformance \
@@ -6424,15 +6455,19 @@ Use -pdfa-icc to specify a profile path."
             # Get or create the radio group
             if {![dict exists $pdf(radiogroups) $groupName]} {
                 set parentOid [my GetOid 1]
+                ##nagelfar ignore #2 Found constant
                 dict set pdf(radiogroups) $groupName \
                     [dict create parentOid $parentOid kids {} selectedValue "" readonly 0 required 0]
             }
+            ##nagelfar ignore Found constant
             set parentOid [dict get $pdf(radiogroups) $groupName parentOid]
             # If any button in the group is readonly, mark the group
             if {$readonly} {
+                ##nagelfar ignore Found constant
                 dict set pdf(radiogroups) $groupName readonly 1
             }
             if {$required} {
+                ##nagelfar ignore Found constant
                 dict set pdf(radiogroups) $groupName required 1
             }
             # Reference to parent group field
@@ -6568,6 +6603,7 @@ Use -pdfa-icc to specify a profile path."
         if {$ftype eq "radiobutton"} {
             set kids [dict get $pdf(radiogroups) $groupName kids]
             lappend kids $anid
+            ##nagelfar ignore Found constant
             dict set pdf(radiogroups) $groupName kids $kids
         } else {
             lappend pdf(forms) "$anid 0 R"

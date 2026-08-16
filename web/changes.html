@@ -11,6 +11,11 @@
 <p>
 <h2>Changes</h2>
 
+Changes in v0.9.4.44 (2026-08-16, fork gregnix):<br>
+<ul>
+  <li>drawTextBox -newyvar reported the internal page coordinate instead of the caller's -- documented since 0.9.4.23 as the position after the last line, never true, and the test for it accepted both answers</li>
+</ul>
+
 Changes in v0.9.4.43 (2026-08-15, fork gregnix):<br>
 <ul>
   <li>tagBegin refuses a structure element whose parent the standard does not allow -- a cell outside a row or a list item outside a list is a defect no validator reports and no reader repairs</li>
