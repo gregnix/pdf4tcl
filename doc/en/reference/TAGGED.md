@@ -493,33 +493,129 @@ are exempt, since a blank cell belongs in the tree.
 
   Ask before finishing with `[$pdf getUntaggedCount]`. Only painting
   operators count -- setting a colour or a font outside an element is not a
-  defect -- and content inside an XObject is covered by the tag on the `Do`
-  that places it. Measured: `examples/tagged.tcl` and the pdf4tcllib table
-  export both report zero.
+  defect. Since 0.9.4.46 content inside an XObject counts too -- see the
+  entry on XObjects below. Measured: `examples/tagged.tcl` and the
+  pdf4tcllib table export both report zero.
 
   It stays a warning. Untagged content is legal PDF, and a caller who marks
   up part of a page may mean it; only PDF/UA and level A rule it out.
 - `/Attributes` covers `/Scope`, `/Headers`, `/ID` and `/ListNumbering`.
   Other attribute owners (`/Layout`, `/PrintField`) are not implemented.
-- Structure inside an XObject is still refused. `tagArtifact` works there
-  since 0.9.4.43 -- an artifact carries no MCID and therefore needs neither a
-  parent tree entry nor `/Stm` in an `/MCR`, which is exactly what structure
-  would need. Note that placing an XObject and tagging *that* has always
-  worked and covers the whole block:
+- Structure inside an XObject works since 0.9.4.46, with one condition: the
+  XObject must be drawn exactly once.
 
   ```tcl
-  set xo [$pdf startXObject -paper {100p 50p}]
-  $pdf text "Logo" -x 5 -y 10
+  set xo [$pdf startXObject -paper {200p 100p}]
+  $pdf tagBegin P
+  $pdf text "Inside the XObject" -x 10 -y 30
+  $pdf tagEnd
   $pdf endXObject
-  $pdf tagBegin Figure -alt "Company logo"
-  $pdf putImage $xo 50 700
+
+  $pdf tagBegin Figure -alt "A box with a caption"
+  $pdf putImage $xo 50 700 -width 200 -height 100
   $pdf tagEnd
   ```
 
-  What remains impossible is several structure elements *within* one XObject.
-  Beyond the bookkeeping, the real obstacle is reuse: an XObject drawn twice
-  has one structure tree and two appearances, and where its content sits in
-  the reading order is then undecidable.
+  Three things have to line up for that, all of them ISO 32000-1 clause
+  14.7.4.4:
+
+  | | |
+  |---|---|
+  | MCIDs are scoped to the **content stream**, not the page | the counter restarts inside the XObject, so its first element is MCID 0 even on page 5 |
+  | the XObject dictionary carries its own `/StructParents` | allocated when the dictionary is written, which is before its content exists -- an XObject that ends up carrying nothing gets an empty parent tree entry |
+  | every `/MCR` for that content names the stream in `/Stm` | `<</Type /MCR /Pg 8 0 R /Stm 4 0 R /MCID 0>>` -- without `/Stm` the reference points at an MCID of the *page*, where it does not exist |
+
+  **Drawn more than once, it is refused** when the document is written:
+
+  ```
+  XObject 4 carries tagged content and is drawn more than once. One
+  structure tree cannot describe two appearances (ISO 32000-1 clause
+  14.7.4.4): draw it once, or leave its content untagged and tag the
+  "Do" that places it.
+  ```
+
+  That is not a limitation of this implementation. One tree, two
+  appearances: where the content sits in the reading order is undecidable,
+  and `/Pg` would have to name two pages at once.
+
+  **And PDF/UA goes further: a form XObject may not be reused at all.**
+  Measured with veraPDF 1.30.2 -- every placement beyond the first fails
+  rule 7.20-2, *"The content of Form XObjects shall be incorporated into
+  structure elements"*:
+
+  | placements | failed checks |
+  |---|---|
+  | 1 | 0 |
+  | 2 | 1 |
+  | 3 | 2 |
+
+  It makes no difference how the content is marked. Artifact inside the
+  XObject, artifact around the `Do`, `Figure` around the `Do`, nothing at
+  all -- all four fail from the second placement on. The obvious workaround
+  for the paragraph above, *leave the content untagged and tag the
+  placement*, therefore does not produce a conformant file either; this
+  document recommended it until the demo was run against veraPDF and did
+  not pass.
+
+  pdf4tcl warns about every reused XObject in a tagged document, whatever
+  its content:
+
+  ```
+  XObject 4 is drawn more than once. Valid PDF, but not PDF/UA: veraPDF
+  reports rule 7.20-2 once per extra placement, whatever the content is
+  marked as. For a conformant document, give each placement its own
+  XObject.
+  ```
+
+  A warning and not an error, because reuse is perfectly good PDF -- a
+  document that claims neither PDF/UA nor level A may do it, and saving one
+  copy of a logo is what XObjects are for. It is only the conformance claim
+  that rules it out.
+
+  **The reading order follows the calls, not the placement.** Structure
+  elements enter the tree when `tagBegin` runs, so an XObject built at the
+  top of the script lands at the top of the tree -- before the heading of
+  the page it is drawn on. Measured on a document whose XObject was built
+  first:
+
+  ```
+  Document
+    H2   'Adresse'          <- from the XObject
+    P    'Muster GmbH...'
+    H1   'Struktur in ...'  <- the page heading, read second
+  ```
+
+  That is not a cosmetic problem. **veraPDF 1.30.2 fails such a document as
+  PDF/UA**: ISO 14289-1 clause 7.4.2 wants headings in ascending order
+  without gaps, in the order of the *structure tree*. A tree that opens with
+  an H2 is malformed even though nothing on the page looks wrong, and every
+  other check -- `qpdf --check`, and `tools/check-tagged.py` before this
+  round -- said the file was fine. The checker now looks at heading order
+  too, so this class is caught before veraPDF sees it.
+
+  The practical rule: **do not put headings inside an XObject** unless the
+  XObject is built at the point where its content is meant to be read. An
+  address block or a logo carries `P` and artifacts, not `H2`.
+
+  Build the XObject at the point where its content belongs in the reading
+  order, and the tree comes out right. But note what that costs:
+
+  > `startXObject` calls `startPage`, and `startPage` **ends an open page**.
+  > Building an XObject in the middle of a page therefore closes that page:
+  > one page became two in the measurement above. Either build the XObject
+  > between pages, or accept the tree order and check it with
+  > `tools/check-tagged.py`, which prints the extracted structure.
+
+  An XObject carrying tagged content that is **never** drawn is a warning,
+  not an error, and its `/MCR` is written without `/Pg`: the element still
+  says which stream it belongs to rather than disappearing.
+
+  One consequence worth knowing: since content inside an XObject *can* be
+  tagged now, leaving it untagged counts. `getUntaggedCount` used to skip
+  XObjects entirely -- it no longer does. A document that placed a raw
+  XObject under a tagged `Do` reported 0 before 0.9.4.46 and reports the
+  painting operations inside it now. Nothing about the file changed; the
+  measurement got honest.
 
 Since 0.9.4.41 `-pdfa 1a`, `2a` and `3a` are available. They require tagging
 and a document language, both checked when the document is finished; a

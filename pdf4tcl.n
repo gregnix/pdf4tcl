@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.45 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.46 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.45?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.46?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -2783,15 +2783,15 @@ rule 7\&.18 cannot be met\&. Reported once per document\&.
 .IP \(bu
 Demos and documentation\&. No change to the library API\&.
 .IP \(bu
-"\fI0\&.9\&.4\&.x/demo\fR": the demo suite is complete again\&. All 35 scripts
+"\fIdemo\fR": the demo suite is complete again\&. All 35 scripts
 are covered by "\fIrun-all-demos\&.tcl\fR", entries carry an optional reason for
 being skipped, and \fB--alle\fR runs those too\&. Five scripts that never
 ran are fixed, and output goes to "\fIdemo/out\fR" instead of next to the
 scripts\&.
 .IP \(bu
-"\fI0\&.9\&.4\&.x/demo/demo-tagged\&.tcl\fR": new, demonstrates Tagged PDF\&.
+"\fIdemo/demo-tagged\&.tcl\fR": new, demonstrates Tagged PDF\&.
 .IP \(bu
-"\fI0\&.9\&.4\&.x/demo/demo-unicode-tabelle\&.tcl\fR": warns that the blocks
+"\fIdemo/demo-unicode-tabelle\&.tcl\fR": warns that the blocks
 above U+FFFF cannot be rendered under Tcl 8, detected at runtime rather than
 from the version number\&.
 .IP \(bu
@@ -2802,7 +2802,7 @@ coordinates\&. Coordinates are determined first now\&.
 "\fIsrc/main\&.tcl\fR": both window branches delete the photo created by
 \fBimage create photo -format window\fR after reading the pixels\&.
 .IP \(bu
-"\fI0\&.9\&.4\&.x/doc/en\fR": 27 of the 93 documented methods appeared in no
+"\fIdoc/en\fR": 27 of the 93 documented methods appeared in no
 guide\&. New documents for images, canvas export and annotations, plus a
 README index; bookmarks, XObjects, the text cursor, arcs, clipping and the
 state queries added to the existing ones\&.
@@ -2890,10 +2890,10 @@ Ported from the AndroWish fork, contributed by Christian Werner\&.
 (channel output) and paper-1\&.1\&.\&.1\&.8 (B/C-series dimensions, backward
 compatibility of a4)\&.
 .IP \(bu
-"\fI0\&.9\&.4\&.x/demo/demo-paper-sizes\&.tcl\fR": new demo showing A/B/C
+"\fIdemo/demo-paper-sizes\&.tcl\fR": new demo showing A/B/C
 paper series (4 pages)\&.
 .IP \(bu
-"\fI0\&.9\&.4\&.x/demo/demo-write-chan\&.tcl\fR": new demo showing three
+"\fIdemo/demo-write-chan\&.tcl\fR": new demo showing three
 \fB-chan\fR use cases (file channel, memory channel, stdout)\&.
 .PP
 .SS "VERSION 0\&.9\&.4\&.24"
@@ -3187,7 +3187,7 @@ Date validation in \fBmetadata\fR: new method
 \fB-creationdate\fR and \fB-moddate\fR\&. Throws \fBPDF4TCL BADDATE\fR
 on invalid format\&.
 .IP \(bu
-Extended "\fI0\&.9\&.4\&.x/demo/demo-alpha\&.tcl\fR" with sections
+Extended "\fIdemo/demo-alpha\&.tcl\fR" with sections
 demonstrating \fBroundedRect\fR and unit conversion procs\&.
 .IP \(bu
 New test file "\fItests/new-0\&.9\&.4\&.12\&.test\fR": 17 tests\&.

@@ -174,9 +174,17 @@ def walk(elem, mctext, pages, out, depth=0):
         if isinstance(kid, int):
             continue
         if isinstance(kid, dict) and kid.get("/Type") == "/MCR":
+            mcid = int(kid["/MCID"])
+            stm = kid.get("/Stm")
+            if stm is not None:
+                # Inside a form XObject the text is keyed by the stream.
+                # Without this the dump showed such elements empty, which
+                # was the only sign that the checker never looked inside.
+                num = stm.idnum if isinstance(stm, IndirectObject) else None
+                text += mctext.get(("stm", num, mcid), "")
+                continue
             pg = kid.get("/Pg")
             pgnum = pages.get(pg.idnum if isinstance(pg, IndirectObject) else id(pg))
-            mcid = int(kid["/MCID"])
             text += mctext.get((pgnum, mcid), "")
         elif isinstance(kid, dict) and "/S" in kid:
             children.append(kid)
@@ -240,6 +248,50 @@ def main(path, dump=False):
                   "page %d: /StructParents present" % pageno)
             sp_by_page[pageno] = page.get("/StructParents")
 
+    # Form XObjects carry their own marked content (ISO 32000-1 clause
+    # 14.7.4.4): MCIDs are scoped to the stream, the XObject dictionary has
+    # its own /StructParents, and every /MCR pointing into it names the
+    # stream in /Stm.
+    #
+    # This section did not exist until 0.9.4.46. Without it the checker
+    # printed "PASSED: all checks" for a document whose XObject content it
+    # had never opened -- the P element in the dump showed up with no text
+    # at all, which was the only visible hint.
+    xobj_streams = {}          # object number -> {mcid: text}
+    for pageno, page in enumerate(reader.pages):
+        res = resolve(page.get("/Resources", {})) or {}
+        xobjs = resolve(res.get("/XObject", {})) or {}
+        for name, ref in xobjs.items():
+            num = ref.idnum if isinstance(ref, IndirectObject) else None
+            xo = resolve(ref)
+            if not isinstance(xo, dict):
+                continue
+            if str(xo.get("/Subtype")) != "/Form":
+                continue
+            if num in xobj_streams:
+                continue
+            try:
+                data = xo.get_data()
+            except Exception:
+                continue
+            texts, unbalanced, left_open, nested = text_by_mcid(data)
+            if not texts:
+                continue
+            print("== XObject %d ==" % num)
+            check(unbalanced == 0, "XObject %d: no EMC without BDC" % num)
+            check(left_open == 0,
+                  "XObject %d: no BDC left open at end of stream" % num)
+            check(not nested,
+                  "XObject %d: no MCID nested inside another MCID" % num)
+            ids = sorted(texts)
+            check(ids == list(range(len(ids))),
+                  "XObject %d: MCIDs are 0..%d without gaps" % (num, len(ids) - 1))
+            check("/StructParents" in xo,
+                  "XObject %d: /StructParents present" % num)
+            xobj_streams[num] = texts
+            for mcid, txt in texts.items():
+                mctext[("stm", num, mcid)] = txt
+
     print("== parent tree ==")
     ptree = resolve(st.get("/ParentTree"))
     nums = resolve(ptree.get("/Nums", [])) if ptree else []
@@ -280,6 +332,38 @@ def main(path, dump=False):
     rootkids = resolve(st.get("/K", []))
     if not isinstance(rootkids, list):
         rootkids = [rootkids]
+
+    # Every MCID inside an XObject must be claimed by an /MCR that names the
+    # stream in /Stm. Without /Stm the reference means "MCID n of the page",
+    # where that number belongs to different content or does not exist --
+    # the file stays valid PDF and the reading order is quietly wrong.
+    if xobj_streams:
+        stm_refs = {}          # stream object number -> set of MCIDs claimed
+        def collect_stm(elem):
+            elem = resolve(elem)
+            if not isinstance(elem, dict):
+                return
+            kids = resolve(elem.get("/K", []))
+            if not isinstance(kids, list):
+                kids = [kids]
+            for k in kids:
+                k = resolve(k)
+                if isinstance(k, dict) and str(k.get("/Type")) == "/MCR":
+                    stm = k.get("/Stm")
+                    if stm is not None:
+                        num = stm.idnum if isinstance(stm, IndirectObject) else None
+                        stm_refs.setdefault(num, set()).add(int(k.get("/MCID")))
+                elif isinstance(k, dict):
+                    collect_stm(k)
+        for kid in rootkids:
+            collect_stm(kid)
+        for num, texts in xobj_streams.items():
+            claimed = stm_refs.get(num, set())
+            missing = sorted(set(texts) - claimed)
+            check(not missing,
+                  "XObject %d: every MCID is claimed by an /MCR with /Stm%s"
+                  % (num, "" if not missing else " (missing: %s)" % missing))
+
     objr = {}
     def collect_objr(elem, oid_of):
         elem = resolve(elem)
@@ -363,6 +447,14 @@ def main(path, dump=False):
         for kid in kids:
             kid = resolve(kid)
             if isinstance(kid, dict) and kid.get("/Type") == "/MCR":
+                stm = kid.get("/Stm")
+                if stm is not None:
+                    # Content inside a form XObject is keyed by the stream,
+                    # not by the page -- the same key text_by_mcid used for
+                    # the XObject section above.
+                    num = stm.idnum if isinstance(stm, IndirectObject) else None
+                    claimed.add(("stm", num, int(kid["/MCID"])))
+                    continue
                 pg = kid.get("/Pg")
                 pgnum = pages.get(pg.idnum if isinstance(pg, IndirectObject)
                                   else id(pg))
@@ -375,6 +467,32 @@ def main(path, dump=False):
     check(not orphans,
           "every marked content sequence is claimed by an element%s"
           % ("" if not orphans else " (orphans: %s)" % sorted(orphans)))
+
+    # Heading order. ISO 14289-1 clause 7.4.2: headings run in ascending
+    # order without skipping a level, in the order of the structure tree --
+    # which is the reading order, not the order things appear on the page.
+    #
+    # This check did not exist until the XObject demo failed veraPDF with
+    # PDF/UA while every check here said "ok". Its tree started with an H2
+    # from an XObject built at the top of the script, and the page's H1
+    # followed. Nothing in the file was malformed; the reading order was.
+    levels = []
+    for entry in out:
+        t = entry["type"]
+        if len(t) == 2 and t[0] == "H" and t[1].isdigit():
+            levels.append(int(t[1]))
+    if levels:
+        problems = []
+        if levels[0] != 1:
+            problems.append("starts with H%d" % levels[0])
+        prev = levels[0]
+        for lv in levels[1:]:
+            if lv > prev + 1:
+                problems.append("H%d follows H%d" % (lv, prev))
+            prev = lv
+        check(not problems,
+              "headings are in ascending order without gaps%s"
+              % ("" if not problems else " (%s)" % ", ".join(problems)))
 
     print("== extracted content ==")
     for e in out:

@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.45?**
+package require **pdf4tcl ?0****.9****.4****.46?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -1621,7 +1621,7 @@ These bytes are the AES file key, the initialisation vectors and the salts, so t
 - New method **roundedRect**: draws a rectangle with rounded corners using Bezier approximation. Options **-radius** (default 5), **-filled**, **-stroke**. Radius is automatically clamped to half the shorter side.
 - New namespace procs **pdf4tcl::mm**, **pdf4tcl::cm**, **pdf4tcl::in**, **pdf4tcl::pt**: convert common units to PDF points (1 pt = 1/72 inch). Use directly in coordinate arguments.
 - Date validation in **metadata**: new method **_ValidatePdfDate** validates and normalises PDF date strings for **-creationdate** and **-moddate**. Throws **PDF4TCL BADDATE** on invalid format.
-- Extended "*0**.9**.4**.x/demo/demo-alpha**.tcl*" with sections demonstrating **roundedRect** and unit conversion procs.
+- Extended "*demo/demo-alpha**.tcl*" with sections demonstrating **roundedRect** and unit conversion procs.
 - New test file "*tests/new-0**.9**.4**.12**.test*": 17 tests.
 
 ### VERSION 0.9.4.11

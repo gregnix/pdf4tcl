@@ -373,14 +373,20 @@ test tagged-7.2 {tagEnd without tagBegin is rejected} -body {
     list $res [string match "*without matching tagBegin*" $err]
 } -result {1 1}
 
-test tagged-7.3 {tagging inside an XObject is rejected} -body {
+# Bis 0.9.4.45 lehnte tagBegin im XObject ab. Seit .46 geht es -- MCIDs
+# sind an den Content-Stream gebunden, das XObject-Woerterbuch traegt ein
+# eigenes /StructParents, und jede MCR nennt den Stream in /Stm
+# (ISO 32000-1 14.7.4.4). Siehe xobj-1.x in new-0.9.4.46.test.
+test tagged-7.3 {tagging inside an XObject is accepted} -body {
     set p [::pdf4tcl::new %AUTO%]
     $p tagged 1
     $p startPage -xobject 1
     set res [catch {$p tagBegin P} err]
     catch {$p destroy}
-    list $res [string match "*XObject*" $err]
-} -result {1 1}
+    # Bei rc=0 steht in err das ERGEBNIS von tagBegin -- die Elementnummer,
+    # nicht der Leerstring. Geprueft wird deshalb der Rueckgabecode.
+    return $res
+} -result 0
 
 test tagged-7.4 {unknown option to tagBegin is rejected} -body {
     set p [::pdf4tcl::new %AUTO%]

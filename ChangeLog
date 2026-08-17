@@ -1,5 +1,49 @@
 2026-08-16 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.46
+	* src/tagged.tcl, src/main.tcl: structure inside a form XObject.
+	tagBegin refused it until now; what was missing was not the markup but
+	the bookkeeping around it (ISO 32000-1 clause 14.7.4.4). MCIDs are
+	scoped to the content stream, so the counter restarts inside the
+	XObject -- TagScopeOid returns pdf(contentoid) there, because
+	pdf(pageobjid) does not even exist while an XObject is open. The
+	XObject dictionary carries its own /StructParents, allocated in
+	startPage while the dictionary is still open, which is before anyone
+	knows whether content will follow; an XObject that carries none gets an
+	empty parent tree entry, which is legal and costs two numbers. Every
+	/MCR for that content names the stream in /Stm and the page in /Pg --
+	without /Stm the reference points at an MCID of the page, where it does
+	not exist.
+
+	The page for /Pg is only known when the XObject is placed, so putImage
+	records it and finish checks it. Drawn more than once, the document is
+	refused: one structure tree cannot describe two appearances, /Pg would
+	have to name two pages, and where the content sits in the reading order
+	is undecidable. The message says what to do instead -- draw it once, or
+	leave the inside untagged and tag the "Do", which is what everyone did
+	before and remains right for a logo on every page. Never drawn is a
+	warning, and the /MCR is written without /Pg so the element still says
+	which stream it belongs to.
+
+	Consequence: getUntaggedCount used to skip XObjects, on the grounds
+	that their content could not be tagged. It can now, so leaving it
+	untagged counts. A document placing a raw XObject under a tagged "Do"
+	reported 0 before and reports the painting operations inside it now.
+	The file did not change; the measurement got honest.
+
+	* tests/new-0.9.4.46.test: 14 tests -- the normal case down to the
+	bytes (/StructParents in the XObject dictionary, exactly one /MCR with
+	/Stm, exactly one without), both error paths, and the counting change.
+	Counter-checked: with the change reverted, 12 of the 14 go red.
+
+	* tests/tagged.test (tagged-7.3), tests/new-0.9.4.43.test
+	(nesting-8.2): both asserted the refusal and were therefore describing
+	a state that no longer exists. Rewritten to assert the new behaviour
+	rather than deleted -- a test that only ever passed is worth less than
+	one that measures the opposite direction.
+
+2026-08-16 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.45
 	* Directory layout: the fork subtree 0.9.4.x/ is gone. demo/, doc/,
 	fonts/ and nogit/ now sit at the top level. The old name carried a

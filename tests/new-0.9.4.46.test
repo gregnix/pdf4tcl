@@ -1,0 +1,282 @@
+# new-0.9.4.46.test -- Struktur in Form-XObjects (ISO 32000-1 14.7.4.4)
+#
+# Bis 0.9.4.45 lehnte tagBegin im XObject ab. Was fehlte, war nicht das
+# Auszeichnen selbst, sondern die Buchhaltung drumherum: MCIDs sind an den
+# CONTENT-STREAM gebunden, nicht an die Seite, das XObject-Woerterbuch
+# braucht ein eigenes /StructParents, und jede MCR muss den Stream in /Stm
+# nennen -- sonst zeigt sie auf eine MCID, die es auf der Seite gar nicht
+# gibt.
+#
+# Die Grenze, die auch die Norm nicht wegargumentiert: ein XObject, das
+# zweimal gezeichnet wird, hat EINEN Strukturbaum und ZWEI Erscheinungen.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Ein Dokument mit einem getaggten XObject, $n mal gezeichnet.
+proc xobjDoc {file n} {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1 -lang de-DE
+    set xo [$p startXObject -paper {200p 100p}]
+    $p tagBegin P
+    $p setFont 12 Helvetica
+    $p text "Im XObject" -x 10 -y 30
+    $p tagEnd
+    $p endXObject
+    $p startPage
+    for {set i 0} {$i < $n} {incr i} {
+        $p tagBegin Figure -alt "Kasten $i"
+        $p putImage $xo 50 [expr {50 + $i * 120}] -width 200 -height 100
+        $p tagEnd
+    }
+    $p endPage
+    set rc [catch {$p write -file $file} err]
+    catch {$p destroy}
+    return [list $rc $err]
+}
+
+proc xobjRead {file} {
+    set fh [open $file rb]
+    fconfigure $fh -encoding iso8859-1 -translation binary
+    set d [read $fh]
+    close $fh
+    return $d
+}
+
+# ---------------------------------------------------------------------------
+# xobj-1.x  Der Normalfall: einmal gezeichnet
+# ---------------------------------------------------------------------------
+
+test xobj-1.1 {tagBegin im XObject wird angenommen} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p tagged 1
+    $p startXObject -paper {100p 50p}
+    $p setFont 10 Helvetica
+    set rc [catch {$p tagBegin P} e]
+    catch {$p tagEnd}
+    catch {$p endXObject}
+    catch {$p destroy}
+    return $rc
+} -result 0
+
+test xobj-1.2 {das Dokument laesst sich schreiben} -body {
+    lassign [xobjDoc [file join [temporaryDirectory] xobj1.pdf] 1] rc err
+    list $rc $err
+} -result {0 {}}
+
+test xobj-1.3 {das XObject-Woerterbuch traegt /StructParents} -body {
+    set d [xobjRead [file join [temporaryDirectory] xobj1.pdf]]
+    # Der Schluessel steht im XObject-Dict, nicht nur im Seiten-Dict.
+    regexp {/Type /XObject.*?/StructParents\s+\d+} $d
+} -result 1
+
+# Der Kern der Sache. Ohne /Stm zeigt die MCR auf eine MCID der SEITE --
+# und dort gibt es sie nicht, weil der Zaehler je Stream laeuft.
+test xobj-1.4 {die MCR nennt Stream UND Seite} -body {
+    set d [xobjRead [file join [temporaryDirectory] xobj1.pdf]]
+    set hits {}
+    foreach {full} [regexp -all -inline {<</Type /MCR[^>]*>>} $d] {
+        if {[string match "*/Stm*" $full]} { lappend hits $full }
+    }
+    if {[llength $hits] != 1} { return "MCR mit /Stm: [llength $hits]" }
+    set mcr [lindex $hits 0]
+    list [regexp {/Pg\s+\d+\s+0\s+R} $mcr] [regexp {/Stm\s+\d+\s+0\s+R} $mcr] \
+         [regexp {/MCID\s+\d+} $mcr]
+} -result {1 1 1}
+
+test xobj-1.5 {die MCR der Seite bleibt ohne /Stm} -body {
+    # Das Figure-Element, das den "Do"-Befehl umschliesst, liegt auf der
+    # Seite -- seine MCR darf keinen Stream nennen.
+    set d [xobjRead [file join [temporaryDirectory] xobj1.pdf]]
+    set plain 0
+    foreach {full} [regexp -all -inline {<</Type /MCR[^>]*>>} $d] {
+        if {![string match "*/Stm*" $full]} { incr plain }
+    }
+    return $plain
+} -result 1
+
+test xobj-1.6 {P und Figure stehen beide im Baum} -body {
+    set d [xobjRead [file join [temporaryDirectory] xobj1.pdf]]
+    set types [lsort -unique [regexp -all -inline {/S\s*/(\w+)} $d]]
+    list [expr {[lsearch -exact $types P] >= 0}] \
+         [expr {[lsearch -exact $types Figure] >= 0}]
+} -result {1 1}
+
+test xobj-1.7 {getUntaggedCount bleibt 0} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1
+    set xo [$p startXObject -paper {200p 100p}]
+    $p tagBegin P
+    $p setFont 12 Helvetica
+    $p text "X" -x 10 -y 30
+    $p tagEnd
+    $p endXObject
+    $p startPage
+    $p tagBegin Figure -alt "K"
+    $p putImage $xo 50 50 -width 200 -height 100
+    $p tagEnd
+    $p endPage
+    set n [$p getUntaggedCount]
+    catch {$p destroy}
+    return $n
+} -result 0
+
+# ---------------------------------------------------------------------------
+# xobj-2.x  Die Grenze: zweimal gezeichnet
+# ---------------------------------------------------------------------------
+
+test xobj-2.1 {zweimal gezeichnet wird abgelehnt} -body {
+    lassign [xobjDoc [file join [temporaryDirectory] xobj2.pdf] 2] rc err
+    list $rc [string match "*drawn more than once*" $err]
+} -result {1 1}
+
+test xobj-2.2 {die Meldung nennt Norm und Ausweg} -body {
+    lassign [xobjDoc [file join [temporaryDirectory] xobj2b.pdf] 2] rc err
+    # Die erste Fassung dieses Tests verlangte den Satz "leave its content
+    # untagged and tag the Do" -- den Ausweg, den die Meldung damals nannte.
+    # Gemessen mit veraPDF 1.30.2 fuehrt der aber ebenfalls nicht zu einem
+    # PDF/UA-konformen Dokument: JEDE Mehrfachnutzung eines Form-XObjects
+    # verletzt Regel 7.20-2, einmal je zusaetzlicher Platzierung, ganz
+    # gleich wie der Inhalt markiert ist. Der Satz ist deshalb aus der
+    # Meldung verschwunden, und dieser Test mit ihm.
+    list [string match "*14.7.4.4*" $err] [string match "*Draw it once*" $err]
+} -result {1 1}
+
+test xobj-2.4 {jede Mehrfachnutzung wird gemeldet, auch ohne Tagging innen} -body {
+    # Der frueher empfohlene Weg -- Inhalt roh, den "Do" auszeichnen --
+    # ist gutes PDF, aber kein PDF/UA. Deshalb eine Warnung, kein Fehler.
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1 -lang de-DE
+    set xo [$p startXObject -paper {60p 24p}]
+    $p tagArtifact -type Layout
+    $p setLineWidth 1
+    $p line 0 0 60 24
+    $p tagArtifactEnd
+    $p endXObject
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText H1 "Titel" -x 50 -y 40
+    foreach y {100 140} {
+        $p tagArtifact -type Layout
+        $p putImage $xo 50 $y
+        $p tagArtifactEnd
+    }
+    $p endPage
+    set rc [catch {$p write -file [file join [temporaryDirectory] xobj5.pdf]} e]
+    catch {$p destroy}
+    set hit 0
+    foreach w $::pdf4tcl::warnings {
+        if {[string match "*drawn more than once*7.20-2*" $w]} { set hit 1 }
+    }
+    list $rc $hit
+} -result {0 1}
+
+test xobj-2.3 {ohne Tagging im XObject bleibt Mehrfachnutzung erlaubt} -body {
+    # Der bisherige Weg: Inhalt roh lassen, den "Do" auszeichnen. Das war
+    # vor 0.9.4.46 der einzige und bleibt der richtige, wenn ein XObject
+    # mehrfach vorkommt.
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1
+    set xo [$p startXObject -paper {100p 50p}]
+    $p setFont 10 Helvetica
+    $p text "roh" -x 5 -y 20
+    $p endXObject
+    $p startPage
+    foreach y {50 200} {
+        $p tagBegin Figure -alt "K"
+        $p putImage $xo 50 $y -width 100 -height 50
+        $p tagEnd
+    }
+    $p endPage
+    set rc [catch {$p write -file [file join [temporaryDirectory] xobj3.pdf]} e]
+    catch {$p destroy}
+    list $rc $e
+} -result {0 {}}
+
+# ---------------------------------------------------------------------------
+# xobj-3.x  Nie gezeichnet
+# ---------------------------------------------------------------------------
+
+test xobj-3.1 {ein nie gezeichnetes XObject wird gemeldet, nicht abgelehnt} -body {
+    set ::pdf4tcl::warnings {}
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1
+    $p startXObject -paper {200p 100p}
+    $p tagBegin P
+    $p setFont 12 Helvetica
+    $p text "X" -x 10 -y 30
+    $p tagEnd
+    $p endXObject
+    $p startPage
+    $p tagText P "Seite" -x 50 -y 50
+    $p endPage
+    set rc [catch {$p write -file [file join [temporaryDirectory] xobj4.pdf]} e]
+    catch {$p destroy}
+    set hit 0
+    foreach w $::pdf4tcl::warnings {
+        if {[string match "*never drawn*" $w]} { set hit 1 }
+    }
+    list $rc $hit
+} -result {0 1}
+
+test xobj-3.2 {und das Dokument bleibt lesbar} -body {
+    # Die MCR wird dann ohne /Pg geschrieben -- das Element sagt immer noch,
+    # zu welchem Stream es gehoert, statt zu verschwinden.
+    set d [xobjRead [file join [temporaryDirectory] xobj4.pdf]]
+    set noPg 0
+    foreach {full} [regexp -all -inline {<</Type /MCR[^>]*>>} $d] {
+        if {[string match "*/Stm*" $full] && ![string match "*/Pg*" $full]} {
+            incr noPg
+        }
+    }
+    return $noPg
+} -result 1
+
+# ---------------------------------------------------------------------------
+# xobj-4.x  Ungetaggter Inhalt im XObject
+# ---------------------------------------------------------------------------
+
+test xobj-4.1 {roher Inhalt im XObject zaehlt jetzt mit} -body {
+    # Vor 0.9.4.46 war Inhalt im XObject von der Zaehlung ausgenommen --
+    # er KONNTE ja nicht ausgezeichnet werden. Jetzt kann er, also faellt
+    # er auf, wenn er es nicht ist.
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1
+    set xo [$p startXObject -paper {100p 50p}]
+    $p setFont 10 Helvetica
+    $p text "roh" -x 5 -y 20
+    $p endXObject
+    $p startPage
+    $p tagBegin Figure -alt "K"
+    $p putImage $xo 50 50 -width 100 -height 50
+    $p tagEnd
+    $p endPage
+    set n [$p getUntaggedCount]
+    catch {$p destroy}
+    expr {$n > 0}
+} -result 1
+
+test xobj-4.2 {ein Artefakt im XObject zaehlt weiterhin nicht} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p tagged 1
+    set xo [$p startXObject -paper {100p 50p}]
+    $p tagArtifact -type Layout
+    $p setLineWidth 1
+    $p line 0 0 100 50
+    $p tagArtifactEnd
+    $p endXObject
+    $p startPage
+    $p tagBegin Figure -alt "K"
+    $p putImage $xo 50 50 -width 100 -height 50
+    $p tagEnd
+    $p endPage
+    set n [$p getUntaggedCount]
+    catch {$p destroy}
+    return $n
+} -result 0
+
+foreach f [glob -nocomplain -directory [temporaryDirectory] xobj*.pdf] {
+    file delete $f
+}
+
+::tcltest::cleanupTests

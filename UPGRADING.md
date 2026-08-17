@@ -1,5 +1,37 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.46 -- structure inside XObjects
+
+`tagBegin` works inside a form XObject now. Two things follow for existing
+code.
+
+**`getUntaggedCount` counts more.** Content inside an XObject used to be
+exempt, because it could not be tagged. It can now, so a raw XObject placed
+under a tagged `Do` is reported. Nothing about your documents changed --
+the number did. If it went up, the content was always outside the structure
+tree; tag it, or mark it as an artifact.
+
+**An XObject with tagged content may be drawn only once.** Doing it twice
+now raises an error when the document is written:
+
+```
+XObject 4 carries tagged content and is drawn more than once.
+```
+
+**And if you claim PDF/UA, do not reuse a form XObject at all.** Measured
+with veraPDF 1.30.2: every placement beyond the first fails rule 7.20-2,
+one check per extra placement, no matter how the content is marked. That is
+not new in this release -- it has always been so -- but pdf4tcl now says it:
+
+```
+XObject 4 is drawn more than once. Valid PDF, but not PDF/UA: veraPDF
+reports rule 7.20-2 once per extra placement ...
+```
+
+A warning, not an error. Reuse is good PDF and saves the copy; it is the
+conformance claim that rules it out. See `doc/en/reference/TAGGED.md`.
+
+
 ## 0.9.4.45 -- directory layout
 
 Nothing in the library changed. This affects anyone who builds from the

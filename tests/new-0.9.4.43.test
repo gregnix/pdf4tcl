@@ -304,16 +304,20 @@ test nesting-8.1 {tagArtifact works inside an XObject} -body {
     list $res $e
 } -result {0 {}}
 
-test nesting-8.2 {structure inside an XObject stays refused} -body {
+# Diese Ablehnung ist mit 0.9.4.46 gefallen; der Test hielt den Zustand
+# von .43 fest und wird hier auf den neuen umgestellt, damit er weiter
+# etwas misst statt nur zu bestehen.
+test nesting-8.2 {structure inside an XObject is accepted since 0.9.4.46} -body {
     set p [::pdf4tcl::new %AUTO% -compress 0]
     $p tagged 1
     $p startXObject -paper {100p 50p}
     $p setFont 10 Helvetica
     set res [catch {$p tagBegin P} e]
+    catch {$p tagEnd}
     catch {$p endXObject}
     catch {$p destroy}
-    list $res $e
-} -result {1 {tagging inside an XObject is not supported}}
+    return $res
+} -result 0
 
 test nesting-8.3 {the artifact reaches the XObject stream} -body {
     set p [::pdf4tcl::new %AUTO% -compress 0]

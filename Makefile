@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09445
+VERSION = 09446
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -133,6 +133,7 @@ cleancc:
 # dafuer gibt es distclean.
 clean: cleancc
 	@rm -f pdf4tcl_h.syntax pdf4tcl_h90.syntax
+	@rm -f tests/*.pdf tests/*.ps
 	@rm -rf demo/out doc/en/out tests/out
 	@rm -rf release
 	@echo "clean: erzeugte Dateien entfernt (pdf4tcl.tcl bleibt -- siehe distclean)"

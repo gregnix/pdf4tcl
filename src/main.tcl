@@ -286,6 +286,9 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagEnsureMC {{op ""}} {}
     method TagUntaggedReport {} {}
     method TagPageDict {} { return "" }
+    method TagXObjectDict {} { return "" }
+    method TagXObjectPlaced {oid} {}
+    method TagCheckXObjects {} {}
     method TagCatalogEntries {} {}
     method TagWriteObjects {} {}
 
@@ -554,6 +557,11 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout [format "/Matrix \[%g 0 0 %g 0 0\]\n" \
                                [expr {1.0/$pdf(width)}] \
                                [expr {1.0/$pdf(height)}]]
+            # Tagged PDF: an XObject that carries marked content needs its
+            # own /StructParents (ISO 32000-1 clause 14.7.4.4). The key is
+            # allocated here because the dictionary is written before the
+            # content stream.
+            my Pdfout [my TagXObjectDict]
             # TBD: Resources?
         }
         # For V=4/R=4 with crypt filters: /StmF /StdCF in Encrypt dict means
@@ -760,6 +768,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
         my CheckPdfaLevelA
+        # An XObject with tagged content must be drawn exactly once --
+        # checked before anything is written, so the error arrives instead
+        # of a document whose MCRs point at the wrong page.
+        my TagCheckXObjects
         # Leftover content: reported here because the page count is only
         # final once endPage has run. See src/tagged.tcl.
         my TagUntaggedReport
@@ -4532,6 +4544,9 @@ Use -pdfa-icc to specify a profile path."
     method putImage {id x y args} {
         my EndTextObj
         foreach {width height oid} $images($id) {break}
+        # Where a form XObject is drawn decides the /Pg of every MCR inside
+        # it. Recorded here; checked in finish.
+        my TagXObjectPlaced $oid
 
         my Trans $x $y x y
         set w $width

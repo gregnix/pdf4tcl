@@ -131,6 +131,7 @@ set DEMOS {
     {demo-forms-tk.tcl           1  none       "Formulare (Tk-GUI)"
         "interaktiv -- oeffnet ein Fenster und wartet, kein Stapellauf"}
     {demo-tagged.tcl             0  dir        "Tagged PDF / PDF-UA (0.9.4.36+0.9.4.37)"}
+    {demo-tagged-xobject.tcl     0  dir        "Struktur in einem Form-XObject (0.9.4.46)"}
     {demo-forms.tcl              0  dir        "Bestellformular ohne Verschluesselung"}
     {demo-gradients.tcl          0  dir        "Verlaeufe und Blendmodi"}
     {demo-paper-sizes.tcl        0  dir        "Papierformate"}
@@ -173,6 +174,22 @@ set failed {}
 puts "Ausgabe: $outdir"
 puts "Tk verfuegbar: [expr {$hasTk ? {ja} : {nein (DISPLAY nicht gesetzt)}}]"
 puts "\n[string repeat - 60]"
+
+# Waechter gegen die stille Luecke: DEMOS ist eine feste Liste, und eine
+# neue Datei im Verzeichnis laeuft nie, ohne dass jemand es merkt. Genau so
+# war demo-tagged-xobject.tcl nach dem Schreiben nicht im Lauf.
+set listed {}
+foreach d $DEMOS { lappend listed [lindex $d 0] }
+set onDisk [lsort [glob -nocomplain -tails -directory $demodir demo-*.tcl]]
+set missing {}
+foreach f $onDisk {
+    if {$f ni $listed} { lappend missing $f }
+}
+if {[llength $missing]} {
+    puts "WARNUNG: nicht in DEMOS und damit ungeprueft:"
+    foreach f $missing { puts "  $f" }
+    puts ""
+}
 
 foreach demo $DEMOS {
     lassign $demo script needsTk argschema desc grund

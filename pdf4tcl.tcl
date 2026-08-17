@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.45
+package provide pdf4tcl 0.9.4.46
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -2404,6 +2404,9 @@ oo::define ::pdf4tcl::pdf4tcl {
     method TagEnsureMC {{op ""}} {}
     method TagUntaggedReport {} {}
     method TagPageDict {} { return "" }
+    method TagXObjectDict {} { return "" }
+    method TagXObjectPlaced {oid} {}
+    method TagCheckXObjects {} {}
     method TagCatalogEntries {} {}
     method TagWriteObjects {} {}
 
@@ -2672,6 +2675,11 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout [format "/Matrix \[%g 0 0 %g 0 0\]\n" \
                                [expr {1.0/$pdf(width)}] \
                                [expr {1.0/$pdf(height)}]]
+            # Tagged PDF: an XObject that carries marked content needs its
+            # own /StructParents (ISO 32000-1 clause 14.7.4.4). The key is
+            # allocated here because the dictionary is written before the
+            # content stream.
+            my Pdfout [my TagXObjectDict]
             # TBD: Resources?
         }
         # For V=4/R=4 with crypt filters: /StmF /StdCF in Encrypt dict means
@@ -2878,6 +2886,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
         my CheckPdfaLevelA
+        # An XObject with tagged content must be drawn exactly once --
+        # checked before anything is written, so the error arrives instead
+        # of a document whose MCRs point at the wrong page.
+        my TagCheckXObjects
         # Leftover content: reported here because the page count is only
         # final once endPage has run. See src/tagged.tcl.
         my TagUntaggedReport
@@ -6650,6 +6662,9 @@ Use -pdfa-icc to specify a profile path."
     method putImage {id x y args} {
         my EndTextObj
         foreach {width height oid} $images($id) {break}
+        # Where a form XObject is drawn decides the /Pg of every MCR inside
+        # it. Recorded here; checked in finish.
+        my TagXObjectPlaced $oid
 
         my Trans $x $y x y
         set w $width
@@ -11418,6 +11433,12 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(tag,mcguard)  0      ;# reentrancy guard for TagEnsureMC
         set pdf(tag,curpage)  ""     ;# page object id the counters belong to
         set pdf(tag,nextmcid) 0
+        # Content inside a form XObject, ISO 32000-1 clause 14.7.4.4.
+        #
+        #   xobjplace,<oid>   page object the XObject was drawn on, or the
+        #                     string "many" once it is drawn more than once
+        #   xobjlist          every XObject that carries marked content
+        set pdf(tag,xobjlist) {}
         set pdf(tag,pagelist) {}     ;# page object ids that carry MCIDs
         set pdf(tag,nextkey)  0      ;# next free key in the parent tree
         set pdf(tag,annotkeys) {}    ;# {key elementIndex} for annotations
@@ -11566,9 +11587,16 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
         }
         if {!$pdf(inPage)} { my startPage }
-        if {$pdf(inXObject)} {
-            throw {PDF4TCL} "tagging inside an XObject is not supported"
-        }
+        # Tagging inside a form XObject works (ISO 32000-1 clause 14.7.4.4):
+        # MCIDs are scoped to the content stream, the XObject dictionary
+        # carries its own /StructParents, and every MCR referring to that
+        # content names the stream in /Stm.
+        #
+        # The limit is the one the standard cannot argue away: an XObject
+        # drawn twice has ONE structure tree and TWO appearances, so an MCID
+        # in it does not identify a place in the document. That is checked
+        # when the document is written, not here -- at this point nobody
+        # knows yet how often it will be placed.
         if {$pdf(tag,artdepth) > 0} {
             throw {PDF4TCL} "tagBegin inside an artifact"
         }
@@ -11786,8 +11814,18 @@ oo::define ::pdf4tcl::pdf4tcl {
     }
 
     # Make sure the per page counters belong to the page being written.
+    # Which object owns the marked content being written? For a page that is
+    # the page object; inside a form XObject it is the XObject's own stream,
+    # because MCIDs are scoped to the content stream, not to the page
+    # (ISO 32000-1 clause 14.7.4.4). pdf(pageobjid) does not even exist
+    # while an XObject is open -- pdf4tcl only sets it for real pages.
+    method TagScopeOid {} {
+        if {$pdf(inXObject)} { return $pdf(contentoid) }
+        return $pdf(pageobjid)
+    }
+
     method TagSyncPage {} {
-        set page $pdf(pageobjid)
+        set page [my TagScopeOid]
         if {$pdf(tag,curpage) eq $page} { return }
         set pdf(tag,curpage)  $page
         set pdf(tag,nextmcid) 0
@@ -11796,6 +11834,9 @@ oo::define ::pdf4tcl::pdf4tcl {
             set pdf(tag,spnum,$page) $pdf(tag,nextkey)
             incr pdf(tag,nextkey)
             lappend pdf(tag,pagelist) $page
+            if {$pdf(inXObject) && $page ni $pdf(tag,xobjlist)} {
+                lappend pdf(tag,xobjlist) $page
+            }
         }
     }
 
@@ -11873,11 +11914,13 @@ oo::define ::pdf4tcl::pdf4tcl {
             # operation belongs to neither. ISO 14289-1 clause 7.1 wants
             # every piece of content either tagged or marked as an artifact,
             # so count it -- see TagUntaggedReport, called from finish.
-            # Content inside an XObject is covered by the tag on the "Do"
-            # that places it, so it does not count here.
+            # Content inside an XObject counts too: since 0.9.4.46 it can
+            # be tagged, so leaving it untagged is the same omission as on a
+            # page. An XObject placed under a tagged "Do" and left untagged
+            # inside is the usual case, and it is reported the same way --
+            # as a warning, not an error.
             variable ::pdf4tcl::PaintingOps
-            if {$pdf(inPage) && !$pdf(inXObject)
-                    && $op in $::pdf4tcl::PaintingOps} {
+            if {$pdf(inPage) && $op in $::pdf4tcl::PaintingOps} {
                 incr pdf(tag,untagged)
                 set pg [llength $pdf(tag,pagelist)]
                 if {$pg ni $pdf(tag,untagpage)} {
@@ -11886,7 +11929,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
             return
         }
-        if {!$pdf(inPage) || $pdf(inXObject)} { return }
+        if {!$pdf(inPage)} { return }
         set inner [lindex $pdf(tag,stack) end]
         if {$pdf(tag,open) eq $inner} { return }
         set pdf(tag,mcguard) 1
@@ -11911,7 +11954,9 @@ oo::define ::pdf4tcl::pdf4tcl {
     # element spanning a page break needs. Only the per page state is reset.
     method TagPageStart {} {
         if {![my TagActive]} { return }
-        if {$pdf(inXObject)} { return }
+        # Also for an XObject: its content stream starts its own marked
+        # content, and TagSyncPage keys on pdf(pageobjid), which startPage
+        # has just set to the XObject's own object id.
         set pdf(tag,open) ""
     }
 
@@ -11920,7 +11965,6 @@ oo::define ::pdf4tcl::pdf4tcl {
     # a stream boundary (ISO 32000-1 clause 14.6).
     method TagPageEnd {} {
         if {![my TagActive]} { return }
-        if {$pdf(inXObject)} { return }
         if {$pdf(tag,artdepth) > 0} {
             throw {PDF4TCL} "page ended with $pdf(tag,artdepth) open artifact(s)"
         }
@@ -12025,6 +12069,96 @@ oo::define ::pdf4tcl::pdf4tcl {
         return "R"
     }
 
+    # Extra entries for the XObject dictionary, called from startPage while
+    # the dictionary is still open.
+    #
+    # The key has to be allocated HERE, because pdf4tcl writes an XObject's
+    # dictionary before its content stream -- when nobody knows yet whether
+    # any marked content will follow. An XObject that ends up carrying none
+    # gets an empty entry in the parent tree, which is legal and costs two
+    # numbers.
+    method TagXObjectDict {} {
+        if {![my TagActive]} { return "" }
+        set oid $pdf(contentoid)
+        if {![info exists pdf(tag,spnum,$oid)]} {
+            set pdf(tag,pagekids,$oid) {}
+            set pdf(tag,spnum,$oid) $pdf(tag,nextkey)
+            incr pdf(tag,nextkey)
+            lappend pdf(tag,pagelist) $oid
+            lappend pdf(tag,xobjlist) $oid
+        }
+        return "/StructParents $pdf(tag,spnum,$oid)\n"
+    }
+
+    # Record where an XObject is drawn. Called from putImage.
+    #
+    # An MCR inside an XObject names the stream in /Stm, and the page in
+    # /Pg -- and that page is only known when the XObject is placed. Placed
+    # twice, there are two pages for one MCID, and the reference stops
+    # identifying anything; that case is refused in TagCheckXObjects.
+    method TagXObjectPlaced {oid} {
+        if {![my TagActive]} { return }
+        if {![info exists pdf(tag,xobjplace,$oid)]} {
+            set pdf(tag,xobjplace,$oid) [my TagScopeOid]
+        } elseif {$pdf(tag,xobjplace,$oid) ne [my TagScopeOid]
+                || $pdf(tag,xobjplace,$oid) eq "many"} {
+            set pdf(tag,xobjplace,$oid) "many"
+        } else {
+            # Same page twice: still ambiguous.
+            set pdf(tag,xobjplace,$oid) "many"
+        }
+    }
+
+    # Called from finish, before the structure is written.
+    #
+    # Two different things are checked here, and only one of them is fatal.
+    #
+    # 1. Tagged content in an XObject drawn more than once is refused: one
+    #    structure tree cannot describe two appearances, and /Pg would have
+    #    to name two pages (ISO 32000-1 clause 14.7.4.4).
+    #
+    # 2. ANY form XObject drawn more than once is reported, tagged or not.
+    #    Measured with veraPDF 1.30.2: every placement beyond the first
+    #    fails PDF/UA rule 7.20-2, "The content of Form XObjects shall be
+    #    incorporated into structure elements" -- one failed check per
+    #    extra placement (1 placement 0, 2 placements 1, 3 placements 2).
+    #    It makes no difference how the content is marked: artifact inside
+    #    the XObject, artifact around the Do, Figure around the Do, or
+    #    nothing at all -- all four fail from the second placement on.
+    #
+    #    This matters because the obvious workaround for 1 -- leave the
+    #    content untagged and tag the "Do" -- does not produce a conformant
+    #    file either. It stays a warning: reuse is perfectly good PDF, and
+    #    a document claiming neither PDF/UA nor level A may do it.
+    method TagCheckXObjects {} {
+        if {![my TagActive]} { return }
+        foreach oid $pdf(tag,xobjlist) {
+            if {![llength $pdf(tag,pagekids,$oid)]} { continue }
+            if {![info exists pdf(tag,xobjplace,$oid)]} {
+                lappend ::pdf4tcl::warnings "XObject $oid carries tagged\
+                        content but is never drawn -- its structure elements
+                        point at nothing"
+                continue
+            }
+            if {$pdf(tag,xobjplace,$oid) eq "many"} {
+                throw {PDF4TCL} "XObject $oid carries tagged content and is\
+                        drawn more than once. One structure tree cannot\
+                        describe two appearances (ISO 32000-1 clause\
+                        14.7.4.4). Draw it once -- and note that under\
+                        PDF/UA a form XObject may not be reused at all."
+            }
+        }
+        foreach key [array names pdf tag,xobjplace,*] {
+            if {$pdf($key) ne "many"} { continue }
+            set num [lindex [split $key ,] 2]
+            lappend ::pdf4tcl::warnings "XObject $num is drawn more than\
+                    once. Valid PDF, but not PDF/UA: veraPDF reports rule\
+                    7.20-2 once per extra placement, whatever the content\
+                    is marked as. For a conformant document, give each\
+                    placement its own XObject."
+        }
+    }
+
     # Extra entries for the page dictionary in endPage.
     method TagPageDict {} {
         if {![my TagActive]} { return "" }
@@ -12078,7 +12212,28 @@ oo::define ::pdf4tcl::pdf4tcl {
                     }
                     M {
                         lassign $kid _ page mcid
-                        lappend kids "<</Type /MCR /Pg $page 0 R /MCID $mcid>>"
+                        if {$page in $pdf(tag,xobjlist)} {
+                            # Content inside a form XObject: /Stm names the
+                            # stream the MCID belongs to, /Pg the page the
+                            # stream is drawn on (clause 14.7.4.4).
+                            #
+                            # An XObject that is never drawn has no page.
+                            # TagCheckXObjects has already warned about it;
+                            # the reference is written without /Pg rather
+                            # than dropped, so the element still says which
+                            # stream it belongs to instead of vanishing.
+                            if {[info exists pdf(tag,xobjplace,$page)]
+                                    && $pdf(tag,xobjplace,$page) ne "many"} {
+                                set pg $pdf(tag,xobjplace,$page)
+                                lappend kids "<</Type /MCR /Pg $pg 0 R\
+                                        /Stm $page 0 R /MCID $mcid>>"
+                            } else {
+                                lappend kids "<</Type /MCR /Stm $page 0 R\
+                                        /MCID $mcid>>"
+                            }
+                        } else {
+                            lappend kids "<</Type /MCR /Pg $page 0 R /MCID $mcid>>"
+                        }
                     }
                     O {
                         # Annotation attached to this element, ISO 32000-1

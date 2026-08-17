@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.45 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.46 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.45?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.46?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -2151,13 +2151,13 @@ rule 7.18 cannot be met. Reported once per document.</p></li>
 <div id="subsection17" class="doctools_subsection"><h3><a name="subsection17">Version 0.9.4.38</a></h3>
 <ul class="doctools_itemized">
 <li><p>Demos and documentation. No change to the library API.</p></li>
-<li><p>&quot;<b class="file">0.9.4.x/demo</b>&quot;: the demo suite is complete again. All 35 scripts
+<li><p>&quot;<b class="file">demo</b>&quot;: the demo suite is complete again. All 35 scripts
 are covered by &quot;<b class="file">run-all-demos.tcl</b>&quot;, entries carry an optional reason for
 being skipped, and <b class="option">--alle</b> runs those too. Five scripts that never
 ran are fixed, and output goes to &quot;<b class="file">demo/out</b>&quot; instead of next to the
 scripts.</p></li>
-<li><p>&quot;<b class="file">0.9.4.x/demo/demo-tagged.tcl</b>&quot;: new, demonstrates Tagged PDF.</p></li>
-<li><p>&quot;<b class="file">0.9.4.x/demo/demo-unicode-tabelle.tcl</b>&quot;: warns that the blocks
+<li><p>&quot;<b class="file">demo/demo-tagged.tcl</b>&quot;: new, demonstrates Tagged PDF.</p></li>
+<li><p>&quot;<b class="file">demo/demo-unicode-tabelle.tcl</b>&quot;: warns that the blocks
 above U+FFFF cannot be rendered under Tcl 8, detected at runtime rather than
 from the version number.</p></li>
 <li><p>&quot;<b class="file">src/main.tcl</b>&quot; (<b class="cmd">CanvasDoTkoPathItem</b>): the item id was
@@ -2165,7 +2165,7 @@ overwritten with the PDF image id before being used to ask the widget for
 coordinates. Coordinates are determined first now.</p></li>
 <li><p>&quot;<b class="file">src/main.tcl</b>&quot;: both window branches delete the photo created by
 <b class="cmd">image create photo -format window</b> after reading the pixels.</p></li>
-<li><p>&quot;<b class="file">0.9.4.x/doc/en</b>&quot;: 27 of the 93 documented methods appeared in no
+<li><p>&quot;<b class="file">doc/en</b>&quot;: 27 of the 93 documented methods appeared in no
 guide. New documents for images, canvas export and annotations, plus a
 README index; bookmarks, XObjects, the text cursor, arcs, clipping and the
 state queries added to the existing ones.</p></li>
@@ -2240,9 +2240,9 @@ Ported from the AndroWish fork, contributed by Christian Werner.</p></li>
 <li><p>&quot;<b class="file">tests/new-0.9.4.25.test</b>&quot;: 8 new tests -- write-1.1..1.3
 (channel output) and paper-1.1..1.8 (B/C-series dimensions, backward
 compatibility of a4).</p></li>
-<li><p>&quot;<b class="file">0.9.4.x/demo/demo-paper-sizes.tcl</b>&quot;: new demo showing A/B/C
+<li><p>&quot;<b class="file">demo/demo-paper-sizes.tcl</b>&quot;: new demo showing A/B/C
 paper series (4 pages).</p></li>
-<li><p>&quot;<b class="file">0.9.4.x/demo/demo-write-chan.tcl</b>&quot;: new demo showing three
+<li><p>&quot;<b class="file">demo/demo-write-chan.tcl</b>&quot;: new demo showing three
 <b class="option">-chan</b> use cases (file channel, memory channel, stdout).</p></li>
 </ul>
 </div>
@@ -2492,7 +2492,7 @@ half the shorter side.</p></li>
 <b class="cmd">_ValidatePdfDate</b> validates and normalises PDF date strings for
 <b class="option">-creationdate</b> and <b class="option">-moddate</b>. Throws <b class="const">PDF4TCL BADDATE</b>
 on invalid format.</p></li>
-<li><p>Extended &quot;<b class="file">0.9.4.x/demo/demo-alpha.tcl</b>&quot; with sections
+<li><p>Extended &quot;<b class="file">demo/demo-alpha.tcl</b>&quot; with sections
 demonstrating <b class="method">roundedRect</b> and unit conversion procs.</p></li>
 <li><p>New test file &quot;<b class="file">tests/new-0.9.4.12.test</b>&quot;: 17 tests.</p></li>
 </ul>
