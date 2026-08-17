@@ -32,3 +32,53 @@ pdf4tcl::doc::done $out
 if {[llength $::pdf4tcl::warnings]} {
     foreach w $::pdf4tcl::warnings { puts "warning: $w" }
 }
+
+# ---------------------------------------------------------------------------
+# Interactive forms (0.9.4.44)
+#
+# Before 0.9.4.44 only the first document's /AcroForm survived the merge: the
+# second document's widget sat on its page, fully formed, and no reader
+# offered it for filling. Now /Fields is the union of both.
+# ---------------------------------------------------------------------------
+proc formPart {file id} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    $pdf text "Form $id" -x 60 -y 60
+    $pdf addForm text 60 100 200 20 -id $id
+    $pdf write -file $file
+    $pdf destroy
+}
+
+set fa [pdf4tcl::doc::outfile howto-catpdf-form-a.pdf]
+set fb [pdf4tcl::doc::outfile howto-catpdf-form-b.pdf]
+set fout [pdf4tcl::doc::outfile howto-catpdf-form-merged.pdf]
+formPart $fa customer
+formPart $fb invoice
+
+set ::pdf4tcl::warnings {}
+pdf4tcl::catPdf $fa $fb $fout
+pdf4tcl::doc::done $fout
+
+# Beide Felder muessen im Wurzelkatalog stehen -- sonst sieht ein Leser nur
+# eines. Nachgelesen statt behauptet:
+set doc [::pdf4tcl::cat::ReadPdf $fout]
+set rootId [lindex [dict get $doc trailer /Root] 0]
+set root [::pdf4tcl::cat::PdfObjToTclDict [dict get $doc $rootId full]]
+set namen {}
+if {[dict exists $root /AcroForm]} {
+    set acroId [lindex [dict get $root /AcroForm] 0]
+    set acro [::pdf4tcl::cat::PdfObjToTclDict [dict get $doc $acroId full]]
+    foreach {full num} [regexp -all -inline {(\d+)\s+\d+\s+R} \
+            [dict get $acro /Fields]] {
+        if {[dict exists $doc $num]
+                && [regexp {/T\s*\(([^)]*)\)} [dict get $doc $num full] -> n]} {
+            lappend namen $n
+        }
+    }
+}
+puts "fields in the merged document: [lsort $namen]"
+
+if {[llength $::pdf4tcl::warnings]} {
+    foreach w $::pdf4tcl::warnings { puts "warning: $w" }
+}

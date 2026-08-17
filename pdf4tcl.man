@@ -374,6 +374,28 @@ made to work better.
 
 [list_end]
 
+[para]
+Since 0.9.4.46 the content of an XObject can carry structure elements:
+[method tagBegin] works inside one, MCIDs are scoped to the XObject's content
+stream, the XObject dictionary gets its own [const /StructParents] and every
+[const /MCR] naming that content carries [const /Stm] (ISO 32000-1 clause
+14.7.4.4). Two conditions apply.
+
+[para]
+An XObject whose content is tagged may be drawn only once -- one structure
+tree cannot describe two appearances, and [const /Pg] would have to name two
+pages. Drawing it twice raises an error when the document is written. Beyond
+that, PDF/UA does not allow a form XObject to be reused at all, tagged or not;
+[cmd write] reports this through [var ::pdf4tcl::warnings]. See
+[sectref {TAGGED PDF}] and doc/en/reference/TAGGED.md.
+
+[para]
+Structure elements enter the tree when [method tagBegin] runs, not when the
+XObject is placed. An XObject built at the top of a script therefore lands at
+the top of the reading order -- put a heading in one and the tree may start
+with an H2, which fails PDF/UA. Keep headings out of XObjects unless the
+XObject is built where its content belongs.
+
 [call [arg objectName] [method endXObject]]
 
 This method ends an XObject definition. It works just like [method endPage].
@@ -1421,11 +1443,23 @@ document's pages outside instead. Both results are valid PDF and neither is
 PDF/UA conformant.
 
 [para]
-Two properties of [cmd ::pdf4tcl::catPdf] are older than the structure merge
-and matter for the result: the catalog of the first document is kept, so the
-merged file carries its title and not a combined one, and embedded fonts are
-not shared, so each input keeps its own copy. The remaining catalog entries,
-such as [const /AcroForm] and [const /Metadata], are not merged either.
+Since 0.9.4.44 the interactive form is merged as well: [const /Fields] is the
+union of all inputs, [const /DR] is combined per sub-dictionary with the first
+document keeping its objects on a name clash, and [const /SigFlags] is the
+bitwise or. Field names are deliberately not made unique -- two fields of the
+same name are one field with one shared value (ISO 32000-1 clause 12.7.3.2),
+which is sometimes intended, and renaming would break the [const /T] reference
+in any JavaScript shipped with the document. A collision is reported through
+[var ::pdf4tcl::warnings] instead.
+
+[para]
+What is still taken from the first document alone is its catalog: the merged
+file carries that document's title and [const /Metadata], not a combined one.
+Embedded font streams are shared where they are byte-identical -- measured on
+two documents using the same CID font, 772348 bytes of input produced 387881
+in the merge -- but the font dictionaries around them stay duplicated, because
+renumbering makes their bodies differ. That costs a few hundred bytes per
+font.
 
 [para]
 Example:
