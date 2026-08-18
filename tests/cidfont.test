@@ -70,10 +70,10 @@ test cidfont-1.3 {createFontSpecCID: basefontname is correct} \
         set ::pdf4tcl::FontsAttrs(cidFont,basefontname)
     } -result DejaVuSansCID
 
-test cidfont-1.4 {createFontSpecCID: usedUnicode starts empty} \
+test cidfont-1.4 {createFontSpecCID: glyphChars starts empty} \
     -constraints DejaVuSans \
     -body {
-        dict size $::pdf4tcl::FontsAttrs(cidFont,usedUnicode)
+        dict size $::pdf4tcl::FontsAttrs(cidFont,glyphChars)
     } -result 0
 
 test cidfont-1.5 {createFontSpecCID: rejects non-TTF base font} \
@@ -102,14 +102,50 @@ test cidfont-2.2 {CIDEncodeText: hex string has even-length nibbles} \
         expr {[string length $hex] % 4 == 0}
     } -result 1
 
-test cidfont-2.3 {CIDEncodeText: records used Unicode codepoints} \
+test cidfont-2.3 {CIDEncodeText: records what each glyph stands for} \
     -constraints DejaVuSans \
     -body {
-        # Reset usedUnicode
-        set ::pdf4tcl::FontsAttrs(cidFont,usedUnicode) {}
+        # glyphChars maps GlyphID -> list of characters, which is the
+        # direction the /W array and the ToUnicode CMap both need, and
+        # the only one that can express a ligature.
+        set ::pdf4tcl::FontsAttrs(cidFont,glyphChars) {}
         pdf4tcl::CIDEncodeText "AB" cidFont
-        dict size $::pdf4tcl::FontsAttrs(cidFont,usedUnicode)
+        dict size $::pdf4tcl::FontsAttrs(cidFont,glyphChars)
     } -result 2
+
+test cidfont-2.3b {glyphChars holds the characters, not the glyph} \
+    -constraints DejaVuSans \
+    -body {
+        set ::pdf4tcl::FontsAttrs(cidFont,glyphChars) {}
+        pdf4tcl::CIDEncodeText "A" cidFont
+        # One entry, and its value is a LIST of one code point: 65 for A.
+        set entries $::pdf4tcl::FontsAttrs(cidFont,glyphChars)
+        set glyph [lindex [dict keys $entries] 0]
+        dict get $entries $glyph
+    } -result 65
+
+test cidfont-2.3c {a glyph may stand for several characters} \
+    -constraints DejaVuSans \
+    -body {
+        # Nothing produces this yet -- no ligature is formed. What is
+        # checked here is that the ToUnicode CMap can express it, which
+        # is what the direction of glyphChars was changed for.
+        #
+        # The entry is set AFTER the text is drawn: drawing calls
+        # CIDEncodeText, which would overwrite it with the single
+        # character again.
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf text "A" -x 50 -y 700
+        $pdf endPage
+        set glyph [lindex [dict keys $::pdf4tcl::FontsAttrs(cidFont,glyphChars)] 0]
+        dict set ::pdf4tcl::FontsAttrs(cidFont,glyphChars) $glyph {102 105}
+        set data [$pdf get]
+        $pdf destroy
+        # One entry, two destinations: 0066 0069 written as one string.
+        expr {[regexp {<00660069>} $data]}
+    } -result 1
 
 test cidfont-2.4 {CIDEncodeText: Latin Extended (Umlauts)} \
     -constraints DejaVuSans \
@@ -307,7 +343,42 @@ test cidfont-5.8 {PDF output: Latin + Greek + Cyrillic in one string} \
         $pdf endPage
         set data [$pdf get]
         $pdf destroy
-        # 9 chars = 36 hex digits in content stream
+        # 9 chars = 36 hex digits in the content stream.
+        #
+        # NOT pinned to a single "<...> Tj": with pair kerning the string
+        # is written as a TJ array and the hex is split at every pair that
+        # carries an adjustment. What this test is about is that all nine
+        # characters reach the stream as glyph codes, and that survives
+        # either form -- so the hex is collected from the text-showing
+        # operator and counted.
+        # Erst die eine Anweisung herausschneiden, die den Text zeigt --
+        # ein Muster ueber das ganze Dokument faengt auch die Hexdaten der
+        # ToUnicode-Zuordnung ein und zaehlte 356 statt 36.
+        set zeile ""
+        if {![regexp {(\[[^\]]*\]) TJ} $data -> zeile]} {
+            regexp {(<[0-9A-F]+>) Tj} $data -> zeile
+        }
+        set alleHex ""
+        foreach {ganz teil} [regexp -all -inline {<([0-9A-F]+)>} $zeile] {
+            append alleHex $teil
+        }
+        string length $alleHex
+    } -result 36
+
+test cidfont-5.8b {PDF output: without kerning it is one Tj} \
+    -constraints DejaVuSans \
+    -body {
+        # The older form, pinned deliberately: anyone reading the content
+        # stream with a tool that only knows Tj can switch kerning off and
+        # gets exactly what 0.9.4.46 wrote.
+        set pdf [pdf4tcl::new %AUTO% -compress 0]
+        $pdf startPage
+        $pdf setFont 12 cidFont
+        $pdf setKerning 0
+        $pdf text "ABC\u0391\u0392\u0393\u0410\u0411\u0412" -x 50 -y 700
+        $pdf endPage
+        set data [$pdf get]
+        $pdf destroy
         expr {[regexp {<[0-9A-F]{36}> Tj} $data]}
     } -result 1
 

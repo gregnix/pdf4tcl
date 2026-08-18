@@ -99,6 +99,7 @@ if {$verify} {
         pkg/pkgIndex.tcl   {pdf4tcl \S+}
         pdf4tcl.man        {manpage_begin pdf4tcl n \S+}
         Makefile           {VERSION\s*=\s*\S+}
+        pdf4tcl.html       {pdf4tcl\(n\) \S+ pdf4tcl}
     } {
         if {![file exists $f]} { puts "  SKIP $f"; continue }
         set c [readFile $f]
@@ -156,8 +157,17 @@ if {$cmp < 0} {
     exit 1
 }
 if {$cmp == 0} {
-    puts stderr "Fehler: $newVersion ist die aktuelle Version -- nichts zu tun."
-    exit 1
+    # Kein Abbruch: derselbe Aufruf ein zweites Mal ist ein
+    # REPARATURLAUF. Alles, was noch auf der alten Nummer steht, wird
+    # nachgezogen, der Rest meldet sich als unveraendert -- das Werkzeug
+    # ist dafuer gebaut: replaceInFile vergleicht vor dem Schreiben, und
+    # der ChangeLog-Stub wird nur eingefuegt, wenn er fehlt.
+    #
+    # Gebraucht wird das vor allem fuer die erzeugten Dateien:
+    # pdf4tcl.html und .n entstehen erst durch "make doc", und wenn das
+    # ausbleibt oder wegen der Zeitstempel uebersprungen wird, traegt das
+    # HTML noch die alte Version. --verify zeigt das an.
+    puts "Hinweis: der Baum steht bereits auf $newVersion -- Reparaturlauf."
 }
 
 if {$dryRun} { puts "(--show: keine Aenderungen)"; exit 0 }
@@ -303,29 +313,39 @@ writeFile pkg/pdf4tcl.tcl $out
 puts "  OK  pdf4tcl.tcl + pkg/pdf4tcl.tcl"
 
 # ---------------------------------------------------------------
-# X. tools/next.tcl fortschreiben
+# X. tools/next.tcl NICHT anfassen
 # ---------------------------------------------------------------
 #
-# Sonst steht dort nach dem Bump weiterhin die eben vergebene Version,
-# und der naechste Aufruf ohne --to zeigt rueckwaerts. Die letzte Stelle
-# wird hochgezaehlt; die Beschreibung wird geleert, damit sie beim
-# naechsten Mal auffaellt, statt still die alte zu wiederholen.
+# Die Datei wird gelesen und bleibt stehen. Sie von Hand zu pflegen ist
+# Absicht: welche Nummer als naechste kommt, entscheidet der Autor --
+# nach 0.9.4.47 kann 0.9.4.48 folgen oder 0.9.5.0, und das kann kein
+# Werkzeug wissen.
+#
+# Eine Fassung schrieb die letzte Stelle automatisch hoch. Das tauschte
+# einen Fehler gegen einen anderen: wer next.tcl aus alter Gewohnheit
+# vorher von Hand setzte, uebersprang eine Version. Gegen das Vergessen
+# steht der Hinweis im Abschlussblock, gegen ein Rueckwaertslaufen die
+# Pruefung weiter oben.
 set nv [split $newVersion .]
 set last [lindex $nv end]
+set vorschlag ""
 if {[string is integer -strict $last]} {
     lset nv end [expr {$last + 1}]
-    set following [join $nv .]
-    set nextTxt "set NEXT_VERSION $following\nset NEXT_MSG \"\"\n"
-    writeFile $nextFile $nextTxt
-    puts "  OK  tools/next.tcl ($newVersion -> $following, Msg geleert)"
-} else {
-    puts "  --  tools/next.tcl (letzte Stelle \"$last\" ist keine Zahl)"
+    set vorschlag [join $nv .]
 }
 
 # ---------------------------------------------------------------
 # Zusammenfassung
 # ---------------------------------------------------------------
 puts "\nFertig. Noch manuell:"
+if {$vorschlag ne ""} {
+    puts "  - tools/next.tcl auf die naechste Version setzen (Vorschlag:\
+            $vorschlag) und NEXT_MSG fuellen"
+    puts "    -- die Datei wird NICHT automatisch fortgeschrieben; bleibt sie"
+    puts "       stehen, ist der naechste Aufruf ein Reparaturlauf"
+} else {
+    puts "  - tools/next.tcl auf die naechste Version setzen und NEXT_MSG fuellen"
+}
 puts "  - ChangeLog ausformulieren"
 puts "  - make doc   (pdf4tcl.html + pdf4tcl.n aus pdf4tcl.man)"
 puts "  - make md    (pdf4tcl.md aus pdf4tcl.n)"

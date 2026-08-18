@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.46]
+[manpage_begin pdf4tcl n 0.9.4.47]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.46]]
+[require pdf4tcl [opt 0.9.4.47]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -1078,6 +1078,78 @@ the spacing is 1.
 [call [arg objectName] [method getLineSpacing]]
 
 Get the current default line spacing factor (a dimensionless multiplier).
+
+[call [arg objectName] [method setKerning] [arg value]]
+
+Pair kerning, which is the per-pair spacing correction a font ships for
+pairs like AV or To. Three levels:
+
+[list_begin definitions]
+[def [const 0]] Off. One [const Tj] per string, no adjustments, and
+[method getStringWidth] adds up advance widths alone. This is the output
+of 0.9.4.46 and earlier.
+[def [const 1]] Embedded fonts only. The default.
+[def [const all]] The standard 14 as well.
+[list_end]
+
+The amounts come from three sources, whichever the face carries: the
+legacy [const kern] table, the [const kern] feature of [const GPOS]
+(pair adjustment, both subtable formats, including extension lookups),
+and for the standard 14 the Adobe metrics. Of 66 TrueType faces on a
+typical Linux installation, 33 carry a [const kern] table and 43 a
+[const kern] feature in GPOS, so both are needed.
+
+The standard 14 are not in the default because their output is pinned by
+the regression tests. Turning them on changes documents that have looked
+the same for years. [method setKerning] [const all] raises an error when
+the pairs are not available, rather than silently doing nothing.
+
+A kerned string is written as a [const TJ] array instead of a
+[const Tj] string, and [method getStringWidth] returns the kerned width,
+so measuring and drawing agree. Where a face has no pairs for a string,
+the plain form is written and the output is unchanged.
+
+Of [const lookupFlag], bit 3 ([const IgnoreMarks]) is honoured: where a
+face sets it, mark glyphs named by [const GDEF] are skipped, so that
+[const A] followed by a combining accent and [const V] is kerned as the
+pair [const AV]. 18 of 66 faces on a typical Linux installation set that
+bit, and none sets any other.
+
+What is not read: the remaining [const lookupFlag] bits, script and
+language system selection (every [const kern] feature is taken),
+contextual lookups, and version 1 of the [const kern] table (the Apple
+layout, skipped rather than misread).
+
+[call [arg objectName] [method getKerning]]
+
+Get the current kerning level: [const 0], [const 1] or [const all].
+
+[call [arg objectName] [method setLigatures] [arg onOff]]
+
+Standard ligatures from the [const liga] feature of [const GSUB]:
+[const fi], [const fl], [const ffi] and whatever else the face defines.
+Off by default, because it changes the output of existing documents.
+
+Only for embedded fonts, and only lookup type 4 (ligature substitution),
+including extension lookups. The longest match wins, so [const ffi]
+becomes one glyph rather than [const f] followed by [const fi].
+
+The [const ToUnicode] CMap records every character a ligature stands for,
+so a reader extracting the text gets [const fi] back and searching for a
+word still finds it. This is the part that has to be right: a ligature
+that leaves text unsearchable is worse than no ligature.
+
+Not every face means the same thing by [const liga]. Of 66 TrueType faces
+on a typical Linux installation, one carries 424 ligature targets,
+another none at all, and DejaVu Sans has an Arabic [const liga] feature
+and no [const fi] glyph. Check the face before relying on this.
+
+Like [method setKerning], the setting belongs to the text state and is
+saved by [method gsave] with the rest.
+
+[call [arg objectName] [method getLigatures]]
+
+Get whether ligatures are applied: [const 0] or [const 1].
 
 [call [arg objectName] [method getLineHeight]]
 

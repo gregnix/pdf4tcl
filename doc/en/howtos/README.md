@@ -16,6 +16,8 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-symbols.md` | Symbol / Unicode coverage charts? | `demo-symbole.tcl`, `demo-unicode-tabelle.tcl` |
 | `howto-font-coverage.md` | Does the font have the glyph at all? | `demo-unicode-tabelle.tcl` |
 | `howto-stdfonts.md` | Base-14 + ToUnicode? | `demo-stdfonts-tabelle.tcl`, `demo-stdfonts-tounicode.tcl`, `fonts.tcl` |
+| `howto-kerning.md` | Pair kerning, and does the width match? | `demo-kerning-ligatures.tcl` |
+| `howto-ligatures.md` | fi and fl, and is the text still searchable? | `demo-kerning-ligatures.tcl` |
 | `howto-otf.md` | OpenType/CFF fonts? | `demo-otf.tcl` |
 | `howto-pdfa.md` | PDF/A-1b/2b/3b and 1a/2a/3a? | `demo-pdfa.tcl`, `demo-pdfa-gs.tcl` |
 | `howto-catpdf.md` | Merge PDFs / keep tags? | (API `catPdf`; see TAGGED.md) |

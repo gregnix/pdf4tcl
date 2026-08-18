@@ -1,3 +1,62 @@
+2026-08-18 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.47
+	* src/fonts.tcl, src/helpers.tcl, src/main.tcl: pair kerning from
+	three sources -- the legacy kern table, the kern feature of GPOS
+	(type 2 in both subtable formats, including the type 9 extension
+	lookups Carlito and Caladea wrap theirs in), and for the standard 14
+	the Adobe metrics through the new stdkern.tcl. Both font sources are
+	needed: of 66 TrueType faces measured, 33 carry a kern table and 43 a
+	kern feature in GPOS. setKerning takes 0, 1 (embedded fonts only, the
+	default) or all; the standard 14 stay out of the default because
+	regression-1.1 and 1.2 pin their byte output. Class based GPOS
+	subtables are kept as classes rather than expanded -- expanding
+	Carlito gives 171859 pairs, 1271 ms and 2.2 MB against 47 ms kept.
+	Of lookupFlag, bit 3 (IgnoreMarks) is honoured through the GDEF glyph
+	classes, so A + combining acute + V kerns as the pair AV; 18 of 66
+	faces set that bit and none sets any other. A kerned string is written
+	as a TJ array and getStringWidth returns the kerned width, so
+	measuring and drawing agree -- kerning-4.3 checks that over the two
+	separate code paths.
+	* src/fonts.tcl, src/helpers.tcl, src/main.tcl: FontsAttrs
+	usedUnicode (Unicode -> GlyphID) becomes glyphChars (GlyphID -> list
+	of Unicode codepoints). That is the direction both readers need --
+	the /W array collects widths per glyph and the ToUnicode CMap maps a
+	glyph to what it stands for -- and the only one that can express a
+	ligature. The CMap writes several destinations in one entry. Checked
+	against the examples: byte for byte unchanged.
+	* src/fonts.tcl, src/helpers.tcl, src/main.tcl: standard ligatures
+	from the liga feature of GSUB, lookup type 4 including type 7
+	extensions, longest match first so ffi wins over fi. setLigatures is
+	off by default. The ToUnicode CMap records every character a ligature
+	stands for, so the text stays searchable -- pdftotext over a document
+	set with ligatures returns "Auflage finden". Not every face means the
+	same by liga: Carlito has 424 targets, Liberation Serif none, and
+	DejaVu Sans has an Arabic liga feature and no fi glyph at all.
+	* src/fonts.tcl: the NT list in ReadTableDirectory decides which
+	tables are copied INTO the embedded font, not which are read --
+	ttftables records the position of every table regardless. kern, GPOS,
+	GDEF and GSUB do not belong there: a PDF reader needs none of them,
+	the kerning being baked into the TJ array and the ligature into the
+	glyph run. Adding them grew examples/test1.pdf from 63528 to 116645
+	bytes for nothing.
+	* tests/kerning.test, tests/ligatures.test: new, 30 and 12 tests.
+	tests/cidfont.test: 1.4 and 2.3 follow glyphChars, 2.3b and 2.3c new,
+	5.8 no longer pins the single-Tj form and 5.8b pins it deliberately
+	under setKerning 0.
+	* pdf4tcl.man, doc/en/howtos/howto-kerning.md and
+	howto-ligatures.md with their scripts: what is read and what is not
+	-- the remaining lookupFlag bits, script and language system
+	selection, contextual lookups, and version 1 of the kern table, none
+	of which occurs in the 66 faces measured.
+	* tools/mk-stdkern.tcl: new, generates stdkern.tcl from the AFM
+	files. Keys are Unicode pairs, matching charWidths; AFM values are
+	already in 1/1000 em. tools/restore-pkg-symlinks.tcl lists
+	stdkern.tcl, so the link in pkg/ is created rather than remembered.
+	* KNOWN: kerning across a ligature looks the pair up on the ligature
+	glyph, which is what the font intends, but no test covers it -- no
+	face here has a pair that would show a difference.
+
 2026-08-16 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.46

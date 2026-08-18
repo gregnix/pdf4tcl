@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.46)
+# pdf4tcl fork (0.9.4.47)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -118,7 +118,7 @@ still tells a reader nothing useful.
 
 Patches for the individual SourceForge tickets (9 to 24, fixed in
 0.9.4.1 through 0.9.4.24) were kept as `ticket*/` directories until
-0.9.4.46. They are all in the released code by now; the patches
+0.9.4.47. They are all in the released code by now; the patches
 themselves remain in the git history.
 
 Original project: https://sourceforge.net/projects/pdf4tcl/

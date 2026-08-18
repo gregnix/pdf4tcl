@@ -10,10 +10,23 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.46
+package provide pdf4tcl 0.9.4.47
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
+# Kernpaare der Standardschriften -- aus den AFM erzeugt, siehe
+# tools/mk-stdkern.tcl.
+#
+# Optional: fehlt die Datei, laeuft alles wie vorher, nur ohne Kerning
+# bei den vierzehn. Der Grund wird aber GEMERKT, nicht verschluckt --
+# "setKerning all" ohne wirkung und ohne Erklaerung hat mich beim Bauen
+# eine halbe Stunde gekostet, weil der Symlink in pkg/ fehlte.
+if {[catch {package require pdf4tcl::stdkern} ::pdf4tcl::stdkernError]} {
+    set ::pdf4tcl::stdkernAvailable 0
+} else {
+    set ::pdf4tcl::stdkernAvailable 1
+    set ::pdf4tcl::stdkernError ""
+}
 
 namespace eval pdf4tcl {
     # helper variables (constants) packaged into arrays to minimize

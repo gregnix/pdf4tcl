@@ -174,6 +174,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(font_size) 1
         set pdf(current_font) ""
         set pdf(line_spacing) 1.0
+        set pdf(kerning) 1
+        set pdf(ligatures) 0
 
         # The gsave/grestore commands affect the graphics and text state in
         # the PDF document. Some of those are kept in copy in pdf4tcl and thus
@@ -198,6 +200,10 @@ oo::define ::pdf4tcl::pdf4tcl {
             font_size
             # line_spacing is a pdf4tcl thing, but stored for symmetry
             line_spacing
+            # kerning likewise -- it changes what a string measures, so it
+            # comes back with the rest of the text state
+            kerning
+            ligatures
             # rawcoords: 1 inside translate/rotate/scale block
             rawcoords
         }
@@ -2295,11 +2301,11 @@ Use -pdfa-icc to specify a profile path."
         variable ::pdf4tcl::FontsAttrs
 
         set BFN $FontsAttrs($fontname,basefontname)
-        set usedUnicode $FontsAttrs($fontname,usedUnicode)
+        set glyphChars $FontsAttrs($fontname,glyphChars)
 
         # Build W array: collect unique GlyphIDs and their widths
         set glyphWidths {}  ;# dict GlyphID -> width in 1/1000ths
-        dict for {ucode glyph} $usedUnicode {
+        dict for {glyph chars} $glyphChars {
             if {![dict exists $glyphWidths $glyph]} {
                 set metrics [lindex $BFA($BFN,hmetrics) $glyph]
                 if {$metrics ne ""} {
@@ -2363,14 +2369,13 @@ Use -pdfa-icc to specify a profile path."
         append cmaplines "1 begincodespacerange\n"
         append cmaplines "<0000> <FFFF>\n"
         append cmaplines "endcodespacerange\n"
-        set pairs [dict size $usedUnicode]
+        set pairs [dict size $glyphChars]
         if {$pairs > 0} {
             # PDF spec: max 100 entries per beginbfchar block.
             # Sort by GlyphID ascending (expected by most validators).
-            # usedUnicode: Unicode -> GlyphID; invert to sort by GlyphID.
             set byGlyph {}
-            dict for {ucode glyph} $usedUnicode {
-                lappend byGlyph [list $glyph $ucode]
+            dict for {glyph chars} $glyphChars {
+                lappend byGlyph [list $glyph $chars]
             }
             set byGlyph [lsort -integer -index 0 $byGlyph]
             set i 0
@@ -2379,17 +2384,25 @@ Use -pdfa-icc to specify a profile path."
                 set n [llength $chunk]
                 append cmaplines "$n beginbfchar\n"
                 foreach entry $chunk {
-                    lassign $entry glyph ucode
+                    lassign $entry glyph chars
                     # PDF ToUnicode CMap: BMP codepoints as <XXXX>,
                     # SMP codepoints (U+10000..U+10FFFF) as UTF-16BE
                     # surrogate pair <XXXXXXXX> (PDF spec ss.9.10.3).
-                    if {$ucode <= 0xFFFF} {
-                        set ucstr [format "%04X" $ucode]
-                    } else {
-                        set u   [expr {$ucode - 0x10000}]
-                        set hi  [expr {0xD800 | ($u >> 10)}]
-                        set lo  [expr {0xDC00 | ($u & 0x3FF)}]
-                        set ucstr [format "%04X%04X" $hi $lo]
+                    #
+                    # A glyph may stand for more than one character -- a
+                    # ligature does -- so the destinations are appended in
+                    # order. The clause allows that; a reader extracting
+                    # the text gets the characters back.
+                    set ucstr ""
+                    foreach ucode $chars {
+                        if {$ucode <= 0xFFFF} {
+                            append ucstr [format "%04X" $ucode]
+                        } else {
+                            set u   [expr {$ucode - 0x10000}]
+                            set hi  [expr {0xD800 | ($u >> 10)}]
+                            set lo  [expr {0xDC00 | ($u & 0x3FF)}]
+                            append ucstr [format "%04X%04X" $hi $lo]
+                        }
                     }
                     append cmaplines [format "<%04X> <%s>\n" $glyph $ucstr]
                 }
@@ -2525,6 +2538,20 @@ Use -pdfa-icc to specify a profile path."
         foreach ch [split $txt ""] {
             set w [expr {$w + [GetCharWidth $font $ch]}]
         }
+        # Kerning counts towards the width. Without it the measurement is
+        # wider than what gets drawn: lines break too early, centred text
+        # sits off centre, and table columns no longer fit.
+        # GetCharWidth returns EM FRACTIONS, not points -- the size is
+        # applied further down. KernWidth counts in 1/1000 em, so divide
+        # by 1000 and nothing else. Multiplying by the font size here as
+        # well gave "AVAV" a width of -44.86 pt.
+        set kw 0
+        if {$pdf(kerning) ne "0"} {
+            set kw [KernWidth $font $txt [expr {$pdf(kerning) eq "all"}]]
+        }
+        if {$kw != 0} {
+            set w [expr {$w + $kw / 1000.0}]
+        }
         if {!$internal} {
             set w [expr {$w / $pdf(unit)}]
         }
@@ -2642,6 +2669,75 @@ Use -pdfa-icc to specify a profile path."
     # Return the current line spacing factor
     method getLineSpacing {} {
         return $pdf(line_spacing)
+    }
+
+    # Pair kerning on or off. On by default.
+    #
+    # Off restores the output of 0.9.4.46 and earlier: one Tj per string,
+    # no adjustments, and getStringWidth adds up advance widths alone.
+    #
+    # Part of the text state, saved by gsave with the rest -- otherwise a
+    # block that turns it off would leak into what follows.
+    # Pair kerning. Three levels:
+    #
+    #   0     off
+    #   1     embedded fonts only (default)
+    #   all   the standard 14 as well
+    #
+    # The standard 14 are not in the default because their output is
+    # pinned by tests named "compat:" (regression-1.1, 1.2). A document
+    # that has looked the same for years does not change unasked.
+    method setKerning {wert} {
+        if {$wert eq "all"} {
+            # Say so when it cannot work. Without stdkern.tcl the
+            # standard 14 stay unkerned and the caller sees nothing but
+            # an unchanged document.
+            if {[info exists ::pdf4tcl::stdkernAvailable]
+                    && !$::pdf4tcl::stdkernAvailable} {
+                throw {PDF4TCL} "setKerning all: die Kernpaare der\
+                        Standardschriften sind nicht geladen\
+                        (pdf4tcl::stdkern: $::pdf4tcl::stdkernError).\
+                        Fehlt stdkern.tcl im Paketverzeichnis? Siehe\
+                        tools/restore-pkg-symlinks.tcl"
+            }
+            set pdf(kerning) all
+            return
+        }
+        # CheckBoolean belongs to the configuration options and takes the
+        # OPTION NAME first; used on a method argument it reported
+        # "option 0 must have a boolean value" and left the value alone.
+        if {![string is boolean -strict $wert]} {
+            throw {PDF4TCL} "setKerning: expected a boolean or \"all\",\
+                    got \"$wert\""
+        }
+        set pdf(kerning) [expr {$wert ? 1 : 0}]
+    }
+
+    method getKerning {} {
+        return $pdf(kerning)
+    }
+
+    # Standard ligatures from the "liga" feature of GSUB: fi, fl, ffi and
+    # whatever else the face defines. Off by default.
+    #
+    # Off because it changes the output of existing documents, like
+    # kerning of the standard 14 does, and because not every face means
+    # the same thing by it: DejaVu Sans has an Arabic liga feature and no
+    # fi glyph at all, Liberation Serif has none, Carlito has 424.
+    #
+    # The ToUnicode CMap records every character a ligature stands for, so
+    # searching for "Auflage" still finds it. That is the part that has to
+    # be right; a ligature that leaves text unsearchable is worse than no
+    # ligature.
+    method setLigatures {onOff} {
+        if {![string is boolean -strict $onOff]} {
+            throw {PDF4TCL} "setLigatures: expected a boolean, got \"$onOff\""
+        }
+        set pdf(ligatures) [expr {$onOff ? 1 : 0}]
+    }
+
+    method getLigatures {} {
+        return $pdf(ligatures)
     }
 
     # Return the actual line height in the document's unit.
@@ -2770,7 +2866,19 @@ Use -pdfa-icc to specify a profile path."
         }
 
         my TagEnsureMC Tj
-        my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
+        # Kerning where the face has pairs. If PdfTextKerned returns
+        # nothing, a plain Tj is written and a document without kerning
+        # comes out byte for byte as before.
+        set kerned ""
+        if {$pdf(kerning) ne "0"} {
+            set kerned [PdfTextKerned $str $pdf(current_font) \
+                    [expr {$pdf(kerning) eq "all"}] $pdf(ligatures)]
+        }
+        if {$kerned ne ""} {
+            my Pdfout "$kerned TJ\n"
+        } else {
+            my Pdfout "[PdfText $str $pdf(current_font) $pdf(ligatures)] Tj\n"
+        }
         set pdf(xpos) [expr {$x + $strWidth}]
         return $strWidth
     }
@@ -2790,7 +2898,19 @@ Use -pdfa-icc to specify a profile path."
         my BeginTextObj
         my SetTextPosition $x $y
         my TagEnsureMC Tj
-        my Pdfout "[PdfText $str $pdf(current_font)] Tj\n"
+        # Kerning where the face has pairs. If PdfTextKerned returns
+        # nothing, a plain Tj is written and a document without kerning
+        # comes out byte for byte as before.
+        set kerned ""
+        if {$pdf(kerning) ne "0"} {
+            set kerned [PdfTextKerned $str $pdf(current_font) \
+                    [expr {$pdf(kerning) eq "all"}] $pdf(ligatures)]
+        }
+        if {$kerned ne ""} {
+            my Pdfout "$kerned TJ\n"
+        } else {
+            my Pdfout "[PdfText $str $pdf(current_font) $pdf(ligatures)] Tj\n"
+        }
     }
 
     method drawTextBox {x y width height txt args} {

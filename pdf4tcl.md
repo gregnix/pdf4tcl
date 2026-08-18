@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.46?**
+package require **pdf4tcl ?0****.9****.4****.47?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -129,6 +129,14 @@ package require **pdf4tcl ?0****.9****.4****.46?**
 *objectName* **setLineSpacing** *spacing*
 
 *objectName* **getLineSpacing**
+
+*objectName* **setKerning** *value*
+
+*objectName* **getKerning**
+
+*objectName* **setLigatures** *onOff*
+
+*objectName* **getLigatures**
 
 *objectName* **getLineHeight**
 
@@ -539,7 +547,7 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 : This method ends a page in the document. It is normally not needed since it is implied by e.g. **startPage** and **finish**. However, if the document is built page by page in e.g. an event driven environment it can be good to call **endPage** explicitly to have all the page's work finished before reentering the event loop.
 
 **objectName startXObject ?option value...?**
-: This method starts a new XObject in the document. An XObject is a reusable drawing object and behaves just like a page where you can draw any graphics. An XObject must be created between pages and this method will end any ongoing page. The return value is an id that can be used with **putImage** to draw it on the current page or with some forms. All page settings (**PAGE CONFIGURATION**) are valid when creating an XObject. Default options are **-paper** = {100p 100p}, **-landscape** = 0, **-orient** = document default, **-margin**= 0.
+: This method starts a new XObject in the document. An XObject is a reusable drawing object and behaves just like a page where you can draw any graphics. An XObject must be created between pages and this method will end any ongoing page. The return value is an id that can be used with **putImage** to draw it on the current page or with some forms. All page settings (**PAGE CONFIGURATION**) are valid when creating an XObject. Default options are **-paper** = {100p 100p}, **-landscape** = 0, **-orient** = document default, **-margin**= 0. Since 0.9.4.46 the content of an XObject can carry structure elements: **tagBegin** works inside one, MCIDs are scoped to the XObject's content stream, the XObject dictionary gets its own **/StructParents** and every **/MCR** naming that content carries **/Stm** (ISO 32000-1 clause 14.7.4.4). Two conditions apply. An XObject whose content is tagged may be drawn only once -- one structure tree cannot describe two appearances, and **/Pg** would have to name two pages. Drawing it twice raises an error when the document is written. Beyond that, PDF/UA does not allow a form XObject to be reused at all, tagged or not; **write** reports this through **::pdf4tcl::warnings**. See **TAGGED PDF** and doc/en/reference/TAGGED.md. Structure elements enter the tree when **tagBegin** runs, not when the XObject is placed. An XObject built at the top of a script therefore lands at the top of the reading order -- put a heading in one and the tree may start with an H2, which fails PDF/UA. Keep headings out of XObjects unless the XObject is built where its content belongs.
 
 **objectName endXObject**
 : This method ends an XObject definition. It works just like **endPage**.
@@ -816,6 +824,49 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 : This method returns the width of *str* in the current unit. Options (0.9.4.23+):
 
 - Without options the method behaves as before. If no font has been set and **-font** is not given, an error is raised.
+**0**
+: Off. One **Tj** per string, no adjustments, and **getStringWidth** adds up advance widths alone. This is the output of 0.9.4.46 and earlier.
+
+**1**
+: Embedded fonts only. The default.
+
+**all**
+: The standard 14 as well.
+
+**objectName getCharWidth char**
+: This method returns the width of a character under the current font.
+
+**objectName inPage**
+: Returns **1** if a page is currently open, **0** otherwise. Useful for library code managing page state without accessing internals.
+
+**objectName currentPage**
+: Returns the current page number (1-based). Returns **0** before the first **startPage** call.
+
+**objectName pageCount**
+: Returns the number of completed pages (**endPage** called). A currently open page is not counted until **endPage**.
+
+**objectName setTextPosition x y**
+: Set coordinate for next text command.
+
+**objectName moveTextPosition dx dy**
+: Increment position by *dx*, *dy* for the next text command.
+
+**objectName getTextPosition**
+: This method returns the current text coordinate.
+
+**objectName newLine ?spacing?**
+: Moves text coordinate down and resets x to where the latest **setTextPosition** was. The number of lines to move down can be set by *spacing*. This may be any real number, including negative, and defaults to the value set by **setLineSpacing**.
+
+**objectName setLineSpacing spacing**
+: Set the default line spacing used be e.g. **newLine**. Initially the spacing is 1.
+
+**objectName getLineSpacing**
+: Get the current default line spacing factor (a dimensionless multiplier).
+
+**objectName setKerning value**
+: Pair kerning, which is the per-pair spacing correction a font ships for pairs like AV or To. Three levels:
+
+- The amounts come from three sources, whichever the face carries: the legacy **kern** table, the **kern** feature of **GPOS** (pair adjustment, both subtable formats, including extension lookups), and for the standard 14 the Adobe metrics. Of 66 TrueType faces on a typical Linux installation, 33 carry a **kern** table and 43 a **kern** feature in GPOS, so both are needed. The standard 14 are not in the default because their output is pinned by the regression tests. Turning them on changes documents that have looked the same for years. **setKerning** **all** raises an error when the pairs are not available, rather than silently doing nothing. A kerned string is written as a **TJ** array instead of a **Tj** string, and **getStringWidth** returns the kerned width, so measuring and drawing agree. Where a face has no pairs for a string, the plain form is written and the output is unchanged. Of **lookupFlag**, bit 3 (**IgnoreMarks**) is honoured: where a face sets it, mark glyphs named by **GDEF** are skipped, so that **A** followed by a combining accent and **V** is kerned as the pair **AV**. 18 of 66 faces on a typical Linux installation set that bit, and none sets any other. What is not read: the remaining **lookupFlag** bits, script and language system selection (every **kern** feature is taken), contextual lookups, and version 1 of the **kern** table (the Apple layout, skipped rather than misread).
 **-align**
 : *left|right|center* (default left)
 
@@ -878,35 +929,14 @@ $pdf line $x $nextY [expr {$x+$w}] $nextY
 **height**
 : Height of font's Bounding Box.
 
-**objectName getCharWidth char**
-: This method returns the width of a character under the current font.
+**objectName getKerning**
+: Get the current kerning level: **0**, **1** or **all**.
 
-**objectName inPage**
-: Returns **1** if a page is currently open, **0** otherwise. Useful for library code managing page state without accessing internals.
+**objectName setLigatures onOff**
+: Standard ligatures from the **liga** feature of **GSUB**: **fi**, **fl**, **ffi** and whatever else the face defines. Off by default, because it changes the output of existing documents. Only for embedded fonts, and only lookup type 4 (ligature substitution), including extension lookups. The longest match wins, so **ffi** becomes one glyph rather than **f** followed by **fi**. The **ToUnicode** CMap records every character a ligature stands for, so a reader extracting the text gets **fi** back and searching for a word still finds it. This is the part that has to be right: a ligature that leaves text unsearchable is worse than no ligature. Not every face means the same thing by **liga**. Of 66 TrueType faces on a typical Linux installation, one carries 424 ligature targets, another none at all, and DejaVu Sans has an Arabic **liga** feature and no **fi** glyph. Check the face before relying on this. Like **setKerning**, the setting belongs to the text state and is saved by **gsave** with the rest.
 
-**objectName currentPage**
-: Returns the current page number (1-based). Returns **0** before the first **startPage** call.
-
-**objectName pageCount**
-: Returns the number of completed pages (**endPage** called). A currently open page is not counted until **endPage**.
-
-**objectName setTextPosition x y**
-: Set coordinate for next text command.
-
-**objectName moveTextPosition dx dy**
-: Increment position by *dx*, *dy* for the next text command.
-
-**objectName getTextPosition**
-: This method returns the current text coordinate.
-
-**objectName newLine ?spacing?**
-: Moves text coordinate down and resets x to where the latest **setTextPosition** was. The number of lines to move down can be set by *spacing*. This may be any real number, including negative, and defaults to the value set by **setLineSpacing**.
-
-**objectName setLineSpacing spacing**
-: Set the default line spacing used be e.g. **newLine**. Initially the spacing is 1.
-
-**objectName getLineSpacing**
-: Get the current default line spacing factor (a dimensionless multiplier).
+**objectName getLigatures**
+: Get whether ligatures are applied: **0** or **1**.
 
 **objectName getLineHeight**
 : Get the actual vertical distance advanced by **newLine** in the document's current unit. This is *font_size* times the line spacing factor. Use this to calculate bounding boxes around multi-line text blocks. Requires a font to be set.
@@ -1044,7 +1074,9 @@ Tagging inside an XObject (**startPage** with **-xobject**) is not supported and
 
 Mixing tagged and untagged input cannot be merged and is reported in **::pdf4tcl::warnings**: appending an untagged document to a tagged one leaves its pages outside the tree, and appending a tagged document to an untagged one drops its structure, because adopting it would leave the first document's pages outside instead. Both results are valid PDF and neither is PDF/UA conformant.
 
-Two properties of **::pdf4tcl::catPdf** are older than the structure merge and matter for the result: the catalog of the first document is kept, so the merged file carries its title and not a combined one, and embedded fonts are not shared, so each input keeps its own copy. The remaining catalog entries, such as **/AcroForm** and **/Metadata**, are not merged either.
+Since 0.9.4.44 the interactive form is merged as well: **/Fields** is the union of all inputs, **/DR** is combined per sub-dictionary with the first document keeping its objects on a name clash, and **/SigFlags** is the bitwise or. Field names are deliberately not made unique -- two fields of the same name are one field with one shared value (ISO 32000-1 clause 12.7.3.2), which is sometimes intended, and renaming would break the **/T** reference in any JavaScript shipped with the document. A collision is reported through **::pdf4tcl::warnings** instead.
+
+What is still taken from the first document alone is its catalog: the merged file carries that document's title and **/Metadata**, not a combined one. Embedded font streams are shared where they are byte-identical -- measured on two documents using the same CID font, 772348 bytes of input produced 387881 in the merge -- but the font dictionaries around them stay duplicated, because renumbering makes their bodies differ. That costs a few hundred bytes per font.
 
 Example:
 
