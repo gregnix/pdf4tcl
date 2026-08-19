@@ -1,5 +1,42 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.48 -- catPdf names the merged document, and says what it cannot read
+
+### The merged document can be given a title
+
+Merging keeps the catalog of the first input, so the result used to carry
+the title of part one with no way to change it. Now:
+
+```tcl
+::pdf4tcl::catPdf -title "Complete file" -author "" \
+        part1.pdf part2.pdf complete.pdf
+```
+
+`-title -author -subject -keywords -creator -producer`, all **before** the
+file names. Existing calls are unaffected -- the file names stay positional
+and no option is required.
+
+An empty value removes the entry; entries not named keep what the first
+document had. This writes `/Info` only, not the XMP `dc:title`.
+
+### Cross-reference streams are refused, not mis-parsed
+
+A file may keep its object table as a stream rather than a table (PDF 1.5+).
+`catPdf` never handled those; until now it failed inside the parser with
+
+```
+can't read "trailertxt": no such variable
+```
+
+which names a Tcl variable rather than the cause. It now says what is wrong,
+and a missing `startxref` is reported too.
+
+Nothing that worked before stops working. But if you have code that catches
+the old error and treats it as "damaged file", the message has changed --
+and it is worth knowing which files are affected: ISO 19005-1 forbids xref
+streams, PDF/A-2 and -3 require them, so **no PDF/A from 2b upwards and no
+ZUGFeRD invoice can be merged.** PDF/A-1b can.
+
 ## 0.9.4.44 -- drawTextBox -newyvar, and catPdf merges the form
 
 ### catPdf merges the interactive form

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.46 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.48 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.46?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.48?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -308,7 +308,7 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.46?\fR
 .sp
 \fB::pdf4tcl::cmyk2Rgb\fR \fIcmyk\fR
 .sp
-\fB::pdf4tcl::catPdf\fR \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
+\fB::pdf4tcl::catPdf\fR ?\fIoption value\fR\&.\&.\&.? \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
 .sp
 \fB::pdf4tcl::getForms\fR \fIinfile\fR
 .sp
@@ -356,6 +356,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.46?\fR
 .sp
 \fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
+\fIobjectName\fR \fBfacturx\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
 \fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBaddAnnotNote\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
@@ -399,6 +401,14 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.46?\fR
 \fIobjectName\fR \fBsetLineSpacing\fR \fIspacing\fR
 .sp
 \fIobjectName\fR \fBgetLineSpacing\fR
+.sp
+\fIobjectName\fR \fBsetKerning\fR \fIvalue\fR
+.sp
+\fIobjectName\fR \fBgetKerning\fR
+.sp
+\fIobjectName\fR \fBsetLigatures\fR \fIonOff\fR
+.sp
+\fIobjectName\fR \fBgetLigatures\fR
 .sp
 \fIobjectName\fR \fBgetLineHeight\fR
 .sp
@@ -710,11 +720,40 @@ This call translates a CMYK color value to an RGB color value\&.
 It is used internally to translate colors\&.
 You can redefine this procedure to provide your own translation\&.
 .TP
-\fB::pdf4tcl::catPdf\fR \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
+\fB::pdf4tcl::catPdf\fR ?\fIoption value\fR\&.\&.\&.? \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
 This call concatenates PDF files into one\&.
 Currently the implementation limits the PDFs a lot since not all details
 are taken care of yet\&. Straightforward ones like those created with pdf4tcl
 or ps2pdf should work mostly ok\&.
+Merging keeps the catalog of the FIRST input, and with it its document
+information -- two files joined otherwise carry the title of part one\&. A
+merger cannot know what several documents are called together, so it asks:
+.RS
+.TP
+\fB-title\fR \fItext\fR
+.TP
+\fB-author\fR \fItext\fR
+.TP
+\fB-subject\fR \fItext\fR
+.TP
+\fB-keywords\fR \fItext\fR
+.TP
+\fB-creator\fR \fItext\fR
+.TP
+\fB-producer\fR \fItext\fR
+.RE
+.IP
+An empty value REMOVES the entry -- better no title than the wrong one\&.
+Entries not named keep whatever the first document had\&.
+.CS
+
+
+::pdf4tcl::catPdf -title "Complete file" -author ""  part1\&.pdf part2\&.pdf complete\&.pdf
+
+.CE
+.IP
+The options come before the file names, so every existing call keeps
+working unchanged\&.
 .TP
 \fB::pdf4tcl::getForms\fR \fIinfile\fR
 This call extracts form data from a PDF file\&.
@@ -1252,6 +1291,69 @@ $pdfobject addEmbeddedFile "factur-x\&.xml"  -contents $xmlData  -mimetype "appl
 
 .CE
 .TP
+\fIobjectName\fR \fBfacturx\fR ?\fIoption value\fR\&.\&.\&.?
+Attaches an electronic invoice as Factur-X / ZUGFeRD and writes the XMP
+metadata the standard requires\&. This does in one call what
+\fBaddEmbeddedFile\fR plus \fBmetadata\fR would do by hand, and it
+adds the \fBfx:\fR XMP block a validating reader looks for\&.
+A valid electronic invoice is PDF/A-3 (\fB-pdfa\fR set to \fB3b\fR
+or \fB3a\fR); the method does not enforce that, but a file written
+without it will not pass an invoice validator\&. PDF/A-1 forbids embedded
+files outright, so \fBaddEmbeddedFile\fR refuses there\&.
+Either \fB-contents\fR or \fB-file\fR has to be given, not both\&.
+.RS
+.TP
+\fB-contents\fR \fIdata\fR
+The invoice XML itself\&.
+.TP
+\fB-file\fR \fIpath\fR
+Path to the invoice XML, read from disk\&. Excludes \fB-contents\fR\&.
+.TP
+\fB-filename\fR \fIname\fR
+The name the XML carries inside the PDF, used for the embedded file and
+for \fBDocumentFileName\fR in the XMP
+(default: \fBfactur-x\&.xml\fR)\&.
+.TP
+\fB-conformance\fR \fIlevel\fR
+The invoice profile: \fBMINIMUM\fR, \fBBASIC WL\fR, \fBBASIC\fR,
+\fBEN 16931\fR, \fBEXTENDED\fR or \fBXRECHNUNG\fR
+(default: \fBEN 16931\fR)\&.
+.TP
+\fB-documenttype\fR \fItype\fR
+\fBDocumentType\fR in the XMP (default: \fBINVOICE\fR)\&.
+.TP
+\fB-version\fR \fIv\fR
+The Factur-X version (default: \fB1\&.0\fR)\&.
+.TP
+\fB-afrelationship\fR \fIrel\fR
+The \fB/AFRelationship\fR of the embedded XML
+(default: \fBAlternative\fR)\&. MINIMUM and BASIC WL are not a complete
+invoice on their own and take \fBData\fR\&.
+.TP
+\fB-namespace\fR \fIuri\fR
+The XMP namespace (default: the Factur-X 1\&.0 / ZUGFeRD 2\&.1 URI)\&.
+.TP
+\fB-prefix\fR \fIp\fR
+The XMP prefix (default: \fBfx\fR)\&.
+.RE
+.CS
+
+
+# Every font has to be embedded -- PDF/A refuses the standard 14, so a
+# document set in Helvetica fails validation whatever else is right\&.
+pdf4tcl::loadBaseTrueTypeFont BaseSans "FreeSans\&.ttf"
+pdf4tcl::createFontSpecCID BaseSans Uni
+
+set pdfobject [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3b]
+$pdfobject startPage
+$pdfobject setFont 12 Uni
+\&.\&.\&.
+$pdfobject facturx -file "factur-x\&.xml" -conformance "EN 16931"
+$pdfobject write -file invoice\&.pdf
+# verapdf -f 3b invoice\&.pdf  ->  PASS
+
+.CE
+.TP
 \fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
 This method adds a URI hyperlink annotation to the current page\&. The clickable
 area is defined by \fIx\fR, \fIy\fR, \fIwidth\fR and \fIheight\fR\&. The
@@ -1541,6 +1643,71 @@ the spacing is 1\&.
 .TP
 \fIobjectName\fR \fBgetLineSpacing\fR
 Get the current default line spacing factor (a dimensionless multiplier)\&.
+.TP
+\fIobjectName\fR \fBsetKerning\fR \fIvalue\fR
+Pair kerning, which is the per-pair spacing correction a font ships for
+pairs like AV or To\&. Three levels:
+.RS
+.TP
+\fB0\fR
+Off\&. One \fBTj\fR per string, no adjustments, and
+\fBgetStringWidth\fR adds up advance widths alone\&. This is the output
+of 0\&.9\&.4\&.46 and earlier\&.
+.TP
+\fB1\fR
+Embedded fonts only\&. The default\&.
+.TP
+\fBall\fR
+The standard 14 as well\&.
+.RE
+.IP
+The amounts come from three sources, whichever the face carries: the
+legacy \fBkern\fR table, the \fBkern\fR feature of \fBGPOS\fR
+(pair adjustment, both subtable formats, including extension lookups),
+and for the standard 14 the Adobe metrics\&. Of 66 TrueType faces on a
+typical Linux installation, 33 carry a \fBkern\fR table and 43 a
+\fBkern\fR feature in GPOS, so both are needed\&.
+The standard 14 are not in the default because their output is pinned by
+the regression tests\&. Turning them on changes documents that have looked
+the same for years\&. \fBsetKerning\fR \fBall\fR raises an error when
+the pairs are not available, rather than silently doing nothing\&.
+A kerned string is written as a \fBTJ\fR array instead of a
+\fBTj\fR string, and \fBgetStringWidth\fR returns the kerned width,
+so measuring and drawing agree\&. Where a face has no pairs for a string,
+the plain form is written and the output is unchanged\&.
+Of \fBlookupFlag\fR, bit 3 (\fBIgnoreMarks\fR) is honoured: where a
+face sets it, mark glyphs named by \fBGDEF\fR are skipped, so that
+\fBA\fR followed by a combining accent and \fBV\fR is kerned as the
+pair \fBAV\fR\&. 18 of 66 faces on a typical Linux installation set that
+bit, and none sets any other\&.
+What is not read: the remaining \fBlookupFlag\fR bits, script and
+language system selection (every \fBkern\fR feature is taken),
+contextual lookups, and version 1 of the \fBkern\fR table (the Apple
+layout, skipped rather than misread)\&.
+.TP
+\fIobjectName\fR \fBgetKerning\fR
+Get the current kerning level: \fB0\fR, \fB1\fR or \fBall\fR\&.
+.TP
+\fIobjectName\fR \fBsetLigatures\fR \fIonOff\fR
+Standard ligatures from the \fBliga\fR feature of \fBGSUB\fR:
+\fBfi\fR, \fBfl\fR, \fBffi\fR and whatever else the face defines\&.
+Off by default, because it changes the output of existing documents\&.
+Only for embedded fonts, and only lookup type 4 (ligature substitution),
+including extension lookups\&. The longest match wins, so \fBffi\fR
+becomes one glyph rather than \fBf\fR followed by \fBfi\fR\&.
+The \fBToUnicode\fR CMap records every character a ligature stands for,
+so a reader extracting the text gets \fBfi\fR back and searching for a
+word still finds it\&. This is the part that has to be right: a ligature
+that leaves text unsearchable is worse than no ligature\&.
+Not every face means the same thing by \fBliga\fR\&. Of 66 TrueType faces
+on a typical Linux installation, one carries 424 ligature targets,
+another none at all, and DejaVu Sans has an Arabic \fBliga\fR feature
+and no \fBfi\fR glyph\&. Check the face before relying on this\&.
+Like \fBsetKerning\fR, the setting belongs to the text state and is
+saved by \fBgsave\fR with the rest\&.
+.TP
+\fIobjectName\fR \fBgetLigatures\fR
+Get whether ligatures are applied: \fB0\fR or \fB1\fR\&.
 .TP
 \fIobjectName\fR \fBgetLineHeight\fR
 Get the actual vertical distance advanced by \fBnewLine\fR in the document's

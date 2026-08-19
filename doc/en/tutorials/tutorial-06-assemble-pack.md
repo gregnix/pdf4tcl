@@ -116,8 +116,16 @@ pdf4tcl::catPdf $packBody $appendixPdf $finalOut
 Since 0.9.4.40, tagged inputs keep a merged structure tree. Mixed
 tagged/untagged warns -- keep the style consistent. See `howto-catpdf.md`.
 
-Metadata of the **first** file wins; put the cover pack first if the title
-should be "Reading pack".
+Metadata of the **first** file wins, so say what the result is called
+(0.9.4.48):
+
+```tcl
+pdf4tcl::catPdf -title "Reading pack" $packBody $appendixPdf $finalOut
+```
+
+That writes `/Info`; the XMP title still comes from the first file. And
+`catPdf` cannot read an input that keeps its object table as a stream --
+every PDF/A from 2b upwards does.
 
 ## What the sample produces
 

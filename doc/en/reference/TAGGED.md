@@ -103,20 +103,29 @@ well, but they matter more once the result is meant to be PDF/UA:
 catalog, so the merged file carries the first document's `dc:title` --
 measured, merging "Teil 1" and "Teil 2" gives a document titled "Teil 1".
 PDF/UA is satisfied, because *a* title is present and `/DisplayDocTitle` is
-set, but a reader announces the wrong one. There is no way to correct it
-through `catPdf`, which reads and writes files without a pdf4tcl object. Where
-the title matters, either build the whole document in one run instead of
-merging, or fix the title afterwards with another tool.
+set, but a reader announces the wrong one.
 
-**Embedded fonts are not shared.** Each input keeps its own font program.
-Measured: two documents of 24729 bytes, each embedding FreeSans once, merge
-into 49296 bytes with two `/FontFile2` objects. Merging twenty chapters
-embeds the font twenty times. Nothing is wrong with the result, it is just
-larger than it needs to be.
+**Since 0.9.4.48 the title can be given** (this paragraph used to say there
+was no way):
 
-The rest of the catalog -- `AcroForm`, `Metadata` and the other entries --
-is not merged either; that carries a TODO in `src/cat.tcl` and predates this
-work.
+```tcl
+::pdf4tcl::catPdf -title "Complete file" part1.pdf part2.pdf out.pdf
+```
+
+`-title -author -subject -keywords -creator -producer`, before the file
+names. This writes `/Info` only; `dc:title` in the XMP still comes from the
+first document, and PDF/A requires the two to agree. Where the XMP title
+matters, build the whole document in one run instead of merging.
+
+**Embedded font programs ARE shared** -- this paragraph used to say the
+opposite, measured before `DedupObjects` existed (0.9.4.42). Measured again
+on FreeSans: four documents of 814628 bytes each merge into 819503 with one
+`/FontFile2` in the result. The font *dictionaries* around it stay
+duplicated, since renumbering makes their bodies differ; that costs a few
+hundred bytes per font.
+
+`AcroForm` is merged since 0.9.4.44. `Metadata` and the remaining catalog
+entries are still those of the first document.
 
 # Tagged PDF in pdf4tcl
 

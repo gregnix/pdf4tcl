@@ -1,0 +1,443 @@
+# kerning.test -- pair kerning
+#
+#   tclsh tests/kerning.test
+#
+# Four things, not "does kerning happen":
+#
+#   1. the values come from the font and carry the right sign
+#   2. MEASURING AND DRAWING use the same numbers
+#   3. the switch really restores the old output
+#   4. a face without kerning data changes nothing
+
+# init.tcl loads the package from THIS tree. A local "lappend auto_path"
+# is not enough: TCLLIBPATH is read at interpreter start and may point at
+# another clone of the same package.
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+set here [file dirname [file normalize [info script]]]
+
+# A TrueType face with kern pairs. Without one there is nothing to
+# measure -- SKIP rather than report green.
+set ::ttf ""
+foreach k [list \
+        /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf \
+        [file join $here .. examples FreeSans.ttf]] {
+    if {[file readable $k]} { set ::ttf $k; break }
+}
+testConstraint haveTtf [expr {$::ttf ne ""}]
+
+# A face with GPOS and no kern table -- the case where nothing applies
+# and nothing may apply.
+set ::ttfNoKern ""
+foreach k {/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf} {
+    if {[file readable $k]} { set ::ttfNoKern $k; break }
+}
+testConstraint haveNoKernTtf [expr {$::ttfNoKern ne ""}]
+
+if {$::ttf ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont BaseKern $::ttf
+    pdf4tcl::createFontSpecCID BaseKern KernUni
+}
+if {$::ttfNoKern ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont BaseNoKern $::ttfNoKern
+    pdf4tcl::createFontSpecCID BaseNoKern NoKernUni
+}
+
+proc glyph {basefont char} {
+    scan $char %c n
+    return [dict get $::pdf4tcl::BFA($basefont,charToGlyph) $n]
+}
+
+# ---------------------------------------------------------------------------
+# kerning-1.x  Reading the table
+# ---------------------------------------------------------------------------
+
+test kerning-1.1 {die kern-Tabelle wird gelesen} -constraints haveTtf -body {
+    expr {[dict size $::pdf4tcl::BFA(BaseKern,kernPairs)] > 100}
+} -result 1
+
+test kerning-1.2 {AV steht enger, nicht weiter} -constraints haveTtf -body {
+    # The sign is what matters here: a positive value would pull the
+    # pair apart.
+    expr {[::pdf4tcl::GetKernPair BaseKern [glyph BaseKern A] \
+            [glyph BaseKern V]] < 0}
+} -result 1
+
+test kerning-1.3 {ein Paar ohne Eintrag ergibt 0} -constraints haveTtf -body {
+    # No face has an entry for II.
+    ::pdf4tcl::GetKernPair BaseKern [glyph BaseKern I] [glyph BaseKern I]
+} -result 0
+
+test kerning-1.4 {die Werte sind auf 1/1000 em umgerechnet} -constraints haveTtf -body {
+    # Not in font units: DejaVu counts 2048 per em, so an unscaled value
+    # would be about twice this.
+    set v [expr {abs([::pdf4tcl::GetKernPair BaseKern [glyph BaseKern A] \
+            [glyph BaseKern V]])}]
+    expr {$v > 10 && $v < 400}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# kerning-2.x  Measuring
+# ---------------------------------------------------------------------------
+
+test kerning-2.1 {ein gekerntes Wort misst schmaler} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    set mit [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 0
+    set ohne [$pdf getStringWidth AVAV -internal 1]
+    expr {$mit < $ohne}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-2.2 {ohne Kernpaare aendert der Schalter nichts} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    # IIII has no pairs, so the width must not move.
+    set mit [$pdf getStringWidth IIII -internal 1]
+    $pdf setKerning 0
+    set ohne [$pdf getStringWidth IIII -internal 1]
+    expr {$mit == $ohne}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-2.3 {eine Standardschrift bleibt in der Vorgabe unberuehrt} -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 24 Helvetica
+} -body {
+    # The standard 14 do have pairs, but not by default: their output is
+    # pinned by tests named "compat:". See 2.5.
+    set mit [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 0
+    set ohne [$pdf getStringWidth AVAV -internal 1]
+    expr {$mit == $ohne}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-2.4 {eine Schrift ohne kern-Tabelle veraendert nichts} -constraints \
+        haveNoKernTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 24 NoKernUni
+} -body {
+    # A face whose kerning this reader cannot see is set as before.
+    set mit [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 0
+    set ohne [$pdf getStringWidth AVAV -internal 1]
+    expr {$mit == $ohne}
+} -cleanup {$pdf destroy} -result 1
+
+# ---------------------------------------------------------------------------
+# kerning-3.x  Drawing
+# ---------------------------------------------------------------------------
+
+test kerning-3.1 {ein TJ-Array steht im Inhalt} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    $pdf text AVAV -x 50 -y 100
+    set data [$pdf get]
+    expr {[regexp {\] TJ} $data]}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-3.2 {die Zahlen im Array sind positiv} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    # In a TJ array a POSITIVE number moves the pen back, i.e. tighter.
+    $pdf text AV -x 50 -y 100
+    set data [$pdf get]
+    regexp {\[<[0-9A-F]+> ([-0-9.]+) <} $data -> zahl
+    expr {$zahl > 0}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-3.3 {abgeschaltet steht wieder ein Tj da} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+    $pdf setKerning 0
+} -body {
+    $pdf text AVAV -x 50 -y 100
+    set data [$pdf get]
+    list [regexp {\] TJ} $data] [regexp {> Tj} $data]
+} -cleanup {$pdf destroy} -result {0 1}
+
+test kerning-3.4 {ein Wort ohne Paare bleibt ein Tj} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    # No pair, so no reason for an array.
+    $pdf text IIII -x 50 -y 100
+    set data [$pdf get]
+    list [regexp {\] TJ} $data] [regexp {> Tj} $data]
+} -cleanup {$pdf destroy} -result {0 1}
+
+# ---------------------------------------------------------------------------
+# kerning-4.x  Measuring and drawing agree
+#
+# The test that matters. Everything above can be right while the two
+# still disagree.
+# ---------------------------------------------------------------------------
+
+test kerning-4.1 {rechtsbuendig gezeichnet endet an der Zielspalte} -constraints \
+        haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    set breite [$pdf getStringWidth AVAV -internal 1]
+    $pdf text AVAV -x 300 -y 100 -align right
+    set data [$pdf get]
+    regexp {1 0 0 1 ([0-9.]+) [0-9.]+ Tm} $data -> start
+    # Start plus measured width must hit the target column.
+    expr {abs(($start + $breite) - 300) < 0.01}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-4.2 {zentriert ebenso} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    set breite [$pdf getStringWidth AVAV -internal 1]
+    $pdf text AVAV -x 300 -y 100 -align center
+    set data [$pdf get]
+    regexp {1 0 0 1 ([0-9.]+) [0-9.]+ Tm} $data -> start
+    expr {abs(($start + $breite / 2.0) - 300) < 0.01}
+} -cleanup {$pdf destroy} -result 1
+
+# ---------------------------------------------------------------------------
+# kerning-5.x  The switch is part of the text state
+# ---------------------------------------------------------------------------
+
+test kerning-5.1 {gsave und grestore bringen ihn zurueck} -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+} -body {
+    # Otherwise a block that turns kerning off leaks into what follows.
+    $pdf gsave
+    $pdf setKerning 0
+    set drinnen [$pdf getKerning]
+    $pdf grestore
+    list $drinnen [$pdf getKerning]
+} -cleanup {$pdf destroy} -result {0 1}
+
+test kerning-5.2 {Unfug wird abgelehnt} -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+} -body {
+    catch {$pdf setKerning vielleicht} e
+    expr {[string match {*expected a boolean*} $e]}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-5.3 {Kerning ist voreingestellt an} -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+} -body {
+    $pdf getKerning
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-4.3 {die Summe im TJ-Array entspricht der Breitendifferenz} \
+        -constraints haveTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 KernUni
+} -body {
+    # DAS ist die Pruefung, dass Messen und Zeichnen dieselben Zahlen
+    # benutzen -- und zwar ueber zwei getrennte Wege:
+    #
+    #   getStringWidth geht durch KernWidth
+    #   der Inhalt geht durch PdfTextKerned
+    #
+    # Beide muessen dasselbe ergeben. Die Anpassungen im TJ-Array, mal
+    # Schriftgroesse durch 1000, sind genau der Betrag, um den die
+    # gekernte Zeile schmaler ist als die ungekernte.
+    #
+    # 4.1 und 4.2 leisten das NICHT: sie vergleichen die Ausrichtung mit
+    # derselben Messung, die die Ausrichtung benutzt, und bleiben gruen,
+    # wenn beide gemeinsam falsch sind. Nachgemessen, indem die
+    # Breitenmessung stillgelegt wurde -- 4.1 und 4.2 blieben gruen.
+    set mit [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 0
+    set ohne [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 1
+
+    $pdf text AVAV -x 50 -y 100
+    set data [$pdf get]
+    regexp {\[(.*?)\] TJ} $data -> array
+    set summe 0.0
+    foreach stueck $array {
+        if {[string is double -strict $stueck]} {
+            set summe [expr {$summe + $stueck}]
+        }
+    }
+    # Positive Zahlen im Array ziehen zusammen: Summe * Groesse / 1000
+    # muss die Differenz sein.
+    set ausArray [expr {$summe * 24.0 / 1000.0}]
+    expr {abs($ausArray - ($ohne - $mit)) < 0.01}
+} -cleanup {$pdf destroy} -result 1
+
+# ---------------------------------------------------------------------------
+# kerning-6.x  GPOS
+#
+# Of 66 TrueType faces on this machine 33 carry a kern table and 43 a
+# kern feature in GPOS. Without GPOS, kerning would do nothing for half
+# of them.
+# ---------------------------------------------------------------------------
+
+set ::ttfGpos ""
+foreach k {
+    /usr/share/fonts/truetype/crosextra/Carlito-Regular.ttf
+    /usr/share/fonts/truetype/crosextra/Caladea-Regular.ttf
+} {
+    if {[file readable $k]} { set ::ttfGpos $k; break }
+}
+testConstraint haveGposTtf [expr {$::ttfGpos ne ""}]
+if {$::ttfGpos ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont BaseGpos $::ttfGpos
+    pdf4tcl::createFontSpecCID BaseGpos GposUni
+}
+
+test kerning-6.1 {eine Schrift mit GPOS-Kerning liefert Werte} \
+        -constraints haveGposTtf -body {
+    expr {[::pdf4tcl::GetKernPair BaseGpos [glyph BaseGpos A] \
+            [glyph BaseGpos V]] < 0}
+} -result 1
+
+test kerning-6.2 {die Klassenform bleibt Klassenform} \
+        -constraints haveGposTtf -body {
+    # NICHT in Glyphpaare aufgefaltet. Gemessen an Carlito: aufgefaltet
+    # sind es 171859 Paare, 1271 ms Ladezeit und 2,2 MB; als Klassen
+    # gehalten 47 ms. Wer hier eine grosse Zahl sieht, hat die
+    # Auffaltung zurueckgebaut.
+    expr {[dict size $::pdf4tcl::BFA(BaseGpos,kernPairs)] < 1000
+            && [llength $::pdf4tcl::BFA(BaseGpos,kernClasses)] > 0}
+} -result 1
+
+test kerning-6.3 {ein Paar ohne Eintrag bleibt 0} -constraints haveGposTtf -body {
+    ::pdf4tcl::GetKernPair BaseGpos [glyph BaseGpos I] [glyph BaseGpos I]
+} -result 0
+
+test kerning-6.4 {auch ueber GPOS stimmen Messen und Zeichnen ueberein} \
+        -constraints haveGposTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 GposUni
+} -body {
+    set mit [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 0
+    set ohne [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning 1
+    $pdf text AVAV -x 50 -y 100
+    set data [$pdf get]
+    regexp {\[(.*?)\] TJ} $data -> array
+    set summe 0.0
+    foreach stueck $array {
+        if {[string is double -strict $stueck]} { set summe [expr {$summe + $stueck}] }
+    }
+    expr {abs($summe * 24.0 / 1000.0 - ($ohne - $mit)) < 0.01}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-2.5 {"all" schaltet die Standardschriften dazu} -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 24 Helvetica
+} -body {
+    set vorgabe [$pdf getStringWidth AVAV -internal 1]
+    $pdf setKerning all
+    set alle [$pdf getStringWidth AVAV -internal 1]
+    expr {$alle < $vorgabe}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-2.6 {die AFM-Paare sind da} -body {
+    # 2705 in Helvetica, 2073 in Times-Roman. Symbol und ZapfDingbats
+    # tragen keine, Courier auch nicht -- eine Festbreitenschrift kernt
+    # nicht.
+    list [expr {[dict size $::pdf4tcl::BFA(Helvetica,kernPairs)] > 2000}] \
+         [expr {[dict size $::pdf4tcl::BFA(Times-Roman,kernPairs)] > 2000}] \
+         [info exists ::pdf4tcl::BFA(Courier,kernPairs)]
+} -result {1 1 0}
+
+test kerning-2.7 {"all" im TJ-Array mit runden Klammern} -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 Helvetica
+    $pdf setKerning all
+} -body {
+    # Ein CID-Text steht als Hex in spitzen Klammern, eine Standardschrift
+    # als Zeichenkette in runden. Wer hier Hex schreibt, erzeugt Unsinn.
+    $pdf text "AV" -x 50 -y 100
+    set data [$pdf get]
+    expr {[string match {*(A) *(V)] TJ*} $data]}
+} -cleanup {$pdf destroy} -result 1
+
+# ---------------------------------------------------------------------------
+# kerning-7.x  lookupFlag IgnoreMarks
+#
+# 18 of 66 faces here set bit 3 on their kern lookups, always that bit
+# alone. It asks for mark glyphs to be skipped, so that A + acute + V is
+# kerned as the pair A V -- the accent sits above the A and does not
+# change the gap.
+# ---------------------------------------------------------------------------
+
+set ::ttfMarks ""
+foreach k {
+    /usr/share/fonts/truetype/crosextra/Caladea-Regular.ttf
+    /usr/share/fonts/truetype/crosextra/Caladea-Bold.ttf
+} {
+    if {[file readable $k]} { set ::ttfMarks $k; break }
+}
+testConstraint haveMarkTtf [expr {$::ttfMarks ne ""}]
+if {$::ttfMarks ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont BaseMarks $::ttfMarks
+    pdf4tcl::createFontSpecCID BaseMarks MarksUni
+}
+
+test kerning-7.1 {the flag and the mark classes are read} \
+        -constraints haveMarkTtf -body {
+    list $::pdf4tcl::BFA(BaseMarks,kernIgnoreMarks) \
+         [expr {[dict size $::pdf4tcl::BFA(BaseMarks,markGlyphs)] > 0}]
+} -result {1 1}
+
+test kerning-7.2 {a combining accent is a skippable mark} \
+        -constraints haveMarkTtf -body {
+    # U+0301 COMBINING ACUTE ACCENT
+    ::pdf4tcl::IsSkippableMark BaseMarks [glyph BaseMarks \u0301]
+} -result 1
+
+test kerning-7.3 {a letter is not} -constraints haveMarkTtf -body {
+    ::pdf4tcl::IsSkippableMark BaseMarks [glyph BaseMarks A]
+} -result 0
+
+test kerning-7.4 {an accent between the pair does not stop the kerning} \
+        -constraints haveMarkTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 24 MarksUni
+} -body {
+    # This is the point of the flag: both strings must measure the same,
+    # because the accent takes no horizontal room and the font asks for
+    # it to be skipped.
+    set ohne [$pdf getStringWidth "AV" -internal 1]
+    set mit  [$pdf getStringWidth "A\u0301V" -internal 1]
+    expr {abs($ohne - $mit) < 0.001}
+} -cleanup {$pdf destroy} -result 1
+
+test kerning-7.5 {the mark stays with the glyph it belongs to} \
+        -constraints haveMarkTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 24 MarksUni
+} -body {
+    # The adjustment must come AFTER the accent, not between A and the
+    # accent -- otherwise the accent would be pushed off its letter.
+    $pdf text "A\u0301V" -x 50 -y 100
+    set data [$pdf get]
+    regexp {\[<([0-9A-F]+)> [0-9.]+ <([0-9A-F]+)>\] TJ} $data -> erst zweit
+    # First piece holds two glyphs (A and the accent), second holds one.
+    list [expr {[string length $erst] / 4}] [expr {[string length $zweit] / 4}]
+} -cleanup {$pdf destroy} -result {2 1}
+
+::tcltest::cleanupTests

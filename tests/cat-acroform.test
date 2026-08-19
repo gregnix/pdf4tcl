@@ -196,4 +196,194 @@ foreach pat {af*.pdf ap*.pdf ad*.pdf a3*.pdf} {
     }
 }
 
+
+# ---------------------------------------------------------------------------
+# cat-info-x  Die Metadaten des zusammengefuehrten Dokuments
+#
+# Zusammenfuehren behaelt den Katalog des ERSTEN Dokuments, und damit
+# dessen /Info -- zwei Akten ergeben eine, die "Teil 1" heisst. Das ist
+# fuer sich nicht falsch: ein Werkzeug kann nicht wissen, wie zwei
+# Dokumente zusammen heissen. Ueberraschend ist es nur, wenn es niemand
+# sagt. Deshalb fragt catPdf jetzt.
+# ---------------------------------------------------------------------------
+
+# Den Titel aus dem /Info-Woerterbuch lesen, nicht den ersten in der
+# Datei. Beim Zusammenfuehren bleibt das /Info des zweiten Dokuments als
+# verwaistes Objekt liegen -- es steht sogar VOR dem gueltigen, weil
+# angehaengt wird. Wer den ersten Treffer nimmt, misst das falsche.
+proc catInfoTitle {file} {
+    set fh [open $file rb]
+    set data [read $fh]
+    close $fh
+    if {![regexp {/Info\s+(\d+)\s+0\s+R} $data -> id]} { return "" }
+    if {![regexp "\n$id\\s+0\\s+obj(.*?)endobj" $data -> body]} { return "" }
+    if {[regexp {/Title\s*\(([^)]*)\)} $body -> t]} { return $t }
+    return ""
+}
+
+test cat-info-1 {ohne Option gewinnt das erste Dokument} -setup {
+    catFormDoc [file join [temporaryDirectory] i1.pdf] f1 "Erstes"
+    catFormDoc [file join [temporaryDirectory] i2.pdf] f2 "Zweites"
+} -body {
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] i1.pdf] \
+            [file join [temporaryDirectory] i2.pdf] \
+            [file join [temporaryDirectory] iout.pdf]
+    catInfoTitle [file join [temporaryDirectory] iout.pdf]
+} -result Erstes
+
+test cat-info-2 {-title setzt den Titel des Ergebnisses} -setup {
+    catFormDoc [file join [temporaryDirectory] i1.pdf] f1 "Erstes"
+    catFormDoc [file join [temporaryDirectory] i2.pdf] f2 "Zweites"
+} -body {
+    ::pdf4tcl::catPdf -title "Gesamtakte" \
+            [file join [temporaryDirectory] i1.pdf] \
+            [file join [temporaryDirectory] i2.pdf] \
+            [file join [temporaryDirectory] iout.pdf]
+    catInfoTitle [file join [temporaryDirectory] iout.pdf]
+} -result Gesamtakte
+
+test cat-info-3 {ein leerer Wert entfernt den Eintrag} -setup {
+    catFormDoc [file join [temporaryDirectory] i1.pdf] f1 "Erstes"
+    catFormDoc [file join [temporaryDirectory] i2.pdf] f2 "Zweites"
+} -body {
+    # Besser kein Titel als der falsche.
+    ::pdf4tcl::catPdf -title "" \
+            [file join [temporaryDirectory] i1.pdf] \
+            [file join [temporaryDirectory] i2.pdf] \
+            [file join [temporaryDirectory] iout.pdf]
+    catInfoTitle [file join [temporaryDirectory] iout.pdf]
+} -result {}
+
+test cat-info-4 {Klammern im Titel werden maskiert} -setup {
+    catFormDoc [file join [temporaryDirectory] i1.pdf] f1 "Erstes"
+    catFormDoc [file join [temporaryDirectory] i2.pdf] f2 "Zweites"
+} -body {
+    # Eine unmaskierte Klammer beendet die PDF-Zeichenkette vorzeitig und
+    # macht die Datei kaputt.
+    ::pdf4tcl::catPdf -title "Akte (2026)" \
+            [file join [temporaryDirectory] i1.pdf] \
+            [file join [temporaryDirectory] i2.pdf] \
+            [file join [temporaryDirectory] iout.pdf]
+    set fh [open [file join [temporaryDirectory] iout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    expr {[string match {*/Title (Akte \\(2026\\))*} $data]}
+} -result 1
+
+test cat-info-5 {mehrere Angaben zugleich} -setup {
+    catFormDoc [file join [temporaryDirectory] i1.pdf] f1 "Erstes"
+    catFormDoc [file join [temporaryDirectory] i2.pdf] f2 "Zweites"
+} -body {
+    ::pdf4tcl::catPdf -title "T" -author "A" -subject "S" \
+            [file join [temporaryDirectory] i1.pdf] \
+            [file join [temporaryDirectory] i2.pdf] \
+            [file join [temporaryDirectory] iout.pdf]
+    set fh [open [file join [temporaryDirectory] iout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    list [regexp {/Title \(T\)} $data] [regexp {/Author \(A\)} $data] \
+         [regexp {/Subject \(S\)} $data]
+} -result {1 1 1}
+
+test cat-info-6 {unbekannte Option wird benannt} -body {
+    catch {::pdf4tcl::catPdf -quatsch x a.pdf b.pdf c.pdf} e
+    expr {[string match {*unknown option*-quatsch*} $e]}
+} -result 1
+
+test cat-info-7 {fehlender Wert wird benannt} -body {
+    catch {::pdf4tcl::catPdf -title} e
+    expr {[string match {*missing*} $e]}
+} -result 1
+
+test cat-info-8 {die alte Aufrufform bleibt gueltig} -setup {
+    catPlainDoc [file join [temporaryDirectory] p1.pdf] "eins"
+    catPlainDoc [file join [temporaryDirectory] p2.pdf] "zwei"
+} -body {
+    # Kein Argument ist eine Option -- jeder bestehende Aufruf muss
+    # unveraendert durchlaufen.
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] p1.pdf] \
+            [file join [temporaryDirectory] p2.pdf] \
+            [file join [temporaryDirectory] pout.pdf]
+    file exists [file join [temporaryDirectory] pout.pdf]
+} -result 1
+
+
+# ---------------------------------------------------------------------------
+# cat-xref-x  Was catPdf NICHT lesen kann, und wie es das sagt
+#
+# Eine Datei kann ihre Objekttabelle als STREAM fuehren statt als Tabelle
+# (PDF 1.5+). Dann gibt es kein "trailer"-Schluesselwort, und dieser Leser
+# steigt aus.
+#
+# Das trifft mehr als es klingt: PDF/A-1 VERBIETET xref-Streams, PDF/A-2
+# und -3 VERLANGEN sie. Jedes Archivdokument ab 2b und jede
+# ZUGFeRD-Rechnung landet hier.
+#
+# Vorher meldete es "can't read \"trailertxt\": no such variable" -- eine
+# Tcl-Variable statt der Ursache.
+# ---------------------------------------------------------------------------
+
+test cat-xref-1 {ein xref-Stream wird benannt, nicht verschluckt} -setup {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa 2b]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "PDF/A-2b" -x 60 -y 60
+    $p write -file [file join [temporaryDirectory] xr1.pdf]
+    $p destroy
+    catPlainDoc [file join [temporaryDirectory] xr2.pdf] "normal"
+} -body {
+    catch {::pdf4tcl::catPdf [file join [temporaryDirectory] xr1.pdf] \
+            [file join [temporaryDirectory] xr2.pdf] \
+            [file join [temporaryDirectory] xrout.pdf]} e
+    expr {[string match {*cross-reference stream*} $e]}
+} -result 1
+
+test cat-xref-2 {die Meldung nennt PDF/A} -setup {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa 2b]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "PDF/A-2b" -x 60 -y 60
+    $p write -file [file join [temporaryDirectory] xr1.pdf]
+    $p destroy
+    catPlainDoc [file join [temporaryDirectory] xr2.pdf] "normal"
+} -body {
+    # Wer die Meldung liest, soll wissen, warum ausgerechnet SEINE Datei
+    # betroffen ist.
+    catch {::pdf4tcl::catPdf [file join [temporaryDirectory] xr1.pdf] \
+            [file join [temporaryDirectory] xr2.pdf] \
+            [file join [temporaryDirectory] xrout.pdf]} e
+    expr {[string match {*PDF/A-2b*} $e]}
+} -result 1
+
+test cat-xref-3 {PDF/A-1b geht weiterhin} -setup {
+    foreach {n t} {xa "A" xb "B"} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa 1b]
+        $p metadata -title $t
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Teil $t" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # PDF/A-1 verbietet xref-Streams, also fuehrt es eine klassische
+    # Tabelle -- und laesst sich zusammenfuehren.
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] xa.pdf] \
+            [file join [temporaryDirectory] xb.pdf] \
+            [file join [temporaryDirectory] xab.pdf]
+    file exists [file join [temporaryDirectory] xab.pdf]
+} -result 1
+
+test cat-xref-4 {eine beschaedigte Datei wird benannt} -setup {
+    set fh [open [file join [temporaryDirectory] kaputt.pdf] wb]
+    puts -nonewline $fh "kein PDF"
+    close $fh
+    catPlainDoc [file join [temporaryDirectory] ok.pdf] "normal"
+} -body {
+    catch {::pdf4tcl::catPdf [file join [temporaryDirectory] kaputt.pdf] \
+            [file join [temporaryDirectory] ok.pdf] \
+            [file join [temporaryDirectory] kout.pdf]} e
+    expr {[string match {*no startxref*} $e]}
+} -result 1
+
 ::tcltest::cleanupTests

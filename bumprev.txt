@@ -33,8 +33,6 @@ Makefile                   VERSION (no dots)
 pdf4tcl.man                two places
 README.md                  heading only (no version in package require)
 ChangeLog                  stub entry added (edit to expand)
-nogit/scripts/sync-pdf4tcl.tcl     paths (two places)
-nogit/scripts/make-release.tcl   (nicht im Repo)     VERSION + REPODIR + TAGMSG
 pdf4tcl.tcl                reassembled
 pkg/pdf4tcl.tcl            reassembled
 
@@ -47,9 +45,6 @@ Still manual after bump:
 --------------------------
 ChangeLog                  expand stub entry
 make doc                   regenerate pdf4tcl.html + pdf4tcl.n
-nogit/doc/docs/de/regelbuch-pdf4tcl.md   new "Neue Fixes" section
-nogit/doc/docs/de/TODO.md      version table + GitHub command
-nogit/doc/docs/de/uebegabe/uebergabe-0.9.4.X.md  new handover file
 examples/test*.pdf         regenerate if PDF structure changed
 
 

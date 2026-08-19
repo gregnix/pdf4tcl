@@ -320,5 +320,7 @@ python3 tools/check-conformance.py out.pdf
 | `howtos/howto-unicode.md` | CID fonts, recipe |
 | `howtos/howto-font-coverage.md` | check which characters a font paints |
 | `howtos/howto-otf.md` | OpenType/CFF |
+| `howtos/howto-kerning.md` | pair kerning, and does the width match |
+| `howtos/howto-ligatures.md` | fi and fl, and is the text still searchable |
 | `howtos/howto-symbols.md` | symbol and coverage charts |
 | `tutorials/tutorial-07-multilingual.md` | a document in five scripts |

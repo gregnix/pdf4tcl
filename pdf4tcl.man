@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.46]
+[manpage_begin pdf4tcl n 0.9.4.48]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.46]]
+[require pdf4tcl [opt 0.9.4.48]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -225,12 +225,36 @@ This call translates a CMYK color value to an RGB color value.
 It is used internally to translate colors.
 You can redefine this procedure to provide your own translation.
 
-[call [cmd ::pdf4tcl::catPdf] [arg "infile"] [opt [arg "infile ..."]] [arg "outfile"]]
+[call [cmd ::pdf4tcl::catPdf] [opt [arg "option value"]...] [arg "infile"] [opt [arg "infile ..."]] [arg "outfile"]]
 
 This call concatenates PDF files into one.
 Currently the implementation limits the PDFs a lot since not all details
 are taken care of yet. Straightforward ones like those created with pdf4tcl
 or ps2pdf should work mostly ok.
+
+Merging keeps the catalog of the FIRST input, and with it its document
+information -- two files joined otherwise carry the title of part one. A
+merger cannot know what several documents are called together, so it asks:
+
+[list_begin options]
+[opt_def -title [arg text]]
+[opt_def -author [arg text]]
+[opt_def -subject [arg text]]
+[opt_def -keywords [arg text]]
+[opt_def -creator [arg text]]
+[opt_def -producer [arg text]]
+[list_end]
+
+An empty value REMOVES the entry -- better no title than the wrong one.
+Entries not named keep whatever the first document had.
+
+[example {
+::pdf4tcl::catPdf -title "Complete file" -author "" \
+        part1.pdf part2.pdf complete.pdf
+}]
+
+The options come before the file names, so every existing call keeps
+working unchanged.
 
 [call [cmd ::pdf4tcl::getForms] [arg "infile"]]
 
@@ -808,6 +832,71 @@ $pdfobject addEmbeddedFile "factur-x.xml" \
     -afrelationship Alternative
 }]
 
+[call [arg objectName] [method facturx] [opt [arg "option value"]...]]
+
+Attaches an electronic invoice as Factur-X / ZUGFeRD and writes the XMP
+metadata the standard requires. This does in one call what
+[method addEmbeddedFile] plus [method metadata] would do by hand, and it
+adds the [const fx:] XMP block a validating reader looks for.
+
+A valid electronic invoice is PDF/A-3 ([option -pdfa] set to [const 3b]
+or [const 3a]); the method does not enforce that, but a file written
+without it will not pass an invoice validator. PDF/A-1 forbids embedded
+files outright, so [method addEmbeddedFile] refuses there.
+
+Either [option -contents] or [option -file] has to be given, not both.
+
+[list_begin options]
+
+[opt_def -contents [arg data]]
+The invoice XML itself.
+
+[opt_def -file [arg path]]
+Path to the invoice XML, read from disk. Excludes [option -contents].
+
+[opt_def -filename [arg name]]
+The name the XML carries inside the PDF, used for the embedded file and
+for [const DocumentFileName] in the XMP
+(default: [const factur-x.xml]).
+
+[opt_def -conformance [arg level]]
+The invoice profile: [const MINIMUM], [const "BASIC WL"], [const BASIC],
+[const "EN 16931"], [const EXTENDED] or [const XRECHNUNG]
+(default: [const "EN 16931"]).
+
+[opt_def -documenttype [arg type]]
+[const DocumentType] in the XMP (default: [const INVOICE]).
+
+[opt_def -version [arg v]]
+The Factur-X version (default: [const 1.0]).
+
+[opt_def -afrelationship [arg rel]]
+The [const /AFRelationship] of the embedded XML
+(default: [const Alternative]). MINIMUM and BASIC WL are not a complete
+invoice on their own and take [const Data].
+
+[opt_def -namespace [arg uri]]
+The XMP namespace (default: the Factur-X 1.0 / ZUGFeRD 2.1 URI).
+
+[opt_def -prefix [arg p]]
+The XMP prefix (default: [const fx]).
+
+[list_end]
+
+[example {
+# Every font has to be embedded -- PDF/A refuses the standard 14, so a
+# document set in Helvetica fails validation whatever else is right.
+pdf4tcl::loadBaseTrueTypeFont BaseSans "FreeSans.ttf"
+pdf4tcl::createFontSpecCID BaseSans Uni
+
+set pdfobject [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3b]
+$pdfobject startPage
+$pdfobject setFont 12 Uni
+...
+$pdfobject facturx -file "factur-x.xml" -conformance "EN 16931"
+$pdfobject write -file invoice.pdf
+# verapdf -f 3b invoice.pdf  ->  PASS
+}]
 [call [arg objectName] [method hyperlinkAdd] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [arg "url"] [opt [arg "option value"]...]]
 
 This method adds a URI hyperlink annotation to the current page. The clickable
@@ -1078,6 +1167,78 @@ the spacing is 1.
 [call [arg objectName] [method getLineSpacing]]
 
 Get the current default line spacing factor (a dimensionless multiplier).
+
+[call [arg objectName] [method setKerning] [arg value]]
+
+Pair kerning, which is the per-pair spacing correction a font ships for
+pairs like AV or To. Three levels:
+
+[list_begin definitions]
+[def [const 0]] Off. One [const Tj] per string, no adjustments, and
+[method getStringWidth] adds up advance widths alone. This is the output
+of 0.9.4.46 and earlier.
+[def [const 1]] Embedded fonts only. The default.
+[def [const all]] The standard 14 as well.
+[list_end]
+
+The amounts come from three sources, whichever the face carries: the
+legacy [const kern] table, the [const kern] feature of [const GPOS]
+(pair adjustment, both subtable formats, including extension lookups),
+and for the standard 14 the Adobe metrics. Of 66 TrueType faces on a
+typical Linux installation, 33 carry a [const kern] table and 43 a
+[const kern] feature in GPOS, so both are needed.
+
+The standard 14 are not in the default because their output is pinned by
+the regression tests. Turning them on changes documents that have looked
+the same for years. [method setKerning] [const all] raises an error when
+the pairs are not available, rather than silently doing nothing.
+
+A kerned string is written as a [const TJ] array instead of a
+[const Tj] string, and [method getStringWidth] returns the kerned width,
+so measuring and drawing agree. Where a face has no pairs for a string,
+the plain form is written and the output is unchanged.
+
+Of [const lookupFlag], bit 3 ([const IgnoreMarks]) is honoured: where a
+face sets it, mark glyphs named by [const GDEF] are skipped, so that
+[const A] followed by a combining accent and [const V] is kerned as the
+pair [const AV]. 18 of 66 faces on a typical Linux installation set that
+bit, and none sets any other.
+
+What is not read: the remaining [const lookupFlag] bits, script and
+language system selection (every [const kern] feature is taken),
+contextual lookups, and version 1 of the [const kern] table (the Apple
+layout, skipped rather than misread).
+
+[call [arg objectName] [method getKerning]]
+
+Get the current kerning level: [const 0], [const 1] or [const all].
+
+[call [arg objectName] [method setLigatures] [arg onOff]]
+
+Standard ligatures from the [const liga] feature of [const GSUB]:
+[const fi], [const fl], [const ffi] and whatever else the face defines.
+Off by default, because it changes the output of existing documents.
+
+Only for embedded fonts, and only lookup type 4 (ligature substitution),
+including extension lookups. The longest match wins, so [const ffi]
+becomes one glyph rather than [const f] followed by [const fi].
+
+The [const ToUnicode] CMap records every character a ligature stands for,
+so a reader extracting the text gets [const fi] back and searching for a
+word still finds it. This is the part that has to be right: a ligature
+that leaves text unsearchable is worse than no ligature.
+
+Not every face means the same thing by [const liga]. Of 66 TrueType faces
+on a typical Linux installation, one carries 424 ligature targets,
+another none at all, and DejaVu Sans has an Arabic [const liga] feature
+and no [const fi] glyph. Check the face before relying on this.
+
+Like [method setKerning], the setting belongs to the text state and is
+saved by [method gsave] with the rest.
+
+[call [arg objectName] [method getLigatures]]
+
+Get whether ligatures are applied: [const 0] or [const 1].
 
 [call [arg objectName] [method getLineHeight]]
 

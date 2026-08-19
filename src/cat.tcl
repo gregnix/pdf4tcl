@@ -168,12 +168,34 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set allXref {}
     set xrefIndices {}
     # Locate last xref table
-    regexp {startxref\s+(\d+)\s+%%EOF\s*$} $data -> startxref
+    if {![regexp {startxref\s+(\d+)\s+%%EOF\s*$} $data -> startxref]} {
+        throw {PDF4TCL} "catPdf: no startxref at the end of \"$file\" --\
+                the file is damaged or not a PDF"
+    }
     while 1 {
         set endpart [string range $data $startxref end]
         lappend xrefIndices $startxref
         # Extract trailer
-        regexp {(?:trailer\s+(.*?)\s+startxref){1,1}?} $endpart -> trailertxt
+        #
+        # A file may carry a cross-reference STREAM instead of a table
+        # (PDF 1.5+). Then there is no "trailer" keyword at all, and the
+        # entries sit compressed in an object of /Type /XRef.
+        #
+        # This reader does not handle that, and it used to fail with
+        #   can't read "trailertxt": no such variable
+        # which names a Tcl variable instead of the cause. It matters
+        # more than it looks: PDF/A-1 FORBIDS xref streams, PDF/A-2 and
+        # -3 REQUIRE them -- so every archival document from 2b upwards,
+        # and every ZUGFeRD invoice, lands here.
+        if {![regexp {(?:trailer\s+(.*?)\s+startxref){1,1}?} $endpart -> trailertxt]} {
+            if {[regexp {/Type\s*/XRef} $endpart]} {
+                throw {PDF4TCL} "catPdf: \"$file\" uses a\
+                        cross-reference stream (PDF 1.5+), which this\
+                        reader does not support. Documents from PDF/A-2b\
+                        upwards always do."
+            }
+            throw {PDF4TCL} "catPdf: no trailer found in \"$file\""
+        }
         set trailer [PdfDictToTclDict $trailertxt]
         # Store
         lappend allXref $endpart $trailer
@@ -755,6 +777,69 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
 # Objects that carry the document structure are left alone. The page tree,
 # the catalog and the parent tree are legitimately similar between documents
 # and folding them would join things that only look the same.
+# Replace the document information dictionary of a merged document.
+#
+# Merging keeps the catalog of the FIRST document, and with it its /Info --
+# so two documents joined end up carrying the title of part one. That is
+# not wrong on its own; a merger cannot know what two documents are called
+# together. But it is a surprise when nobody said so, which is why catPdf
+# now takes -title and friends.
+#
+# Keys are given as they appear in the dictionary: Title, Author, Subject,
+# Keywords, Creator, Producer. An empty value REMOVES the entry -- better
+# no title than the wrong one.
+proc pdf4tcl::cat::SetInfo {pdfd info} {
+    if {![dict size $info]} { return $pdfd }
+
+    # The existing dictionary, if there is one.
+    set old [dict create]
+    set infoId ""
+    if {[dict exists $pdfd trailer /Info]} {
+        set infoId [lindex [dict get $pdfd trailer /Info] 0]
+        if {[dict exists $pdfd $infoId]} {
+            set body [dict get $pdfd $infoId full]
+            if {[regexp {<<(.*)>>} $body -> inner]} {
+                set old [PdfDictToTclDict "<<$inner>>"]
+            }
+        }
+    }
+
+    dict for {key val} $info {
+        set pdfKey "/$key"
+        if {$val eq ""} {
+            dict unset old $pdfKey
+        } else {
+            # Round brackets and backslashes have to be escaped inside a
+            # PDF string, or a title with a bracket in it ends the object
+            # early.
+            dict set old $pdfKey "([string map {\\ \\\\ ( \\( ) \\)} $val])"
+        }
+    }
+
+    if {![dict size $old]} {
+        # Everything removed: drop the reference as well, rather than
+        # leaving an empty dictionary behind.
+        if {$infoId ne ""} { dict unset pdfd trailer /Info }
+        return $pdfd
+    }
+
+    set body "<<"
+    dict for {k v} $old { append body " $k $v" }
+    append body " >>"
+
+    if {$infoId eq ""} {
+        # No /Info so far -- append a new object.
+        set maxId 0
+        foreach key [dict keys $pdfd] {
+            if {[string is digit -strict $key] && $key > $maxId} { set maxId $key }
+        }
+        set infoId [expr {$maxId + 1}]
+        dict set pdfd trailer /Info "$infoId 0 R"
+    }
+    dict set pdfd $infoId full "$infoId 0 obj\n$body\nendobj\n"
+    return $pdfd
+}
+
 proc pdf4tcl::cat::DedupObjects {pdfd} {
     set bodies {}
     set mapping {}
@@ -879,8 +964,34 @@ proc pdf4tcl::cat::RemapDict {d mapping} {
 }
 
 proc pdf4tcl::catPdf {args} {
+    # Options first, then the files. Keeping the file names positional
+    # means every existing call still works:
+    #
+    #   catPdf a.pdf b.pdf out.pdf
+    #   catPdf -title "Complete file" a.pdf b.pdf out.pdf
+    #
+    # Why the options exist: merging keeps the catalog of the FIRST
+    # document, so the result carries the title of part one. A merger
+    # cannot know what two documents are called together -- so it asks.
+    set info [dict create]
+    set known {-title Title -author Author -subject Subject \
+               -keywords Keywords -creator Creator -producer Producer}
+    while {[llength $args] && [string match {-*} [lindex $args 0]]} {
+        set opt [lindex $args 0]
+        if {![dict exists $known $opt]} {
+            throw {PDF4TCL} "catPdf: unknown option \"$opt\": must be\
+                    [join [lsort [dict keys $known]] {, }]"
+        }
+        if {[llength $args] < 2} {
+            throw {PDF4TCL} "catPdf: value for \"$opt\" missing"
+        }
+        dict set info [dict get $known $opt] [lindex $args 1]
+        set args [lrange $args 2 end]
+    }
+
     if {[llength $args] < 3} {
-        throw {PDF4TCL} "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
+        throw {PDF4TCL} "wrong # args: should be \"catPdf ?options?\
+                infile ?infile ...? outfile\""
     }
     set outfile [lindex $args end]
     set infile1 [lindex $args 0]
@@ -900,6 +1011,9 @@ proc pdf4tcl::catPdf {args} {
     # append, so a font shared by five documents collapses to one copy and
     # not to four.
     set pdf1 [pdf4tcl::cat::DedupObjects $pdf1]
+    # After the folding, so a rewritten /Info is not folded away against
+    # the original of the first document.
+    set pdf1 [pdf4tcl::cat::SetInfo $pdf1 $info]
     pdf4tcl::cat::WritePdf $outfile $pdf1
 }
 

@@ -342,9 +342,23 @@ this is often acceptable; for general-purpose user input it is not.
 
 ### OpenType Features
 
-Ligatures, contextual substitution, and other OpenType GSUB/GPOS features
-are not applied. Characters are mapped directly from Unicode codepoint to
-GlyphID without shaping.
+Since 0.9.4.47 two features are applied:
+
+- **Pair kerning** from the `kern` table and from the `kern` feature of
+  `GPOS`, on by default for embedded fonts. `setKerning 0` turns it off,
+  `setKerning all` extends it to the standard 14. Of `lookupFlag`, bit 3
+  (`IgnoreMarks`) is honoured through the `GDEF` glyph classes.
+- **Standard ligatures** from the `liga` feature of `GSUB`, lookup type 4
+  including extension lookups. Off by default; `setLigatures 1` turns it
+  on. The `ToUnicode` CMap records every character a ligature stands for,
+  so the text stays searchable.
+
+See `doc/en/howtos/howto-kerning.md` and `howto-ligatures.md`.
+
+Not applied: contextual substitution, the remaining `lookupFlag` bits,
+script and language system selection (every `kern` feature is taken), and
+any shaping. Characters are otherwise mapped directly from Unicode
+codepoint to GlyphID.
 
 ### Color Fonts and Emoji
 
@@ -474,3 +488,6 @@ $pdf text "Text with OTF font" -x 72 -y 200
 
 `demo-otf.tcl` in `demo/` demonstrates OTF font loading across
 three pages with Latin, Greek, and CJK characters.
+
+`demo-kerning-ligatures.tcl` shows pair kerning and standard ligatures
+side by side, with the numbers read out of the font.

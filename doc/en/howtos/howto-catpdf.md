@@ -62,10 +62,51 @@ field with one shared value: name
 
 Check `::pdf4tcl::warnings` after merging if that matters to you.
 
+## No cross-reference streams (0.9.4.48)
+
+A file may keep its object table as a *stream* rather than a table (PDF
+1.5+). `catPdf` cannot read those and says so:
+
+```
+catPdf: "part1.pdf" uses a cross-reference stream (PDF 1.5+), which this
+reader does not support. Documents from PDF/A-2b upwards always do.
+```
+
+The reach is wider than it sounds. ISO 19005-1 **forbids** xref streams, and
+PDF/A-2 and -3 **require** them:
+
+| Input | Merges |
+|---|---|
+| plain PDF from pdf4tcl | yes |
+| PDF/A-1b | yes |
+| PDF/A-2b, -3b | no |
+| ZUGFeRD / Factur-X invoice | no |
+
+Before 0.9.4.48 this failed with `can't read "trailertxt": no such
+variable`, naming a Tcl variable instead of the cause.
+
+## Naming the merged document (0.9.4.48)
+
+Merging keeps the catalog of the first input, and with it its `/Info` —
+otherwise two parts joined carry the title of part one:
+
+```tcl
+::pdf4tcl::catPdf -title "Complete file" -author "" \
+        part1.pdf part2.pdf complete.pdf
+```
+
+`-title -author -subject -keywords -creator -producer`, all before the file
+names, so existing calls are unaffected. An empty value **removes** the
+entry; entries not named keep what the first document had.
+
+**This writes `/Info` only, not `/Metadata` (XMP).** A reader preferring XMP
+still shows the title of the first document, and PDF/A requires the two to
+agree — which does not bite while PDF/A-2b cannot be read at all.
+
 ## Limits that still apply
 
-- **First catalog wins** — title and `/Metadata` of `part1` remain; set them
-  on the first file if the combined title must change.
+- **`/Metadata` of `part1` remains** — see above. The `/Info` of the
+  appended documents also stays in the file, unreferenced.
 - **Font dictionaries stay duplicated.** The embedded font *streams* are
   shared where they are byte-identical: measured on two documents using the
   same CID font, 772348 bytes of input produced 387881 in the merge. The

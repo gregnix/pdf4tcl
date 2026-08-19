@@ -149,7 +149,8 @@ $pdf destroy
 # Append appendix PDF
 set out [pdf4tcl::doc::outfile tutorial-06-reading-pack.pdf]
 set ::pdf4tcl::warnings {}
-pdf4tcl::catPdf $body $appendix $out
+# -title, weil sonst der Titel der ersten Datei gilt (0.9.4.48).
+pdf4tcl::catPdf -title "Reading pack" $body $appendix $out
 pdf4tcl::doc::done $out
 puts "samples in $sampleDir"
 puts "body:    $body"

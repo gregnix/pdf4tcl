@@ -64,6 +64,7 @@ set FILES {
     pdf4tcl.man
     pkgIndex.tcl
     stdmetrics.tcl
+    stdkern.tcl
     glyph2uni.tcl
     licence.terms
 }
