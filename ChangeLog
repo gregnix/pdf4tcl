@@ -1,3 +1,179 @@
+2026-08-19 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.49
+	* src/helpers.tcl (CIDEncodeText): a codepoint the font has no glyph
+	for is now counted. It was drawn as GlyphID 0 and passed over, so
+	getSubstCount -- which the subset path has fed since 0.9.4.35 --
+	stayed at zero for CID fonts, which are the ones used for text outside
+	Latin-1.
+	* src/helpers.tcl (NoteMissingGlyph): both paths now append to
+	::pdf4tcl::warnings, naming the codepoint and what was drawn in its
+	place -- a question mark on the subset path, .notdef on the CID path.
+	Once per font and codepoint, so a page of Chinese in a Latin face
+	gives a handful of lines rather than one per character; the counter
+	still counts every occurrence. A warning rather than an error, so a
+	document that puts up with the substitution keeps working.
+	* tests/new-0.9.4.35.test: 5 tests added, 42 in total.
+	* src/cat.tcl (ReadXrefStream): catPdf reads cross-reference streams
+	(ISO 32000-1 clause 7.5.8). Such a file has no "trailer" keyword --
+	the dictionary sits in the stream object and the table is packed into
+	its data, decoded per /W and /Index. PDF/A-1 forbids the form and
+	PDF/A-2 and -3 require it, so until now no archival document from 2b
+	upwards and no ZUGFeRD invoice could be merged at all. Measured: two
+	PDF/A-2b files merge and the result passes veraPDF as 2b; two tagged
+	PDF/A-3a files merge and the result passes 3a and UA-1.
+	Only /FlateDecode is decoded; another filter is named rather than
+	turned into nonsense. Objects inside an object stream (/ObjStm, type 2
+	in the table) are not unpacked, and a file carrying them is refused
+	with the count rather than losing them silently.
+	* tests/cat-acroform.test: 25 tests, and the files they write are
+	removed again -- thirteen were left in the working directory, which is
+	noise the next run has to look past.
+	* src/main.tcl (WriteXrefStream): the stream now describes itself. Its
+	object number was taken after /Size was computed, so a file with
+	objects 1..15 said "/Size 15" and the table covered 0..14 -- the stream
+	object was missing from its own table (ISO 32000-1 clause 7.5.8.2).
+	Neither qpdf --check nor veraPDF reported it.
+	* tests/pdfa.test: 4 tests for that, 70 in total. One reads the entry
+	out of the stream and checks that it points at the object header.
+	* src/helpers.tcl (ShapeRun, ShapedWidth, EncodeGlyphSlice): measuring
+	and drawing now share one shaped glyph run. PdfTextKerned split the
+	string on the glyphs BEFORE ligature substitution and passed the
+	ligature flag only to the last piece, so "ffi" in Carlito came out as
+	f + kern + fi and not the ffi glyph -- the kerning split undid
+	"longest match wins" from ApplyLigatures. Order is now Unicode ->
+	glyphs -> ligatures -> kerning -> TJ.
+	* src/main.tcl (getStringWidth): measures that same run. Ligatures were
+	not considered at all, so a line was measured wider than it was drawn:
+	in Carlito f+f+i is 839.8 against 807.6 for the ffi glyph, four
+	percent, which moves centred text and breaks lines in the wrong place.
+	The advance of a ligature comes from the horizontal metrics, indexed by
+	glyph id -- the same source the /W array is built from. A codepoint the
+	font cannot represent counts as the width of '?', which is what gets
+	drawn. Fonts without metrics fall back to the per-character sum.
+	* src/helpers.tcl (ShapeRun, EncodeGlyphSlice): a missing glyph is
+	reported on the kerned path too. ShapeRun had decoupled it from
+	CIDEncodeText, so whether a lost character was counted depended on
+	whether the string happened to kern anywhere. The codepoint is now kept
+	alongside GlyphID 0 and the encoder counts it, not the shaper --
+	ShapeRun also serves getStringWidth, and measuring must not raise the
+	counter.
+	* tests/new-0.9.4.35.test: 3 tests for that, 45 in total.
+	* src/main.tcl (SetPageMargin): the unreachable default branch throws
+	instead of printing a debug line.
+	* src/fonts.tcl, src/helpers.tcl: the IgnoreMarks lookup flag is kept
+	per entry rather than per font. One GPOS lookup with bit 3 used to set
+	a font-wide flag, after which every pair skipped marks -- including
+	pairs from lookups without the flag and pairs from the kern table,
+	which has no lookup flags at all. GetKernPairInfo returns the value
+	and the flag of the lookup the pair came from; NextKernGlyph tries the
+	immediate neighbour first and steps over a mark only when the pair
+	beyond it asks for it. IsMarkGlyph reports the GDEF class alone;
+	IsSkippableMark stays for outside callers.
+	* tests/kerning.test: 31 tests.
+	* KNOWN: catPdf -title writes /Info only. The 0.9.4.48 entry called
+	this unreachable while xref streams were unsupported; they are read
+	now, so a merged PDF/A-2b carries the XMP title of its first part
+	while /Info says something else, and PDF/A wants the two to agree.
+	* KNOWN: a glyph carries one ToUnicode mapping, but a face may use the
+	same glyph for U+FB01 and for the ligature formed from f and i. The
+	last use wins, so a document containing both extracts one of the two
+	wrongly.
+	* tests/ligatures.test: 16 tests. ligatures-3.4 checked only that some
+	TJ or Tj had been written -- it stayed green with no ligature formed
+	anywhere, which is why the two entries above went unnoticed. It now
+	checks for the ffi glyph, with "ffi" rather than "Auflage" because the
+	kerning between the two f is what broke it.
+
+2026-08-19 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.48
+	* src/cat.tcl: catPdf takes -title, -author, -subject, -keywords,
+	-creator and -producer, before the file names. Merging keeps the
+	catalog of the first input and with it its /Info, so a merged file
+	otherwise carries the title of part one. An empty value removes the
+	entry, entries not named keep what the first document had, and
+	brackets and backslashes are escaped -- an unescaped bracket ends the
+	string and the object with it. SetInfo runs after DedupObjects, or a
+	rewritten /Info would be folded back onto the original. The file names
+	stay positional, so existing calls are unaffected.
+	* src/cat.tcl (ReadPdf): a cross-reference stream is reported instead
+	of failing inside the parser with an unset trailertxt. PDF/A-1 forbids
+	xref streams (ISO 19005-1) and PDF/A-2 and -3 require them, so no
+	document from 2b upwards can be merged; 1b can. A missing startxref is
+	reported as well.
+	* tests/cat-acroform.test: 12 tests added, 23 in total.
+	* pdf4tcl.man: the new options.
+	* KNOWN: the /Info of an appended document stays in the file
+	unreferenced.
+	* KNOWN: /Metadata (XMP) is not written, so a reader preferring XMP
+	shows the title of the first document. PDF/A requires the two to
+	agree; unreachable while xref streams are unsupported.
+
+2026-08-18 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.47.1
+	* update doc
+
+2026-08-18 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.47
+	* src/fonts.tcl, src/helpers.tcl, src/main.tcl: pair kerning from
+	three sources -- the legacy kern table, the kern feature of GPOS
+	(type 2 in both subtable formats, including the type 9 extension
+	lookups Carlito and Caladea wrap theirs in), and for the standard 14
+	the Adobe metrics through the new stdkern.tcl. Both font sources are
+	needed: of 66 TrueType faces measured, 33 carry a kern table and 43 a
+	kern feature in GPOS. setKerning takes 0, 1 (embedded fonts only, the
+	default) or all; the standard 14 stay out of the default because
+	regression-1.1 and 1.2 pin their byte output. Class based GPOS
+	subtables are kept as classes rather than expanded -- expanding
+	Carlito gives 171859 pairs, 1271 ms and 2.2 MB against 47 ms kept.
+	Of lookupFlag, bit 3 (IgnoreMarks) is honoured through the GDEF glyph
+	classes, so A + combining acute + V kerns as the pair AV; 18 of 66
+	faces set that bit and none sets any other. A kerned string is written
+	as a TJ array and getStringWidth returns the kerned width, so
+	measuring and drawing agree -- kerning-4.3 checks that over the two
+	separate code paths.
+	* src/fonts.tcl, src/helpers.tcl, src/main.tcl: FontsAttrs
+	usedUnicode (Unicode -> GlyphID) becomes glyphChars (GlyphID -> list
+	of Unicode codepoints). That is the direction both readers need --
+	the /W array collects widths per glyph and the ToUnicode CMap maps a
+	glyph to what it stands for -- and the only one that can express a
+	ligature. The CMap writes several destinations in one entry. Checked
+	against the examples: byte for byte unchanged.
+	* src/fonts.tcl, src/helpers.tcl, src/main.tcl: standard ligatures
+	from the liga feature of GSUB, lookup type 4 including type 7
+	extensions, longest match first so ffi wins over fi. setLigatures is
+	off by default. The ToUnicode CMap records every character a ligature
+	stands for, so the text stays searchable -- pdftotext over a document
+	set with ligatures returns "Auflage finden". Not every face means the
+	same by liga: Carlito has 424 targets, Liberation Serif none, and
+	DejaVu Sans has an Arabic liga feature and no fi glyph at all.
+	* src/fonts.tcl: the NT list in ReadTableDirectory decides which
+	tables are copied INTO the embedded font, not which are read --
+	ttftables records the position of every table regardless. kern, GPOS,
+	GDEF and GSUB do not belong there: a PDF reader needs none of them,
+	the kerning being baked into the TJ array and the ligature into the
+	glyph run. Adding them grew examples/test1.pdf from 63528 to 116645
+	bytes for nothing.
+	* tests/kerning.test, tests/ligatures.test: new, 30 and 12 tests.
+	tests/cidfont.test: 1.4 and 2.3 follow glyphChars, 2.3b and 2.3c new,
+	5.8 no longer pins the single-Tj form and 5.8b pins it deliberately
+	under setKerning 0.
+	* pdf4tcl.man, doc/en/howtos/howto-kerning.md and
+	howto-ligatures.md with their scripts: what is read and what is not
+	-- the remaining lookupFlag bits, script and language system
+	selection, contextual lookups, and version 1 of the kern table, none
+	of which occurs in the 66 faces measured.
+	* tools/mk-stdkern.tcl: new, generates stdkern.tcl from the AFM
+	files. Keys are Unicode pairs, matching charWidths; AFM values are
+	already in 1/1000 em. tools/restore-pkg-symlinks.tcl lists
+	stdkern.tcl, so the link in pkg/ is created rather than remembered.
+	* KNOWN: kerning across a ligature looks the pair up on the ligature
+	glyph, which is what the font intends, but no test covers it -- no
+	face here has a pair that would show a difference.
+
 2026-08-16 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.46

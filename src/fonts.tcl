@@ -81,6 +81,12 @@ namespace eval pdf4tcl {
         }
 
         ExtractInfo
+        # After ExtractInfo: unitsPerEm comes from head and the kerning
+        # amounts are scaled with it.
+        ReadKernTable
+        ReadGdefClasses
+        ReadGposKern
+        ReadGsubLigatures
 
         unset -nocomplain ttfdata
         unset -nocomplain ttftables
@@ -178,7 +184,17 @@ namespace eval pdf4tcl {
         variable ttfname
         variable BFP
         variable BFA
-        # Must copy only needed tables here, if they exist:
+        # Must copy only needed tables here, if they exist.
+        #
+        # NOT kern, GPOS, GDEF or GSUB: this list decides what goes INTO
+        # the embedded font, and a PDF reader needs none of them -- the
+        # kerning is already baked into the TJ arrays and the ligature
+        # into the glyph run. ttftables below records the position of
+        # EVERY table, so the readers find them in the original file
+        # regardless.
+        #
+        # Measured: adding GSUB here grew examples/test1.pdf from 94404 to
+        # 116645 bytes for nothing.
         set NT [list "name" "OS/2" "cvt " "fpgm" "prep" \
                 "glyf" "post" "hhea" "maxp" "head"]
 
@@ -596,6 +612,518 @@ space instead of the usual empty rectangle."
                 throw {PDF4TCL} "unknown location table format $indexToLocFormat"
             }
         }
+    }
+
+    # Pair kerning from the legacy "kern" table.
+    #
+    # What this reads: version 0 of the table, coverage format 0 -- a sorted
+    # list of glyph pairs with an adjustment each, in font units. That is what
+    # DejaVu Sans carries (2727 pairs in one subtable) and what most TrueType
+    # faces built for Windows carry.
+    #
+    # What it does NOT read: GPOS. Modern faces put kerning there, sometimes
+    # ONLY there -- DejaVu Sans Mono has GPOS and no kern table at all, and
+    # for such a face this returns nothing and text is set unkerned, exactly
+    # as before. Reading GPOS is a separate piece of work; it needs the script
+    # and language system resolution, class-based subtables and coverage
+    # tables.
+    #
+    # Only horizontal, non-cross-stream subtables are used (coverage bit 0
+    # set, bits 1 and 2 clear). A vertical subtable applied horizontally would
+    # move text sideways by amounts meant for line spacing.
+    proc ReadKernTable {} {
+        variable ttfdata
+        variable ttftables
+        variable ttfname
+        variable BFA
+
+        set BFA($ttfname,kernPairs) [dict create]
+        set BFA($ttfname,kernClasses) {}
+        set BFA($ttfname,kernIgnoreMarks) 0
+        set BFA($ttfname,markGlyphs) [dict create]
+        if {![info exists ttftables(kern)]} {
+            return
+        }
+        foreach {checksum offset length} $ttftables(kern) break
+        if {$length < 4} { return }
+
+        binary scan $ttfdata "@${offset}SuSu" version nTables
+        if {$version != 0} {
+            # Version 1 is the Apple layout with a different header. Not read;
+            # a face carrying only that one is set unkerned rather than with
+            # numbers taken from the wrong offsets.
+            return
+        }
+
+        set pos [expr {$offset + 4}]
+        set ende [expr {$offset + $length}]
+        set pairs [dict create]
+        for {set i 0} {$i < $nTables} {incr i} {
+            if {$pos + 6 > $ende} { break }
+            binary scan $ttfdata "@${pos}SuSuSu" subVersion subLength coverage
+            if {$subLength <= 0} { break }
+            set format [expr {($coverage >> 8) & 0xFF}]
+            set horizontal [expr {$coverage & 0x1}]
+            set crossStream [expr {($coverage >> 2) & 0x1}]
+            if {$format == 0 && $horizontal && !$crossStream} {
+                binary scan $ttfdata "@[expr {$pos + 6}]Su" nPairs
+                set pp [expr {$pos + 14}]
+                for {set k 0} {$k < $nPairs} {incr k} {
+                    if {$pp + 6 > $ende} { break }
+                    binary scan $ttfdata "@${pp}SuSuS" left right value
+                    if {$value != 0} {
+                        # The kern table has no lookup flags at all, so
+                        # its pairs never skip marks.
+                        dict set pairs $left,$right [list $value 0]
+                    }
+                    incr pp 6
+                }
+            }
+            incr pos $subLength
+        }
+        set BFA($ttfname,kernPairs) $pairs
+    }
+
+    # Pair kerning from GPOS.
+    #
+    # Why this is needed at all: of 66 TrueType faces on this machine, 33
+    # carry a "kern" table and 43 carry a kern feature in GPOS -- the two
+    # sets overlap, but half the faces have GPOS only. Without this, kerning
+    # does nothing for them.
+    #
+    # What is read: the kern feature of the DFLT/latn script, lookup type 2
+    # (pair adjustment) in both subtable formats, and type 9 (extension),
+    # which merely points at a real subtable somewhere else. Carlito and
+    # Caladea -- the metric stand-ins for Calibri and Cambria -- wrap their
+    # type 2 format 2 subtables in type 9, so a reader that stops at type 9
+    # finds nothing in exactly the faces this was built for.
+    #
+    # What is NOT read: script and language system selection beyond taking
+    # every kern feature there is, chaining contextual lookups, and
+    # lookupFlag. A face that turns kerning off for a particular script
+    # therefore still gets it here. That is a limitation, not an oversight;
+    # it is written down rather than discovered later.
+    #
+    # Only XAdvance of the first glyph is used. The other three values of a
+    # value record move glyphs vertically or shift the second glyph, which
+    # is placement, not kerning, and has no place in a TJ array.
+    # The glyph class definition of GDEF: 1 base, 2 ligature, 3 mark,
+    # 4 component. Needed for lookupFlag bit 3 (IgnoreMarks), which 18 of
+    # 66 faces here set on their kern lookups -- Caladea among them.
+    #
+    # Without it, "A" + U+0301 + "V" is not kerned, because the accent sits
+    # between the pair. The font asks for the accent to be skipped.
+    proc ReadGdefClasses {} {
+        variable ttfdata
+        variable ttftables
+        variable ttfname
+        variable BFA
+
+        set BFA($ttfname,markGlyphs) [dict create]
+        if {![info exists ttftables(GDEF)]} { return }
+        foreach {checksum start length} $ttftables(GDEF) break
+        if {$length < 12} { return }
+        if {[catch {
+            binary scan $ttfdata "@${start}SuSuSu" major minor classOff
+            if {$major != 1 || $classOff == 0} { return }
+            set klassen [GposClassDef [expr {$start + $classOff}]]
+            set marks [dict create]
+            dict for {glyph class} $klassen {
+                if {$class == 3} { dict set marks $glyph 1 }
+            }
+            set BFA($ttfname,markGlyphs) $marks
+        }]} {
+            set BFA($ttfname,markGlyphs) [dict create]
+        }
+    }
+
+    proc ReadGposKern {} {
+        variable ttfdata
+        variable ttftables
+        variable ttfname
+        variable BFA
+
+        if {![info exists ttftables(GPOS)]} { return }
+        foreach {checksum start length} $ttftables(GPOS) break
+        if {$length < 10} { return }
+
+        if {[catch {GposKernWorker $start $length} pairs]} {
+            # A damaged table costs its own kerning and nothing else -- the
+            # document is still written, unkerned.
+            return
+        }
+        if {![dict size $pairs]} { return }
+        # Merge: the kern table wins where both name a pair, because it is
+        # the older and narrower source and a face that ships both usually
+        # means the same numbers.
+        set have $BFA($ttfname,kernPairs)
+        dict for {k v} $pairs {
+            if {![dict exists $have $k]} { dict set have $k $v }
+        }
+        set BFA($ttfname,kernPairs) $have
+    }
+
+    proc GposKernWorker {start length} {
+        variable ttfdata
+        variable ttfname
+        variable BFA
+        set pairs [dict create]
+        # Reihenfolge im Kopf: major, minor, scriptList, featureList,
+        # lookupList. Ich hatte die letzten beiden vertauscht -- dann zeigt
+        # featureList auf die Lookups, und binary scan lief hinter das Ende
+        # der Datei ("not enough arguments for all format specifiers").
+        # Der catch darum verschluckte es, und es sah aus, als haette die
+        # this face has no kerning.
+        binary scan $ttfdata "@${start}SuSuSuSuSu" major minor scriptOff featureOff lookupOff
+        if {$major != 1} { return $pairs }
+
+        set featureList [expr {$start + $featureOff}]
+        set lookupList  [expr {$start + $lookupOff}]
+        binary scan $ttfdata "@${featureList}Su" featureCount
+
+        set lookups {}
+        for {set i 0} {$i < $featureCount} {incr i} {
+            set rec [expr {$featureList + 2 + $i * 6}]
+            binary scan $ttfdata "@${rec}a4Su" tag offset
+            if {$tag ne "kern"} { continue }
+            set feature [expr {$featureList + $offset}]
+            binary scan $ttfdata "@${feature}SuSu" params lookupCount
+            for {set j 0} {$j < $lookupCount} {incr j} {
+                binary scan $ttfdata "@[expr {$feature + 4 + $j * 2}]Su" idx
+                if {$idx ni $lookups} { lappend lookups $idx }
+            }
+        }
+        if {![llength $lookups]} { return $pairs }
+
+        binary scan $ttfdata "@${lookupList}Su" lookupCount
+        foreach idx $lookups {
+            if {$idx >= $lookupCount} { continue }
+            binary scan $ttfdata "@[expr {$lookupList + 2 + $idx * 2}]Su" lookupOffset
+            set lookup [expr {$lookupList + $lookupOffset}]
+            binary scan $ttfdata "@${lookup}SuSuSu" type flag subCount
+            # Bit 3 (value 8) is IgnoreMarks. The other bits -- ignore
+            # base glyphs, ignore ligatures, the mark attachment class
+            # and the mark filtering set -- are not acted upon; a face
+            # that uses them gets its marks skipped and nothing else.
+            # IgnoreMarks belongs to THIS lookup, not to the face. Setting
+            # a font-wide flag meant one lookup with bit 3 made every pair
+            # skip marks -- including pairs from other lookups without the
+            # flag, and those from the older kern table, which has no such
+            # concept at all.
+            set ignoreMarks [expr {($flag & 8) != 0}]
+            for {set m 0} {$m < $subCount} {incr m} {
+                binary scan $ttfdata "@[expr {$lookup + 6 + $m * 2}]Su" subOffset
+                set sub [expr {$lookup + $subOffset}]
+                set realType $type
+                if {$type == 9} {
+                    # Extension: format, the type it stands for, and a
+                    # 32-bit offset from the extension subtable itself.
+                    binary scan $ttfdata "@${sub}SuSuIu" extFormat realType extOffset
+                    set sub [expr {$sub + $extOffset}]
+                }
+                if {$realType != 2} { continue }
+                GposKernSubtable $sub pairs $ignoreMarks
+            }
+        }
+        return $pairs
+    }
+
+    proc GposKernSubtable {sub pairsVar {ignoreMarks 0}} {
+        variable ttfdata
+        variable BFA
+        upvar 1 $pairsVar pairs
+        binary scan $ttfdata "@${sub}SuSuSuSu" format coverageOff valueFormat1 valueFormat2
+        # Only the simple case: the first glyph carries an XAdvance and the
+        # second carries nothing. Anything else is placement.
+        if {$valueFormat1 != 0x0004 || $valueFormat2 != 0} { return }
+
+        set coverage [GposCoverage [expr {$sub + $coverageOff}]]
+        if {![llength $coverage]} { return }
+
+        if {$format == 1} {
+            binary scan $ttfdata "@[expr {$sub + 8}]Su" pairSetCount
+            for {set i 0} {$i < $pairSetCount && $i < [llength $coverage]} {incr i} {
+                binary scan $ttfdata "@[expr {$sub + 10 + $i * 2}]Su" psOff
+                set ps [expr {$sub + $psOff}]
+                binary scan $ttfdata "@${ps}Su" pairCount
+                set left [lindex $coverage $i]
+                for {set j 0} {$j < $pairCount} {incr j} {
+                    set rec [expr {$ps + 2 + $j * 4}]
+                    binary scan $ttfdata "@${rec}SuS" right value
+                    if {$value != 0} {
+                        dict set pairs $left,$right [list $value $ignoreMarks]
+                    }
+                }
+            }
+        } elseif {$format == 2} {
+            # Class based, kept as classes rather than expanded into
+            # glyph pairs. Measured on Carlito: expanding gives 171859
+            # pairs, 1271 ms and 2.2 MB for one face; kept as classes,
+            # 47 ms.
+            #
+            # The matrix is copied out as a list of numbers, not kept as
+            # an offset -- ttfdata is gone once the font is loaded.
+            variable ttfname
+            binary scan $ttfdata "@[expr {$sub + 8}]SuSuSuSu" \
+                    classDef1Off classDef2Off class1Count class2Count
+            set werte {}
+            set n [expr {$class1Count * $class2Count}]
+            for {set i 0} {$i < $n} {incr i} {
+                binary scan $ttfdata "@[expr {$sub + 16 + $i * 2}]S" v
+                lappend werte $v
+            }
+            ##nagelfar ignore #7 Found constant
+            lappend BFA($ttfname,kernClasses) [dict create \
+                    werte $werte \
+                    ignoreMarks $ignoreMarks \
+                    coverage $coverage \
+                    class1 [GposClassDef [expr {$sub + $classDef1Off}]] \
+                    class2 [GposClassDef [expr {$sub + $classDef2Off}]] \
+                    class1Count $class1Count \
+                    class2Count $class2Count]
+        }
+    }
+
+    # The glyphs a coverage table names, in coverage order.
+    proc GposCoverage {pos} {
+        variable ttfdata
+        binary scan $ttfdata "@${pos}Su" format
+        set out {}
+        if {$format == 1} {
+            binary scan $ttfdata "@[expr {$pos + 2}]Su" count
+            for {set i 0} {$i < $count} {incr i} {
+                binary scan $ttfdata "@[expr {$pos + 4 + $i * 2}]Su" glyph
+                lappend out $glyph
+            }
+        } elseif {$format == 2} {
+            binary scan $ttfdata "@[expr {$pos + 2}]Su" rangeCount
+            for {set i 0} {$i < $rangeCount} {incr i} {
+                set rec [expr {$pos + 4 + $i * 6}]
+                binary scan $ttfdata "@${rec}SuSuSu" first last startIndex
+                for {set g $first} {$g <= $last} {incr g} { lappend out $g }
+            }
+        }
+        return $out
+    }
+
+    # glyph -> class. Glyphs not listed are class 0 and stay out of the dict;
+    # the caller treats a missing entry as 0.
+    proc GposClassDef {pos} {
+        variable ttfdata
+        binary scan $ttfdata "@${pos}Su" format
+        set out [dict create]
+        if {$format == 1} {
+            binary scan $ttfdata "@[expr {$pos + 2}]SuSu" startGlyph count
+            for {set i 0} {$i < $count} {incr i} {
+                binary scan $ttfdata "@[expr {$pos + 6 + $i * 2}]Su" class
+                if {$class != 0} { dict set out [expr {$startGlyph + $i}] $class }
+            }
+        } elseif {$format == 2} {
+            binary scan $ttfdata "@[expr {$pos + 2}]Su" rangeCount
+            for {set i 0} {$i < $rangeCount} {incr i} {
+                set rec [expr {$pos + 4 + $i * 6}]
+                binary scan $ttfdata "@${rec}SuSuSu" first last class
+                if {$class == 0} { continue }
+                for {set g $first} {$g <= $last} {incr g} { dict set out $g $class }
+            }
+        }
+        return $out
+    }
+
+    # Standard ligatures from the "liga" feature of GSUB, lookup type 4.
+    #
+    # Stored as BFA(<font>,ligatures): a dict keyed by the FIRST glyph,
+    # whose value is a list of {followers ligatureGlyph} -- longest first,
+    # because "ffi" has to win over "fi" where both apply.
+    #
+    # Not every face has Latin ligatures where one expects them: DejaVu
+    # Sans has an Arabic liga feature and no fi glyph at all, while Carlito
+    # carries 424 and Liberation Serif none. Measured, not assumed.
+    proc ReadGsubLigatures {} {
+        variable ttfdata
+        variable ttftables
+        variable ttfname
+        variable BFA
+
+        set BFA($ttfname,ligatures) [dict create]
+        if {![info exists ttftables(GSUB)]} { return }
+        foreach {checksum start length} $ttftables(GSUB) break
+        if {$length < 10} { return }
+        if {[catch {GsubLigatureWorker $start} ligs]} { return }
+        # Longest first, so "ffi" wins over "fi" where both apply. Without
+        # this the shorter one matches and the third glyph is left over.
+        set sortiert [dict create]
+        dict for {first eintraege} $ligs {
+            set mitLaenge {}
+            foreach e $eintraege {
+                lappend mitLaenge [list [llength [lindex $e 0]] $e]
+            }
+            set out {}
+            foreach e [lsort -integer -decreasing -index 0 $mitLaenge] {
+                lappend out [lindex $e 1]
+            }
+            dict set sortiert $first $out
+        }
+        set BFA($ttfname,ligatures) $sortiert
+    }
+
+    proc GsubLigatureWorker {start} {
+        variable ttfdata
+        set ligs [dict create]
+        binary scan $ttfdata "@${start}SuSuSuSuSu" major minor scriptOff featureOff lookupOff
+        if {$major != 1} { return $ligs }
+
+        set featureList [expr {$start + $featureOff}]
+        set lookupList  [expr {$start + $lookupOff}]
+        binary scan $ttfdata "@${featureList}Su" featureCount
+
+        set lookups {}
+        for {set i 0} {$i < $featureCount} {incr i} {
+            set rec [expr {$featureList + 2 + $i * 6}]
+            binary scan $ttfdata "@${rec}a4Su" tag offset
+            if {$tag ne "liga"} { continue }
+            set feature [expr {$featureList + $offset}]
+            binary scan $ttfdata "@${feature}SuSu" params lookupCount
+            for {set j 0} {$j < $lookupCount} {incr j} {
+                binary scan $ttfdata "@[expr {$feature + 4 + $j * 2}]Su" idx
+                if {$idx ni $lookups} { lappend lookups $idx }
+            }
+        }
+        if {![llength $lookups]} { return $ligs }
+
+        binary scan $ttfdata "@${lookupList}Su" lookupCount
+        foreach idx $lookups {
+            if {$idx >= $lookupCount} { continue }
+            binary scan $ttfdata "@[expr {$lookupList + 2 + $idx * 2}]Su" lookupOffset
+            set lookup [expr {$lookupList + $lookupOffset}]
+            binary scan $ttfdata "@${lookup}SuSuSu" type flag subCount
+            for {set m 0} {$m < $subCount} {incr m} {
+                binary scan $ttfdata "@[expr {$lookup + 6 + $m * 2}]Su" subOffset
+                set sub [expr {$lookup + $subOffset}]
+                set realType $type
+                if {$type == 7} {
+                    # Extension substitution, the GSUB counterpart of the
+                    # type 9 seen in GPOS.
+                    binary scan $ttfdata "@${sub}SuSuIu" extFormat realType extOffset
+                    set sub [expr {$sub + $extOffset}]
+                }
+                if {$realType != 4} { continue }
+                GsubLigatureSubtable $sub ligs
+            }
+        }
+        return $ligs
+    }
+
+    proc GsubLigatureSubtable {sub ligsVar} {
+        variable ttfdata
+        upvar 1 $ligsVar ligs
+        binary scan $ttfdata "@${sub}SuSuSu" format coverageOff setCount
+        if {$format != 1} { return }
+        set coverage [GposCoverage [expr {$sub + $coverageOff}]]
+        for {set i 0} {$i < $setCount && $i < [llength $coverage]} {incr i} {
+            binary scan $ttfdata "@[expr {$sub + 6 + $i * 2}]Su" setOff
+            set set [expr {$sub + $setOff}]
+            binary scan $ttfdata "@${set}Su" ligCount
+            set first [lindex $coverage $i]
+            for {set j 0} {$j < $ligCount} {incr j} {
+                binary scan $ttfdata "@[expr {$set + 2 + $j * 2}]Su" ligOff
+                set lig [expr {$set + $ligOff}]
+                binary scan $ttfdata "@${lig}SuSu" ligGlyph compCount
+                if {$compCount < 2} { continue }
+                set folger {}
+                for {set c 1} {$c < $compCount} {incr c} {
+                    binary scan $ttfdata "@[expr {$lig + 2 + $c * 2}]Su" g
+                    lappend folger $g
+                }
+                dict lappend ligs $first [list $folger $ligGlyph]
+            }
+        }
+    }
+
+    # Is this glyph a mark, according to the GDEF glyph classes?
+    #
+    # Whether it may be SKIPPED is a separate question, decided per pair in
+    # NextKernGlyph -- the IgnoreMarks flag belongs to the lookup, not to
+    # the face.
+    proc IsMarkGlyph {basefontname glyph} {
+        variable BFA
+        if {![info exists BFA($basefontname,markGlyphs)]} { return 0 }
+        return [dict exists $BFA($basefontname,markGlyphs) $glyph]
+    }
+
+    # Kept for callers outside this file: a mark that the face asks to skip
+    # anywhere. Prefer IsMarkGlyph plus the per-pair flag.
+    proc IsSkippableMark {basefontname glyph} {
+        variable BFA
+        if {![info exists BFA($basefontname,kernIgnoreMarks)]
+                || !$BFA($basefontname,kernIgnoreMarks)} { return 0 }
+        return [IsMarkGlyph $basefontname $glyph]
+    }
+
+    # The adjustment between two glyphs, in 1/1000 em, or 0.
+    #
+    # Positive numbers in the table move the pair APART, negative together --
+    # and in a PDF TJ array the number moves the pen BACK. The sign is turned
+    # where the array is built, not here.
+    # The adjustment for a pair, in 1/1000 em. 0 when the face has none.
+    proc GetKernPair {basefontname left right} {
+        return [lindex [GetKernPairInfo $basefontname $left $right] 0]
+    }
+
+    # Adjustment AND the IgnoreMarks flag of the lookup it came from, as
+    # {value ignoreMarks}.
+    #
+    # The flag used to be stored per FONT: one lookup with bit 3 made every
+    # pair skip marks, including pairs from lookups without it and from the
+    # kern table, which has no lookup flags at all. It belongs to the entry.
+    proc GetKernPairInfo {basefontname left right} {
+        variable BFA
+        if {![info exists BFA($basefontname,kernPairs)]} { return [list 0 0] }
+        set pairs $BFA($basefontname,kernPairs)
+        set roh ""
+        set ignore 0
+        if {[dict exists $pairs $left,$right]} {
+            set eintragP [dict get $pairs $left,$right]
+            # Entries used to be a bare number; a face loaded by an older
+            # release could still be in memory.
+            if {[llength $eintragP] >= 2} {
+                lassign $eintragP roh ignore
+            } else {
+                set roh $eintragP
+            }
+        } elseif {[info exists BFA($basefontname,kernClasses)]} {
+            # Class based: row from the left glyph's class, column from
+            # the right one's. The left glyph must also be in the
+            # coverage -- otherwise the subtable does not apply to it and
+            # the value read would belong to a different glyph.
+            foreach eintrag $BFA($basefontname,kernClasses) {
+                if {$left ni [dict get $eintrag coverage]} { continue }
+                set c1 0
+                set c2 0
+                set k1 [dict get $eintrag class1]
+                set k2 [dict get $eintrag class2]
+                if {[dict exists $k1 $left]}  { set c1 [dict get $k1 $left] }
+                if {[dict exists $k2 $right]} { set c2 [dict get $k2 $right] }
+                if {$c1 >= [dict get $eintrag class1Count]} { continue }
+                if {$c2 >= [dict get $eintrag class2Count]} { continue }
+                set idx [expr {$c1 * [dict get $eintrag class2Count] + $c2}]
+                set v [lindex [dict get $eintrag werte] $idx]
+                if {$v ne "" && $v != 0} {
+                    set roh $v
+                    if {[dict exists $eintrag ignoreMarks]} {
+                        set ignore [dict get $eintrag ignoreMarks]
+                    }
+                    break
+                }
+            }
+        }
+        if {$roh eq "" || $roh == 0} { return [list 0 0] }
+        set upem 1000
+        if {[info exists BFA($basefontname,unitsPerEm)]
+                && $BFA($basefontname,unitsPerEm) > 0} {
+            set upem $BFA($basefontname,unitsPerEm)
+        }
+        return [list [expr {$roh * 1000.0 / $upem}] $ignore]
     }
 
     proc Rescale {x} {
@@ -1244,8 +1772,17 @@ space instead of the usual empty rectangle."
 
         set FontsAttrs($fontname,type)         CID
         set FontsAttrs($fontname,basefontname) $bfname
-        # usedUnicode: dict mapping Unicode codepoint (int) -> GlyphID
-        set FontsAttrs($fontname,usedUnicode)  {}
+        # glyphChars: dict mapping GlyphID -> list of Unicode codepoints.
+        #
+        # This direction, not Unicode -> GlyphID, because that is the
+        # direction both readers need: the /W array collects widths per
+        # glyph, and the ToUnicode CMap maps a glyph to what it stands
+        # for. It is also the only direction that can express a ligature,
+        # where one glyph stands for two or three characters.
+        #
+        # A list even where there is one character, so that the readers
+        # have one shape to deal with.
+        set FontsAttrs($fontname,glyphChars)  {}
         lappend Fonts $fontname
     }
 

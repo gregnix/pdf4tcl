@@ -27,7 +27,7 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 
 | Cluster | Examples |
 |---|---|
-| Demos / reference | `howto-run-demos.md`, `howto-feature-tour.md`, `howto-cheatsheets.md`, `howto-stdfonts.md`, `howto-symbols.md` |
+| Demos / reference | `howto-run-demos.md`, `howto-feature-tour.md`, `howto-cheatsheets.md`, `howto-stdfonts.md`, `howto-symbols.md`, `howto-kerning.md`, `howto-ligatures.md` |
 | Text / fonts | `howto-unicode.md`, `howto-otf.md`, `howto-font-coverage.md`, `howto-shapes.md` |
 | Colour / graphics | `howto-colors.md` (0.9.4.39+), `howto-cmyk.md`, `howto-alpha.md`, `howto-gradients.md`, `howto-transform.md` |
 | Standards | `howto-pdfa.md` (a-levels since **0.9.4.41**), `howto-catpdf.md` (**0.9.4.40**), `howto-validate.md`, `howto-facturx.md` |

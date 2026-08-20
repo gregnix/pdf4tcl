@@ -82,3 +82,82 @@ puts "fields in the merged document: [lsort $namen]"
 if {[llength $::pdf4tcl::warnings]} {
     foreach w $::pdf4tcl::warnings { puts "warning: $w" }
 }
+
+# ---------------------------------------------------------------------------
+# Naming the merged document (0.9.4.48)
+#
+# Merging keeps the catalog of the first input, so without saying otherwise
+# the result carries the title of part one.
+# ---------------------------------------------------------------------------
+
+proc titledDoc {file title text} {
+    set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4]
+    $p metadata -title $title
+    $p startPage
+    $p setFont 12 Body
+    $p text $text -x 60 -y 60
+    $p write -file $file
+    $p destroy
+}
+
+# Read the title through /Info in the trailer, not by searching the file:
+# the /Info of the appended document stays behind unreferenced, and it sits
+# BEFORE the valid one.
+proc infoTitle {file} {
+    set fh [open $file rb]
+    set data [read $fh]
+    close $fh
+    if {![regexp {/Info\s+(\d+)\s+0\s+R} $data -> id]} { return "(none)" }
+    if {![regexp "\n$id\\s+0\\s+obj(.*?)endobj" $data -> body]} { return "(none)" }
+    if {[regexp {/Title\s*\(([^)]*)\)} $body -> t]} { return $t }
+    return "(none)"
+}
+
+titledDoc [pdf4tcl::doc::outfile cat-t1.pdf] "Part one" "first"
+titledDoc [pdf4tcl::doc::outfile cat-t2.pdf] "Part two" "second"
+
+::pdf4tcl::catPdf \
+        [pdf4tcl::doc::outfile cat-t1.pdf] [pdf4tcl::doc::outfile cat-t2.pdf] \
+        [pdf4tcl::doc::outfile cat-plain.pdf]
+puts "without options: [infoTitle [pdf4tcl::doc::outfile cat-plain.pdf]]"
+
+::pdf4tcl::catPdf -title "Complete file" -author "" \
+        [pdf4tcl::doc::outfile cat-t1.pdf] [pdf4tcl::doc::outfile cat-t2.pdf] \
+        [pdf4tcl::doc::outfile cat-named.pdf]
+puts "with -title:     [infoTitle [pdf4tcl::doc::outfile cat-named.pdf]]"
+
+# ---------------------------------------------------------------------------
+# Cross-reference streams (0.9.4.49)
+#
+# PDF/A-2 and -3 require a cross-reference stream, PDF/A-1 forbids it.
+# Both forms are read since 0.9.4.49; before, nothing from 2b upwards
+# could be merged.
+# ---------------------------------------------------------------------------
+
+proc pdfaDoc {file level} {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa $level]
+    $p startPage
+    # Body, nicht Helvetica: PDF/A verlangt jedes Fontprogramm
+    # eingebettet, und die vierzehn Standardschriften haben keins. Sonst
+    # entstehen hier Dateien, die einen Anspruch tragen und ihn nicht
+    # halten -- geprueft mit tools/check-conformance.py.
+    $p setFont 12 Body
+    $p text "PDF/A-$level" -x 60 -y 60
+    $p write -file $file
+    $p destroy
+}
+
+foreach level {1b 2b} {
+    pdfaDoc [pdf4tcl::doc::outfile cat-a-$level.pdf] $level
+    pdfaDoc [pdf4tcl::doc::outfile cat-b-$level.pdf] $level
+    if {[catch {
+        ::pdf4tcl::catPdf \
+                [pdf4tcl::doc::outfile cat-a-$level.pdf] \
+                [pdf4tcl::doc::outfile cat-b-$level.pdf] \
+                [pdf4tcl::doc::outfile cat-out-$level.pdf]
+    } err]} {
+        puts "PDF/A-$level: refused -- [string range $err 0 60]..."
+    } else {
+        puts "PDF/A-$level: merged"
+    }
+}

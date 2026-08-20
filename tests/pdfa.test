@@ -743,4 +743,83 @@ test pdfa-ap-1.3 {without -pdfa the /D appearance is kept} -body {
     contains $data "/D << /Yes"
 } -result 1
 
+
+# ===========================================================================
+# pdfa-xrefstream-x  Der xref-Stream beschreibt sich selbst
+#
+# ISO 32000-1 Klausel 7.5.8.2: der Stream ist ein Objekt wie jedes andere
+# und gehoert in seine eigene Tabelle.
+#
+# Bis 0.9.4.49 wurde /Size bestimmt, BEVOR das Stream-Objekt seine Nummer
+# bekam. Eine Datei mit den Objekten 1..15 sagte "/Size 15", der Stream
+# beschrieb also 0..14 -- er selbst fehlte.
+#
+# Weder qpdf --check noch veraPDF haben das gemeldet; die Leser sind
+# tolerant genug. Deshalb hier ein Test, der nachrechnet.
+# ===========================================================================
+
+proc xrefStreamPdf {} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -pdfa 2b -compress 0]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "xref stream" -x 50 -y 700
+    $pdf endPage
+    set data [$pdf get]
+    $pdf destroy
+    return $data
+}
+
+test pdfa-xrefstream-1 {PDF/A-2b schreibt einen xref-Stream} -body {
+    # PDF/A-1 verbietet die Form, PDF/A-2 verlangt sie -- ohne Stream
+    # messen die folgenden Tests nichts.
+    set data [xrefStreamPdf]
+    expr {[regexp {/Type\s*/XRef} $data] > 0}
+} -result 1
+
+test pdfa-xrefstream-2 {/Size zaehlt das Stream-Objekt mit} -body {
+    set data [xrefStreamPdf]
+    regexp {/Size\s+(\d+)} $data -> size
+    # Die hoechste vergebene Objektnummer.
+    set maxOid 0
+    foreach {full n} [regexp -all -inline {(?:^|\n)(\d+)\s+0\s+obj} $data] {
+        if {$n > $maxOid} { set maxOid $n }
+    }
+    # /Size ist die ANZAHL, also hoechste Nummer plus eins.
+    expr {$size == $maxOid + 1}
+} -result 1
+
+test pdfa-xrefstream-3 {/Index deckt denselben Bereich ab} -body {
+    set data [xrefStreamPdf]
+    regexp {/Size\s+(\d+)} $data -> size
+    regexp {/Index\s*\[\s*0\s+(\d+)\s*\]} $data -> idx
+    expr {$idx == $size}
+} -result 1
+
+test pdfa-xrefstream-4 {der eigene Eintrag zeigt auf das Stream-Objekt} -body {
+    # Der eigentliche Nachweis: Zeile N der Tabelle muss auf "N 0 obj"
+    # zeigen, wo N die Nummer des Stream-Objekts ist. Ein Eintrag mit
+    # Offset 0 waere die stille Variante des alten Fehlers.
+    set data [xrefStreamPdf]
+    regexp {/Size\s+(\d+)} $data -> size
+    set xrefOid [expr {$size - 1}]
+
+    # Unkomprimiert (-compress 0), also liegen die Bytes direkt da.
+    set p [string first "/Type /XRef" $data]
+    set sp [string first "stream" $data $p]
+    set hdr [string range $data $p [expr {$sp - 1}]]
+    regexp {/Length\s+(\d+)} $hdr -> len
+    set b [expr {$sp + 6}]
+    if {[string index $data $b] eq "\r"} { incr b }
+    if {[string index $data $b] eq "\n"} { incr b }
+    set plain [string range $data $b [expr {$b + $len - 1}]]
+
+    # /W [1 4 2] -- sieben Bytes je Zeile.
+    binary scan $plain cu* by
+    set off 0
+    for {set i 1} {$i < 5} {incr i} {
+        set off [expr {$off * 256 + [lindex $by [expr {$xrefOid * 7 + $i}]]}]
+    }
+    string match "$xrefOid 0 obj*" [string range $data $off [expr {$off + 20}]]
+} -result 1
+
 cleanupTests

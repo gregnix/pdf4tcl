@@ -150,6 +150,128 @@ proc pdf4tcl::cat::TclDictToPdfDict {dict} {
 #       full: entire object
 #       dict: main dictionary, if any, converted to tcl dict
 #       stream: any stream
+# Read a cross-reference STREAM (PDF 1.5+, ISO 32000-1 clause 7.5.8).
+#
+# Such a file has no "trailer" keyword: the dictionary that would follow it
+# sits in the stream object itself, and the table is packed into the stream
+# data. PDF/A-1 forbids this form and PDF/A-2 and -3 require it, so every
+# archival document from 2b upwards arrives here.
+#
+# Returns a two-element list: the trailer dictionary, and a dict mapping
+# object number to byte offset -- the same shape the table branch produces,
+# so the caller does not care which form the file used.
+#
+# Objects of type 2 live inside an object stream. Those are not resolved
+# here; the caller is told so rather than silently losing them.
+proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
+    set objStart [string first "obj" $data $startxref]
+    if {$objStart < 0} {
+        throw {PDF4TCL} "catPdf: xref stream in \"$file\" has no object header"
+    }
+    set sp [string first "stream" $data $objStart]
+    if {$sp < 0} {
+        throw {PDF4TCL} "catPdf: xref stream in \"$file\" has no stream data"
+    }
+    set hdr [string range $data $objStart [expr {$sp - 1}]]
+
+    if {![regexp {/W\s*\[([^\]]*)\]} $hdr -> wSpec]} {
+        throw {PDF4TCL} "catPdf: xref stream in \"$file\" has no /W"
+    }
+    set widths [regexp -all -inline {\d+} $wSpec]
+    if {[llength $widths] < 3} {
+        throw {PDF4TCL} "catPdf: /W in \"$file\" needs three fields,\
+                got \"$wSpec\""
+    }
+
+    # Only Flate is handled. A filter this reader does not know would be
+    # decoded into nonsense, so say it instead.
+    if {[regexp {/Filter\s*/(\w+)} $hdr -> filter]} {
+        if {$filter ne "FlateDecode"} {
+            throw {PDF4TCL} "catPdf: xref stream in \"$file\" uses\
+                    /$filter, only /FlateDecode is supported"
+        }
+    } else {
+        set filter ""
+    }
+
+    if {![regexp {/Length\s+(\d+)} $hdr -> len]} {
+        throw {PDF4TCL} "catPdf: xref stream in \"$file\" has no /Length"
+    }
+
+    # Exactly ONE line ending follows "stream" (clause 7.3.8.1). Skipping
+    # every \r and \n in a loop would eat the first data byte.
+    set b [expr {$sp + 6}]
+    if {[string index $data $b] eq "\r"} { incr b }
+    if {[string index $data $b] eq "\n"} { incr b }
+    set raw [string range $data $b [expr {$b + $len - 1}]]
+
+    if {$filter eq "FlateDecode"} {
+        # decompress, NOT inflate: the stream carries a zlib header, and
+        # inflate expects raw deflate and reports "data error".
+        if {[catch {zlib decompress $raw} plain]} {
+            throw {PDF4TCL} "catPdf: cannot decompress the xref stream in\
+                    \"$file\": $plain"
+        }
+    } else {
+        set plain $raw
+    }
+
+    lassign $widths w1 w2 w3
+    set rowLen [expr {$w1 + $w2 + $w3}]
+    if {$rowLen == 0} {
+        throw {PDF4TCL} "catPdf: /W in \"$file\" is all zero"
+    }
+    binary scan $plain cu* bytes
+    set nRows [expr {[llength $bytes] / $rowLen}]
+
+    # /Index says which object numbers the rows describe; without it the
+    # table starts at 0 and runs to /Size.
+    if {[regexp {/Index\s*\[([^\]]*)\]} $hdr -> idxSpec]} {
+        set index [regexp -all -inline {\d+} $idxSpec]
+    } else {
+        if {![regexp {/Size\s+(\d+)} $hdr -> size]} { set size $nRows }
+        set index [list 0 $size]
+    }
+
+    set xrefs {}
+    set inObjStm 0
+    set row 0
+    foreach {first count} $index {
+        for {set k 0} {$k < $count && $row < $nRows} {incr k; incr row} {
+            set off [expr {$row * $rowLen}]
+            # A zero-width first field means type 1 by default.
+            if {$w1 == 0} {
+                set type 1
+            } else {
+                set type 0
+                for {set i 0} {$i < $w1} {incr i} {
+                    set type [expr {$type * 256 + [lindex $bytes [expr {$off + $i}]]}]
+                }
+            }
+            set f2 0
+            for {set i 0} {$i < $w2} {incr i} {
+                set f2 [expr {$f2 * 256 + [lindex $bytes [expr {$off + $w1 + $i}]]}]
+            }
+            set objNo [expr {$first + $k}]
+            switch -- $type {
+                1 { dict set xrefs $objNo $f2 }
+                2 { incr inObjStm }
+                default { }
+            }
+        }
+    }
+
+    if {$inObjStm} {
+        throw {PDF4TCL} "catPdf: \"$file\" keeps $inObjStm object(s) inside\
+                object streams (/ObjStm), which this reader does not unpack"
+    }
+
+    # The stream dictionary IS the trailer here.
+    set dictTxt ""
+    if {[regexp {<<(.*)>>} $hdr -> inner]} { set dictTxt "<<$inner>>" }
+    return [list [PdfDictToTclDict $dictTxt] $xrefs]
+}
+
 proc pdf4tcl::cat::ReadPdf {file} {
     set ch [open $file rb]
     set data [read $ch]
@@ -167,13 +289,46 @@ proc pdf4tcl::cat::ReadPdf {file} {
     # Locate all incremental xref tables
     set allXref {}
     set xrefIndices {}
+    # Tabellen aus xref-Streams, in Lesereihenfolge. Bleibt leer, wenn die
+    # Datei die klassische Form benutzt.
+    set streamTables {}
     # Locate last xref table
-    regexp {startxref\s+(\d+)\s+%%EOF\s*$} $data -> startxref
+    if {![regexp {startxref\s+(\d+)\s+%%EOF\s*$} $data -> startxref]} {
+        throw {PDF4TCL} "catPdf: no startxref at the end of \"$file\" --\
+                the file is damaged or not a PDF"
+    }
     while 1 {
         set endpart [string range $data $startxref end]
         lappend xrefIndices $startxref
         # Extract trailer
-        regexp {(?:trailer\s+(.*?)\s+startxref){1,1}?} $endpart -> trailertxt
+        #
+        # A file may carry a cross-reference STREAM instead of a table
+        # (PDF 1.5+). Then there is no "trailer" keyword at all, and the
+        # entries sit compressed in an object of /Type /XRef.
+        #
+        # This reader does not handle that, and it used to fail with
+        #   can't read "trailertxt": no such variable
+        # which names a Tcl variable instead of the cause. It matters
+        # more than it looks: PDF/A-1 FORBIDS xref streams, PDF/A-2 and
+        # -3 REQUIRE them -- so every archival document from 2b upwards,
+        # and every ZUGFeRD invoice, lands here.
+        if {![regexp {(?:trailer\s+(.*?)\s+startxref){1,1}?} $endpart -> trailertxt]} {
+            if {[regexp {/Type\s*/XRef} $endpart]} {
+                # Cross-reference stream: the dictionary that a table
+                # would put after "trailer" sits in the stream object
+                # itself, and the entries are packed into its data.
+                lassign [ReadXrefStream $data $startxref $file] \
+                        trailer streamXrefs
+                lappend streamTables $streamXrefs
+                lappend allXref "" $trailer
+                if {[dict exists $trailer /Prev]} {
+                    set startxref [dict get $trailer /Prev]
+                    continue
+                }
+                break
+            }
+            throw {PDF4TCL} "catPdf: no trailer found in \"$file\""
+        }
         set trailer [PdfDictToTclDict $trailertxt]
         # Store
         lappend allXref $endpart $trailer
@@ -219,6 +374,15 @@ proc pdf4tcl::cat::ReadPdf {file} {
             }
         }
     }
+    # Eintraege aus xref-Streams dazu. Von hinten nach vorn, damit ein
+    # neuerer Abschnitt einen aelteren ueberschreibt -- dieselbe Regel wie
+    # bei den Tabellen.
+    foreach tbl [lreverse $streamTables] {
+        dict for {objNo offset} $tbl {
+            dict set xrefs $objNo $offset
+        }
+    }
+
     # Extract unused into dummy object numbers
     set obj -1
     foreach index $unusedIndices {
@@ -245,7 +409,16 @@ proc pdf4tcl::cat::ReadPdf {file} {
         if {$index < 0} continue
         # See if there is an xref after this object
         set xxx [lsearch -integer -bisect $xrefIndices $index]
-        set xrefIx [expr {[lindex $xrefIndices [expr {$xxx + 1}]] - 1}]
+        set nextIx [lindex $xrefIndices [expr {$xxx + 1}]]
+        if {$nextIx eq ""} {
+            # Kein weiterer Abschnitt dahinter -- das Objekt reicht bis
+            # ans Ende. Tritt bei xref-Streams auf, wo die Liste nur
+            # einen Eintrag hat; vorher endete es in
+            # "cannot use non-numeric string as left operand of -".
+            set xrefIx end
+        } else {
+            set xrefIx [expr {$nextIx - 1}]
+        }
         # Limit object extaction to xref
         set fullObj [string trim [string range $data $index $xrefIx]]
         set data [string range $data 0 [expr {$index - 1}]]
@@ -274,7 +447,12 @@ proc pdf4tcl::cat::ReadPdf {file} {
     return $pdfdata
 }
 
-# Debug
+# Development aid, not part of the interface.
+#
+# Prints the object dictionary of a document being merged. Referenced only
+# from commented-out calls in AppendPdf, kept because they are the quickest
+# way to see what a merge is working on. Writes to stdout, so nothing that
+# runs unattended should call it.
 proc pdf4tcl::cat::Dump {pdfdata} {
     array set d $pdfdata
     parray d {[a-zA-Z]*}
@@ -755,6 +933,69 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
 # Objects that carry the document structure are left alone. The page tree,
 # the catalog and the parent tree are legitimately similar between documents
 # and folding them would join things that only look the same.
+# Replace the document information dictionary of a merged document.
+#
+# Merging keeps the catalog of the FIRST document, and with it its /Info --
+# so two documents joined end up carrying the title of part one. That is
+# not wrong on its own; a merger cannot know what two documents are called
+# together. But it is a surprise when nobody said so, which is why catPdf
+# now takes -title and friends.
+#
+# Keys are given as they appear in the dictionary: Title, Author, Subject,
+# Keywords, Creator, Producer. An empty value REMOVES the entry -- better
+# no title than the wrong one.
+proc pdf4tcl::cat::SetInfo {pdfd info} {
+    if {![dict size $info]} { return $pdfd }
+
+    # The existing dictionary, if there is one.
+    set old [dict create]
+    set infoId ""
+    if {[dict exists $pdfd trailer /Info]} {
+        set infoId [lindex [dict get $pdfd trailer /Info] 0]
+        if {[dict exists $pdfd $infoId]} {
+            set body [dict get $pdfd $infoId full]
+            if {[regexp {<<(.*)>>} $body -> inner]} {
+                set old [PdfDictToTclDict "<<$inner>>"]
+            }
+        }
+    }
+
+    dict for {key val} $info {
+        set pdfKey "/$key"
+        if {$val eq ""} {
+            dict unset old $pdfKey
+        } else {
+            # Round brackets and backslashes have to be escaped inside a
+            # PDF string, or a title with a bracket in it ends the object
+            # early.
+            dict set old $pdfKey "([string map {\\ \\\\ ( \\( ) \\)} $val])"
+        }
+    }
+
+    if {![dict size $old]} {
+        # Everything removed: drop the reference as well, rather than
+        # leaving an empty dictionary behind.
+        if {$infoId ne ""} { dict unset pdfd trailer /Info }
+        return $pdfd
+    }
+
+    set body "<<"
+    dict for {k v} $old { append body " $k $v" }
+    append body " >>"
+
+    if {$infoId eq ""} {
+        # No /Info so far -- append a new object.
+        set maxId 0
+        foreach key [dict keys $pdfd] {
+            if {[string is digit -strict $key] && $key > $maxId} { set maxId $key }
+        }
+        set infoId [expr {$maxId + 1}]
+        dict set pdfd trailer /Info "$infoId 0 R"
+    }
+    dict set pdfd $infoId full "$infoId 0 obj\n$body\nendobj\n"
+    return $pdfd
+}
+
 proc pdf4tcl::cat::DedupObjects {pdfd} {
     set bodies {}
     set mapping {}
@@ -879,8 +1120,34 @@ proc pdf4tcl::cat::RemapDict {d mapping} {
 }
 
 proc pdf4tcl::catPdf {args} {
+    # Options first, then the files. Keeping the file names positional
+    # means every existing call still works:
+    #
+    #   catPdf a.pdf b.pdf out.pdf
+    #   catPdf -title "Complete file" a.pdf b.pdf out.pdf
+    #
+    # Why the options exist: merging keeps the catalog of the FIRST
+    # document, so the result carries the title of part one. A merger
+    # cannot know what two documents are called together -- so it asks.
+    set info [dict create]
+    set known {-title Title -author Author -subject Subject \
+               -keywords Keywords -creator Creator -producer Producer}
+    while {[llength $args] && [string match {-*} [lindex $args 0]]} {
+        set opt [lindex $args 0]
+        if {![dict exists $known $opt]} {
+            throw {PDF4TCL} "catPdf: unknown option \"$opt\": must be\
+                    [join [lsort [dict keys $known]] {, }]"
+        }
+        if {[llength $args] < 2} {
+            throw {PDF4TCL} "catPdf: value for \"$opt\" missing"
+        }
+        dict set info [dict get $known $opt] [lindex $args 1]
+        set args [lrange $args 2 end]
+    }
+
     if {[llength $args] < 3} {
-        throw {PDF4TCL} "wrong # args: should be \"catPdf infile ?infile ...? outfile\""
+        throw {PDF4TCL} "wrong # args: should be \"catPdf ?options?\
+                infile ?infile ...? outfile\""
     }
     set outfile [lindex $args end]
     set infile1 [lindex $args 0]
@@ -900,6 +1167,9 @@ proc pdf4tcl::catPdf {args} {
     # append, so a font shared by five documents collapses to one copy and
     # not to four.
     set pdf1 [pdf4tcl::cat::DedupObjects $pdf1]
+    # After the folding, so a rewritten /Info is not folded away against
+    # the original of the first document.
+    set pdf1 [pdf4tcl::cat::SetInfo $pdf1 $info]
     pdf4tcl::cat::WritePdf $outfile $pdf1
 }
 

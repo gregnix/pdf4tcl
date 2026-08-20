@@ -1,0 +1,219 @@
+# ligatures.test -- standard ligatures from the liga feature of GSUB
+#
+# The danger this guards against: a ligature is ONE glyph for TWO
+# characters. Set without a matching ToUnicode entry, the document looks
+# better and is no longer searchable -- "Auflage" cannot be found. That
+# is worse than no ligature at all, and it shows up weeks later.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+set here [file dirname [file normalize [info script]]]
+
+# A face with Latin ligatures. Measured across 66 faces here: Carlito has
+# 424 ligature targets, Liberation Serif none, and DejaVu Sans has an
+# ARABIC liga feature and no fi glyph at all -- so the face matters.
+set ::ligaTtf ""
+foreach k {
+    /usr/share/fonts/truetype/crosextra/Carlito-Regular.ttf
+    /usr/share/fonts/truetype/crosextra/Caladea-Regular.ttf
+} {
+    if {[file readable $k]} { set ::ligaTtf $k; break }
+}
+testConstraint haveLigaTtf [expr {$::ligaTtf ne ""}]
+if {$::ligaTtf ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont BaseLiga $::ligaTtf
+    pdf4tcl::createFontSpecCID BaseLiga LigaFont
+}
+
+proc lglyph {char} {
+    scan $char %c n
+    return [dict get $::pdf4tcl::BFA(BaseLiga,charToGlyph) $n]
+}
+
+# ---------------------------------------------------------------------------
+# ligatures-1.x  Reading GSUB
+# ---------------------------------------------------------------------------
+
+test ligatures-1.1 {the liga feature is read} -constraints haveLigaTtf -body {
+    expr {[dict size $::pdf4tcl::BFA(BaseLiga,ligatures)] > 0}
+} -result 1
+
+test ligatures-1.2 {f followed by i names the fi glyph} -constraints haveLigaTtf -body {
+    set treffer ""
+    foreach e [dict get $::pdf4tcl::BFA(BaseLiga,ligatures) [lglyph f]] {
+        if {[lindex $e 0] eq [list [lglyph i]]} { set treffer [lindex $e 1] }
+    }
+    # U+FB01 LATIN SMALL LIGATURE FI
+    expr {$treffer eq [dict get $::pdf4tcl::BFA(BaseLiga,charToGlyph) 64257]}
+} -result 1
+
+test ligatures-1.3 {longest first} -constraints haveLigaTtf -body {
+    # "ffi" has to be tried before "fi", otherwise the shorter one matches
+    # and the third glyph is left over.
+    set laengen {}
+    foreach e [dict get $::pdf4tcl::BFA(BaseLiga,ligatures) [lglyph f]] {
+        lappend laengen [llength [lindex $e 0]]
+    }
+    expr {[lindex $laengen 0] >= [lindex $laengen end]}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# ligatures-2.x  Substitution
+# ---------------------------------------------------------------------------
+
+test ligatures-2.1 {off by default} -constraints haveLigaTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+} -body {
+    $pdf getLigatures
+} -cleanup {$pdf destroy} -result 0
+
+test ligatures-2.2 {two glyphs become one} -constraints haveLigaTtf -body {
+    set ohne [pdf4tcl::CIDEncodeText "fi" LigaFont]
+    set mit  [pdf4tcl::CIDEncodeText "fi" LigaFont 1]
+    # 8 hex digits for two glyphs, 4 for one.
+    list [string length $ohne] [string length $mit]
+} -result {10 6}
+
+test ligatures-2.3 {the ligature records BOTH characters} -constraints \
+        haveLigaTtf -body {
+    # This is the point. Without it the text is unsearchable.
+    set ::pdf4tcl::FontsAttrs(LigaFont,glyphChars) {}
+    pdf4tcl::CIDEncodeText "fi" LigaFont 1
+    set g [dict get $::pdf4tcl::BFA(BaseLiga,charToGlyph) 64257]
+    dict get $::pdf4tcl::FontsAttrs(LigaFont,glyphChars) $g
+} -result {102 105}
+
+test ligatures-2.4 {a word without a pair is untouched} -constraints \
+        haveLigaTtf -body {
+    set ohne [pdf4tcl::CIDEncodeText "Text" LigaFont]
+    set mit  [pdf4tcl::CIDEncodeText "Text" LigaFont 1]
+    expr {$ohne eq $mit}
+} -result 1
+
+test ligatures-2.5 {a glyph the font does not have stays .notdef} \
+        -constraints haveLigaTtf -body {
+    # U+10FFFF is in no font. It must not gain a CMap entry, and must not
+    # break the run.
+    set r [pdf4tcl::CIDEncodeText "f\uFFFFi" LigaFont 1]
+    expr {[string length $r] == 14}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# ligatures-3.x  In the document
+# ---------------------------------------------------------------------------
+
+test ligatures-3.1 {the switch shortens the run} -constraints haveLigaTtf -body {
+    set laengen {}
+    foreach an {0 1} {
+        set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $pdf startPage
+        $pdf setFont 20 LigaFont
+        $pdf setKerning 0
+        $pdf setLigatures $an
+        $pdf text "Auflage" -x 50 -y 100
+        regexp {<([0-9A-F]+)> Tj} [$pdf get] -> h
+        lappend laengen [expr {[string length $h] / 4}]
+        $pdf destroy
+    }
+    # 7 glyphs without, 6 with -- f and l become fl.
+    expr {[lindex $laengen 0] > [lindex $laengen 1]}
+} -result 1
+
+test ligatures-3.2 {the switch is part of the text state} -constraints \
+        haveLigaTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+} -body {
+    $pdf gsave
+    $pdf setLigatures 1
+    set drinnen [$pdf getLigatures]
+    $pdf grestore
+    list $drinnen [$pdf getLigatures]
+} -cleanup {$pdf destroy} -result {1 0}
+
+test ligatures-3.3 {a non-boolean is refused} -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+} -body {
+    catch {$pdf setLigatures vielleicht} e
+    expr {[string match {*expected a boolean*} $e]}
+} -cleanup {$pdf destroy} -result 1
+
+test ligatures-3.4 {ligature and kerning together} -constraints haveLigaTtf \
+        -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 20 LigaFont
+    $pdf setLigatures 1
+} -body {
+    # "ffi", not "Auflage": the kerning between the two f is what used to
+    # break the ligature. The string was split on the glyphs BEFORE
+    # substitution, so f + kern + fi came out instead of the ffi glyph.
+    #
+    # This test used to check [regexp {TJ|Tj} $data] -- that some text was
+    # set at all. It stayed green with no ligature formed anywhere, which
+    # is exactly why the bug above went unnoticed. Check the glyph.
+    $pdf text "ffi" -x 50 -y 100
+    set data [$pdf get]
+    set g [dict get $::pdf4tcl::BFA(BaseLiga,charToGlyph) 64259]
+    expr {[string first [format %04X $g] $data] >= 0}
+} -cleanup {$pdf destroy} -result 1
+
+test ligatures-3.5 {kerning still happens next to a ligature} \
+        -constraints haveLigaTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 20 LigaFont
+    $pdf setLigatures 1
+    $pdf setKerning 1
+} -body {
+    # Gegenprobe zum Test darueber: die Ligatur darf das Kerning nicht
+    # verdraengen. "Wave" hat ein Paar, das eine TJ-Anpassung erzeugt.
+    $pdf text "Auflage Wave" -x 50 -y 100
+    set data [$pdf get]
+    expr {[regexp {\] *TJ} $data] > 0}
+} -cleanup {$pdf destroy} -result 1
+
+
+test ligatures-4.1 {getStringWidth misst den Ligatur-Lauf} \
+        -constraints haveLigaTtf -setup {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 20 LigaFont
+} -body {
+    # Messen und Zeichnen muessen dasselbe meinen. Die Breite wurde
+    # zeichenweise gerechnet, waehrend eine Ligaturglyphe gezeichnet
+    # wurde -- in Carlito sind f+f+i 839.8 gegen 807.6 fuer die
+    # ffi-Glyphe, vier Prozent. Das reicht, um zentrierten Text zu
+    # verschieben und Zeilen falsch umzubrechen.
+    $pdf setLigatures 0
+    set aus [$pdf getStringWidth "ffi"]
+    $pdf setLigatures 1
+    set an [$pdf getStringWidth "ffi"]
+    $pdf destroy
+    expr {$an < $aus}
+} -result 1
+
+test ligatures-4.2 {die gemessene Breite ist die der Ligaturglyphe} \
+        -constraints haveLigaTtf -body {
+    # Nicht nur "kleiner", sondern der richtige Wert: die Glyphbreite aus
+    # den horizontalen Metriken, dieselbe Quelle wie das /W-Array.
+    set g [dict get $::pdf4tcl::BFA(BaseLiga,charToGlyph) 64259]
+    set aw [lindex [lindex $::pdf4tcl::BFA(BaseLiga,hmetrics) $g] 0]
+    set erwartet [expr {$aw * 1000.0 / $::pdf4tcl::BFA(BaseLiga,unitsPerEm)}]
+    set gemessen [pdf4tcl::ShapedWidth "ffi" LigaFont 1 0]
+    expr {abs($gemessen - $erwartet) < 0.01}
+} -result 1
+
+test ligatures-4.3 {ohne Ligaturen bleibt die Summe der Zeichen} \
+        -constraints haveLigaTtf -body {
+    # Gegenprobe: ein Test, der immer "kleiner" meldet, waere ebenso
+    # gruen.
+    set w 0.0
+    foreach cp {102 102 105} {
+        set w [expr {$w + [dict get $::pdf4tcl::BFA(BaseLiga,charWidths) $cp]}]
+    }
+    set gemessen [pdf4tcl::ShapedWidth "ffi" LigaFont 0 0]
+    expr {abs($gemessen - $w) < 0.01}
+} -result 1
+
+::tcltest::cleanupTests

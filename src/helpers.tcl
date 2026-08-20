@@ -307,33 +307,462 @@ proc ::pdf4tcl::Swap {aName bName} {
 
 # Encode a Unicode string for a CID font (Identity-H).
 # Returns a PDF hex string <GGGG...> using original GlyphIDs.
-# Records used Unicode codepoints in FontsAttrs($fn,usedUnicode).
-proc ::pdf4tcl::CIDEncodeText {in fn} {
+# Records which characters each glyph stands for, in
+# FontsAttrs($fn,glyphChars).
+# Report a codepoint the font cannot draw -- once per font and codepoint,
+# so a page of Chinese in a Latin font gives a handful of lines rather than
+# one per character.
+#
+# Warning rather than error: every existing document that puts up with a
+# .notdef box or a question mark keeps working. For the strict case there
+# is getSubstCount, which counts both paths.
+proc ::pdf4tcl::NoteMissingGlyph {basefont codepoint {shown .notdef}} {
+    variable missingGlyphSeen
+    set key "$basefont,$codepoint"
+    if {[info exists missingGlyphSeen($key)]} { return }
+    set missingGlyphSeen($key) 1
+    lappend ::pdf4tcl::warnings [format \
+            "font %s cannot represent U+%04X -- drawn as %s" \
+            $basefont $codepoint $shown]
+}
+
+proc ::pdf4tcl::CIDEncodeText {in fn {ligatures 0}} {
     variable ::pdf4tcl::FontsAttrs
     variable ::pdf4tcl::BFA
     set BFN $FontsAttrs($fn,basefontname)
-    set hex ""
+
+    set glyphs {}
+    set chars {}
     foreach ch [split $in {}] {
         scan $ch %c n
         if {[dict exists $BFA($BFN,charToGlyph) $n]} {
-            set glyph [dict get $BFA($BFN,charToGlyph) $n]
-            # Record real glyphs only. GlyphID 0 (.notdef) has no
-            # Unicode mapping -- must not appear in ToUnicode CMap.
-            dict set FontsAttrs($fn,usedUnicode) $n $glyph
+            lappend glyphs [dict get $BFA($BFN,charToGlyph) $n]
+            lappend chars [list $n]
         } else {
-            set glyph 0  ;# render as .notdef box, no CMap entry
+            # The font has no glyph for this codepoint. Count it like the
+            # subset path does, and say so once per codepoint and font --
+            # a .notdef box is easy to miss in a long document, and the
+            # text simply is not what the caller passed in.
+            lappend glyphs 0        ;# render as .notdef box
+            lappend chars {}        ;# no CMap entry
+            incr ::pdf4tcl::substCount
+            NoteMissingGlyph $BFN $n
+        }
+    }
+
+    if {$ligatures} { ApplyLigatures $BFN glyphs chars }
+
+    set hex ""
+    foreach glyph $glyphs char $chars {
+        # Record real glyphs only. GlyphID 0 (.notdef) has no Unicode
+        # mapping and must not appear in the ToUnicode CMap.
+        if {$glyph != 0 && [llength $char]} {
+            dict set FontsAttrs($fn,glyphChars) $glyph $char
         }
         append hex [format %04X $glyph]
     }
     return "<$hex>"
 }
 
+# Apply standard ligatures to a glyph run.
+#
+# Takes lists of glyphs and of the characters each stands for; returns the
+# same two, with runs replaced by their ligature glyph. The character list
+# of a ligature holds ALL the characters it replaces -- that is what makes
+# the text extractable afterwards.
+#
+# Longest match wins, and matching restarts after the replacement, so
+# "ffi" becomes one glyph rather than "f" plus "fi".
+proc ::pdf4tcl::ApplyLigatures {BFN glyphsVar charsVar} {
+    variable ::pdf4tcl::BFA
+    upvar 1 $glyphsVar glyphs $charsVar chars
+    if {![info exists BFA($BFN,ligatures)]
+            || ![dict size $BFA($BFN,ligatures)]} { return 0 }
+    set ligs $BFA($BFN,ligatures)
+
+    set outG {}
+    set outC {}
+    set n [llength $glyphs]
+    set i 0
+    set ersetzt 0
+    while {$i < $n} {
+        set g [lindex $glyphs $i]
+        set treffer 0
+        if {[dict exists $ligs $g]} {
+            foreach eintrag [dict get $ligs $g] {
+                lassign $eintrag folger ligGlyph
+                set k [llength $folger]
+                # Not enough glyphs left for this ligature.
+                if {$i + $k > $n - 1} { continue }
+                set passt 1
+                for {set j 0} {$j < $k} {incr j} {
+                    if {[lindex $glyphs [expr {$i + 1 + $j}]] != [lindex $folger $j]} {
+                        set passt 0
+                        break
+                    }
+                }
+                if {!$passt} { continue }
+                # All the characters the ligature stands for, in order.
+                set zeichen {}
+                for {set j 0} {$j <= $k} {incr j} {
+                    foreach c [lindex $chars [expr {$i + $j}]] { lappend zeichen $c }
+                }
+                lappend outG $ligGlyph
+                lappend outC $zeichen
+                incr i [expr {$k + 1}]
+                set treffer 1
+                set ersetzt 1
+                break
+            }
+        }
+        if {!$treffer} {
+            lappend outG $g
+            lappend outC [lindex $chars $i]
+            incr i
+        }
+    }
+    set glyphs $outG
+    set chars $outC
+    return $ersetzt
+}
+
+# The next glyph that takes part in kerning, starting at index i+1, or -1.
+#
+# A lookup may ask for marks to be skipped (lookupFlag bit 3). Then
+# "A" + U+0301 + "V" kerns as the pair A V, which is what the font
+# intends -- the accent sits above the A and does not change the gap.
+#
+# The flag belongs to the LOOKUP the pair came from, not to the face, so
+# the immediate neighbour is tried first: if A and the accent kern, that
+# pair wins and nothing is skipped. Only when there is no adjustment there
+# is the mark stepped over, and then only if the pair found beyond it
+# carries the flag. A font-wide flag used to make every pair skip marks,
+# including those from lookups without it and from the kern table, which
+# has no lookup flags at all.
+proc ::pdf4tcl::NextKernGlyph {BFN glyphs i} {
+    set n [llength $glyphs]
+    set j [expr {$i + 1}]
+    if {$j >= $n} { return -1 }
+
+    # The direct neighbour, whatever it is.
+    lassign [GetKernPairInfo $BFN [lindex $glyphs $i] [lindex $glyphs $j]] v
+    if {$v != 0} { return $j }
+    if {![IsMarkGlyph $BFN [lindex $glyphs $j]]} { return $j }
+
+    # A mark with no pair of its own: look past it, and take what is
+    # beyond only if THAT lookup asks for marks to be ignored.
+    for {set k [expr {$j + 1}]} {$k < $n} {incr k} {
+        if {[IsMarkGlyph $BFN [lindex $glyphs $k]]} { continue }
+        lassign [GetKernPairInfo $BFN [lindex $glyphs $i] \
+                [lindex $glyphs $k]] v2 ignore
+        if {$v2 != 0 && $ignore} { return $k }
+        return $j
+    }
+    return $j
+}
+
+# The sum of the kerning adjustments of a string, in 1/1000 em.
+#
+# Negative where the line gets tighter, which is the normal case. Added to
+# the measured width so that measuring and drawing use the same number.
+proc ::pdf4tcl::KernWidth {fn in {stdAllowed 0}} {
+    variable ::pdf4tcl::FontsAttrs
+    variable ::pdf4tcl::BFA
+    if {![info exists FontsAttrs($fn,basefontname)]} { return 0 }
+    if {!$stdAllowed && (![info exists FontsAttrs($fn,type)]
+            || $FontsAttrs($fn,type) ne "CID")} { return 0 }
+    set BFN $FontsAttrs($fn,basefontname)
+    # The class tables count as well. A face that keeps its kerning only
+    # as GPOS classes has no individual pairs at all -- Carlito is one,
+    # and testing kernPairs alone set it unkerned although GetKernPair
+    # returns values.
+    if {(![info exists BFA($BFN,kernPairs)] || ![dict size $BFA($BFN,kernPairs)])
+            && (![info exists BFA($BFN,kernClasses)]
+                || ![llength $BFA($BFN,kernClasses)])} {
+        return 0
+    }
+    # For an embedded face the keys are GLYPH ids; for the standard 14
+    # they are UNICODE numbers, which is how the pairs generated from the
+    # AFM files are stored, matching charWidths. What tells the two apart
+    # is whether a charToGlyph mapping exists.
+    set hatGlyphen [info exists BFA($BFN,charToGlyph)]
+    set glyphs {}
+    foreach ch [split $in {}] {
+        scan $ch %c n
+        if {!$hatGlyphen} {
+            lappend glyphs $n
+        } elseif {[dict exists $BFA($BFN,charToGlyph) $n]} {
+            lappend glyphs [dict get $BFA($BFN,charToGlyph) $n]
+        } else {
+            lappend glyphs 0
+        }
+    }
+    set summe 0.0
+    for {set i 0} {$i < [llength $glyphs]} {incr i} {
+        # Eine Mark, die gerade uebersprungen wurde, darf nicht selbst
+        # noch einmal als linkes Glyph zaehlen -- sonst wird zweimal
+        # addiert. Ob sie uebersprungen WIRD, entscheidet NextKernGlyph
+        # je Paar; hier genuegt zu wissen, dass es eine Mark ohne eigenes
+        # Paar zum Vorgaenger ist.
+        if {$i > 0 && [IsMarkGlyph $BFN [lindex $glyphs $i]]
+                && [lindex [GetKernPairInfo $BFN [lindex $glyphs [expr {$i-1}]] \
+                        [lindex $glyphs $i]] 0] == 0} { continue }
+        set j [NextKernGlyph $BFN $glyphs $i]
+        if {$j < 0} { break }
+        set summe [expr {$summe + [GetKernPair $BFN [lindex $glyphs $i] \
+                [lindex $glyphs $j]]}]
+    }
+    return $summe
+}
+
+# The same string as a TJ array with the pair kerning applied.
+#
+# Returns the empty string when there is nothing to apply -- the caller then
+# writes a plain Tj, so a document without kerning comes out byte-identical
+# to before.
+#
+# Only for CID fonts. The fourteen standard faces carry no pairs (their AFM
+# kern data is not read), and a simple font would need the adjustment in its
+# own encoding, which is a separate matter.
+#
+# Sign: a negative number in the kern table moves the pair TOGETHER, and a
+# positive number in a TJ array moves the pen BACK. So the value is negated
+# on the way in -- getting this backwards spreads exactly the pairs that
+# should be tightened, which looks deliberate and is the reason this is
+# spelled out here.
+# stdAllowed: kern the standard 14 as well? Off by default, see setKerning.
+# Build the glyph run that gets drawn, once, so that measuring and drawing
+# cannot disagree.
+#
+# Order matters and used to be wrong: PdfTextKerned split the string on the
+# glyphs BEFORE ligature substitution and passed the ligature flag only to
+# the last piece. "ffi" in Carlito came out as f + kern + fi instead of the
+# ffi glyph, although ApplyLigatures says longest match wins -- the kerning
+# split undid it. And getStringWidth never looked at ligatures at all, so a
+# line measured wider than it was drawn.
+#
+# Returns {glyphs chars}: the glyph ids in drawing order, and for each one
+# the list of codepoints it stands for (a ligature carries several). For a
+# standard-14 font there is no glyph mapping and the codepoints ARE the
+# keys -- the AFM kern pairs are keyed by Unicode.
+proc ::pdf4tcl::ShapeRun {in fn {ligatures 0}} {
+    variable ::pdf4tcl::FontsAttrs
+    variable ::pdf4tcl::BFA
+    if {![info exists FontsAttrs($fn,basefontname)]} { return [list {} {}] }
+    set BFN $FontsAttrs($fn,basefontname)
+    set istCID [expr {[info exists FontsAttrs($fn,type)]
+            && $FontsAttrs($fn,type) eq "CID"}]
+
+    set glyphs {}
+    set chars {}
+    foreach ch [split $in {}] {
+        scan $ch %c n
+        if {!$istCID} {
+            lappend glyphs $n
+            lappend chars [list $n]
+            continue
+        }
+        if {[dict exists $BFA($BFN,charToGlyph) $n]} {
+            lappend glyphs [dict get $BFA($BFN,charToGlyph) $n]
+            lappend chars [list $n]
+        } else {
+            # The codepoint is kept even though there is no glyph, so the
+            # encoder can say WHICH character was lost. Counting here would
+            # be wrong -- ShapeRun also serves getStringWidth, and merely
+            # measuring a string must not raise the substitution counter.
+            lappend glyphs 0
+            lappend chars [list $n]
+        }
+    }
+    if {$ligatures && $istCID} {
+        ApplyLigatures $BFN glyphs chars
+    }
+    return [list $glyphs $chars]
+}
+
+# Width of a shaped run in 1/1000 em, kerning included.
+#
+# Ligature glyphs are not in charWidths, which is keyed by codepoint, so
+# their advance is read from the glyph table. In Carlito f+f+i is 839.8 and
+# the ffi glyph 807.6 -- four percent, enough to break centring and line
+# breaking.
+proc ::pdf4tcl::ShapedWidth {in fn {ligatures 0} {kerning 0} {stdAllowed 0}} {
+    variable ::pdf4tcl::FontsAttrs
+    variable ::pdf4tcl::BFA
+    if {![info exists FontsAttrs($fn,basefontname)]} { return 0 }
+    set BFN $FontsAttrs($fn,basefontname)
+    lassign [ShapeRun $in $fn $ligatures] glyphs chars
+
+    set w 0.0
+    foreach glyph $glyphs cps $chars {
+        if {[llength $cps] == 1
+                && [dict exists $BFA($BFN,charWidths) [lindex $cps 0]]} {
+            set w [expr {$w + [dict get $BFA($BFN,charWidths) [lindex $cps 0]]}]
+        } elseif {[info exists BFA($BFN,hmetrics)]
+                && [lindex $BFA($BFN,hmetrics) $glyph] ne ""} {
+            # A ligature has no codepoint of its own, so the advance comes
+            # from the horizontal metrics, indexed by glyph id -- the same
+            # source the /W array is built from.
+            set aw [lindex [lindex $BFA($BFN,hmetrics) $glyph] 0]
+            set w [expr {$w + $aw * 1000.0 / $BFA($BFN,unitsPerEm)}]
+        } else {
+            # No width to be had. Fall back per codepoint, and for one the
+            # font cannot represent use the width of '?' -- that is what
+            # CleanText actually draws, and what GetCharWidth has done
+            # since ticket #17. Counting it as zero made "AB" plus two CJK
+            # characters measure half of "AB??" (util-6.2).
+            foreach cp $cps {
+                if {[dict exists $BFA($BFN,charWidths) $cp]} {
+                    set w [expr {$w + [dict get $BFA($BFN,charWidths) $cp]}]
+                } elseif {$cp > 32
+                        && [dict exists $BFA($BFN,charWidths) 63]} {
+                    set w [expr {$w + [dict get $BFA($BFN,charWidths) 63]}]
+                }
+            }
+        }
+    }
+    if {$kerning} {
+        # A standard-14 font only kerns when the caller asked for it --
+        # setKerning "all". Same rule as KernWidth, and the tests
+        # kerning-2.3 and 2.5 hold it.
+        set istCID [expr {[info exists FontsAttrs($fn,type)]
+                && $FontsAttrs($fn,type) eq "CID"}]
+        if {$istCID || $stdAllowed} {
+            set n [llength $glyphs]
+            for {set i 0} {$i < $n - 1} {incr i} {
+                # Eine Mark, die gerade uebersprungen wurde, darf nicht selbst
+        # noch einmal als linkes Glyph zaehlen -- sonst wird zweimal
+        # addiert. Ob sie uebersprungen WIRD, entscheidet NextKernGlyph
+        # je Paar; hier genuegt zu wissen, dass es eine Mark ohne eigenes
+        # Paar zum Vorgaenger ist.
+        if {$i > 0 && [IsMarkGlyph $BFN [lindex $glyphs $i]]
+                && [lindex [GetKernPairInfo $BFN [lindex $glyphs [expr {$i-1}]] \
+                        [lindex $glyphs $i]] 0] == 0} { continue }
+                set j [NextKernGlyph $BFN $glyphs $i]
+                if {$j < 0} { continue }
+                set w [expr {$w + [GetKernPair $BFN [lindex $glyphs $i] \
+                        [lindex $glyphs $j]]}]
+            }
+        }
+    }
+    return $w
+}
+
+# Encode a slice of an already-shaped glyph run.
+#
+# CID text is hex in angle brackets; a standard-14 font has no glyph
+# mapping, so its "glyphs" are codepoints and go through the normal string
+# encoder. Recording glyph -> characters here keeps the ToUnicode CMap
+# right for ligatures.
+proc ::pdf4tcl::EncodeGlyphSlice {glyphs chars fn} {
+    variable ::pdf4tcl::FontsAttrs
+    set istCID [expr {[info exists FontsAttrs($fn,type)]
+            && $FontsAttrs($fn,type) eq "CID"}]
+    if {!$istCID} {
+        set txt ""
+        foreach cps $chars {
+            foreach cp $cps { append txt [format %c $cp] }
+        }
+        return [PdfText $txt $fn]
+    }
+    set hex ""
+    foreach glyph $glyphs char $chars {
+        if {$glyph != 0} {
+            if {[llength $char]} {
+                dict set FontsAttrs($fn,glyphChars) $glyph $char
+            }
+        } else {
+            # .notdef gets drawn -- count and report it here, where the
+            # text really goes onto the page. CIDEncodeText does the same;
+            # without it a missing character was reported or not depending
+            # on whether the string happened to kern somewhere.
+            incr ::pdf4tcl::substCount
+            if {[llength $char]} {
+                NoteMissingGlyph $FontsAttrs($fn,basefontname) [lindex $char 0]
+            }
+        }
+        append hex [format %04X $glyph]
+    }
+    return "<$hex>"
+}
+
+proc ::pdf4tcl::PdfTextKerned {in fn {stdAllowed 0} {ligatures 0}} {
+    variable ::pdf4tcl::FontsAttrs
+    variable ::pdf4tcl::BFA
+    if {![info exists FontsAttrs($fn,basefontname)]} { return "" }
+    set istCID [expr {[info exists FontsAttrs($fn,type)]
+            && $FontsAttrs($fn,type) eq "CID"}]
+    if {!$istCID && !$stdAllowed} { return "" }
+    set BFN $FontsAttrs($fn,basefontname)
+    # The class tables count as well. A face that keeps its kerning only
+    # as GPOS classes has no individual pairs at all -- Carlito is one,
+    # and testing kernPairs alone set it unkerned although GetKernPair
+    # returns values.
+    if {(![info exists BFA($BFN,kernPairs)] || ![dict size $BFA($BFN,kernPairs)])
+            && (![info exists BFA($BFN,kernClasses)]
+                || ![llength $BFA($BFN,kernClasses)])} {
+        return ""
+    }
+
+    # Shape ONCE, then kern the result. The order is the whole point:
+    # splitting on the unshaped glyphs and applying ligatures only to the
+    # last piece meant "ffi" in Carlito came out as f + kern + fi instead
+    # of the ffi glyph, undoing "longest match wins" from ApplyLigatures.
+    lassign [ShapeRun $in $fn $ligatures] glyphs chars
+    if {[llength $glyphs] < 2} { return "" }
+
+    set teile {}
+    set sliceG {}
+    set sliceC {}
+    set kerned 0
+    set n [llength $glyphs]
+    for {set i 0} {$i < $n} {incr i} {
+        lappend sliceG [lindex $glyphs $i]
+        lappend sliceC [lindex $chars $i]
+        if {$i + 1 >= $n} { break }
+        # Eine Mark, die gerade uebersprungen wurde, darf nicht selbst
+        # noch einmal als linkes Glyph zaehlen -- sonst wird zweimal
+        # addiert. Ob sie uebersprungen WIRD, entscheidet NextKernGlyph
+        # je Paar; hier genuegt zu wissen, dass es eine Mark ohne eigenes
+        # Paar zum Vorgaenger ist.
+        if {$i > 0 && [IsMarkGlyph $BFN [lindex $glyphs $i]]
+                && [lindex [GetKernPairInfo $BFN [lindex $glyphs [expr {$i-1}]] \
+                        [lindex $glyphs $i]] 0] == 0} { continue }
+        set j [NextKernGlyph $BFN $glyphs $i]
+        if {$j < 0} { continue }
+        set adj [GetKernPair $BFN [lindex $glyphs $i] [lindex $glyphs $j]]
+        if {$adj == 0} { continue }
+        # The adjustment goes after the LAST glyph before the partner, so
+        # skipped marks stay with the glyph they belong to.
+        if {$j > $i + 1} {
+            for {set k [expr {$i + 1}]} {$k < $j} {incr k} {
+                lappend sliceG [lindex $glyphs $k]
+                lappend sliceC [lindex $chars $k]
+            }
+            set i [expr {$j - 1}]
+        }
+        lappend teile [EncodeGlyphSlice $sliceG $sliceC $fn] \
+                [format %g [expr {-$adj}]]
+        set sliceG {}
+        set sliceC {}
+        set kerned 1
+    }
+    if {!$kerned} { return "" }
+    if {[llength $sliceG]} {
+        lappend teile [EncodeGlyphSlice $sliceG $sliceC $fn]
+    }
+    return "\[[join $teile { }]\]"
+}
+
 # Unified text encoder: routes to CIDEncodeText or CleanText.
 # Returns a complete PDF text object string (incl. delimiters).
-proc ::pdf4tcl::PdfText {in fn} {
+# Ligatures are passed in rather than read from the document, because
+# PdfText is also used for form field values and appearance strings, where
+# a ligature glyph would be wrong.
+proc ::pdf4tcl::PdfText {in fn {ligatures 0}} {
     variable ::pdf4tcl::FontsAttrs
     if {[info exists FontsAttrs($fn,type)] && $FontsAttrs($fn,type) eq "CID"} {
-        return [CIDEncodeText $in $fn]
+        return [CIDEncodeText $in $fn $ligatures]
     } else {
         return "([CleanText $in $fn])"
     }
@@ -345,6 +774,9 @@ proc ::pdf4tcl::PdfText {in fn} {
 # lost. Read it per document with [$pdf getSubstCount] -- see the manual.
 namespace eval pdf4tcl {
     variable substCount 0
+    # Welche Codepunkte schon gemeldet wurden, je Basisschrift.
+    variable missingGlyphSeen
+    array set missingGlyphSeen {}
 }
 
 # helper function: mask parentheses and backslash
@@ -361,9 +793,13 @@ proc ::pdf4tcl::CleanText {in fn} {
             } elseif {[dict exists $encDict "?"]} {
                 append out [dict get $encDict "?"]
                 incr substCount
+                scan $uchar %c ucp
+                NoteMissingGlyph $FontsAttrs($fn,basefontname) $ucp "?"
             } else {
                 append out [binary format cu 0]
                 incr substCount
+                scan $uchar %c ucp
+                NoteMissingGlyph $FontsAttrs($fn,basefontname) $ucp
             }
         }
     } else {
@@ -376,6 +812,8 @@ proc ::pdf4tcl::CleanText {in fn} {
                 if {[catch {append out [encoding convertto $enc $uchar]}]} {
                     append out "?"
                     incr substCount
+                    scan $uchar %c ucp
+                    NoteMissingGlyph $FontsAttrs($fn,basefontname) $ucp "?"
                 }
             }
         }

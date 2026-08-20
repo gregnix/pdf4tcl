@@ -62,10 +62,55 @@ field with one shared value: name
 
 Check `::pdf4tcl::warnings` after merging if that matters to you.
 
+## Cross-reference streams (0.9.4.49)
+
+A file may keep its object table as a *stream* rather than a table (PDF
+1.5+). ISO 19005-1 **forbids** that form and PDF/A-2 and -3 **require** it,
+so until 0.9.4.49 no archival document from 2b upwards and no ZUGFeRD
+invoice could be merged at all.
+
+| Input | Merges |
+|---|---|
+| plain PDF from pdf4tcl | yes |
+| PDF/A-1b | yes |
+| PDF/A-2b, -3b, -3a | yes, since 0.9.4.49 |
+| a file with `/ObjStm` object streams | no -- refused with a count |
+
+Measured: two PDF/A-2b files merge and the result passes veraPDF as 2b; two
+tagged PDF/A-3a files merge and the result passes 3a and UA-1.
+
+What is still refused, rather than silently mishandled:
+
+```
+catPdf: "x.pdf" keeps 3 object(s) inside object streams (/ObjStm),
+which this reader does not unpack
+```
+
+pdf4tcl does not produce those; they come from other tools. `qpdf
+--object-streams=generate` makes one to try it against.
+
+## Naming the merged document (0.9.4.48)
+
+Merging keeps the catalog of the first input, and with it its `/Info` —
+otherwise two parts joined carry the title of part one:
+
+```tcl
+::pdf4tcl::catPdf -title "Complete file" -author "" \
+        part1.pdf part2.pdf complete.pdf
+```
+
+`-title -author -subject -keywords -creator -producer`, all before the file
+names, so existing calls are unaffected. An empty value **removes** the
+entry; entries not named keep what the first document had.
+
+**This writes `/Info` only, not `/Metadata` (XMP).** A reader preferring XMP
+still shows the title of the first document, and PDF/A requires the two to
+agree — which does not bite while PDF/A-2b cannot be read at all.
+
 ## Limits that still apply
 
-- **First catalog wins** — title and `/Metadata` of `part1` remain; set them
-  on the first file if the combined title must change.
+- **`/Metadata` of `part1` remains** — see above. The `/Info` of the
+  appended documents also stays in the file, unreferenced.
 - **Font dictionaries stay duplicated.** The embedded font *streams* are
   shared where they are byte-identical: measured on two documents using the
   same CID font, 772348 bytes of input produced 387881 in the merge. The
