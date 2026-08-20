@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.49?**
+package require **pdf4tcl ?0****.9****.4****.50?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -41,6 +41,8 @@ package require **pdf4tcl ?0****.9****.4****.49?**
 **::pdf4tcl::catPdf** ?*option value*...? *infile* ?*infile **.**.**.*? *outfile*
 
 **::pdf4tcl::getForms** *infile*
+
+**::pdf4tcl::fillForms** *infile* *outfile* *values*
 
 **::pdf4tcl::exportForms** *infile* *outfile* ?*options*?
 
@@ -87,6 +89,8 @@ package require **pdf4tcl ?0****.9****.4****.49?**
 *objectName* **addEmbeddedFile** *filename* ?*option value*...?
 
 *objectName* **facturx** ?*option value*...?
+
+*objectName* **orderx** ?*option value*...?
 
 *objectName* **hyperlinkAdd** *x* *y* *width* *height* *url* ?*option value*...?
 
@@ -410,14 +414,23 @@ mypdf destroy
 **default**
 : Default value, if any.
 
+**::pdf4tcl::getForms infile**
+: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields:
+
+**::pdf4tcl::fillForms infile outfile values**
+: Fill the form fields of an existing PDF and write it out again (0.9.4.50+). Returns the number of fields filled. *values* is a dictionary of field id to value. A text field takes a string; a check box or radio button takes the state name as it appears in the file, with the slash (**/Yes**, **/Off**). **getForms** reports the current state under **default**. A field named in *values* but not present in the file raises an error rather than being ignored: a form that comes out empty with no explanation is worse than a refused call. Fields present but not named keep their value.
+
+```tcl
+pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
+```
+
+The value is written, not drawn. **/NeedAppearances** is set, which tells the viewer to render it; a viewer that ignores the flag shows the field as it was, with the value present but invisible. Acrobat and the common browsers honour it.
+
 **-format fdf|xfdf**
 : Output format. **fdf** (default): Forms Data Format (ISO 32000 SS12.7.7), a compact text format supported by most PDF viewers. **xfdf**: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
 
 **-password string**
 : Password for encrypted PDFs.
-
-**::pdf4tcl::getForms infile**
-: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields:
 
 **::pdf4tcl::exportForms infile outfile ?options?**
 : Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+). Returns the number of exported fields.
@@ -701,6 +714,39 @@ $pdfobject write -file invoice.pdf
 # verapdf -f 3b invoice.pdf  ->  PASS
 ```
 
+**-contents**
+: *data*
+
+**-file path**
+: The order XML. One of the two, not both.
+
+**-filename name**
+: Default **order-x****.xml**.
+
+**-conformance level**
+: **basic**, **comfort** or **extended** (default: **comfort**). These are not the Factur-X profiles -- an invoice level such as **EN 16931** is refused here, and **comfort** is refused by **facturx**.
+
+**-documenttype type**
+: **ORDER**, **ORDER_CHANGE** or **ORDER_RESPONSE** (default: **ORDER**).
+
+**-version v**
+: Default **1****.0**.
+
+**-afrelationship rel**
+: Default **Alternative**; a partial order takes **Data**.
+
+**objectName orderx ?option value...?**
+: Attaches an electronic order as Order-X, the ordering counterpart of Factur-X. Same mechanism and the same PDF/A-3 requirement; what differs is the namespace, the file name and the document types.
+
+```tcl
+set pdfobject [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3b]
+$pdfobject startPage
+...
+$pdfobject orderx -file "order-x.xml" -documenttype ORDER
+$pdfobject write -file order.pdf
+```
+
+- Everything is delegated to **facturx**, so the two cannot drift apart: attachment, XMP block and **/AF** relationship are written by one piece of code.
 **-borderwidth n**
 : Width of the annotation border in points. Use **0** for an invisible border (default: **0**).
 

@@ -179,9 +179,13 @@ foreach level {1b 2b} {
     }
 }
 
-puts "\n  Was weiterhin abgelehnt wird: Dateien, die Objekte in einem"
-puts "  /ObjStm-Container fuehren. Die packt der Leser nicht aus -- und"
-puts "  sagt es, statt sie stillschweigend zu verlieren. pdf4tcl selbst"
-puts "  erzeugt keine; zum Ausprobieren: qpdf --object-streams=generate."
+puts "\n  Seit 0.9.4.50 werden auch /ObjStm-Container ausgepackt --"
+puts "  Dateien aus anderen Werkzeugen also ebenfalls. qpdf schreibt sie"
+puts "  standardmaessig."
+puts ""
+puts "  Eine Falle liegt dabei in der EINGABE: qpdf schreibt ohne"
+puts "  --newline-before-endstream Streams ohne Zeilenende davor und"
+puts "  verletzt damit ISO 19005-2 Klausel 6.1.7.1. Die Eingabe faellt"
+puts "  dann schon bei veraPDF durch, und alles daraus ebenso."
 
 puts "\nDateien in $outdir"

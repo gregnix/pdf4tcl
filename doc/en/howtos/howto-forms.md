@@ -47,6 +47,50 @@ $pdf addForm text 400 250 90 16 -id f_sum -align right \
 `-init` shows a static value everywhere; `-calculate` updates in Acrobat,
 Firefox, Chromium, Foxit, etc.
 
+## Reading and filling (0.9.4.50)
+
+Three calls work on an existing file rather than on a document being
+built:
+
+```tcl
+set fields [pdf4tcl::getForms "order.pdf"]
+pdf4tcl::fillForms "order.pdf" "filled.pdf" {f_name "Meier & Co"}
+pdf4tcl::exportForms "filled.pdf" "filled.fdf"
+```
+
+`getForms` returns a dictionary of id to `{type value flags default}`.
+`fillForms` writes values and returns how many fields it filled.
+`exportForms` writes FDF or XFDF.
+
+A text field takes a string; a check box or radio button takes the state
+name **with the slash**, as it appears in the file:
+
+```tcl
+pdf4tcl::fillForms in.pdf out.pdf {agreed /Yes}
+```
+
+Which states a field knows is in its appearance dictionary; `getForms`
+reports the current one under `default`.
+
+A name that is not in the form raises an error:
+
+```
+fillForms: no such field(s) in "order.pdf": no_such_field
+```
+
+Ignoring it would mean a form comes out empty and nobody knows why.
+Fields present but not named keep what they had.
+
+### The value is written, not drawn
+
+`fillForms` sets `/NeedAppearances`, which tells the viewer to render the
+value. A viewer that honours the flag -- Acrobat and the common browsers
+do -- shows it; one that ignores it shows the field as it was, with the
+value present but invisible.
+
+Building an appearance stream per field would need the font metrics of
+the target document, which is more than a string. It is on the list.
+
 ## Limits
 
 - Form text is practically Base-14 / Latin-1 (CID in AcroForm is hard).

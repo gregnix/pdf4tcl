@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.49 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.50 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.49?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.50?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -311,6 +311,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.49?\fR
 \fB::pdf4tcl::catPdf\fR ?\fIoption value\fR\&.\&.\&.? \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
 .sp
 \fB::pdf4tcl::getForms\fR \fIinfile\fR
+.sp
+\fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR
 .sp
 \fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
 .sp
@@ -357,6 +359,8 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.49?\fR
 \fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBfacturx\fR ?\fIoption value\fR\&.\&.\&.?
+.sp
+\fIobjectName\fR \fBorderx\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
 \fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -780,6 +784,29 @@ Value of form flags field\&.
 \fBdefault\fR
 Default value, if any\&.
 .RE
+.TP
+\fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR
+Fill the form fields of an existing PDF and write it out again (0\&.9\&.4\&.50+)\&.
+Returns the number of fields filled\&.
+\fIvalues\fR is a dictionary of field id to value\&. A text field takes a
+string; a check box or radio button takes the state name as it appears in
+the file, with the slash (\fB/Yes\fR, \fB/Off\fR)\&. \fBgetForms\fR
+reports the current state under \fBdefault\fR\&.
+A field named in \fIvalues\fR but not present in the file raises an error
+rather than being ignored: a form that comes out empty with no explanation
+is worse than a refused call\&. Fields present but not named keep their
+value\&.
+.CS
+
+
+pdf4tcl::fillForms empty\&.pdf filled\&.pdf {name "Meier" agreed /Yes}
+
+.CE
+.sp
+The value is written, not drawn\&. \fB/NeedAppearances\fR is set, which
+tells the viewer to render it; a viewer that ignores the flag shows the
+field as it was, with the value present but invisible\&. Acrobat and the
+common browsers honour it\&.
 .TP
 \fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
 Export form field data from a filled PDF as FDF or XFDF (0\&.9\&.4\&.23+)\&.
@@ -1358,6 +1385,51 @@ $pdfobject write -file invoice\&.pdf
 # verapdf -f 3b invoice\&.pdf  ->  PASS
 
 .CE
+.TP
+\fIobjectName\fR \fBorderx\fR ?\fIoption value\fR\&.\&.\&.?
+Attaches an electronic order as Order-X, the ordering counterpart of
+Factur-X\&. Same mechanism and the same PDF/A-3 requirement; what differs is
+the namespace, the file name and the document types\&.
+.RS
+.TP
+\fB-contents\fR \fIdata\fR
+.TP
+\fB-file\fR \fIpath\fR
+The order XML\&. One of the two, not both\&.
+.TP
+\fB-filename\fR \fIname\fR
+Default \fBorder-x\&.xml\fR\&.
+.TP
+\fB-conformance\fR \fIlevel\fR
+\fBbasic\fR, \fBcomfort\fR or \fBextended\fR
+(default: \fBcomfort\fR)\&. These are not the Factur-X profiles -- an
+invoice level such as \fBEN 16931\fR is refused here, and
+\fBcomfort\fR is refused by \fBfacturx\fR\&.
+.TP
+\fB-documenttype\fR \fItype\fR
+\fBORDER\fR, \fBORDER_CHANGE\fR or \fBORDER_RESPONSE\fR
+(default: \fBORDER\fR)\&.
+.TP
+\fB-version\fR \fIv\fR
+Default \fB1\&.0\fR\&.
+.TP
+\fB-afrelationship\fR \fIrel\fR
+Default \fBAlternative\fR; a partial order takes \fBData\fR\&.
+.RE
+.CS
+
+
+set pdfobject [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3b]
+$pdfobject startPage
+\&.\&.\&.
+$pdfobject orderx -file "order-x\&.xml" -documenttype ORDER
+$pdfobject write -file order\&.pdf
+
+.CE
+.IP
+Everything is delegated to \fBfacturx\fR, so the two cannot drift
+apart: attachment, XMP block and \fB/AF\fR relationship are written by
+one piece of code\&.
 .TP
 \fIobjectName\fR \fBhyperlinkAdd\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR \fIurl\fR ?\fIoption value\fR\&.\&.\&.?
 This method adds a URI hyperlink annotation to the current page\&. The clickable

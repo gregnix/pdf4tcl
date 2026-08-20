@@ -11,6 +11,7 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 # Ein Dokument mit einem Textfeld je Seite.
 tcltest::testConstraint haveQpdf [expr {![catch {exec qpdf --version}]}]
+tcltest::testConstraint haveVerapdf [expr {![catch {exec verapdf --version}]}]
 
 proc catFormDoc {file id {title {}}} {
     set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4 -orient 1]
@@ -386,19 +387,53 @@ test cat-xref-1 {gemischt: Stream-Form und Tabellenform} -setup {
     regexp -all {/Type\s*/Page\M} $data
 } -result 2
 
-test cat-xref-2 {Objekt-Streams werden benannt, nicht verschluckt} -setup {
+test cat-xref-2 {Objekt-Streams werden ausgepackt} -setup {
     catPlainDoc [file join [temporaryDirectory] xr2.pdf] "normal"
 } -constraints haveQpdf -body {
     # Objekte koennen in einem /ObjStm-Container liegen (Typ 2 in der
-    # Tabelle). Die packt dieser Leser nicht aus -- ohne Meldung wuerden
-    # sie einfach fehlen.
+    # Tabelle). Bis 0.9.4.50 wurden sie abgelehnt; seither packt
+    # UnpackObjStreams sie aus.
+    #
+    # qpdf schreibt solche Container standardmaessig, es ist also der
+    # Normalfall und nicht der Sonderfall.
     exec qpdf --object-streams=generate \
             [file join [temporaryDirectory] xr2.pdf] \
             [file join [temporaryDirectory] xrobj.pdf]
-    catch {::pdf4tcl::catPdf [file join [temporaryDirectory] xrobj.pdf] \
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] xrobj.pdf] \
             [file join [temporaryDirectory] xr2.pdf] \
-            [file join [temporaryDirectory] xrout.pdf]} e
-    expr {[string match {*object stream*} $e]}
+            [file join [temporaryDirectory] xrout.pdf]
+    set fh [open [file join [temporaryDirectory] xrout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    regexp -all {/Type\s*/Page\M} $data
+} -result 2
+
+test cat-xref-2b {der PNG-Predictor wird zurueckgerechnet} \
+        -constraints haveQpdf -setup {
+    catPlainDoc [file join [temporaryDirectory] xr2.pdf] "normal"
+} -body {
+    # qpdf schreibt /DecodeParms << /Columns 4 /Predictor 12 >>: die
+    # Zeilen der xref-Tabelle sind als Differenz zur vorigen gespeichert.
+    #
+    # Ohne Rueckrechnung sind alle Zeilen nach der ersten verschoben --
+    # und die Datei laesst sich TROTZDEM lesen. Der Fehler zeigt sich
+    # als unsinnige Objektnummern ("names object stream 0"), nicht als
+    # Absturz. Deshalb dieser Test.
+    exec qpdf --object-streams=generate \
+            [file join [temporaryDirectory] xr2.pdf] \
+            [file join [temporaryDirectory] xrobj.pdf]
+    set fh [open [file join [temporaryDirectory] xrobj.pdf] rb]
+    set data [read $fh]
+    close $fh
+    # Vorbedingung: die Datei benutzt den Predictor wirklich.
+    if {![regexp {/Predictor\s+1[0-5]} $data]} {
+        error "qpdf schrieb keinen Predictor -- der Test misst nichts"
+    }
+    set pdf [::pdf4tcl::cat::ReadPdf [file join [temporaryDirectory] xrobj.pdf]]
+    # Der Katalog liegt im Container; ohne Rueckrechnung wird er nicht
+    # gefunden.
+    set rootId [lindex [dict get $pdf trailer /Root] 0]
+    dict exists $pdf $rootId
 } -result 1
 
 test cat-xref-3 {PDF/A-1b geht weiterhin} -setup {
@@ -432,13 +467,240 @@ test cat-xref-4 {eine beschaedigte Datei wird benannt} -setup {
     expr {[string match {*no startxref*} $e]}
 } -result 1
 
+
+test cat-xref-2c {ein PDF/A-2b mit Objekt-Streams bleibt konform} \
+        -constraints {haveQpdf haveVerapdf} -setup {
+    # Eingebettete Schrift, sonst faellt die Datei an Klausel 6.2.11.4.1
+    # -- PDF/A verlangt jedes Fontprogramm in der Datei, und die
+    # vierzehn Standardschriften haben keins.
+    set ttf [file join [file dirname [file dirname [file normalize [info script]]]] \
+            examples FreeSans.ttf]
+    ::pdf4tcl::loadBaseTrueTypeFont VaBase $ttf
+    ::pdf4tcl::createFontSpecCID VaBase VaFont
+    foreach {n t} {va "Teil A" vb "Teil B"} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa 2b]
+        $p startPage
+        $p setFont 12 VaFont
+        $p text $t -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # --newline-before-endstream ist noetig, weil qpdf ohne diese Option
+    # Streams ohne EOL vor "endstream" schreibt und damit ISO 19005-2
+    # Klausel 6.1.7.1 verletzt.
+    #
+    # DAS HAT MICH EINE STUNDE GEKOSTET: das zusammengefuehrte Dokument
+    # fiel bei veraPDF durch, und ich habe den Fehler in catPdf gesucht.
+    # Er lag in der EINGABE -- catPdf reicht die Streams unveraendert
+    # durch, wie es soll. Nachgemessen: qpdf ohne die Option erzeugt
+    # sechs von sieben Streams ohne EOL, und die Eingabe allein faellt
+    # schon durch.
+    exec qpdf --object-streams=generate --newline-before-endstream \
+            [file join [temporaryDirectory] va.pdf] \
+            [file join [temporaryDirectory] vaos.pdf]
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] vaos.pdf] \
+            [file join [temporaryDirectory] vb.pdf] \
+            [file join [temporaryDirectory] vout.pdf]
+    set r [exec verapdf -f 2b --format text \
+            [file join [temporaryDirectory] vout.pdf]]
+    string match "PASS*" $r
+} -result 1
+
 # Auch die Dateien der Info- und xref-Tests wieder wegraeumen. Ohne das
 # bleiben dreizehn PDFs im Arbeitsverzeichnis liegen -- tcltest meldet es
 # als "files left behind", und beim naechsten Lauf ist das Rauschen, in
 # dem ein echter Befund untergeht.
 foreach pat {i?.pdf iout.pdf p?.pdf pout.pdf x?.pdf xab.pdf xr?.pdf
              kaputt.pdf ok.pdf kout.pdf xrout.pdf q?.pdf qout.pdf
-             xrobj.pdf} {
+             xrobj.pdf va.pdf vb.pdf vaos.pdf vout.pdf} {
+    foreach f [glob -nocomplain -directory [temporaryDirectory] $pat] {
+        file delete $f
+    }
+}
+
+test cat-orphan-1 {das /Info des angehaengten Dokuments bleibt nicht liegen} -setup {
+    foreach {n t} {o1 "Erstes" o2 "Zweites"} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $p metadata -title $t
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Inhalt $n" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # Zusammenfuehren uebernimmt jedes Objekt jeder Eingabe, auch das
+    # /Info der angehaengten Dokumente. Der Trailer nennt nur eines, die
+    # anderen blieben als Leichen liegen -- kein Leser sah sie, aber ein
+    # grep fand den falschen Titel, und ein Test von mir mass ihn.
+    ::pdf4tcl::catPdf -title "Gesamt" \
+            [file join [temporaryDirectory] o1.pdf] \
+            [file join [temporaryDirectory] o2.pdf] \
+            [file join [temporaryDirectory] oout.pdf]
+    set fh [open [file join [temporaryDirectory] oout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    # Genau ein /Title, und zwar der gesetzte.
+    list [regexp -all {/Title} $data] \
+         [expr {[string first "Zweites" $data] < 0}]
+} -cleanup {
+    foreach f {o1.pdf o2.pdf oout.pdf} {
+        file delete [file join [temporaryDirectory] $f]
+    }
+} -result {1 1}
+
+test cat-orphan-2 {/Size passt zur Objektzahl} -setup {
+    foreach {n t} {o1 "Erstes" o2 "Zweites"} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $p metadata -title $t
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Inhalt $n" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # AppendPdf setzt /Size UND N, aber jeder Schritt danach --
+    # DedupObjects, DropUnreachable -- aendert die Objektzahl und zieht
+    # nur N nach. Der Trailer behielt den alten Wert.
+    #
+    # qpdf meldete das als Warnung, die Datei blieb lesbar, und die
+    # Testsuite sah nichts. Deshalb dieser Test.
+    ::pdf4tcl::catPdf -title "Gesamt" \
+            [file join [temporaryDirectory] o1.pdf] \
+            [file join [temporaryDirectory] o2.pdf] \
+            [file join [temporaryDirectory] oout.pdf]
+    set fh [open [file join [temporaryDirectory] oout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    regexp {/Size\s+(\d+)} $data -> size
+    set maxOid 0
+    foreach {full n} [regexp -all -inline {(?:^|\n)(\d+)\s+0\s+obj} $data] {
+        if {$n > $maxOid} { set maxOid $n }
+    }
+    expr {$size == $maxOid + 1}
+} -cleanup {
+    foreach f {o1.pdf o2.pdf oout.pdf} {
+        file delete [file join [temporaryDirectory] $f]
+    }
+} -result 1
+
+test cat-orphan-3 {Seiten gehen dabei nicht verloren} -setup {
+    foreach n {o1 o2} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Inhalt $n" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # Gegenprobe: eine Aufraeumroutine, die zu viel wegwirft, waere
+    # schlimmer als die Leichen. Seiten und Strukturelemente bleiben
+    # deshalb unangetastet, was der Erreichbarkeitslauf auch sagt.
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] o1.pdf] \
+            [file join [temporaryDirectory] o2.pdf] \
+            [file join [temporaryDirectory] oout.pdf]
+    set fh [open [file join [temporaryDirectory] oout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    regexp -all {/Type\s*/Page\M} $data
+} -cleanup {
+    foreach f {o1.pdf o2.pdf oout.pdf} {
+        file delete [file join [temporaryDirectory] $f]
+    }
+} -result 2
+
+test cat-orphan-1 {das /Info des angehaengten Dokuments wird entfernt} -setup {
+    foreach {n t} {o1 "Erstes" o2 "Zweites"} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $p metadata -title $t
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Inhalt $n" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # Beim Zusammenfuehren wandert jedes Objekt jeder Eingabe mit, auch
+    # das /Info der angehaengten Dokumente. Der Trailer nennt nur eines,
+    # die anderen bleiben als Leiche liegen -- kein Leser sieht sie, aber
+    # wer die Datei durchsucht, findet einen Titel, der fuer nichts gilt.
+    # Ein Test von mir hat deswegen den falschen gemessen.
+    ::pdf4tcl::catPdf -title "Gesamt" \
+            [file join [temporaryDirectory] o1.pdf] \
+            [file join [temporaryDirectory] o2.pdf] \
+            [file join [temporaryDirectory] oout.pdf]
+    set fh [open [file join [temporaryDirectory] oout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    # Genau ein /Title, und zwar der gesetzte.
+    list [regexp -all {/Title\s*\(} $data] \
+         [expr {[string first "(Zweites)" $data] < 0}]
+} -result {1 1}
+
+test cat-orphan-2 {/Size zaehlt nach dem Aufraeumen richtig} -setup {
+    foreach {n t} {o1 "Erstes" o2 "Zweites"} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $p metadata -title $t
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Inhalt $n" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # DropUnreachable entfernt Objekte und nummeriert um. Der Trailer
+    # behielt den Wert vom Anhaengen, und qpdf meldete "reported number
+    # of objects (19) is not one plus the highest object number (16)".
+    # WritePdf leitet /Size jetzt aus N ab.
+    ::pdf4tcl::catPdf -title "Gesamt" \
+            [file join [temporaryDirectory] o1.pdf] \
+            [file join [temporaryDirectory] o2.pdf] \
+            [file join [temporaryDirectory] oout.pdf]
+    set fh [open [file join [temporaryDirectory] oout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    regexp {/Size\s+(\d+)} $data -> size
+    set maxOid 0
+    foreach {full n} [regexp -all -inline {(?:^|\n)(\d+)\s+0\s+obj} $data] {
+        if {$n > $maxOid} { set maxOid $n }
+    }
+    expr {$size == $maxOid + 1}
+} -result 1
+
+test cat-orphan-3 {Seiten bleiben, auch wenn der Scan sie nicht findet} -setup {
+    foreach n {o1 o2} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $p startPage
+        $p setFont 12 Helvetica
+        $p text "Inhalt $n" -x 60 -y 60
+        $p write -file [file join [temporaryDirectory] $n.pdf]
+        $p destroy
+    }
+} -body {
+    # Gegenprobe: das Aufraeumen darf nichts wegnehmen, was gebraucht
+    # wird. Seiten und Strukturelemente sind ausdruecklich ausgenommen --
+    # eine Seite fuer ein paar hundert Bytes zu verlieren waere ein
+    # schlechter Tausch.
+    ::pdf4tcl::catPdf [file join [temporaryDirectory] o1.pdf] \
+            [file join [temporaryDirectory] o2.pdf] \
+            [file join [temporaryDirectory] oout.pdf]
+    set fh [open [file join [temporaryDirectory] oout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    regexp -all {/Type\s*/Page\M} $data
+} -result 2
+
+# Auch die Dateien der Info- und xref-Tests wieder wegraeumen. Ohne das
+# bleiben dreizehn PDFs im Arbeitsverzeichnis liegen -- tcltest meldet es
+# als "files left behind", und beim naechsten Lauf ist das Rauschen, in
+# dem ein echter Befund untergeht.
+foreach pat {i?.pdf iout.pdf p?.pdf pout.pdf x?.pdf xab.pdf xr?.pdf
+             kaputt.pdf ok.pdf kout.pdf xrout.pdf q?.pdf qout.pdf
+             xrobj.pdf va.pdf vb.pdf vaos.pdf vout.pdf
+             o?.pdf oout.pdf} {
     foreach f [glob -nocomplain -directory [temporaryDirectory] $pat] {
         file delete $f
     }

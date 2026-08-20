@@ -19,6 +19,7 @@ Factur-X XMP extension.
 - PDF/A-3b container (`-pdfa 3b`)
 - High-level **`facturx`** helper (embed XML + Factur-X XMP), as used by
   `examples/facturx.tcl`
+- **`orderx`** for orders rather than invoices (0.9.4.50+)
 - Lower-level **`addEmbeddedFile`** for generic attachments
 
 ## What pdf4tcl does *not* do
@@ -62,6 +63,36 @@ $pdf addEmbeddedFile factur-x.xml \
         -mimetype "text/xml" \
         -afrelationship Data
 ```
+
+## Order-X: the same for an order (0.9.4.50)
+
+Order-X is the ordering counterpart of Factur-X, published by the same
+bodies. Same mechanism, same PDF/A-3 requirement; the namespace, the file
+name and the document types differ.
+
+```tcl
+$pdf orderx -contents $xml -documenttype ORDER -conformance comfort
+```
+
+| | Factur-X | Order-X |
+|---|---|---|
+| method | `facturx` | `orderx` |
+| attachment | `factur-x.xml` | `order-x.xml` |
+| profiles | MINIMUM ... XRECHNUNG | basic, comfort, extended |
+| document types | INVOICE | ORDER, ORDER_CHANGE, ORDER_RESPONSE |
+
+**The profiles are not interchangeable.** An invoice level such as
+`EN 16931` is refused by `orderx`, and `comfort` is refused by `facturx`:
+
+```
+orderx: invalid -conformance "EN 16931": must be basic, comfort, extended
+```
+
+Everything else is delegated to `facturx`, so attachment, XMP block and
+`/AF` relationship come from one piece of code and cannot drift apart.
+
+A partial order takes `-afrelationship Data` instead of the default
+`Alternative`.
 
 ## Check
 

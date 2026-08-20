@@ -13,4 +13,29 @@ $pdf endPage
 set out [pdf4tcl::doc::outfile howto-forms.pdf]
 $pdf write -file $out
 $pdf destroy
+
+# ---------------------------------------------------------------------------
+# Reading and filling (0.9.4.50)
+# ---------------------------------------------------------------------------
+
+# What is in the form?
+set felder [pdf4tcl::getForms $out]
+puts "fields: [join [lsort [dict keys $felder]] {, }]"
+
+# Fill it and write a second file. A text field takes a string, a check
+# box the state name with the slash.
+set voll [pdf4tcl::doc::outfile howto-forms-filled.pdf]
+set n [pdf4tcl::fillForms $out $voll \
+        [dict create f_name "Meier & Co (GmbH)"]]
+puts "filled: $n field(s)"
+
+# Read it back -- the value is in the file, escaped as PDF wants it.
+set danach [pdf4tcl::getForms $voll]
+puts "f_name is now: [dict get $danach f_name value]"
+
+# A name that is not in the form is reported rather than ignored.
+if {[catch {pdf4tcl::fillForms $out $voll {no_such_field "x"}} e]} {
+    puts "refused: [string range $e 0 60]..."
+}
+
 pdf4tcl::doc::done $out

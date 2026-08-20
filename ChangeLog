@@ -1,3 +1,88 @@
+2026-08-20 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.50
+	* src/cat.tcl (DropUnreachable): objects nothing points at are removed
+	after merging. Every input's /Info was taken over while the trailer
+	names one, so the others stayed behind -- no reader saw them, but a
+	grep found a title belonging to nothing. Reachability from the
+	trailer rather than a list of types, so anything else the merge leaves
+	behind is caught too. Pages and structure elements are kept whatever
+	the scan says.
+	* src/cat.tcl (WritePdf): /Size is derived from N rather than taken
+	from the trailer. AppendPdf set both, but every later step changed the
+	object count and carried only N, leaving a /Size that qpdf reported as
+	not one plus the highest object number. Present before this release;
+	the entry above made it visible.
+	* tests/cat-acroform.test: 33 tests.
+	* src/cat.tcl (getForms): a widget without /T no longer aborts the
+	read. With radio buttons the parent carries the name and the children
+	only their appearance; getForms failed with "key /T not known in
+	dictionary". Found while extending demo/demo-forms.tcl, not by the
+	suite -- no test had read a radio group back.
+	* tests/form-ext.test: 77 tests.
+	* demo/demo-forms.tcl: finds the package by searching for pkgIndex.tcl
+	next to src/ rather than counting three directories upwards, which
+	pointed outside the tree and loaded whatever pdf4tcl happened to sit
+	there. Also shows getForms, fillForms and what fillForms does not do.
+	* doc/en/howtos/howto-forms.md, howto-facturx.md, howto-catpdf.md:
+	reading and filling forms, Order-X beside Factur-X, and object streams
+	-- including the trap that qpdf without --newline-before-endstream
+	writes input that fails PDF/A before pdf4tcl sees it.
+	* src/main.tcl (getStringWidth): the kerning was added twice.
+	ShapedWidth already includes it, and the older per-character block
+	below was left in place outside the if/else, so it applied to the
+	shaped path as well. A string measured narrower than it was drawn --
+	the opposite of what 0.9.4.49 set out to fix. Present in 0.9.4.49 as
+	released; kerning-4.3 and kerning-6.4 report it.
+	* src/main.tcl (orderx): attaches an electronic order as Order-X, the
+	ordering counterpart of Factur-X. Namespace, file name and document
+	types differ; the profiles are basic, comfort and extended rather than
+	the invoice levels, and each set is refused by the other method.
+	Everything else is delegated to facturx, which now takes the list of
+	valid profiles as an argument, so attachment, XMP block and /AF
+	relationship stay in one place.
+	* src/cat.tcl (UnpackObjStreams, UndoPngPredictor): catPdf reads
+	objects out of object streams (/ObjStm, ISO 32000-1 clause 7.5.7).
+	Type 2 entries in the cross-reference table used to be refused with a
+	count; the container is now decompressed and its header of number and
+	offset pairs read. Files with a cross-reference stream use object
+	streams by default, so this was the second half of what 0.9.4.49
+	started.
+	The rows of a cross-reference stream may carry a PNG row filter
+	(/DecodeParms with /Predictor 12, which is what qpdf writes by
+	default). Without undoing it every row after the first is offset, and
+	the file still parses -- the error shows up as an object number that
+	cannot exist rather than as a failure.
+	* tests/cat-acroform.test: 27 tests.
+	* src/main.tcl (startXObject): a form XObject now names its resource
+	dictionary in every case, not only with -noimage. ISO 19005-2 clause
+	6.2.2 wants a content stream that references fonts or images to carry
+	an explicitly associated Resources dictionary; without it a PDF/A-3a
+	file with a tagged XObject passed PDF/UA-1 and failed 3a at that
+	clause alone.
+	* tests/pdfa.test: 71 tests.
+	* src/cat.tcl (fillForms): fills the form fields of an existing PDF and
+	writes it out again -- the counterpart to getForms, which could read
+	them but not write. A field named but not present raises an error; a
+	form that comes out empty with no explanation is worse than a refused
+	call. Check boxes take the state name and get /AS as well, or the box
+	keeps its old appearance. /NeedAppearances is set: the value is
+	written, not drawn.
+	* tests/form-ext.test: 8 tests, 75 in total.
+	* KNOWN: fillForms writes no appearance stream. A viewer that ignores
+	/NeedAppearances shows the field as it was, with the value present but
+	invisible.
+	* doc/en/howtos/howto-tagged.md, howto-xobject.md: the two topics that
+	were built and tested but had no recipe. Both with a runnable script;
+	the tagged one passes veraPDF as PDF/UA-1.
+	* tests/facturx.test: 6 tests for Order-X, 25 in total.
+	* tools/mk-feature-matrix.tcl: prints which of the documented topics
+	have a reference entry, a howto with a runnable script, a tutorial, a
+	demo, an example and a test. Names are searched rather than listed, so
+	a topic added later appears without the tool being edited; a test that
+	carries a different name is found through a synonym list. Reports
+	tagged PDF and XObject tagging as having no howto.
+
 2026-08-19 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.49

@@ -163,6 +163,132 @@ proc pdf4tcl::cat::TclDictToPdfDict {dict} {
 #
 # Objects of type 2 live inside an object stream. Those are not resolved
 # here; the caller is told so rather than silently losing them.
+# Unpack the object streams of a file and add what is in them.
+#
+# An object stream (/Type /ObjStm, ISO 32000-1 clause 7.5.7) holds several
+# objects in one compressed stream: a header of "number offset" pairs, then
+# the objects as text, starting at /First.
+#
+# Files with a cross-reference stream use them by default -- qpdf does,
+# and so does anything from PDF 1.5 on -- so without this every second
+# archival document is unreadable.
+#
+# Returns the xrefs dict with an entry for each unpacked object. Since
+# those have no byte offset in the file, the TEXT is stored under a
+# separate key and ReadPdf picks it up from there.
+# Undo the PNG row filter of a cross-reference stream.
+#
+# Each row starts with a filter byte, then $columns data bytes stored as a
+# difference. Only filter 2 (Up: difference to the row above) appears in
+# practice, but 0 and 1 cost nothing to handle.
+proc pdf4tcl::cat::UndoPngPredictor {daten spalten} {
+    binary scan $daten cu* bytes
+    set zeilenLen [expr {$spalten + 1}]
+    set anzahl [expr {[llength $bytes] / $zeilenLen}]
+    set vorige [lrepeat $spalten 0]
+    set aus {}
+
+    for {set r 0} {$r < $anzahl} {incr r} {
+        set off [expr {$r * $zeilenLen}]
+        set filter [lindex $bytes $off]
+        set zeile {}
+        for {set i 0} {$i < $spalten} {incr i} {
+            set b [lindex $bytes [expr {$off + 1 + $i}]]
+            switch -- $filter {
+                0 { }
+                1 {
+                    # Sub: difference to the byte on the left.
+                    if {$i > 0} {
+                        set b [expr {($b + [lindex $zeile [expr {$i-1}]]) % 256}]
+                    }
+                }
+                2 {
+                    # Up: difference to the byte above.
+                    set b [expr {($b + [lindex $vorige $i]) % 256}]
+                }
+                default {
+                    throw {PDF4TCL} "catPdf: PNG predictor filter $filter is\
+                            not supported"
+                }
+            }
+            lappend zeile $b
+        }
+        foreach b $zeile { append aus [binary format cu $b] }
+        set vorige $zeile
+    }
+    return $aus
+}
+
+proc pdf4tcl::cat::UnpackObjStreams {data xrefs container file} {
+    variable objStmBodies
+    array unset objStmBodies
+
+    dict for {stmNo objList} $container {
+        if {![dict exists $xrefs $stmNo]} {
+            throw {PDF4TCL} "catPdf: \"$file\" names object stream $stmNo,\
+                    which is not in the cross-reference table"
+        }
+        set start [dict get $xrefs $stmNo]
+        set sp [string first "stream" $data $start]
+        if {$sp < 0} {
+            throw {PDF4TCL} "catPdf: object stream $stmNo in \"$file\" has\
+                    no stream data"
+        }
+        set hdr [string range $data $start [expr {$sp - 1}]]
+
+        if {![regexp {/N\s+(\d+)} $hdr -> anzahl]
+                || ![regexp {/First\s+(\d+)} $hdr -> first]
+                || ![regexp {/Length\s+(\d+)} $hdr -> len]} {
+            throw {PDF4TCL} "catPdf: object stream $stmNo in \"$file\" is\
+                    missing /N, /First or /Length"
+        }
+        if {[regexp {/Filter\s*/(\w+)} $hdr -> filter]
+                && $filter ne "FlateDecode"} {
+            throw {PDF4TCL} "catPdf: object stream $stmNo in \"$file\" uses\
+                    /$filter, only /FlateDecode is supported"
+        }
+
+        # Exactly ONE line ending after "stream".
+        set b [expr {$sp + 6}]
+        if {[string index $data $b] eq "\r"} { incr b }
+        if {[string index $data $b] eq "\n"} { incr b }
+        set roh [string range $data $b [expr {$b + $len - 1}]]
+        if {[info exists filter] && $filter eq "FlateDecode"} {
+            if {[catch {zlib decompress $roh} plain]} {
+                throw {PDF4TCL} "catPdf: cannot decompress object stream\
+                        $stmNo in \"$file\": $plain"
+            }
+        } else {
+            set plain $roh
+        }
+
+        # Header: 2N integers, "number offset" per object. The offsets are
+        # relative to /First.
+        set kopf [string range $plain 0 [expr {$first - 1}]]
+        set paare [regexp -all -inline {\d+} $kopf]
+        if {[llength $paare] < $anzahl * 2} {
+            throw {PDF4TCL} "catPdf: object stream $stmNo in \"$file\"\
+                    promises $anzahl objects but its header lists\
+                    [expr {[llength $paare] / 2}]"
+        }
+
+        for {set i 0} {$i < $anzahl} {incr i} {
+            set nr  [lindex $paare [expr {$i * 2}]]
+            set von [expr {$first + [lindex $paare [expr {$i * 2 + 1}]]}]
+            if {$i + 1 < $anzahl} {
+                set bis [expr {$first + [lindex $paare [expr {($i+1) * 2 + 1}]] - 1}]
+            } else {
+                set bis end
+            }
+            set text [string trim [string range $plain $von $bis]]
+            # The rest of the reader expects "N 0 obj ... endobj" around it.
+            set objStmBodies($nr) "$nr 0 obj\n$text\nendobj\n"
+            dict set xrefs $nr -2      ;# -2: liegt in objStmBodies, nicht im File
+        }
+    }
+    return $xrefs
+}
+
 proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
     set objStart [string first "obj" $data $startxref]
     if {$objStart < 0} {
@@ -216,6 +342,20 @@ proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
         set plain $raw
     }
 
+    # /DecodeParms with a Predictor: the rows are PNG-filtered, each one
+    # prefixed with a filter byte and stored as the difference to the row
+    # above. Without undoing that every row after the first is wrong --
+    # and the file still parses, so the error shows up as nonsense object
+    # numbers rather than as a failure.
+    #
+    # qpdf writes Predictor 12 by default, so this is the normal case, not
+    # an exotic one.
+    if {[regexp {/Predictor\s+(\d+)} $hdr -> predictor] && $predictor >= 10} {
+        set spalten 1
+        if {[regexp {/Columns\s+(\d+)} $hdr -> c]} { set spalten $c }
+        set plain [UndoPngPredictor $plain $spalten]
+    }
+
     lassign $widths w1 w2 w3
     set rowLen [expr {$w1 + $w2 + $w3}]
     if {$rowLen == 0} {
@@ -234,7 +374,8 @@ proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
     }
 
     set xrefs {}
-    set inObjStm 0
+    # Container-Nummer -> Liste der Objekte darin.
+    set inObjStm {}
     set row 0
     foreach {first count} $index {
         for {set k 0} {$k < $count && $row < $nRows} {incr k; incr row} {
@@ -255,15 +396,22 @@ proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
             set objNo [expr {$first + $k}]
             switch -- $type {
                 1 { dict set xrefs $objNo $f2 }
-                2 { incr inObjStm }
+                2 {
+                    # Type 2: the object lives inside an object stream.
+                    # Field 2 is the number of the container, field 3 the
+                    # position within it -- which is not needed, the header
+                    # of the container gives the offsets.
+                    dict lappend inObjStm $f2 $objNo
+                }
                 default { }
             }
         }
     }
 
-    if {$inObjStm} {
-        throw {PDF4TCL} "catPdf: \"$file\" keeps $inObjStm object(s) inside\
-                object streams (/ObjStm), which this reader does not unpack"
+    # Objekte aus den Containern holen. Die Container selbst stehen als
+    # Typ 1 in derselben Tabelle, sind also schon bekannt.
+    if {[dict size $inObjStm]} {
+        set xrefs [UnpackObjStreams $data $xrefs $inObjStm $file]
     }
 
     # The stream dictionary IS the trailer here.
@@ -273,6 +421,7 @@ proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
 }
 
 proc pdf4tcl::cat::ReadPdf {file} {
+    variable objStmBodies
     set ch [open $file rb]
     set data [read $ch]
     close $ch
@@ -405,6 +554,14 @@ proc pdf4tcl::cat::ReadPdf {file} {
     set xrefs [lsort -stride 2 -integer -decreasing -index 1 $xrefs]
     #puts $xrefs
     foreach {obj index} $xrefs {
+        # -2 marks an object that came out of an object stream: it has no
+        # byte offset in the file, its text is already in objStmBodies.
+        if {$index == -2} {
+            if {[info exists objStmBodies($obj)]} {
+                dict set pdfdata $obj full $objStmBodies($obj)
+            }
+            continue
+        }
         # Negative index is a deleted object
         if {$index < 0} continue
         # See if there is an xref after this object
@@ -497,6 +654,14 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     }
     set xref_pos $pos
     set N [dict get $pdfd N]
+    # /Size aus N ableiten statt aus dem Trailer.
+    #
+    # AppendPdf setzt beide, aber jeder Schritt danach -- DedupObjects,
+    # DropUnreachable -- veraendert die Objektzahl und zieht nur N nach.
+    # Der Trailer behielt den Wert vom Anhaengen, und qpdf meldete
+    # "reported number of objects (19) is not one plus the highest object
+    # number (16)". Lesbar blieb die Datei, falsch war sie trotzdem.
+    dict set pdfd trailer /Size $N
     WriteCh $ch "xref\n" pos
     WriteCh $ch "0 $N\n" pos
     WriteCh $ch "0000000000 65535 f \n" pos
@@ -990,9 +1155,115 @@ proc pdf4tcl::cat::SetInfo {pdfd info} {
             if {[string is digit -strict $key] && $key > $maxId} { set maxId $key }
         }
         set infoId [expr {$maxId + 1}]
+        # N mitziehen, sonst schreibt WritePdf einen /Size, der das neue
+        # Objekt nicht mitzaehlt.
+        if {[dict exists $pdfd N] && [dict get $pdfd N] <= $infoId} {
+            dict set pdfd N [expr {$infoId + 1}]
+        }
         dict set pdfd trailer /Info "$infoId 0 R"
     }
     dict set pdfd $infoId full "$infoId 0 obj\n$body\nendobj\n"
+    return $pdfd
+}
+
+# Drop objects nothing points at.
+#
+# Merging takes over every object of every input, including the /Info
+# dictionary of the appended documents -- the trailer names only one, so
+# the others stay behind. No reader sees them, but they cost a few hundred
+# bytes each and anyone grepping the file finds a title that applies to
+# nothing. A test of mine measured the wrong one because of it.
+#
+# Reachability from the trailer, not a list of types: whatever the merge
+# leaves behind is caught, not just /Info.
+#
+# Pages and structure elements are kept whatever the scan says. They hang
+# together through /Kids and /P chains that this simple reference scan can
+# follow but should not be trusted to -- losing a page to save a hundred
+# bytes is a bad trade.
+proc pdf4tcl::cat::DropUnreachable {pdfd} {
+    if {![dict exists $pdfd trailer]} { return $pdfd }
+
+    # Start at the trailer and follow every "N 0 R" found.
+    set offen {}
+    foreach {k v} [dict get $pdfd trailer] {
+        foreach ref [regexp -all -inline {(\d+)\s+\d+\s+R} $v] {
+            if {[string is integer -strict $ref]} { lappend offen $ref }
+        }
+    }
+
+    set erreichbar {}
+    while {[llength $offen]} {
+        set o [lindex $offen 0]
+        set offen [lrange $offen 1 end]
+        if {[dict exists $erreichbar $o]} { continue }
+        if {![dict exists $pdfd $o]} { continue }
+        dict set erreichbar $o 1
+        foreach ref [regexp -all -inline {(\d+)\s+\d+\s+R} \
+                [dict get $pdfd $o full]] {
+            if {[string is integer -strict $ref]
+                    && ![dict exists $erreichbar $ref]} {
+                lappend offen $ref
+            }
+        }
+    }
+
+    set weg {}
+    foreach key [dict keys $pdfd] {
+        if {![string is digit -strict $key]} { continue }
+        if {[dict exists $erreichbar $key]} { continue }
+        set body [dict get $pdfd $key full]
+        # Seiten und Strukturelemente bleiben, komme was wolle.
+        if {[regexp {/Type\s*/(Page|Pages|Catalog|StructTreeRoot|StructElem)\M} \
+                $body]} {
+            continue
+        }
+        lappend weg $key
+    }
+    if {![llength $weg]} { return $pdfd }
+
+    foreach key $weg { dict unset pdfd $key }
+
+    # Dropping objects leaves gaps, and WritePdf writes one xref entry per
+    # number from 1 to N. Renumber densely -- same reasoning as in
+    # DedupObjects.
+    set numerisch {}
+    foreach key [dict keys $pdfd] {
+        if {[string is digit -strict $key]} { lappend numerisch $key }
+    }
+    set renumber {}
+    set next 1
+    foreach key [lsort -integer $numerisch] {
+        ##nagelfar ignore Found constant
+        dict set renumber $key $next
+        incr next
+    }
+
+    set out {}
+    foreach {key val} $pdfd {
+        if {![string is digit -strict $key]} {
+            if {$key eq "trailer"} {
+                set neu {}
+                foreach {tk tv} $val {
+                    lappend neu $tk [RemapRefs $tv $renumber]
+                }
+                set val $neu
+            } elseif {$key eq "N"} {
+                set val $next
+            }
+            lappend out $key $val
+            continue
+        }
+        set neuNr [dict get $renumber $key]
+        set body [RemapRefs [dict get $val full] $renumber]
+        regsub {^\s*\d+\s+(\d+)\s+obj} $body "$neuNr \\1 obj" body
+        lappend out $neuNr [dict create full $body]
+    }
+    set pdfd $out
+    if {[dict exists $pdfd trailer /Root]} {
+        dict set pdfd root [PdfObjToTclDict \
+                [dict get $pdfd [lindex [dict get $pdfd trailer /Root] 0] full]]
+    }
     return $pdfd
 }
 
@@ -1169,6 +1440,10 @@ proc pdf4tcl::catPdf {args} {
     set pdf1 [pdf4tcl::cat::DedupObjects $pdf1]
     # After the folding, so a rewritten /Info is not folded away against
     # the original of the first document.
+    # Vor SetInfo: das raeumt die verwaisten /Info der angehaengten
+    # Dokumente weg, und SetInfo schreibt danach in das, worauf der
+    # Trailer zeigt.
+    set pdf1 [pdf4tcl::cat::DropUnreachable $pdf1]
     set pdf1 [pdf4tcl::cat::SetInfo $pdf1 $info]
     pdf4tcl::cat::WritePdf $outfile $pdf1
 }
@@ -1540,6 +1815,129 @@ proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
 }
 
 
+# Fill the form fields of an existing PDF and write it out again.
+#
+#   pdf4tcl::fillForms in.pdf out.pdf {name "Meier" gelesen /Yes}
+#
+# The counterpart to getForms: same search for /Widget objects, but the
+# value is written rather than read. Returns the number of fields filled.
+#
+# A field named in the dict but not present in the file is reported --
+# silently ignoring it would mean a form comes out empty and nobody knows
+# why. Fields present but not named keep what they had.
+#
+# Text fields take a string. Check boxes and radio buttons take the state
+# name as it appears in the file, with the slash: /Yes, /Off, /On. Which
+# ones a field knows is in its /AP dictionary; getForms reports the
+# current one under "default".
+#
+# What this does NOT do: build appearance streams. A viewer that honours
+# /NeedAppearances -- which is set here -- draws the value itself. One
+# that ignores the flag shows the field as it was, with the value present
+# but invisible. Acrobat and most browsers honour it; some print paths do
+# not.
+proc pdf4tcl::fillForms {inFile outFile values} {
+    if {![file exists $inFile]} {
+        throw {PDF4TCL} "No such file: $inFile"
+    }
+    if {![dict size $values]} { return 0 }
+    set pdf [pdf4tcl::cat::ReadPdf $inFile]
+
+    set N [dict get $pdf N]
+    set gefuellt 0
+    set gesehen {}
+
+    for {set o 1} {$o <= $N} {incr o} {
+        if {![dict exists $pdf $o]} continue
+        set body [dict get $pdf $o full]
+        if {![string match {*/Widget*} $body]} continue
+        set d [pdf4tcl::cat::PdfObjToTclDict $body]
+        if {![dict exists $d /Subtype] || [dict get $d /Subtype] ne "/Widget"} {
+            continue
+        }
+        if {![dict exists $d /T]} continue
+        set id [string trim [dict get $d /T] "()"]
+        lappend gesehen $id
+        if {![dict exists $values $id]} continue
+
+        set wert [dict get $values $id]
+        set istBtn [expr {[dict exists $d /FT]
+                && [dict get $d /FT] eq "/Btn"}]
+
+        if {$istBtn} {
+            # A state name, written as a name object. Also set /AS, or the
+            # box keeps showing its old appearance.
+            if {![string match {/*} $wert]} { set wert "/$wert" }
+            set body [FormSetKey $body /V $wert]
+            set body [FormSetKey $body /AS $wert]
+        } else {
+            # QuoteString liefert die Klammern schon mit -- sie noch einmal
+            # zu setzen ergab ((Meier)) und damit einen Wert, den kein
+            # Leser anzeigt.
+            set body [FormSetKey $body /V [::pdf4tcl::QuoteString $wert]]
+        }
+        dict set pdf $o full $body
+        incr gefuellt
+    }
+
+    # Names that are not in the file. Reporting them beats an empty form
+    # nobody can explain.
+    set fehlend {}
+    dict for {k v} $values {
+        if {$k ni $gesehen} { lappend fehlend $k }
+    }
+    if {[llength $fehlend]} {
+        throw {PDF4TCL} "fillForms: no such field(s) in \"$inFile\":\
+                [join [lsort $fehlend] {, }]"
+    }
+
+    # /NeedAppearances tells the viewer to draw the values. Without it a
+    # field carries the value and shows the old appearance.
+    set rootId [lindex [dict get $pdf trailer /Root] 0]
+    if {[dict exists $pdf $rootId]} {
+        set rootBody [dict get $pdf $rootId full]
+        if {[regexp {/AcroForm\s+(\d+)\s+0\s+R} $rootBody -> acroId]} {
+            if {[dict exists $pdf $acroId]} {
+                set acroBody [dict get $pdf $acroId full]
+                if {![string match {*NeedAppearances*} $acroBody]} {
+                    set acroBody [FormSetKey $acroBody /NeedAppearances true]
+                    dict set pdf $acroId full $acroBody
+                }
+            }
+        }
+    }
+
+    pdf4tcl::cat::WritePdf $outFile $pdf
+    return $gefuellt
+}
+
+# Set or replace one key in an object body. The value is written as given,
+# so the caller decides between (string), /Name and a bare number.
+proc pdf4tcl::FormSetKey {body key value} {
+    # Replace an existing entry. The value may be a string in brackets, a
+    # name, or a number -- each ends differently, so three patterns.
+    set muster1 "${key}\\s*\\(\[^)\]*\\)"
+    set muster2 "${key}\\s*/\\w+"
+    set muster3 "${key}\\s+\\d+"
+    foreach muster [list $muster1 $muster2 $muster3] {
+        if {[regexp $muster $body]} {
+            # Ein "&" im Ersatz waere ein Rueckverweis auf den Treffer.
+            # Beim ersten Anlauf machte das aus "Meier & Co" ein
+            # "Meier << Co" -- inzwischen greift ein anderes Muster und
+            # der Fall tritt nicht mehr auf, aber die Maskierung bleibt:
+            # sie kostet nichts und der naechste Wert koennte anders
+            # aussehen.
+            regsub -- $muster $body [string map {& \\& \\ \\\\} "$key $value"] body
+            return $body
+        }
+    }
+    # Not there yet -- put it after the opening << of the dictionary.
+    if {[regexp {<<} $body]} {
+        regsub -- {<<} $body [string map {& \\& \\ \\\\} "<<\n  $key $value"] body
+    }
+    return $body
+}
+
 proc pdf4tcl::getForms {pdfFile} {
     if {![file exists $pdfFile]} {
         throw {PDF4TCL} "No such file: $pdfFile"
@@ -1553,6 +1951,11 @@ proc pdf4tcl::getForms {pdfFile} {
         if {![dict exists $pdf $o]} continue
         set d [pdf4tcl::cat::PdfObjToTclDict [dict get $pdf $o full]]
         if {[dict exists $d /Subtype] && [dict get $d /Subtype] eq "/Widget"} {
+            # A widget without /T is the child of a field: with radio
+            # buttons the parent carries the name and the children only
+            # their appearance. This used to abort with "key /T not known
+            # in dictionary" -- measured on demo/demo-forms.tcl.
+            if {![dict exists $d /T]} { continue }
             set id [dict get $d /T]
             # Remove parens from ID-string
             set id [string trim $id "()"]

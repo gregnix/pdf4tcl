@@ -822,4 +822,28 @@ test pdfa-xrefstream-4 {der eigene Eintrag zeigt auf das Stream-Objekt} -body {
     string match "$xrefOid 0 obj*" [string range $data $off [expr {$off + 20}]]
 } -result 1
 
-cleanupTests
+
+test pdfa-xobject-1 {ein XObject nennt seine Resources} -body {
+    # ISO 19005-2 Klausel 6.2.2: ein Inhaltsstrom, der Schriften oder
+    # Bilder benutzt, braucht ein ausdruecklich zugeordnetes
+    # Resources-Woerterbuch.
+    #
+    # Bis 0.9.4.50 wurde es nur bei -noimage geschrieben. Eine
+    # PDF/A-3a-Datei mit getaggtem XObject bestand PDF/UA-1 und fiel bei
+    # 3a allein daran durch.
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -pdfa 3b -compress 0]
+    set xo [$pdf startXObject -paper a4]
+    $pdf setFont 10 Helvetica
+    $pdf text "im XObject" -x 10 -y 20
+    $pdf endXObject
+    $pdf startPage
+    $pdf putImage $xo 0 0
+    set data [$pdf get]
+    $pdf destroy
+
+    # Das XObject-Woerterbuch selbst, nicht das der Seite.
+    regexp {/Type /XObject.*?>>} $data teil
+    expr {[string first "/Resources" $teil] >= 0}
+} -result 1
+
+::tcltest::cleanupTests

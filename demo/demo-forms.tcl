@@ -3,10 +3,29 @@
 # Ablageort: pdf4tcl0.9.4.16src/pdf4tcl/demo/
 # Aufruf:    tclsh demo-forms.tcl
 
+# ---------------------------------------------------------------------------
+# Wurzel suchen, nicht zaehlen. Markierung ist pkgIndex.tcl neben src/.
+#
+# Vorher stand hier [file join $scriptDir .. .. ..] -- drei Ebenen nach
+# oben, also AUSSERHALB des Baums. Wer dort eine aeltere pdf4tcl liegen
+# hat, bekam die, und eine Korrektur im Baum wirkte beim Demolauf nicht.
+# Gemessen: eine behobene Stelle in getForms schlug weiter fehl.
+# ---------------------------------------------------------------------------
+proc pdf4tclRepoRoot {start} {
+    set dir [file normalize $start]
+    for {set i 0} {$i < 8} {incr i} {
+        if {[file exists [file join $dir pkgIndex.tcl]]
+                && [file isdirectory [file join $dir src]]} { return $dir }
+        set parent [file dirname $dir]
+        if {$parent eq $dir} break
+        set dir $parent
+    }
+    return -code error "pdf4tcl-Wurzel nicht gefunden ueber $start"
+}
 set scriptDir [file dirname [file normalize [info script]]]
-set pdf4tclDir [file normalize [file join $scriptDir .. .. ..]]
-set auto_path  [linsert $auto_path 0 $pdf4tclDir]
-package require pdf4tcl 0.9.4.16
+lappend auto_path [pdf4tclRepoRoot $scriptDir] \
+                  [file join $scriptDir ../../..]
+package require pdf4tcl
 
 # Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
 # Datei als erstes Argument.
@@ -98,5 +117,42 @@ $p endPage
 $p write -file $outfile
 $p destroy
 
+# --------------------------------------------------------------------------
+# Auslesen und Fuellen (0.9.4.50)
+# --------------------------------------------------------------------------
+
+puts ""
+puts "Auslesen und Fuellen:"
+set felder [pdf4tcl::getForms $outfile]
+puts "  Felder: [join [lsort [dict keys $felder]] {, }]"
+
+# Das erste Textfeld nehmen und fuellen.
+set textfeld ""
+dict for {id info} $felder {
+    if {[dict exists $info type] && [dict get $info type] eq "/Tx"} {
+        set textfeld $id
+        break
+    }
+}
+if {$textfeld ne ""} {
+    set gefuellt [file rootname $outfile]-gefuellt.pdf
+    set n [pdf4tcl::fillForms $outfile $gefuellt \
+            [dict create $textfeld "Meier & Co (GmbH)"]]
+    puts "  $n Feld gefuellt: $textfeld"
+    set danach [pdf4tcl::getForms $gefuellt]
+    puts "  Wert danach: [dict get $danach $textfeld value]"
+    puts "  Geschrieben: $gefuellt"
+    puts ""
+    puts "  Der Wert steht in der Datei, GEZEICHNET wird er nicht."
+    puts "  /NeedAppearances weist den Leser an, ihn darzustellen --"
+    puts "  Acrobat und die gaengigen Browser tun das."
+}
+
+# Ein Feld, das es nicht gibt, wird gemeldet statt uebergangen.
+if {[catch {pdf4tcl::fillForms $outfile /tmp/verworfen.pdf {gibtsnicht x}} e]} {
+    puts "  Unbekanntes Feld: [string range $e 0 60]..."
+}
+
+puts ""
 puts "Geschrieben: $outfile ([file size $outfile] Bytes)"
 puts "Oeffnen:     firefox $outfile"

@@ -62,32 +62,49 @@ field with one shared value: name
 
 Check `::pdf4tcl::warnings` after merging if that matters to you.
 
-## Cross-reference streams (0.9.4.49)
+## Cross-reference streams and object streams (0.9.4.50)
 
 A file may keep its object table as a *stream* rather than a table (PDF
-1.5+). ISO 19005-1 **forbids** that form and PDF/A-2 and -3 **require** it,
-so until 0.9.4.49 no archival document from 2b upwards and no ZUGFeRD
-invoice could be merged at all.
+1.5+), and pack its objects into containers. ISO 19005-1 forbids the
+stream form and PDF/A-2 and -3 require it, so until 0.9.4.49 no archival
+document from 2b upwards could be merged at all.
+
+Both are read now:
 
 | Input | Merges |
 |---|---|
 | plain PDF from pdf4tcl | yes |
 | PDF/A-1b | yes |
-| PDF/A-2b, -3b, -3a | yes, since 0.9.4.49 |
-| a file with `/ObjStm` object streams | no -- refused with a count |
+| PDF/A-2b, -3b, -3a | since 0.9.4.49 |
+| objects inside `/ObjStm` containers | since 0.9.4.50 |
 
-Measured: two PDF/A-2b files merge and the result passes veraPDF as 2b; two
-tagged PDF/A-3a files merge and the result passes 3a and UA-1.
+Measured: two PDF/A-2b files merge and the result passes veraPDF as 2b;
+two tagged PDF/A-3a files pass 3a and UA-1; a file written with `qpdf
+--object-streams=generate` merges with its form fields intact.
 
-What is still refused, rather than silently mishandled:
+### A trap in the input
 
+`qpdf --object-streams=generate` writes streams with no end-of-line before
+`endstream`, which violates ISO 19005-2 clause 6.1.7.1. The **input** then
+fails veraPDF, and so does anything merged from it -- pdf4tcl passes the
+streams through unchanged, as it should.
+
+```bash
+qpdf --object-streams=generate --newline-before-endstream in.pdf out.pdf
 ```
-catPdf: "x.pdf" keeps 3 object(s) inside object streams (/ObjStm),
-which this reader does not unpack
-```
 
-pdf4tcl does not produce those; they come from other tools. `qpdf
---object-streams=generate` makes one to try it against.
+Worth knowing before spending an hour looking in the wrong place.
+
+### Orphans are dropped (0.9.4.50)
+
+Merging takes over every object of every input, including the `/Info`
+dictionary of the appended documents -- the trailer names one, so the
+others used to stay behind. No reader saw them, but `grep /Title` found a
+title belonging to nothing.
+
+They are removed now, by reachability from the trailer rather than by
+type, so anything else the merge leaves behind goes too. Pages and
+structure elements are kept whatever the scan says.
 
 ## Naming the merged document (0.9.4.48)
 

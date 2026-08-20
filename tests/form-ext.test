@@ -470,4 +470,132 @@ test form-20.1 {addForm method, odd argument count rejected} -body {
     }
 } -returnCodes 1 -result "options must be key-value pairs"
 
+
+# ---------------------------------------------------------------
+# 11. fillForms (0.9.4.50)
+#
+# Das Gegenstueck zu getForms: dieselbe Suche nach /Widget, aber der
+# Wert wird geschrieben statt gelesen.
+# ---------------------------------------------------------------
+
+test form-11.1 {fillForms setzt einen Textwert} -body {
+    mytest -file {addForm text 0 0 100 20 -id name} {}
+    set n [pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Meier"}]
+    set res [pdf4tcl::getForms testfilled.pdf]
+    list $n [dict get $res name value]
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result {1 (Meier)}
+
+test form-11.2 {Sonderzeichen werden maskiert} -body {
+    # Eine unmaskierte Klammer beendet die PDF-Zeichenkette vorzeitig --
+    # das ist der Fall, den dieser Test wirklich absichert.
+    #
+    # Das "&" steht mit im Wert, weil es in einer frueheren Fassung als
+    # Rueckverweis im regsub gelesen wurde ("Meier << Co"). Inzwischen
+    # greift ein anderes Muster und der Fall tritt nicht mehr auf -- der
+    # Test wuerde ihn also NICHT fangen. Er bleibt trotzdem stehen: die
+    # Erwartung ist richtig, und wer das Muster aendert, sieht es hier.
+    mytest -file {addForm text 0 0 100 20 -id firma} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {firma "Meier & Co (GmbH)"}
+    set res [pdf4tcl::getForms testfilled.pdf]
+    dict get $res firma value
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result {(Meier & Co \(GmbH\))}
+
+test form-11.3 {eine Checkbox nimmt einen Zustandsnamen} -body {
+    mytest -file {addForm checkbutton 0 0 15 15 -id ok} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {ok /Yes}
+    set res [pdf4tcl::getForms testfilled.pdf]
+    # /AS muss mitgesetzt werden, sonst zeigt das Kaestchen sein altes
+    # Aussehen.
+    list [dict get $res ok value] [dict get $res ok default]
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result {/Yes /Yes}
+
+test form-11.4 {ein unbekanntes Feld wird gemeldet} -body {
+    # Stillschweigend zu uebergehen hiesse: das Formular kommt leer
+    # heraus und niemand weiss warum.
+    mytest -file {addForm text 0 0 100 20 -id name} {}
+    catch {pdf4tcl::fillForms testdebug.pdf testfilled.pdf {quatsch A}} e
+    expr {[string match {*no such field*quatsch*} $e]}
+} -cleanup {
+    file delete testdebug.pdf
+    catch {file delete testfilled.pdf}
+} -result 1
+
+test form-11.5 {nicht genannte Felder bleiben unveraendert} -body {
+    mytest -file {addForm text 0 0 100 20 -id eins} \
+            {addForm text 0 30 100 20 -id zwei} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {eins "A"}
+    set res [pdf4tcl::getForms testfilled.pdf]
+    list [dict get $res eins value] [dict get $res zwei value]
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result {(A) {}}
+
+test form-11.6 {NeedAppearances wird gesetzt} -body {
+    # Ohne das traegt das Feld den Wert und zeigt das alte Aussehen.
+    mytest -file {addForm text 0 0 100 20 -id name} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Meier"}
+    set fh [open testfilled.pdf rb]
+    set data [read $fh]
+    close $fh
+    expr {[string first "NeedAppearances" $data] >= 0}
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result 1
+
+test form-11.7 {ein leeres dict aendert nichts} -body {
+    mytest -file {addForm text 0 0 100 20 -id name} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {}
+} -cleanup {
+    file delete testdebug.pdf
+    catch {file delete testfilled.pdf}
+} -result 0
+
+test form-11.8 {der gefuellte Wert kommt im FDF-Export an} -body {
+    # Der ganze Kreis: fuellen, auslesen, exportieren.
+    mytest -file {addForm text 0 0 100 20 -id name} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Schmidt"}
+    pdf4tcl::exportForms testfilled.pdf testexport.fdf
+    set fh [open testexport.fdf]
+    set data [read $fh]
+    close $fh
+    expr {[string first "Schmidt" $data] >= 0}
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf testexport.fdf
+} -result 1
+
+
+test form-12.1 {getForms vertraegt ein Widget ohne Namen} -body {
+    # Bei einem Optionsfeld traegt der Elternknoten den Namen, die
+    # Kinder nur ihr Aussehen -- sie haben kein /T. getForms brach
+    # daran ab:
+    #
+    #   key "/T" not known in dictionary
+    #
+    # Gefunden beim Erweitern von demo/demo-forms.tcl, nicht von der
+    # Testsuite: kein Test hatte ein Optionsfeld ausgelesen.
+    mytest -file {addForm radiobutton 0 0 15 15 -group wahl -value A} \
+            {addForm radiobutton 0 30 15 15 -group wahl -value B} \
+            {addForm text 0 60 100 20 -id name} {}
+    set res [pdf4tcl::getForms testdebug.pdf]
+    # Das benannte Feld kommt durch, die namenlosen Kinder werden
+    # uebergangen.
+    dict get $res name type
+} -cleanup {file delete testdebug.pdf} -result "/Tx"
+
+test form-12.2 {fillForms ebenso} -body {
+    mytest -file {addForm radiobutton 0 0 15 15 -group wahl -value A} \
+            {addForm text 0 60 100 20 -id name} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Meier"}
+    set res [pdf4tcl::getForms testfilled.pdf]
+    dict get $res name value
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result {(Meier)}
+
 ::tcltest::cleanupTests

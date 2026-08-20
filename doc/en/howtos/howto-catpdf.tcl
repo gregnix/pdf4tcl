@@ -161,3 +161,31 @@ foreach level {1b 2b} {
         puts "PDF/A-$level: merged"
     }
 }
+
+# ---------------------------------------------------------------------------
+# Objects inside containers, and orphans (0.9.4.50)
+# ---------------------------------------------------------------------------
+
+# qpdf packs objects into /ObjStm containers by default. Until 0.9.4.50
+# such a file was refused with a count; now it is unpacked.
+#
+# --newline-before-endstream because without it qpdf writes streams with
+# no EOL before "endstream", which breaks ISO 19005-2 clause 6.1.7.1 --
+# in the INPUT, before pdf4tcl ever sees it.
+if {![catch {exec qpdf --version}]} {
+    set eins [pdf4tcl::doc::outfile howto-catpdf-a.pdf]
+    set container [pdf4tcl::doc::outfile howto-catpdf-objstm.pdf]
+    exec qpdf --object-streams=generate --newline-before-endstream \
+            $eins $container
+    set zusammen [pdf4tcl::doc::outfile howto-catpdf-fromobjstm.pdf]
+    pdf4tcl::catPdf -title "From a container" $container $eins $zusammen
+    puts "objstm merged: [file size $zusammen] bytes"
+
+    # Genau ein /Title -- das der angehaengten Datei bleibt nicht liegen.
+    set fh [open $zusammen rb]
+    set daten [read $fh]
+    close $fh
+    puts "titles in the file: [regexp -all {/Title} $daten]"
+} else {
+    puts "qpdf not installed -- object stream part skipped"
+}
