@@ -2572,6 +2572,20 @@ Use -pdfa-icc to specify a profile path."
                 set w [expr {$w + $kw / 1000.0}]
             }
         }
+        # Kerning counts towards the width. Without it the measurement is
+        # wider than what gets drawn: lines break too early, centred text
+        # sits off centre, and table columns no longer fit.
+        # GetCharWidth returns EM FRACTIONS, not points -- the size is
+        # applied further down. KernWidth counts in 1/1000 em, so divide
+        # by 1000 and nothing else. Multiplying by the font size here as
+        # well gave "AVAV" a width of -44.86 pt.
+        set kw 0
+        if {$pdf(kerning) ne "0"} {
+            set kw [KernWidth $font $txt [expr {$pdf(kerning) eq "all"}]]
+        }
+        if {$kw != 0} {
+            set w [expr {$w + $kw / 1000.0}]
+        }
         if {!$internal} {
             set w [expr {$w / $pdf(unit)}]
         }
