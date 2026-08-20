@@ -17,7 +17,8 @@ file names. Existing calls are unaffected -- the file names stay positional
 and no option is required.
 
 An empty value removes the entry; entries not named keep what the first
-document had. This writes `/Info` only, not the XMP `dc:title`.
+document had. Since 0.9.4.51 each value goes to both `/Info` and the XMP
+`dc:title` and its relatives -- before that, `/Info` only.
 
 ### Cross-reference streams are refused, not mis-parsed
 

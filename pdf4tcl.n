@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.50 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.51 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.50?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.51?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -759,10 +759,21 @@ Entries not named keep whatever the first document had\&.
 The options come before the file names, so every existing call keeps
 working unchanged\&.
 .sp
+Each value is written to BOTH places a PDF carries it: the \fB/Info\fR
+dictionary and the XMP packet the catalog points at\&. ISO 19005-1 clause
+6\&.7\&.3 requires the two to be equivalent, so a merged PDF/A-1 file with a
+new title stays conformant\&. The packet is edited, not rebuilt -- a
+Factur-X or ZUGFeRD extension schema in it survives untouched\&.
+.sp
+Note that a proof run against PDF/A-2 or -3 shows nothing here: those
+parts dropped clause 6\&.7\&.3, and a validator stays silent however far the
+two places drift apart\&. Check against \fB1b\fR\&.
+.sp
 Since 0\&.9\&.4\&.49 a file whose cross-reference table is a stream (PDF 1\&.5+) is
 read as well, which covers PDF/A-2 and -3 and therefore ZUGFeRD invoices\&.
-Objects packed into an object stream (\fB/ObjStm\fR) are not unpacked; such
-a file is refused with a count rather than losing them\&.
+Since 0\&.9\&.4\&.50 objects packed into an object stream (\fB/ObjStm\fR) are
+unpacked too, so a file written by \fBqpdf\fR with
+\fB--object-streams=generate\fR merges like any other\&.
 .TP
 \fB::pdf4tcl::getForms\fR \fIinfile\fR
 This call extracts form data from a PDF file\&.

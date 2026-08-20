@@ -1,0 +1,266 @@
+# cat-xmp.test -- catPdf: /Info und XMP muessen uebereinstimmen
+#
+# PDF fuehrt Titel, Autor und Verwandte an ZWEI Stellen: der klassischen
+# /Info-Struktur und dem XMP-Paket. Seit 0.9.4.48 setzt catPdf mit -title
+# und Verwandten nur die erste. Der Katalog stammt vom ERSTEN Dokument,
+# also bleibt dessen XMP stehen -- und die zusammengefuehrte Datei
+# behauptet an zwei Stellen Verschiedenes.
+#
+# WARUM GEGEN 1b GEMESSEN WIRD -- das ist der Kern dieser Datei:
+#
+# Klausel 6.7.3 von ISO 19005-1 verlangt die Gleichheit ausdruecklich.
+# PDF/A-2 und -3 fuehren diese Regel NICHT; veraPDF meldet dort nichts,
+# gleich wie weit /Info und XMP auseinanderliegen. Gemessen am 2026-08-20:
+#
+#   dieselbe Datei, -f 1b  ->  FAIL, Klausel 6.7.3 Test 2
+#   dieselbe Datei, -f 2b  ->  PASS
+#
+# Wer den Nachweis gegen 2b fuehrt, misst also nichts. Das erklaert
+# vermutlich auch, warum ein frueherer Anlauf "ueber catPdf funktionierte,
+# einzeln aber nicht" -- die Pruefung war blind fuer das, was sie zeigen
+# sollte. Jeder XMP-Nachweis laeuft deshalb gegen 1b.
+#
+# Die Fehlermeldung nennt beide Werte im Klartext:
+#   Info /Title = Zusammengefuehrt,
+#   XMP dc:title['x-default'] = Titel von Teil A
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+tcltest::testConstraint haveVerapdf [expr {![catch {exec verapdf --version}]}]
+
+set xmpFont [file join [file dirname [file dirname \
+        [file normalize [info script]]]] examples FreeSans.ttf]
+tcltest::testConstraint xmpFont [file exists $xmpFont]
+
+if {[file exists $xmpFont]} {
+    ::pdf4tcl::loadBaseTrueTypeFont XmpBase $xmpFont
+    ::pdf4tcl::createFontSpecCID XmpBase XmpFont
+}
+
+# PDF/A verlangt jedes Fontprogramm in der Datei (Klausel 6.2.11.4.1) --
+# die vierzehn Standardschriften haben keins. Helvetica in einem
+# PDF/A-Beispiel ist der haeufigste Fehlschlag ueberhaupt.
+proc xmpDoc {file text {titel {}} {weitere {}}} {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa 1b]
+    if {$titel ne ""} { $p metadata -title $titel }
+    if {[llength $weitere]} { $p metadata {*}$weitere }
+    $p startPage
+    $p setFont 12 XmpFont
+    $p text $text -x 60 -y 60
+    $p write -file $file
+    $p destroy
+}
+
+# Den Wert einer XMP-Eigenschaft aus der Datei holen. Der Metadatenstrom
+# ist unkomprimiert (ISO 32000 SS7.11.3 empfiehlt es, damit ein Werkzeug
+# ihn ohne PDF-Kenntnis findet) -- deshalb genuegt Textsuche, ohne
+# XML-Parser und ohne Dekompression.
+proc xmpProp {file muster} {
+    set fh [open $file rb]
+    set data [read $fh]
+    close $fh
+    if {[regexp $muster $data -> wert]} { return [string trim $wert] }
+    return ""
+}
+proc xmpTitle {file} {
+    xmpProp $file {<dc:title>.*?<rdf:li[^>]*>(.*?)</rdf:li>}
+}
+proc xmpAuthor {file} {
+    xmpProp $file {<dc:creator>.*?<rdf:li[^>]*>(.*?)</rdf:li>}
+}
+proc infoValue {file schluessel} {
+    xmpProp $file "/$schluessel \\(\(\[^)\]*\)\\)"
+}
+
+set T [temporaryDirectory]
+
+# ---------------------------------------------------------------------------
+# 1.x  Der Befund selbst
+# ---------------------------------------------------------------------------
+
+test cat-xmp-1.1 {-title setzt auch dc:title im XMP} -constraints xmpFont -setup {
+    xmpDoc [file join $T xa.pdf] "Teil A" "Titel von Teil A"
+    xmpDoc [file join $T xb.pdf] "Teil B" "Titel von Teil B"
+} -body {
+    ::pdf4tcl::catPdf -title "Zusammengefuehrt" \
+            [file join $T xa.pdf] [file join $T xb.pdf] [file join $T xout.pdf]
+    list [infoValue [file join $T xout.pdf] Title] \
+         [xmpTitle [file join $T xout.pdf]]
+} -result {Zusammengefuehrt Zusammengefuehrt}
+
+test cat-xmp-1.2 {ohne dc:title im ersten Dokument wird eines eingefuegt} \
+        -constraints xmpFont -setup {
+    # Der Fall, den blosses Ersetzen nicht loest: es ist nichts da, was
+    # ersetzt werden koennte. veraPDF meldet dann
+    # "XMP dc:title['x-default'] = null" und die Datei faellt trotzdem durch.
+    xmpDoc [file join $T na.pdf] "ohne Titel"
+    xmpDoc [file join $T nb.pdf] "auch ohne"
+} -body {
+    ::pdf4tcl::catPdf -title "Neuer Titel" \
+            [file join $T na.pdf] [file join $T nb.pdf] [file join $T nout.pdf]
+    xmpTitle [file join $T nout.pdf]
+} -result {Neuer Titel}
+
+test cat-xmp-1.3 {-author setzt auch dc:creator} -constraints xmpFont -setup {
+    # Klausel 6.7.3 prueft jedes Info-Feld gegen sein XMP-Gegenstueck,
+    # nicht nur den Titel. Ein Fix nur fuer -title laesst denselben Fehler
+    # fuer -author stehen.
+    xmpDoc [file join $T aa.pdf] "Teil A" "Titel A" {-author "Autor A"}
+    xmpDoc [file join $T ab.pdf] "Teil B" "Titel B" {-author "Autor B"}
+} -body {
+    ::pdf4tcl::catPdf -author "Gemeinsamer Autor" \
+            [file join $T aa.pdf] [file join $T ab.pdf] [file join $T aout.pdf]
+    list [infoValue [file join $T aout.pdf] Author] \
+         [xmpAuthor [file join $T aout.pdf]]
+} -result {{Gemeinsamer Autor} {Gemeinsamer Autor}}
+
+test cat-xmp-1.4 {leerer Wert entfernt den Eintrag an beiden Stellen} \
+        -constraints xmpFont -setup {
+    # Ein leerer Wert LOESCHT laut Dokumentation den Eintrag -- besser kein
+    # Titel als der falsche. Bleibt dc:title stehen, ist die Datei danach
+    # erst recht widerspruechlich: /Info schweigt, XMP behauptet.
+    xmpDoc [file join $T ea.pdf] "Teil A" "Titel von Teil A"
+    xmpDoc [file join $T eb.pdf] "Teil B" "Titel von Teil B"
+} -body {
+    ::pdf4tcl::catPdf -title "" \
+            [file join $T ea.pdf] [file join $T eb.pdf] [file join $T eout.pdf]
+    list [infoValue [file join $T eout.pdf] Title] \
+         [xmpTitle [file join $T eout.pdf]]
+} -result {{} {}}
+
+# ---------------------------------------------------------------------------
+# 2.x  Der Nachweis, auf den es ankommt
+# ---------------------------------------------------------------------------
+
+test cat-xmp-2.1 {zusammengefuehrt mit -title bleibt PDF/A-1b-konform} \
+        -constraints {xmpFont haveVerapdf} -setup {
+    xmpDoc [file join $T va.pdf] "Teil A" "Titel von Teil A"
+    xmpDoc [file join $T vb.pdf] "Teil B" "Titel von Teil B"
+} -body {
+    ::pdf4tcl::catPdf -title "Zusammengefuehrt" \
+            [file join $T va.pdf] [file join $T vb.pdf] [file join $T vout.pdf]
+    set r [exec verapdf -f 1b --format text [file join $T vout.pdf]]
+    string match "PASS*" $r
+} -result 1
+
+test cat-xmp-2.2 {ohne dc:title im ersten Dokument ebenfalls konform} \
+        -constraints {xmpFont haveVerapdf} -setup {
+    xmpDoc [file join $T wa.pdf] "ohne Titel"
+    xmpDoc [file join $T wb.pdf] "auch ohne"
+} -body {
+    ::pdf4tcl::catPdf -title "Neuer Titel" \
+            [file join $T wa.pdf] [file join $T wb.pdf] [file join $T wout.pdf]
+    set r [exec verapdf -f 1b --format text [file join $T wout.pdf]]
+    string match "PASS*" $r
+} -result 1
+
+test cat-xmp-2.3 {die Gegenprobe: ohne -title war es immer schon konform} \
+        -constraints {xmpFont haveVerapdf} -setup {
+    # Ohne diesen Test koennte 2.1 gruen sein, weil catPdf ueberhaupt
+    # nichts kaputtmacht -- und nicht, weil die Synchronisierung wirkt.
+    xmpDoc [file join $T ua.pdf] "Teil A" "Titel von Teil A"
+    xmpDoc [file join $T ub.pdf] "Teil B" "Titel von Teil B"
+} -body {
+    ::pdf4tcl::catPdf [file join $T ua.pdf] [file join $T ub.pdf] \
+            [file join $T uout.pdf]
+    set r [exec verapdf -f 1b --format text [file join $T uout.pdf]]
+    string match "PASS*" $r
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 3.x  Was NICHT angefasst werden darf
+# ---------------------------------------------------------------------------
+
+test cat-xmp-3.1 {das Factur-X-Erweiterungsschema ueberlebt} \
+        -constraints xmpFont -setup {
+    # Der Grund, warum dc:title ERSETZT und nicht das Paket neu gebaut
+    # wird. Gemessen: ein Factur-X-Paket traegt 3039 Zeichen, zehn
+    # Namensraeume und drei rdf:Description-Bloecke, darunter
+    # pdfaExtension:schemas. Ohne dieses Schema ist der fx:-Namensraum in
+    # PDF/A ungueltig und Mustang, KoSIT und veraPDF weisen die Rechnung
+    # zurueck. Ein Neubau des Pakets aus den Info-Feldern wuerde es
+    # stillschweigend wegwerfen.
+    set p [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3b]
+    $p metadata -title "Rechnung 4711"
+    $p startPage
+    $p setFont 12 XmpFont
+    $p text "Rechnung" -x 60 -y 60
+    $p endPage
+    $p facturx -conformance {EN 16931}
+    $p write -file [file join $T fa.pdf]
+    $p destroy
+    xmpDoc [file join $T fb.pdf] "Anhang" "Anhang"
+} -body {
+    ::pdf4tcl::catPdf -title "Rechnung mit Anhang" \
+            [file join $T fa.pdf] [file join $T fb.pdf] [file join $T fout.pdf]
+    set fh [open [file join $T fout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    list [xmpTitle [file join $T fout.pdf]] \
+         [expr {[string first "pdfaExtension:schemas" $data] >= 0}] \
+         [expr {[string first \
+            "urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#" $data] >= 0}]
+} -result {{Rechnung mit Anhang} 1 1}
+
+test cat-xmp-3.2 {Umlaute: UTF-8 im Paket und /Length in Bytes} \
+        -constraints {xmpFont haveVerapdf} -setup {
+    # Der Fall, den kein ASCII-Titel zeigt. WritePdf oeffnet den Kanal mit
+    # "wb"; ein Zeichen ueber 127 ginge dort als EIN Byte hinaus, das XMP
+    # waere kein gueltiges UTF-8 mehr. Gemessen vor dem Einbau der
+    # Umwandlung: /Length nannte 663 Bytes bei tatsaechlich 661, und
+    # veraPDF meldete "Couldn't find expected endstream keyword".
+    #
+    # Die Quelldateien sind reines ASCII (tools/check-ascii.tcl), deshalb
+    # steht der Umlaut hier als \u-Folge und nicht als Zeichen.
+    xmpDoc [file join $T ma.pdf] "Teil A" "Titel von Teil A"
+    xmpDoc [file join $T mb.pdf] "Teil B" "Titel von Teil B"
+} -body {
+    ::pdf4tcl::catPdf -title "Gro\u00dfe \u00dcbergabe" \
+            [file join $T ma.pdf] [file join $T mb.pdf] [file join $T mout.pdf]
+    set fh [open [file join $T mout.pdf] rb]
+    set data [read $fh]
+    close $fh
+    # Die Bytes selbst pruefen, nicht den Pruefer fragen. GEMESSEN:
+    # veraPDF meldet PASS, auch wenn im Paket rohe Latin-1-Bytes stehen
+    # (0xdf statt 0xc3 0x9f) -- es liest das XMP, ohne die Kodierung zu
+    # beanstanden. Ein Test, der nur "PASS" abfragt, sieht den Fehler
+    # nicht; die erste Fassung dieses Tests tat genau das und blieb
+    # gruen, als ich die Umwandlung zum Gegenbeweis ausgebaut hatte.
+    set erwartet [encoding convertto utf-8 "Gro\u00dfe \u00dcbergabe"]
+    # Nicht-gierig ab dem ERSTEN Quantor. Mit {<dc:title>.*<rdf:li...>}
+    # griffe der Ausdruck bis zum LETZTEN rdf:li der Datei; hier faellt
+    # das nur deshalb nicht auf, weil diese Dokumente keinen Autor haben
+    # -- in demo-catpdf.tcl lieferte genau dieses Muster den Autor statt
+    # des Titels.
+    regexp {<dc:title>.*?<rdf:li[^>]*>(.*?)</rdf:li>} $data -> imPaket
+
+    # Den Strom ueber Indizes holen, nicht ueber ein nicht-gieriges
+    # Muster. TCL-FALLE: die Gierigkeit gilt fuer den GANZEN Ausdruck und
+    # richtet sich nach dem ERSTEN Quantor. In
+    #   {/Length\s+(\d+)\s*>>\s*stream\n(.*?)\nendstream}
+    # ist das erste \s* gierig, also verhaelt sich auch das (.*?) gierig
+    # und der Strom reicht bis zum LETZTEN endstream der Datei. Der Test
+    # war rot, waehrend die Datei in Ordnung war.
+    set pos [string first "/Type /Metadata" $data]
+    regexp -start $pos {/Length\s+(\d+)} $data -> laenge
+    set anfang [expr {[string first "stream\n" $data $pos] + 7}]
+    set ende [string first "\nendstream" $data $anfang]
+    set strom [string range $data $anfang [expr {$ende - 1}]]
+    set r [exec verapdf -f 1b --format text [file join $T mout.pdf]]
+    list [expr {$imPaket eq $erwartet}] \
+         [expr {$laenge == [string length $strom]}] \
+         [string match "PASS*" $r]
+} -result {1 1 1}
+
+# Aufraeumen. Ohne das bleiben zwanzig PDFs im Arbeitsverzeichnis liegen;
+# tcltest meldet sie als "files left behind", und beim naechsten Lauf ist
+# das Rauschen, in dem ein echter Befund untergeht.
+foreach pat {x?.pdf xout.pdf n?.pdf nout.pdf a?.pdf aout.pdf e?.pdf eout.pdf
+             v?.pdf vout.pdf w?.pdf wout.pdf u?.pdf uout.pdf f?.pdf fout.pdf
+             m?.pdf mout.pdf} {
+    foreach f [glob -nocomplain -directory $T $pat] {
+        file delete $f
+    }
+}
+
+cleanupTests

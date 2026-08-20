@@ -1,5 +1,46 @@
 2026-08-20 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.51
+	* src/cat.tcl (SyncXmp): the catPdf metadata options write the XMP
+	packet as well as /Info. A PDF carries title and author in both
+	places; -title and friends set only the first since 0.9.4.48, so a
+	reader preferring XMP kept showing the title of the first input.
+	ISO 19005-1 clause 6.7.3 requires the two to be equivalent -- a
+	merged PDF/A-1 file with a new title failed veraPDF over it.
+	KNOWN: PDF/A-2 and -3 dropped that clause, so a validator reports
+	nothing there; check a merge against 1b.
+	* src/cat.tcl (SyncXmp): the packet is edited, not rebuilt. The
+	property is replaced where it exists and inserted into the first
+	rdf:Description where it does not; every other byte stays. A
+	Factur-X extension schema declaring the fx: namespace therefore
+	survives a merge -- rebuilding from the six /Info fields would have
+	dropped it and the invoice with it.
+	* src/cat.tcl (catPdf): an empty value left the /Info object behind.
+	The entry and the trailer reference went, but the reachability pass
+	had already run -- "grep /Title" still found the title of the first
+	input in a file that no longer named one. A second pass runs when
+	something was removed.
+	* src/cat.tcl (SyncXmp): values go in as UTF-8 bytes. WritePdf opens
+	the channel with "wb", so a character above 127 left as one byte and
+	the packet stopped being valid UTF-8; /Length then named 663 bytes
+	where 661 were written and veraPDF lost the endstream keyword.
+	* src/fonts.tcl: the nagelfar range pragma at the class-based kerning
+	dict covered seven lines of an eight-line statement, so the last one
+	was unguarded. Present since 0.9.4.49.
+	* tests/cat-xmp.test: 9 tests.
+	* demo/demo-catpdf.tcl: shows /Info and XMP side by side, so a
+	disagreement is visible rather than taken on trust.
+	* doc/en/howtos/howto-catpdf.md, tutorials/tutorial-06-assemble-pack.md,
+	reference/TAGGED.md, reference/UPGRADING.md, pdf4tcl.man: the
+	"/Info only" note is gone. Two further corrections: the man page
+	still said object streams are not unpacked (0.9.4.50 does), and the
+	howto listed the appended documents' /Info as remaining in the file
+	two paragraphs after saying 0.9.4.50 removes it. Measured on a
+	two-document merge: one /Title, one /Metadata, two /Type /Catalog --
+	the catalogs do remain.
+
+2026-08-20 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.50
 	* src/cat.tcl (DropUnreachable): objects nothing points at are removed
 	after merging. Every input's /Info was taken over while the trailer

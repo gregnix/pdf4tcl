@@ -120,14 +120,32 @@ otherwise two parts joined carry the title of part one:
 names, so existing calls are unaffected. An empty value **removes** the
 entry; entries not named keep what the first document had.
 
-**This writes `/Info` only, not `/Metadata` (XMP).** A reader preferring XMP
-still shows the title of the first document, and PDF/A requires the two to
-agree — which does not bite while PDF/A-2b cannot be read at all.
+### Both places, not one (0.9.4.51)
+
+A PDF carries the title twice: in the classic `/Info` dictionary and in the
+XMP packet the catalog points at. Until 0.9.4.50 these options wrote
+`/Info` only, so a reader preferring XMP — Acrobat does — kept showing the
+title of part one.
+
+Both are written now. The packet is **edited, not rebuilt**: the property is
+replaced where it exists and inserted into the first `rdf:Description`
+where it does not, and every other byte stays. That matters for an invoice —
+a Factur-X packet carries an extension schema declaring its `fx:` namespace,
+and rebuilding from the six `/Info` fields would drop it silently.
+
+**Check against 1b, not 2b.** ISO 19005-1 clause 6.7.3 requires `/Info` and
+XMP to be equivalent; PDF/A-2 and -3 dropped that rule. The same
+inconsistent file measured both ways:
+
+```
+verapdf -f 1b   FAIL, clause 6.7.3 test 2
+verapdf -f 2b   PASS
+```
+
+A proof run against 2b therefore measures nothing at all.
 
 ## Limits that still apply
 
-- **`/Metadata` of `part1` remains** — see above. The `/Info` of the
-  appended documents also stays in the file, unreferenced.
 - **Font dictionaries stay duplicated.** The embedded font *streams* are
   shared where they are byte-identical: measured on two documents using the
   same CID font, 772348 bytes of input produced 387881 in the merge. The
@@ -135,6 +153,8 @@ agree — which does not bite while PDF/A-2b cannot be read at all.
   hundred bytes per font.
 - The catalog and pages objects of the appended documents remain in the file
   as dead objects. Nothing references them; they cost about 100 bytes each.
+  Measured on a two-document merge: two `/Type /Catalog` objects, one
+  `/Type /Metadata`, one `/Title`.
 - Untagged-only merges behave as before.
 
 ## Upgrade note

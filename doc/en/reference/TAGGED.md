@@ -113,9 +113,9 @@ was no way):
 ```
 
 `-title -author -subject -keywords -creator -producer`, before the file
-names. This writes `/Info` only; `dc:title` in the XMP still comes from the
-first document, and PDF/A requires the two to agree. Where the XMP title
-matters, build the whole document in one run instead of merging.
+names. Since 0.9.4.51 each value is written to both `/Info` and the XMP
+packet, as ISO 19005-1 clause 6.7.3 requires; merging is no longer a reason
+to build the whole document in one run.
 
 **Embedded font programs ARE shared** -- this paragraph used to say the
 opposite, measured before `DedupObjects` existed (0.9.4.42). Measured again

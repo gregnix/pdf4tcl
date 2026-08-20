@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.50?**
+package require **pdf4tcl ?0****.9****.4****.51?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -401,7 +401,7 @@ mypdf destroy
 ::pdf4tcl::catPdf -title "Complete file" -author ""  part1.pdf part2.pdf complete.pdf
 ```
 
-- The options come before the file names, so every existing call keeps working unchanged. Since 0.9.4.49 a file whose cross-reference table is a stream (PDF 1.5+) is read as well, which covers PDF/A-2 and -3 and therefore ZUGFeRD invoices. Objects packed into an object stream (**/ObjStm**) are not unpacked; such a file is refused with a count rather than losing them.
+- The options come before the file names, so every existing call keeps working unchanged. Each value is written to BOTH places a PDF carries it: the **/Info** dictionary and the XMP packet the catalog points at. ISO 19005-1 clause 6.7.3 requires the two to be equivalent, so a merged PDF/A-1 file with a new title stays conformant. The packet is edited, not rebuilt -- a Factur-X or ZUGFeRD extension schema in it survives untouched. Note that a proof run against PDF/A-2 or -3 shows nothing here: those parts dropped clause 6.7.3, and a validator stays silent however far the two places drift apart. Check against **1b**. Since 0.9.4.49 a file whose cross-reference table is a stream (PDF 1.5+) is read as well, which covers PDF/A-2 and -3 and therefore ZUGFeRD invoices. Since 0.9.4.50 objects packed into an object stream (**/ObjStm**) are unpacked too, so a file written by **qpdf** with **--object-streams=generate** merges like any other.
 **type**
 : Field type.
 

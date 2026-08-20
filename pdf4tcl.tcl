@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.50
+package provide pdf4tcl 0.9.4.51
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -1026,7 +1026,7 @@ space instead of the usual empty rectangle."
                 binary scan $ttfdata "@[expr {$sub + 16 + $i * 2}]S" v
                 lappend werte $v
             }
-            ##nagelfar ignore #7 Found constant
+            ##nagelfar ignore #8 Found constant
             lappend BFA($ttfname,kernClasses) [dict create \
                     werte $werte \
                     ignoreMarks $ignoreMarks \
@@ -14645,6 +14645,141 @@ proc pdf4tcl::cat::GetTextFromPage {pageStream} {
 # Objects that carry the document structure are left alone. The page tree,
 # the catalog and the parent tree are legitimately similar between documents
 # and folding them would join things that only look the same.
+# Bring the XMP packet in line with the /Info dictionary.
+#
+# PDF carries title, author and their relatives in TWO places: the classic
+# /Info dictionary and the XMP packet the catalog points at. Merging keeps
+# the catalog of the FIRST document, so its XMP survives -- and a merge
+# with -title used to end up claiming two different things at once.
+#
+# ISO 19005-1 clause 6.7.3 requires them to be equivalent. PDF/A-2 and -3
+# dropped that rule, so veraPDF stays silent there however far the two
+# drift apart. Measured 2026-08-20 on the same file:
+#
+#   verapdf -f 1b  ->  FAIL, clause 6.7.3 test 2
+#   verapdf -f 2b  ->  PASS
+#
+# A proof run against 2b therefore measures nothing at all.
+#
+# THE PACKET IS EDITED, NOT REBUILT. A Factur-X packet carries 3039
+# characters, ten namespaces and three rdf:Description blocks, one of them
+# the pdfaExtension:schemas that makes the fx: namespace legal in PDF/A.
+# Rebuilding from the six Info fields would silently drop it and the
+# invoice would stop being an invoice. So: replace the property when it is
+# there, insert it into the first rdf:Description when it is not, and
+# leave every other byte alone.
+#
+# The metadata stream is uncompressed -- ISO 32000 clause 7.11.3 asks for
+# that so a tool can find it without understanding PDF -- which is why
+# plain text editing is enough here, with no XML parser and no inflate.
+proc pdf4tcl::cat::SyncXmp {pdfd info} {
+    if {![dict size $info]} { return $pdfd }
+    if {![dict exists $pdfd trailer /Root]} { return $pdfd }
+
+    set rootId [lindex [dict get $pdfd trailer /Root] 0]
+    if {![dict exists $pdfd $rootId]} { return $pdfd }
+    set root [dict get $pdfd $rootId full]
+    if {![regexp {/Metadata\s+(\d+)\s+\d+\s+R} $root -> metaId]} { return $pdfd }
+    if {![dict exists $pdfd $metaId]} { return $pdfd }
+
+    set obj [dict get $pdfd $metaId]
+    if {![dict exists $obj full]} { return $pdfd }
+    # Nicht "full" nennen: derselbe Name ist auch der Woerterbuchschluessel,
+    # und nagelfar meldet die Verwechslungsgefahr zu Recht.
+    set paket [dict get $obj full]
+
+    # An encrypted or compressed packet is not text -- leave it rather than
+    # write nonsense into it.
+    if {[string first "<?xpacket" $paket] < 0} { return $pdfd }
+
+    # Info key -> XMP property. The shape differs per property, so each one
+    # carries its own opening and closing text.
+    #   Title     dc:title        Alt with x-default
+    #   Author    dc:creator      Seq
+    #   Subject   dc:description  Alt with x-default
+    #   Keywords  pdf:Keywords    plain
+    #   Creator   xmp:CreatorTool plain
+    #   Producer  pdf:Producer    plain
+    set formen {
+        Title    {dc:title       {<dc:title><rdf:Alt>
+    <rdf:li xml:lang="x-default">} {</rdf:li>
+   </rdf:Alt></dc:title>}}
+        Author   {dc:creator     {<dc:creator><rdf:Seq>
+    <rdf:li>} {</rdf:li>
+   </rdf:Seq></dc:creator>}}
+        Subject  {dc:description {<dc:description><rdf:Alt>
+    <rdf:li xml:lang="x-default">} {</rdf:li>
+   </rdf:Alt></dc:description>}}
+        Keywords {pdf:Keywords    <pdf:Keywords>    </pdf:Keywords>}
+        Creator  {xmp:CreatorTool <xmp:CreatorTool> </xmp:CreatorTool>}
+        Producer {pdf:Producer    <pdf:Producer>    </pdf:Producer>}
+    }
+
+    set neu $paket
+    dict for {key val} $info {
+        if {![dict exists $formen $key]} { continue }
+        lassign [dict get $formen $key] tag auf zu
+        # Everything from the opening tag to its closing counterpart,
+        # whatever sits between -- rdf:Alt, rdf:Seq or plain text.
+        set muster "<$tag>.*?</$tag>"
+        if {$val eq ""} {
+            # An empty value REMOVES the entry, in both places. A packet
+            # that keeps claiming a title the /Info no longer has is worse
+            # than one that says nothing.
+            regsub -- "\[ \t\]*$muster\n?" $neu "" neu
+            continue
+        }
+        # ALS UTF-8-BYTES EINSETZEN, nicht als Tcl-Zeichen. WritePdf
+        # oeffnet den Kanal mit "wb"; ein Zeichen ueber 127 ginge dort als
+        # EIN Byte hinaus, und ein XMP-Paket muss UTF-8 sein (ISO 32000
+        # Klausel 7.11.3). Gemessen mit dem Titel "Grosse Uebergabe":
+        # ohne die Umwandlung stehen 0xdf und 0xdc roh in der Datei, das
+        # Paket ist kein gueltiges UTF-8 mehr, /Length nennt 663 Bytes bei
+        # tatsaechlich 661, und veraPDF findet das endstream nicht mehr.
+        # Dieselbe Vorkehrung steht in main.tcl an der Stelle, die das
+        # Paket erzeugt.
+        set text [encoding convertto utf-8 "$auf[XmlEsc $val]$zu"]
+        if {[regexp -- $muster $neu]} {
+            regsub -- $muster $neu [string map {\\ \\\\ & \\&} $text] neu
+        } else {
+            # Nothing to replace: the first document never had the
+            # property. Plain replacement leaves the file inconsistent
+            # anyway -- veraPDF then reports
+            #   XMP dc:title['x-default'] = null
+            # -- so insert it into the first rdf:Description instead.
+            # Its opening tag ends at the first ">" after rdf:about, which
+            # may sit several lines down because the namespaces are listed
+            # one per line.
+            if {[regexp -indices {<rdf:Description[^>]*>} $neu bereich]} {
+                set ende [lindex $bereich 1]
+                set neu [string replace $neu $ende $ende ">\n   $text"]
+            }
+        }
+    }
+
+    if {$neu eq $paket} { return $pdfd }
+
+    # /Length counts BYTES, not characters. A title with an umlaut in it
+    # makes the two differ, and a wrong /Length truncates the packet.
+    # /Length zaehlt BYTES. Der Text ist oben bereits als UTF-8-Bytes
+    # eingesetzt worden, deshalb ist "string length" hier schon die
+    # Byteanzahl -- eine zweite Umwandlung wuerde die Umlaute ein zweites
+    # Mal kodieren und die Zahl wieder verfaelschen.
+    if {[regexp {stream\n(.*)\nendstream} $neu -> strom]} {
+        regsub {/Length\s+\d+} $neu "/Length [string length $strom]" neu
+    }
+
+    dict set pdfd $metaId full $neu
+    return $pdfd
+}
+
+# XML escaping for values that go into the packet. Without it a title
+# containing "&" or "<" produces a packet no parser will read -- and an
+# unreadable packet is worse than an inconsistent one.
+proc pdf4tcl::cat::XmlEsc {s} {
+    return [string map {& &amp; < &lt; > &gt; \" &quot;} $s]
+}
+
 # Replace the document information dictionary of a merged document.
 #
 # Merging keeps the catalog of the FIRST document, and with it its /Info --
@@ -14992,6 +15127,27 @@ proc pdf4tcl::catPdf {args} {
     # Trailer zeigt.
     set pdf1 [pdf4tcl::cat::DropUnreachable $pdf1]
     set pdf1 [pdf4tcl::cat::SetInfo $pdf1 $info]
+    # Und dieselben Werte in das XMP-Paket, auf das der Katalog zeigt.
+    # Nach SetInfo, damit beide Stellen aus derselben Quelle stammen;
+    # ISO 19005-1 Klausel 6.7.3 verlangt Gleichheit.
+    set pdf1 [pdf4tcl::cat::SyncXmp $pdf1 $info]
+    # Ein leerer Wert loescht den Eintrag, und sind ALLE Eintraege weg,
+    # nimmt SetInfo den /Info-Verweis aus dem Trailer. Das Objekt selbst
+    # bleibt dann liegen -- der Durchgang oben lief, bevor es verwaist
+    # war. Gemessen am 2026-08-20: nach `catPdf -title ""` stand
+    # `/Title (Titel von Teil A)` weiterhin in der Datei, ohne dass ein
+    # Leser es je zeigt. Genau der Fall, den DropUnreachable verhindern
+    # soll: wer die Datei durchsucht, findet einen Titel, der fuer nichts
+    # mehr gilt.
+    #
+    # Nur wenn tatsaechlich etwas entfernt wurde -- ein zweiter Durchgang
+    # ueber jedes Objekt kostet bei grossen Zusammenfuehrungen Zeit und
+    # brauecht sonst niemand.
+    set entfernt 0
+    dict for {k v} $info { if {$v eq ""} { set entfernt 1 } }
+    if {$entfernt} {
+        set pdf1 [pdf4tcl::cat::DropUnreachable $pdf1]
+    }
     pdf4tcl::cat::WritePdf $outfile $pdf1
 }
 

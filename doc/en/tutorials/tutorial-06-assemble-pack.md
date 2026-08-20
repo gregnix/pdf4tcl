@@ -123,9 +123,11 @@ Metadata of the **first** file wins, so say what the result is called
 pdf4tcl::catPdf -title "Reading pack" $packBody $appendixPdf $finalOut
 ```
 
-That writes `/Info`; the XMP title still comes from the first file. And
-`catPdf` cannot read an input that keeps its object table as a stream --
-every PDF/A from 2b upwards does.
+Since 0.9.4.51 that writes both places a PDF keeps the title -- `/Info` and
+the XMP `dc:title` -- which is what ISO 19005-1 clause 6.7.3 asks for. And
+since 0.9.4.49 `catPdf` reads an input whose object table is a stream, as
+every PDF/A from 2b upwards has; 0.9.4.50 added the objects packed inside
+`/ObjStm` containers.
 
 ## What the sample produces
 

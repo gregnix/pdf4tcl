@@ -64,3 +64,4 @@ web/mypdf.pdf
 # Personal workflow files (never commit)
 0.9.4.x/nogit/
 examples/*.tclver
+nogit/

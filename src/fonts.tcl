@@ -872,7 +872,7 @@ space instead of the usual empty rectangle."
                 binary scan $ttfdata "@[expr {$sub + 16 + $i * 2}]S" v
                 lappend werte $v
             }
-            ##nagelfar ignore #7 Found constant
+            ##nagelfar ignore #8 Found constant
             lappend BFA($ttfname,kernClasses) [dict create \
                     werte $werte \
                     ignoreMarks $ignoreMarks \

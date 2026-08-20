@@ -80,6 +80,37 @@ proc infoTitel {file} {
     return "(keiner)"
 }
 
+# Denselben Titel aus der ZWEITEN Stelle holen, an der ein PDF ihn fuehrt:
+# dem XMP-Paket. Der Metadatenstrom ist unkomprimiert (ISO 32000 Klausel
+# 7.11.3 will das, damit ein Werkzeug ihn ohne PDF-Kenntnis findet),
+# deshalb genuegt Textsuche.
+#
+# ISO 19005-1 Klausel 6.7.3 verlangt, dass beide Stellen dasselbe sagen.
+# PDF/A-2 und -3 fuehren die Regel nicht mehr -- ein Pruefer schweigt
+# dort, wie weit die beiden auch auseinanderliegen.
+proc xmpTitel {file} {
+    set fh [open $file rb]
+    set data [read $fh]
+    close $fh
+    # NICHT-GIERIG, und zwar ab dem ERSTEN Quantor: in Tcl richtet sich
+    # die Gierigkeit nach dem ganzen Ausdruck, und die bestimmt der erste.
+    # Mit {<dc:title>.*<rdf:li...>} greift der Ausdruck bis zum LETZTEN
+    # rdf:li der Datei -- das ist dann der Autor, nicht der Titel.
+    if {[regexp {<dc:title>.*?<rdf:li[^>]*>(.*?)</rdf:li>} $data -> t]} {
+        return [encoding convertfrom utf-8 $t]
+    }
+    return "(keiner)"
+}
+
+# Beide Stellen nebeneinander, damit ein Widerspruch sichtbar wird statt
+# geglaubt werden zu muessen.
+proc beideTitel {file} {
+    set i [infoTitel $file]
+    set x [xmpTitel $file]
+    if {$i eq $x} { return "/Info und XMP: $i" }
+    return "/Info: $i  <-->  XMP: $x   WIDERSPRUCH"
+}
+
 # Die VERSCHIEDENEN Objekte zaehlen, auf die /FontFile2 zeigt -- nicht
 # die Verweise. Mehrere FontDescriptor koennen auf dasselbe Programm
 # zeigen, und genau das ist der Punkt: "grep -c FontFile2" liefert 4 und
@@ -106,20 +137,20 @@ teil [out demo-cat-1.pdf] "Teil eins" "Inhalt des ersten Teils."
 teil [out demo-cat-2.pdf] "Teil zwei" "Inhalt des zweiten Teils."
 
 pdf4tcl::catPdf [out demo-cat-1.pdf] [out demo-cat-2.pdf] [out demo-cat-ohne.pdf]
-puts "  ohne Option:  [infoTitel [out demo-cat-ohne.pdf]]"
+puts "  ohne Option:   [beideTitel [out demo-cat-ohne.pdf]]"
 
 # Zusammenfuehren behaelt den Katalog des ERSTEN Dokuments, und damit
 # dessen /Info. Ein Werkzeug kann nicht wissen, wie zwei Dokumente
 # zusammen heissen -- also sagt man es ihm.
 pdf4tcl::catPdf -title "Gesamtwerk" -author "Demo" \
         [out demo-cat-1.pdf] [out demo-cat-2.pdf] [out demo-cat-mit.pdf]
-puts "  mit -title:   [infoTitel [out demo-cat-mit.pdf]]"
+puts "  mit -title:    [beideTitel [out demo-cat-mit.pdf]]"
 
 # Ein leerer Wert ENTFERNT den Eintrag -- besser kein Titel als der
 # falsche.
 pdf4tcl::catPdf -title "" \
         [out demo-cat-1.pdf] [out demo-cat-2.pdf] [out demo-cat-leer.pdf]
-puts "  mit -title \"\": [infoTitel [out demo-cat-leer.pdf]]"
+puts "  mit -title \"\":  [beideTitel [out demo-cat-leer.pdf]]"
 
 # ---------------------------------------------------------------------------
 # 2. Fonts werden geteilt

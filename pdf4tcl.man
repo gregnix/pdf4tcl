@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.50]
+[manpage_begin pdf4tcl n 0.9.4.51]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.50]]
+[require pdf4tcl [opt 0.9.4.51]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -257,10 +257,23 @@ The options come before the file names, so every existing call keeps
 working unchanged.
 
 [para]
+Each value is written to BOTH places a PDF carries it: the [const /Info]
+dictionary and the XMP packet the catalog points at. ISO 19005-1 clause
+6.7.3 requires the two to be equivalent, so a merged PDF/A-1 file with a
+new title stays conformant. The packet is edited, not rebuilt -- a
+Factur-X or ZUGFeRD extension schema in it survives untouched.
+
+[para]
+Note that a proof run against PDF/A-2 or -3 shows nothing here: those
+parts dropped clause 6.7.3, and a validator stays silent however far the
+two places drift apart. Check against [const 1b].
+
+[para]
 Since 0.9.4.49 a file whose cross-reference table is a stream (PDF 1.5+) is
 read as well, which covers PDF/A-2 and -3 and therefore ZUGFeRD invoices.
-Objects packed into an object stream ([const /ObjStm]) are not unpacked; such
-a file is refused with a count rather than losing them.
+Since 0.9.4.50 objects packed into an object stream ([const /ObjStm]) are
+unpacked too, so a file written by [syscmd qpdf] with
+[option --object-streams=generate] merges like any other.
 
 [call [cmd ::pdf4tcl::getForms] [arg "infile"]]
 
