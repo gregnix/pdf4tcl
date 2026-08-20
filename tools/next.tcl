@@ -7,8 +7,6 @@
 #
 # Ein Aufruf in diesem Zustand ist ein REPARATURLAUF: er zieht nach, was
 # noch auf einer alten Nummer steht, und meldet den Rest als
-# unveraendert. Nuetzlich, wenn "make doc" ausgeblieben ist und
-# pdf4tcl.html noch die alte Version traegt -- "bump.tcl --verify" zeigt
-# so etwas an.
-set NEXT_VERSION 0.9.4.49
-set NEXT_MSG "missing glyphs are reported"
+# unveraendert.
+set NEXT_VERSION 0.9.4.50
+set NEXT_MSG "getStringWidth counted kerning twice"

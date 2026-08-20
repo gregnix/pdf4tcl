@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.49
+package provide pdf4tcl 0.9.4.50
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -3663,11 +3663,17 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {$pdf(inXObject)} {
             my Pdfout "/Type /XObject\n"
             my Pdfout "/Subtype /Form\n"
-            # If the XObject is created with -noimage it is not included in
-            # the image list in Resources. It then needs a ref to Resources.
-            if {$localopts(-noimage)} {
-                my Pdfout "/Resources 3 0 R\n"
-            }
+            # Always name the resources, not only with -noimage.
+            #
+            # ISO 19005-2 clause 6.2.2 wants a content stream that
+            # references fonts or images to carry an explicitly associated
+            # Resources dictionary. Without it veraPDF fails the file at
+            # that clause -- measured on a PDF/A-3a with a tagged XObject,
+            # which passed PDF/UA-1 and failed 3a for this alone.
+            #
+            # Object 3 is the shared resource dictionary; naming it costs
+            # one reference and is what a reader expects anyway.
+            my Pdfout "/Resources 3 0 R\n"
             my Pdfout [format "/BBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
             # This matrix makes the final Xobject to be size 1x1 in user space
             # just like an image
@@ -8413,13 +8419,17 @@ Use -pdfa-icc to specify a profile path."
                 -afrelationship { set afrelationship $val }
                 -namespace      { set namespace $val }
                 -prefix         { set prefix $val }
+                -validconformance { set validConf $val }
                 default { throw {PDF4TCL} "facturx: unknown option \"$opt\"" }
             }
         }
 
+        # Order-X brings its own profile names -- it passes them in with
+        # -validconformance rather than having this list know about a
+        # second standard.
         if {$conformance ni $validConf} {
             throw {PDF4TCL} "facturx: invalid -conformance \"$conformance\":\
- must be MINIMUM, BASIC WL, BASIC, EN 16931, EXTENDED, or XRECHNUNG"
+ must be [join $validConf {, }]"
         }
         if {$contentsIsSet && $file ne ""} {
             throw {PDF4TCL} "facturx: -contents and -file are mutually exclusive"
@@ -8463,6 +8473,69 @@ Use -pdfa-icc to specify a profile path."
             version      $version \
             namespace    $namespace \
             prefix       $prefix]
+        return
+    }
+
+    # Attach an electronic ORDER as Order-X.
+    #
+    # Order-X is the ordering counterpart of Factur-X: same mechanism, same
+    # PDF/A-3 requirement, different namespace, file name and document
+    # types. FNFE-MPE and FeRD publish them together, and a document may
+    # carry an order where an invoice would otherwise sit.
+    #
+    # Everything is delegated to facturx, so the two cannot drift apart --
+    # the XMP block, the attachment and the /AF relationship are written by
+    # one piece of code.
+    #
+    #   -contents / -file    the order XML
+    #   -filename            default order-x.xml
+    #   -conformance         basic | comfort | extended (default comfort)
+    #   -documenttype        ORDER | ORDER_CHANGE | ORDER_RESPONSE
+    #                        (default ORDER)
+    #   -version             default 1.0
+    #   -afrelationship      default Alternative; Data for a partial order
+    method orderx {args} {
+        set filename       "order-x.xml"
+        set conformance    "comfort"
+        set documenttype   "ORDER"
+        set version        "1.0"
+        set namespace      "urn:order-x:pdfa:CrossIndustryDocument:1p0#"
+        set prefix         "zf"
+        set validConf      {basic comfort extended}
+        set validType      {ORDER ORDER_CHANGE ORDER_RESPONSE}
+        set rest           {}
+
+        foreach {opt val} $args {
+            switch -- $opt {
+                -filename     { set filename $val }
+                -conformance  { set conformance $val }
+                -documenttype { set documenttype $val }
+                -version      { set version $val }
+                -namespace    { set namespace $val }
+                -prefix       { set prefix $val }
+                default       { lappend rest $opt $val }
+            }
+        }
+
+        # The profiles differ from Factur-X, so they are checked here --
+        # facturx would refuse "comfort" as an invoice profile.
+        if {$conformance ni $validConf} {
+            throw {PDF4TCL} "orderx: invalid -conformance \"$conformance\":\
+                    must be [join $validConf {, }]"
+        }
+        if {$documenttype ni $validType} {
+            throw {PDF4TCL} "orderx: invalid -documenttype\
+                    \"$documenttype\": must be [join $validType {, }]"
+        }
+
+        my facturx {*}$rest \
+                -validconformance $validConf \
+                -filename     $filename \
+                -conformance  $conformance \
+                -documenttype $documenttype \
+                -version      $version \
+                -namespace    $namespace \
+                -prefix       $prefix
         return
     }
 
@@ -15013,6 +15086,129 @@ proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
     close $ch
 }
 
+
+# Fill the form fields of an existing PDF and write it out again.
+#
+#   pdf4tcl::fillForms in.pdf out.pdf {name "Meier" gelesen /Yes}
+#
+# The counterpart to getForms: same search for /Widget objects, but the
+# value is written rather than read. Returns the number of fields filled.
+#
+# A field named in the dict but not present in the file is reported --
+# silently ignoring it would mean a form comes out empty and nobody knows
+# why. Fields present but not named keep what they had.
+#
+# Text fields take a string. Check boxes and radio buttons take the state
+# name as it appears in the file, with the slash: /Yes, /Off, /On. Which
+# ones a field knows is in its /AP dictionary; getForms reports the
+# current one under "default".
+#
+# What this does NOT do: build appearance streams. A viewer that honours
+# /NeedAppearances -- which is set here -- draws the value itself. One
+# that ignores the flag shows the field as it was, with the value present
+# but invisible. Acrobat and most browsers honour it; some print paths do
+# not.
+proc pdf4tcl::fillForms {inFile outFile values} {
+    if {![file exists $inFile]} {
+        throw {PDF4TCL} "No such file: $inFile"
+    }
+    if {![dict size $values]} { return 0 }
+    set pdf [pdf4tcl::cat::ReadPdf $inFile]
+
+    set N [dict get $pdf N]
+    set gefuellt 0
+    set gesehen {}
+
+    for {set o 1} {$o <= $N} {incr o} {
+        if {![dict exists $pdf $o]} continue
+        set body [dict get $pdf $o full]
+        if {![string match {*/Widget*} $body]} continue
+        set d [pdf4tcl::cat::PdfObjToTclDict $body]
+        if {![dict exists $d /Subtype] || [dict get $d /Subtype] ne "/Widget"} {
+            continue
+        }
+        if {![dict exists $d /T]} continue
+        set id [string trim [dict get $d /T] "()"]
+        lappend gesehen $id
+        if {![dict exists $values $id]} continue
+
+        set wert [dict get $values $id]
+        set istBtn [expr {[dict exists $d /FT]
+                && [dict get $d /FT] eq "/Btn"}]
+
+        if {$istBtn} {
+            # A state name, written as a name object. Also set /AS, or the
+            # box keeps showing its old appearance.
+            if {![string match {/*} $wert]} { set wert "/$wert" }
+            set body [FormSetKey $body /V $wert]
+            set body [FormSetKey $body /AS $wert]
+        } else {
+            # QuoteString liefert die Klammern schon mit -- sie noch einmal
+            # zu setzen ergab ((Meier)) und damit einen Wert, den kein
+            # Leser anzeigt.
+            set body [FormSetKey $body /V [::pdf4tcl::QuoteString $wert]]
+        }
+        dict set pdf $o full $body
+        incr gefuellt
+    }
+
+    # Names that are not in the file. Reporting them beats an empty form
+    # nobody can explain.
+    set fehlend {}
+    dict for {k v} $values {
+        if {$k ni $gesehen} { lappend fehlend $k }
+    }
+    if {[llength $fehlend]} {
+        throw {PDF4TCL} "fillForms: no such field(s) in \"$inFile\":\
+                [join [lsort $fehlend] {, }]"
+    }
+
+    # /NeedAppearances tells the viewer to draw the values. Without it a
+    # field carries the value and shows the old appearance.
+    set rootId [lindex [dict get $pdf trailer /Root] 0]
+    if {[dict exists $pdf $rootId]} {
+        set rootBody [dict get $pdf $rootId full]
+        if {[regexp {/AcroForm\s+(\d+)\s+0\s+R} $rootBody -> acroId]} {
+            if {[dict exists $pdf $acroId]} {
+                set acroBody [dict get $pdf $acroId full]
+                if {![string match {*NeedAppearances*} $acroBody]} {
+                    set acroBody [FormSetKey $acroBody /NeedAppearances true]
+                    dict set pdf $acroId full $acroBody
+                }
+            }
+        }
+    }
+
+    pdf4tcl::cat::WritePdf $outFile $pdf
+    return $gefuellt
+}
+
+# Set or replace one key in an object body. The value is written as given,
+# so the caller decides between (string), /Name and a bare number.
+proc pdf4tcl::FormSetKey {body key value} {
+    # Replace an existing entry. The value may be a string in brackets, a
+    # name, or a number -- each ends differently, so three patterns.
+    set muster1 "${key}\\s*\\(\[^)\]*\\)"
+    set muster2 "${key}\\s*/\\w+"
+    set muster3 "${key}\\s+\\d+"
+    foreach muster [list $muster1 $muster2 $muster3] {
+        if {[regexp $muster $body]} {
+            # Ein "&" im Ersatz waere ein Rueckverweis auf den Treffer.
+            # Beim ersten Anlauf machte das aus "Meier & Co" ein
+            # "Meier << Co" -- inzwischen greift ein anderes Muster und
+            # der Fall tritt nicht mehr auf, aber die Maskierung bleibt:
+            # sie kostet nichts und der naechste Wert koennte anders
+            # aussehen.
+            regsub -- $muster $body [string map {& \\& \\ \\\\} "$key $value"] body
+            return $body
+        }
+    }
+    # Not there yet -- put it after the opening << of the dictionary.
+    if {[regexp {<<} $body]} {
+        regsub -- {<<} $body [string map {& \\& \\ \\\\} "<<\n  $key $value"] body
+    }
+    return $body
+}
 
 proc pdf4tcl::getForms {pdfFile} {
     if {![file exists $pdfFile]} {

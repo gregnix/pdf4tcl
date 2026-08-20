@@ -557,11 +557,17 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {$pdf(inXObject)} {
             my Pdfout "/Type /XObject\n"
             my Pdfout "/Subtype /Form\n"
-            # If the XObject is created with -noimage it is not included in
-            # the image list in Resources. It then needs a ref to Resources.
-            if {$localopts(-noimage)} {
-                my Pdfout "/Resources 3 0 R\n"
-            }
+            # Always name the resources, not only with -noimage.
+            #
+            # ISO 19005-2 clause 6.2.2 wants a content stream that
+            # references fonts or images to carry an explicitly associated
+            # Resources dictionary. Without it veraPDF fails the file at
+            # that clause -- measured on a PDF/A-3a with a tagged XObject,
+            # which passed PDF/UA-1 and failed 3a for this alone.
+            #
+            # Object 3 is the shared resource dictionary; naming it costs
+            # one reference and is what a reader expects anyway.
+            my Pdfout "/Resources 3 0 R\n"
             my Pdfout [format "/BBox \[0 0 %g %g\]\n" $pdf(width) $pdf(height)]
             # This matrix makes the final Xobject to be size 1x1 in user space
             # just like an image
@@ -2571,20 +2577,6 @@ Use -pdfa-icc to specify a profile path."
             if {$kw != 0} {
                 set w [expr {$w + $kw / 1000.0}]
             }
-        }
-        # Kerning counts towards the width. Without it the measurement is
-        # wider than what gets drawn: lines break too early, centred text
-        # sits off centre, and table columns no longer fit.
-        # GetCharWidth returns EM FRACTIONS, not points -- the size is
-        # applied further down. KernWidth counts in 1/1000 em, so divide
-        # by 1000 and nothing else. Multiplying by the font size here as
-        # well gave "AVAV" a width of -44.86 pt.
-        set kw 0
-        if {$pdf(kerning) ne "0"} {
-            set kw [KernWidth $font $txt [expr {$pdf(kerning) eq "all"}]]
-        }
-        if {$kw != 0} {
-            set w [expr {$w + $kw / 1000.0}]
         }
         if {!$internal} {
             set w [expr {$w / $pdf(unit)}]
@@ -5321,13 +5313,17 @@ Use -pdfa-icc to specify a profile path."
                 -afrelationship { set afrelationship $val }
                 -namespace      { set namespace $val }
                 -prefix         { set prefix $val }
+                -validconformance { set validConf $val }
                 default { throw {PDF4TCL} "facturx: unknown option \"$opt\"" }
             }
         }
 
+        # Order-X brings its own profile names -- it passes them in with
+        # -validconformance rather than having this list know about a
+        # second standard.
         if {$conformance ni $validConf} {
             throw {PDF4TCL} "facturx: invalid -conformance \"$conformance\":\
- must be MINIMUM, BASIC WL, BASIC, EN 16931, EXTENDED, or XRECHNUNG"
+ must be [join $validConf {, }]"
         }
         if {$contentsIsSet && $file ne ""} {
             throw {PDF4TCL} "facturx: -contents and -file are mutually exclusive"
@@ -5371,6 +5367,69 @@ Use -pdfa-icc to specify a profile path."
             version      $version \
             namespace    $namespace \
             prefix       $prefix]
+        return
+    }
+
+    # Attach an electronic ORDER as Order-X.
+    #
+    # Order-X is the ordering counterpart of Factur-X: same mechanism, same
+    # PDF/A-3 requirement, different namespace, file name and document
+    # types. FNFE-MPE and FeRD publish them together, and a document may
+    # carry an order where an invoice would otherwise sit.
+    #
+    # Everything is delegated to facturx, so the two cannot drift apart --
+    # the XMP block, the attachment and the /AF relationship are written by
+    # one piece of code.
+    #
+    #   -contents / -file    the order XML
+    #   -filename            default order-x.xml
+    #   -conformance         basic | comfort | extended (default comfort)
+    #   -documenttype        ORDER | ORDER_CHANGE | ORDER_RESPONSE
+    #                        (default ORDER)
+    #   -version             default 1.0
+    #   -afrelationship      default Alternative; Data for a partial order
+    method orderx {args} {
+        set filename       "order-x.xml"
+        set conformance    "comfort"
+        set documenttype   "ORDER"
+        set version        "1.0"
+        set namespace      "urn:order-x:pdfa:CrossIndustryDocument:1p0#"
+        set prefix         "zf"
+        set validConf      {basic comfort extended}
+        set validType      {ORDER ORDER_CHANGE ORDER_RESPONSE}
+        set rest           {}
+
+        foreach {opt val} $args {
+            switch -- $opt {
+                -filename     { set filename $val }
+                -conformance  { set conformance $val }
+                -documenttype { set documenttype $val }
+                -version      { set version $val }
+                -namespace    { set namespace $val }
+                -prefix       { set prefix $val }
+                default       { lappend rest $opt $val }
+            }
+        }
+
+        # The profiles differ from Factur-X, so they are checked here --
+        # facturx would refuse "comfort" as an invoice profile.
+        if {$conformance ni $validConf} {
+            throw {PDF4TCL} "orderx: invalid -conformance \"$conformance\":\
+                    must be [join $validConf {, }]"
+        }
+        if {$documenttype ni $validType} {
+            throw {PDF4TCL} "orderx: invalid -documenttype\
+                    \"$documenttype\": must be [join $validType {, }]"
+        }
+
+        my facturx {*}$rest \
+                -validconformance $validConf \
+                -filename     $filename \
+                -conformance  $conformance \
+                -documenttype $documenttype \
+                -version      $version \
+                -namespace    $namespace \
+                -prefix       $prefix
         return
     }
 

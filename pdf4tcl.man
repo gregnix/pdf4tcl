@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.49]
+[manpage_begin pdf4tcl n 0.9.4.50]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.49]]
+[require pdf4tcl [opt 0.9.4.50]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -276,6 +276,31 @@ The info is a dictionary with the following fields:
 [opt_def flags] Value of form flags field.
 [opt_def default] Default value, if any.
 [list_end]
+
+[call [cmd ::pdf4tcl::fillForms] [arg "infile"] [arg "outfile"] [arg "values"]]
+
+Fill the form fields of an existing PDF and write it out again (0.9.4.50+).
+Returns the number of fields filled.
+
+[arg values] is a dictionary of field id to value. A text field takes a
+string; a check box or radio button takes the state name as it appears in
+the file, with the slash ([const /Yes], [const /Off]). [method getForms]
+reports the current state under [const default].
+
+A field named in [arg values] but not present in the file raises an error
+rather than being ignored: a form that comes out empty with no explanation
+is worse than a refused call. Fields present but not named keep their
+value.
+
+[example {
+pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
+}]
+
+[para]
+The value is written, not drawn. [const /NeedAppearances] is set, which
+tells the viewer to render it; a viewer that ignores the flag shows the
+field as it was, with the value present but invisible. Acrobat and the
+common browsers honour it.
 
 [call [cmd ::pdf4tcl::exportForms] [arg "infile"] [arg "outfile"] [opt [arg "options"]]]
 
@@ -903,6 +928,49 @@ $pdfobject facturx -file "factur-x.xml" -conformance "EN 16931"
 $pdfobject write -file invoice.pdf
 # verapdf -f 3b invoice.pdf  ->  PASS
 }]
+[call [arg objectName] [method orderx] [opt [arg "option value"]...]]
+
+Attaches an electronic order as Order-X, the ordering counterpart of
+Factur-X. Same mechanism and the same PDF/A-3 requirement; what differs is
+the namespace, the file name and the document types.
+
+[list_begin options]
+[opt_def -contents [arg data]]
+[opt_def -file [arg path]]
+The order XML. One of the two, not both.
+
+[opt_def -filename [arg name]]
+Default [const order-x.xml].
+
+[opt_def -conformance [arg level]]
+[const basic], [const comfort] or [const extended]
+(default: [const comfort]). These are not the Factur-X profiles -- an
+invoice level such as [const "EN 16931"] is refused here, and
+[const comfort] is refused by [method facturx].
+
+[opt_def -documenttype [arg type]]
+[const ORDER], [const ORDER_CHANGE] or [const ORDER_RESPONSE]
+(default: [const ORDER]).
+
+[opt_def -version [arg v]]
+Default [const 1.0].
+
+[opt_def -afrelationship [arg rel]]
+Default [const Alternative]; a partial order takes [const Data].
+[list_end]
+
+[example {
+set pdfobject [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3b]
+$pdfobject startPage
+...
+$pdfobject orderx -file "order-x.xml" -documenttype ORDER
+$pdfobject write -file order.pdf
+}]
+
+Everything is delegated to [method facturx], so the two cannot drift
+apart: attachment, XMP block and [const /AF] relationship are written by
+one piece of code.
+
 [call [arg objectName] [method hyperlinkAdd] [arg "x"] [arg "y"] [arg "width"] [arg "height"] [arg "url"] [opt [arg "option value"]...]]
 
 This method adds a URI hyperlink annotation to the current page. The clickable

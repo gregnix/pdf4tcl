@@ -1,3 +1,48 @@
+2026-08-20 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.50
+	* src/main.tcl (getStringWidth): the kerning was added twice.
+	ShapedWidth already includes it, and the older per-character block
+	below was left in place outside the if/else, so it applied to the
+	shaped path as well. A string measured narrower than it was drawn --
+	the opposite of what 0.9.4.49 set out to fix. Present in 0.9.4.49 as
+	released; kerning-4.3 and kerning-6.4 report it.
+	* src/main.tcl (orderx): attaches an electronic order as Order-X, the
+	ordering counterpart of Factur-X. Namespace, file name and document
+	types differ; the profiles are basic, comfort and extended rather than
+	the invoice levels, and each set is refused by the other method.
+	Everything else is delegated to facturx, which now takes the list of
+	valid profiles as an argument, so attachment, XMP block and /AF
+	relationship stay in one place.
+	* src/main.tcl (startXObject): a form XObject now names its resource
+	dictionary in every case, not only with -noimage. ISO 19005-2 clause
+	6.2.2 wants a content stream that references fonts or images to carry
+	an explicitly associated Resources dictionary; without it a PDF/A-3a
+	file with a tagged XObject passed PDF/UA-1 and failed 3a at that
+	clause alone.
+	* tests/pdfa.test: 71 tests.
+	* src/cat.tcl (fillForms): fills the form fields of an existing PDF and
+	writes it out again -- the counterpart to getForms, which could read
+	them but not write. A field named but not present raises an error; a
+	form that comes out empty with no explanation is worse than a refused
+	call. Check boxes take the state name and get /AS as well, or the box
+	keeps its old appearance. /NeedAppearances is set: the value is
+	written, not drawn.
+	* tests/form-ext.test: 8 tests, 75 in total.
+	* KNOWN: fillForms writes no appearance stream. A viewer that ignores
+	/NeedAppearances shows the field as it was, with the value present but
+	invisible.
+	* doc/en/howtos/howto-tagged.md, howto-xobject.md: the two topics that
+	were built and tested but had no recipe. Both with a runnable script;
+	the tagged one passes veraPDF as PDF/UA-1.
+	* tests/facturx.test: 6 tests for Order-X, 25 in total.
+	* tools/mk-feature-matrix.tcl: prints which of the documented topics
+	have a reference entry, a howto with a runnable script, a tutorial, a
+	demo, an example and a test. Names are searched rather than listed, so
+	a topic added later appears without the tool being edited; a test that
+	carries a different name is found through a synonym list. Reports
+	tagged PDF and XObject tagging as having no howto.
+
 2026-08-19 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.49
