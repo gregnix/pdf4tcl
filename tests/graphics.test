@@ -226,7 +226,7 @@ test graphics-7.2 {polygon} -body {
     }
 } -result 1
 
-test graphics-7.2 {polygon} -body {
+test graphics-7.2.1 {polygon} -body {
     mytest {polygon 10 10 10 20 20 20 20 10 -filled 1 -stroke 0} {
         110 210 m
         110 220 l 120 220 l 120 210 l

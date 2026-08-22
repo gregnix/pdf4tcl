@@ -288,21 +288,6 @@ test canvas-6.1 {spline} -body {
     }
 } -cleanup {destroy .c} -result 1
 
-test canvas-6.1 {spline} -body {
-    canvas .c
-    .c create rectangle -10 -10 200 200 -fill "" -outline black
-    .c create line 0 0 10 20 -smooth 1
-    .c create polygon 20 20 20 40 20 60 20 80 40 80 60 80 80 80 80 60 80 40 80 20 60 20 40 20 -smooth 1
-    .c configure -scrollregion [.c bbox all]
-    .c xview moveto 0
-    .c yview moveto 0
-    pack .c -fill both -expand 1
-    #wm deiconify .
-    mytest {canvas .c} {
-        *
-    }
-} -cleanup {destroy .c} -result 1
-
 test canvas-7.1 {oval} -body {
     canvas .c
     .c create rectangle -10 -10 200 200 -fill "" -outline black

@@ -478,7 +478,14 @@ test form-20.1 {addForm method, odd argument count rejected} -body {
 # Wert wird geschrieben statt gelesen.
 # ---------------------------------------------------------------
 
-test form-11.1 {fillForms setzt einen Textwert} -body {
+# 21./22. -- fillForms und getForms.
+#
+# Eigene Nummern, weil 11.x und 12.x weiter oben schon fuer addForm
+# vergeben sind. Zwei Tests mit demselben Namen fuehrt tcltest beide
+# aus, aber ein Fehlerbericht nennt nur die Nummer -- und man sucht
+# dann an der falschen Stelle.
+
+test form-21.1 {fillForms setzt einen Textwert} -body {
     mytest -file {addForm text 0 0 100 20 -id name} {}
     set n [pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Meier"}]
     set res [pdf4tcl::getForms testfilled.pdf]
@@ -487,7 +494,7 @@ test form-11.1 {fillForms setzt einen Textwert} -body {
     file delete testdebug.pdf testfilled.pdf
 } -result {1 (Meier)}
 
-test form-11.2 {Sonderzeichen werden maskiert} -body {
+test form-21.2 {Sonderzeichen werden maskiert} -body {
     # Eine unmaskierte Klammer beendet die PDF-Zeichenkette vorzeitig --
     # das ist der Fall, den dieser Test wirklich absichert.
     #
@@ -504,7 +511,7 @@ test form-11.2 {Sonderzeichen werden maskiert} -body {
     file delete testdebug.pdf testfilled.pdf
 } -result {(Meier & Co \(GmbH\))}
 
-test form-11.3 {eine Checkbox nimmt einen Zustandsnamen} -body {
+test form-21.3 {eine Checkbox nimmt einen Zustandsnamen} -body {
     mytest -file {addForm checkbutton 0 0 15 15 -id ok} {}
     pdf4tcl::fillForms testdebug.pdf testfilled.pdf {ok /Yes}
     set res [pdf4tcl::getForms testfilled.pdf]
@@ -515,7 +522,7 @@ test form-11.3 {eine Checkbox nimmt einen Zustandsnamen} -body {
     file delete testdebug.pdf testfilled.pdf
 } -result {/Yes /Yes}
 
-test form-11.4 {ein unbekanntes Feld wird gemeldet} -body {
+test form-21.4 {ein unbekanntes Feld wird gemeldet} -body {
     # Stillschweigend zu uebergehen hiesse: das Formular kommt leer
     # heraus und niemand weiss warum.
     mytest -file {addForm text 0 0 100 20 -id name} {}
@@ -526,7 +533,7 @@ test form-11.4 {ein unbekanntes Feld wird gemeldet} -body {
     catch {file delete testfilled.pdf}
 } -result 1
 
-test form-11.5 {nicht genannte Felder bleiben unveraendert} -body {
+test form-21.5 {nicht genannte Felder bleiben unveraendert} -body {
     mytest -file {addForm text 0 0 100 20 -id eins} \
             {addForm text 0 30 100 20 -id zwei} {}
     pdf4tcl::fillForms testdebug.pdf testfilled.pdf {eins "A"}
@@ -536,7 +543,7 @@ test form-11.5 {nicht genannte Felder bleiben unveraendert} -body {
     file delete testdebug.pdf testfilled.pdf
 } -result {(A) {}}
 
-test form-11.6 {NeedAppearances wird gesetzt} -body {
+test form-21.6 {NeedAppearances wird gesetzt} -body {
     # Ohne das traegt das Feld den Wert und zeigt das alte Aussehen.
     mytest -file {addForm text 0 0 100 20 -id name} {}
     pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Meier"}
@@ -548,7 +555,7 @@ test form-11.6 {NeedAppearances wird gesetzt} -body {
     file delete testdebug.pdf testfilled.pdf
 } -result 1
 
-test form-11.7 {ein leeres dict aendert nichts} -body {
+test form-21.7 {ein leeres dict aendert nichts} -body {
     mytest -file {addForm text 0 0 100 20 -id name} {}
     pdf4tcl::fillForms testdebug.pdf testfilled.pdf {}
 } -cleanup {
@@ -556,7 +563,7 @@ test form-11.7 {ein leeres dict aendert nichts} -body {
     catch {file delete testfilled.pdf}
 } -result 0
 
-test form-11.8 {der gefuellte Wert kommt im FDF-Export an} -body {
+test form-21.8 {der gefuellte Wert kommt im FDF-Export an} -body {
     # Der ganze Kreis: fuellen, auslesen, exportieren.
     mytest -file {addForm text 0 0 100 20 -id name} {}
     pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Schmidt"}
@@ -570,7 +577,7 @@ test form-11.8 {der gefuellte Wert kommt im FDF-Export an} -body {
 } -result 1
 
 
-test form-12.1 {getForms vertraegt ein Widget ohne Namen} -body {
+test form-22.1 {getForms vertraegt ein Widget ohne Namen} -body {
     # Bei einem Optionsfeld traegt der Elternknoten den Namen, die
     # Kinder nur ihr Aussehen -- sie haben kein /T. getForms brach
     # daran ab:
@@ -588,7 +595,7 @@ test form-12.1 {getForms vertraegt ein Widget ohne Namen} -body {
     dict get $res name type
 } -cleanup {file delete testdebug.pdf} -result "/Tx"
 
-test form-12.2 {fillForms ebenso} -body {
+test form-22.2 {fillForms ebenso} -body {
     mytest -file {addForm radiobutton 0 0 15 15 -group wahl -value A} \
             {addForm text 0 60 100 20 -id name} {}
     pdf4tcl::fillForms testdebug.pdf testfilled.pdf {name "Meier"}

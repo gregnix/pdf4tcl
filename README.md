@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.51)
+# pdf4tcl fork (0.9.4.52)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -114,11 +114,33 @@ paragraph is `/P` and every heading is `/H1` validates just as cleanly and
 still tells a reader nothing useful.
 
 
+## Where the parts come from
+
+This fork continues Frank Richter's and Peter Spjuth's pdf4tcl; the
+copyright notices at the top of every source file name them and Yaroslav
+Schekin, and they stay there. Beyond that:
+
+- **The silent substitution** (fixed in 0.9.4.49 -- a character the font
+  has no glyph for used to vanish without a word) was pointed out in a
+  comparison with tclpdf posted to a newsgroup on 2026-08-18. The finding
+  came from there; no code did. The ChangeLog entry says so at the place
+  it belongs.
+
+That is a finding, not code. If code from tclpdf is ever taken over, the
+copyright notice comes with it -- the one condition the MIT licence makes,
+and the least this project owes a second implementation written from the
+ISO standards rather than from someone else's source.
+
+Having a second implementation to compare against is worth more than it
+looks: a validator says whether a file is conformant, not whether the
+library does the sensible thing. That defect was found by neither the test
+suite nor veraPDF.
+
 ## Upstream
 
 Patches for the individual SourceForge tickets (9 to 24, fixed in
 0.9.4.1 through 0.9.4.24) were kept as `ticket*/` directories until
-0.9.4.51. They are all in the released code by now; the patches
+0.9.4.52. They are all in the released code by now; the patches
 themselves remain in the git history.
 
 Original project: https://sourceforge.net/projects/pdf4tcl/

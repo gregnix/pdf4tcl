@@ -612,7 +612,7 @@ test cat-orphan-3 {Seiten gehen dabei nicht verloren} -setup {
     }
 } -result 2
 
-test cat-orphan-1 {das /Info des angehaengten Dokuments wird entfernt} -setup {
+test cat-orphan-4 {das /Info des angehaengten Dokuments wird entfernt} -setup {
     foreach {n t} {o1 "Erstes" o2 "Zweites"} {
         set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
         $p metadata -title $t
@@ -640,7 +640,7 @@ test cat-orphan-1 {das /Info des angehaengten Dokuments wird entfernt} -setup {
          [expr {[string first "(Zweites)" $data] < 0}]
 } -result {1 1}
 
-test cat-orphan-2 {/Size zaehlt nach dem Aufraeumen richtig} -setup {
+test cat-orphan-5 {/Size zaehlt nach dem Aufraeumen richtig} -setup {
     foreach {n t} {o1 "Erstes" o2 "Zweites"} {
         set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
         $p metadata -title $t
@@ -670,7 +670,7 @@ test cat-orphan-2 {/Size zaehlt nach dem Aufraeumen richtig} -setup {
     expr {$size == $maxOid + 1}
 } -result 1
 
-test cat-orphan-3 {Seiten bleiben, auch wenn der Scan sie nicht findet} -setup {
+test cat-orphan-6 {Seiten bleiben, auch wenn der Scan sie nicht findet} -setup {
     foreach n {o1 o2} {
         set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
         $p startPage
