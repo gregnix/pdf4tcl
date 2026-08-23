@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.53)
+# pdf4tcl fork (0.9.4.54)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -129,6 +129,12 @@ Schekin, and they stay there. Beyond that:
 - **`/Length` in the encryption dictionary** (fixed in 0.9.4.53) was
   pointed out by Alexander Schoepe of tclpdf on 2026-08-22: the entry
   belongs only to V 2 or 3, and pdf4tcl wrote it beside V 4 and V 5.
+
+- **Strings that bypassed encryption** (fixed in 0.9.4.54) came out of
+  checking a remark of his about the EFF entry: EFF made no difference,
+  but the attachment name in the name tree was going out in the clear
+  while the file specification around it was encrypted -- which left the
+  attachment unreachable.
 
 Those are findings, not code. If code from tclpdf is ever taken over, the
 copyright notice comes with it -- the one condition the MIT licence makes,

@@ -8,5 +8,5 @@
 # Ein Aufruf in diesem Zustand ist ein REPARATURLAUF: er zieht nach, was
 # noch auf einer alten Nummer steht, und meldet den Rest als
 # unveraendert.
-set NEXT_VERSION 0.9.4.53
-set NEXT_MSG "no Length in the encryption dictionary for V 4 and V 5"
+set NEXT_VERSION 0.9.4.54
+set NEXT_MSG "encrypt strings written directly, not only stored objects"

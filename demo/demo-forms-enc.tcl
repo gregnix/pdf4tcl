@@ -118,4 +118,6 @@ $p destroy
 
 puts "Geschrieben: $outfile ([file size $outfile] Bytes)"
 puts "Pruefen:     qpdf --password=$user --check $outfile"
+puts "  qpdf 12 meldet dabei eine Warnung zu /Length und endet mit 3 --"
+puts "  erwartet, siehe demo-aes256.tcl. Die Datei ist in Ordnung."
 puts "Oeffnen:     firefox $outfile"

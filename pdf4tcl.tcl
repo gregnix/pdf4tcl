@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.53
+package provide pdf4tcl 0.9.4.54
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -3850,6 +3850,33 @@ oo::define ::pdf4tcl::pdf4tcl {
     # which every paragraph is /P and every heading is /H1 passes this and
     # tells a reader nothing. Nor does it check that all content is tagged;
     # see the open points in doc/en/TAGGED.md.
+    # PDF/A und Verschluesselung schliessen einander aus.
+    #
+    # Klausel 6.1.3 Test 2, in jedem PDF/A-Profil vorhanden: "The keyword
+    # Encrypt shall not be used in the trailer dictionary" (Teile 1 bis 3)
+    # bzw. "The Encrypt key shall not be present in the trailer
+    # dictionary" (Teil 4). Keine Stufe, keine Ausnahme -- 1b bis 4f
+    # verbieten es. Nachgelesen in den veraPDF-Pruefprofilen 1.28.
+    #
+    # Bis 0.9.4.54 liess pdf4tcl die Kombination durch: die Datei trug
+    # ihre pdfaid-Behauptung UND ein /Encrypt. Gemessen mit veraPDF
+    # 1.30.2 an einem -pdfa 3b mit -userpassword: "appears to be an
+    # encrypted PDF file and could not be processed" -- der Pruefer kommt
+    # nicht einmal so weit, die Behauptung zu widerlegen.
+    #
+    # Wer ein Dokument schuetzen will, kann es nicht zugleich als
+    # archivtauglich ausweisen. Das ist keine Einschraenkung von pdf4tcl,
+    # sondern der Zweck von PDF/A: eine Datei, die in dreissig Jahren
+    # noch lesbar ist, darf nicht von einem Passwort abhaengen.
+    method CheckPdfaEncrypt {} {
+        if {$options(-pdfa) eq ""} { return }
+        if {!$pdf(encrypt)} { return }
+        throw {PDF4TCL} "-pdfa $options(-pdfa) and encryption exclude each\
+                other: ISO 19005 clause 6.1.3 forbids an Encrypt key in the\
+                trailer, in every part of the standard. Drop -pdfa or drop\
+                the password."
+    }
+
     method CheckPdfaLevelA {} {
         if {$options(-pdfa) eq ""} { return }
         if {[string index $options(-pdfa) 1] ne "a"} { return }
@@ -3890,6 +3917,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Tagged PDF: /StructTreeRoot, /MarkInfo, /Lang. Reserves the
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
+        my CheckPdfaEncrypt
         my CheckPdfaLevelA
         # An XObject with tagged content must be drawn exactly once --
         # checked before anything is written, so the error arrives instead
@@ -4261,23 +4289,51 @@ Use -pdfa-icc to specify a profile path."
         # Embedded files NameTree object
         # (ISO 32000 SS7.11.4; flat tree sufficient for small lists)
         if {$embnames_oid ne "" && [llength $pdf(embfiles)] > 0} {
-            my StoreXref $embnames_oid
-            my Pdfout "$embnames_oid 0 obj\n"
-            my Pdfout "<< /Names \[\n"
+            # Koerper erst aufbauen, dann durch EncryptStringsInBody --
+            # nicht Zeile fuer Zeile mit Pdfout hinausschreiben.
+            #
+            # ISO 32000-2 Abschnitt 7.6.2 nennt vier Ausnahmen von der
+            # Verschluesselung: /ID im Trailer, Zeichenketten im
+            # Encrypt-Woerterbuch, Zeichenketten innerhalb bereits
+            # verschluesselter Stroeme, und die Contents einer Signatur.
+            # Der Anhangsname im Namensbaum gehoert zu keiner davon.
+            #
+            # Bis 0.9.4.53 ging er an der Verschluesselung vorbei, weil
+            # dieses Objekt direkt geschrieben wurde, waehrend die in
+            # pdf(objects) gesammelten Objekte in FlushObjects durch
+            # EncryptStringsInBody laufen. Ergebnis, gemessen: /F und /UF
+            # im Filespec verschluesselt, der Name im Namensbaum im
+            # Klartext -- und "qpdf --list-attachments" zeigte einen
+            # leeren Namen, "--show-attachment=anhang.txt" meldete
+            # "not found". Der Anhang war damit unerreichbar; ohne
+            # Verschluesselung funktionierte beides.
+            set body "$embnames_oid 0 obj\n"
+            append body "<< /Names \[\n"
             foreach {basename fsid} $pdf(embfiles) {
-                my Pdfout "[QuoteString $basename] $fsid 0 R\n"
+                append body "[QuoteString $basename] $fsid 0 R\n"
             }
-            my Pdfout "\] >>\n"
-            my Pdfout "endobj\n\n"
+            append body "\] >>\n"
+            append body "endobj\n\n"
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $embnames_oid $body]
+            }
+            my StoreXref $embnames_oid
+            my Pdfout $body
         }
 
         # OCG objects (Optional Content Groups / Layers)
         foreach layer $pdf(layers) {
             lassign $layer oid name visible
+            # Wie beim Namensbaum oben: der Ebenenname ist eine
+            # gewoehnliche Zeichenkette und gehoert verschluesselt.
+            set body "$oid 0 obj\n"
+            append body "<< /Type /OCG /Name [QuoteString $name] >>\n"
+            append body "endobj\n\n"
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $oid $body]
+            }
             my StoreXref $oid
-            my Pdfout "$oid 0 obj\n"
-            my Pdfout "<< /Type /OCG /Name [QuoteString $name] >>\n"
-            my Pdfout "endobj\n\n"
+            my Pdfout $body
         }
 
         # Tagged PDF: structure elements, parent tree, StructTreeRoot.

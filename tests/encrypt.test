@@ -320,8 +320,13 @@ proc formStreamLengths {data} {
     return [list $declared [expr {$send - $sstart}]]
 }
 
-# A text field without an initial value under -pdfa: the appearance stream is
-# empty, because ISO 19005 6.3.3 asks for the dictionary, not for contents.
+# A text field without an initial value: the appearance stream is empty,
+# because ISO 19005 6.3.3 asks for the dictionary, not for contents.
+#
+# -pdfa only where no password is involved. Since 0.9.4.54 the two are
+# refused together -- ISO 19005 clause 6.1.3 forbids an Encrypt key in a
+# conforming file. The empty stream is written either way, so what these
+# tests measure is unaffected.
 proc emptyApDoc {args} {
     set p [::pdf4tcl::new %AUTO% -compress 0 -pdfa 3b {*}$args]
     $p startPage
@@ -336,17 +341,21 @@ test encrypt-empty-1.1 {without encryption an empty stream stays empty} -body {
     formStreamLengths [emptyApDoc]
 } -result {0 0}
 
-test encrypt-empty-1.2 {encrypted: declared length matches the bytes written} -body {
-    lassign [formStreamLengths [emptyApDoc -userpassword geheim]] declared actual
-    expr {$declared ne "" && $declared == $actual}
-} -result 1
-
-test encrypt-empty-1.3 {encrypted: the ciphertext is present, not dropped} -body {
-    lassign [formStreamLengths [emptyApDoc -userpassword geheim]] declared actual
-    # Encrypting an empty string yields at least one cipher block. Zero bytes
-    # here would mean the ciphertext went missing while /Length claimed it.
-    expr {$actual ne "" && $actual > 0}
-} -result 1
+test encrypt-empty-1.2 {-pdfa and a password are refused together} -body {
+    # Umgeschrieben in 0.9.4.54. Die beiden Tests hier massen frueher den
+    # verschluesselten leeren Darstellungsstrom -- mit -pdfa 3b UND
+    # -userpassword zugleich. Diese Kombination ist seither verboten:
+    # ISO 19005 Klausel 6.1.3 laesst in einer konformen Datei keinen
+    # Encrypt-Eintrag im Trailer zu, in keinem Teil der Norm.
+    #
+    # Nachmessbar ist der urspruengliche Gegenstand damit nicht mehr:
+    # ohne -pdfa legt addForm ueberhaupt kein Aussehen-XObject an, der
+    # leere Strom entsteht also nur unter PDF/A. Geblieben ist die
+    # Zusicherung, dass die Kombination auffaellt statt still
+    # durchzugehen.
+    set rc [catch {emptyApDoc -userpassword geheim} e]
+    list $rc [string match {*clause 6.1.3*} $e]
+} -result {1 1}
 
 test encrypt-empty-1.4 {the helper finds a stream at all} -body {
     # Guards the three tests above: if addForm ever stops writing an empty
@@ -354,6 +363,112 @@ test encrypt-empty-1.4 {the helper finds a stream at all} -body {
     # measuring anything.
     llength [formStreamLengths [emptyApDoc]]
 } -result 2
+
+# ---------------------------------------------------------------------------
+# encrypt-20.x  Zeichenketten, die direkt geschrieben werden
+# ---------------------------------------------------------------------------
+#
+# ISO 32000-2 Abschnitt 7.6.2 nennt genau vier Ausnahmen von der
+# Verschluesselung: /ID im Trailer, Zeichenketten im Encrypt-Woerterbuch,
+# Zeichenketten innerhalb bereits verschluesselter Stroeme, und die
+# Contents einer Signatur. Alles andere gehoert verschluesselt.
+#
+# Zwei Objekte wurden direkt mit Pdfout hinausgeschrieben und liefen
+# damit an EncryptStringsInBody vorbei: der Namensbaum der eingebetteten
+# Dateien und die OCG-Woerterbuecher der Ebenen. Gemessen vor der
+# Korrektur: /F und /UF im Filespec waren verschluesselt, der Name im
+# Namensbaum stand im Klartext -- und der Anhang war unauffindbar.
+
+tcltest::testConstraint haveQpdf [expr {![catch {exec qpdf --version}]}]
+
+test encrypt-20.1 {Anhangsname im Namensbaum wird verschluesselt} -setup {
+    set ::encAnhang [makeFile "Anhangsinhalt\n" enc-anhang.txt]
+} -body {
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0 -userpassword geheim]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "Mit Anhang" -x 60 -y 60
+    $p addEmbeddedFile $::encAnhang -mimetype text/plain -afrelationship Data
+    set data [$p get]
+    $p destroy
+    # Der Dateiname darf nirgends im Klartext stehen.
+    string first "enc-anhang.txt" $data
+} -cleanup {
+    removeFile enc-anhang.txt
+} -result -1
+
+test encrypt-20.2 {ohne Verschluesselung bleibt der Name lesbar} -setup {
+    set ::encAnhang [makeFile "Anhangsinhalt\n" enc-anhang.txt]
+} -body {
+    # Gegenprobe: die Verschluesselung darf nur greifen, wo eine
+    # verlangt wurde.
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p addEmbeddedFile $::encAnhang -mimetype text/plain -afrelationship Data
+    set data [$p get]
+    $p destroy
+    expr {[string first "enc-anhang.txt" $data] >= 0}
+} -cleanup {
+    removeFile enc-anhang.txt
+} -result 1
+
+test encrypt-20.3 {der Anhang bleibt auffindbar} \
+        -constraints haveQpdf -setup {
+    set ::encAnhang [makeFile "Anhangsinhalt\n" enc-anhang.txt]
+} -body {
+    # Der eigentliche Nachweis: qpdf muss den Anhang ueber seinen Namen
+    # finden. Vor der Korrektur meldete es einen leeren Namen und
+    # "attachment not found".
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0 -userpassword geheim]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p addEmbeddedFile $::encAnhang -mimetype text/plain -afrelationship Data
+    set datei [file join [temporaryDirectory] enc-anhang.pdf]
+    $p write -file $datei
+    $p destroy
+    set liste [exec qpdf --password=geheim --list-attachments $datei]
+    set inhalt [exec qpdf --password=geheim \
+            --show-attachment=enc-anhang.txt $datei]
+    file delete $datei
+    list [string match "enc-anhang.txt*" $liste] \
+         [string match "*Anhangsinhalt*" $inhalt]
+} -cleanup {
+    removeFile enc-anhang.txt
+} -result {1 1}
+
+test encrypt-20.4 {Ebenenname wird verschluesselt} -body {
+    # Dieselbe Ursache, zweite Fundstelle: die OCG-Woerterbuecher.
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0 -userpassword geheim]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p addLayer "Meine Ebene"
+    $p text "T" -x 60 -y 60
+    set data [$p get]
+    $p destroy
+    string first "Meine Ebene" $data
+} -result -1
+
+test encrypt-20.5 {entschluesselt ist der Ebenenname wieder da} \
+        -constraints haveQpdf -body {
+    # Verschluesseln, nicht zerstoeren: nach qpdf --decrypt muss der
+    # Name wieder lesbar sein.
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0 -userpassword geheim]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p addLayer "Meine Ebene"
+    $p text "T" -x 60 -y 60
+    set datei [file join [temporaryDirectory] enc-layer.pdf]
+    set klar  [file join [temporaryDirectory] enc-layer-klar.pdf]
+    $p write -file $datei
+    $p destroy
+    exec qpdf --password=geheim --decrypt $datei $klar
+    set fh [open $klar rb]
+    set data [read $fh]
+    close $fh
+    file delete $datei $klar
+    expr {[string first "Meine Ebene" $data] >= 0}
+} -result 1
 
 # ---------------------------------------------------------------------------
 # Cleanup
