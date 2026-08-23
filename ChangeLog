@@ -1,5 +1,40 @@
 2026-08-22 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.53
+	* src/encrypt.tcl: no /Length in the encryption dictionary for V 4
+	and V 5. Both standards list the entry as "Optional; PDF 1.4; only if
+	V is 2 or 3" -- ISO 32000-1 Table 20 as well as ISO 32000-2, which
+	adds "deprecated in PDF 2.0". pdf4tcl wrote /Length 256 beside /V 5
+	and /Length 128 beside /V 4, where neither belongs; for V 5 the key
+	length is part of the algorithm, for V 4 it sits in the crypt filter.
+	The /Length 32 and /Length 16 inside /CF are a different table
+	(crypt filter dictionary) and stay.
+	Pointed out by Alexander Schoepe (tclpdf) on 2026-08-22, who had the
+	same entry and removed it.
+	KNOWN: qpdf reads the entry unconditionally, so a conforming file now
+	draws a warning from it. Measured on both versions: qpdf 11.9.0 gives
+	rc=0 and stays quiet, qpdf 12.4.0 gives rc=3 with
+	"dictionary key /Length: operation for integer attempted on object of
+	type null: returning 0" and "operation succeeded with warnings".
+	It is a warning, not an error -- the check completes and the file
+	decrypts either way, in qpdf as well as in pdftotext. Anyone testing
+	the exit status of "qpdf --check" on an encrypted pdf4tcl file will
+	see it fail from 0.9.4.53 on. The standard is followed rather than the
+	tool.
+	* tools/bump.tcl: README.md gets only its title line rewritten, not
+	every occurrence of the version. The other mentions there are
+	historical -- "Since 0.9.4.36", "fixed in 0.9.4.49" -- and one of them
+	had been travelling: the line about the ticket*/ directories said
+	0.9.4.45 correctly and then followed eight bumps up to 0.9.4.53. The
+	next one in line would have been "fixed in 0.9.4.53" in the section on
+	where the parts come from.
+	* tests/encrypt.test (encrypt-2.3), tests/new-0.9.4.16.test
+	(encrypt-9.4): both pinned the entry that should not be there; they
+	now pin its absence. The AES-256 tests are skipped by default for
+	time reasons -- run once with testConstraint aes256 1: 21 of 21.
+
+2026-08-22 Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.52
 	* tests/*.test: twelve test names were handed out twice. tcltest runs
 	both, but a failure report names only the number, so the reader looks

@@ -70,12 +70,15 @@ test encrypt-2.2 {encrypt dict has R=4} {
     regexp {/R 4} $data
 } 1
 
-test encrypt-2.3 {encrypt dict has Length 128} {
+test encrypt-2.3 {encrypt dict has NO Length} {
+    # Umgestellt in 0.9.4.53: /Length gehoert nur zu V 2 oder 3
+    # (ISO 32000-1 Tabelle 20, ISO 32000-2 ebenso). Bei V 4 steht die
+    # Laenge im Crypt-Filter -- /Length 16, siehe encrypt-2.4.
     set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]
     $p startPage; $p endPage
     set data [$p get]; $p destroy
     regexp {/Length 128} $data
-} 1
+} 0
 
 test encrypt-2.4 {encrypt dict has AESV2 crypt filter} {
     set p [pdf4tcl::new %AUTO% -paper a4 -userpassword "pw"]

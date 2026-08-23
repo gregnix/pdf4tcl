@@ -184,10 +184,34 @@ foreach f {
     tests/init.tcl
     pkgIndex.tcl
     pkg/pkgIndex.tcl
-    README.md
 } {
     if {![file exists $f]} { puts "  SKIP $f"; continue }
     replaceInFile $f $oldVersion $newVersion $oldVersion
+}
+
+# ---------------------------------------------------------------
+# 1a. README.md: NUR die Titelzeile.
+#
+# Frueher stand README.md in der Liste oben und bekam jedes Vorkommen
+# der alten Nummer ersetzt. Das ist genau eine Zeile zu viel: die
+# Titelzeile SOLL mitwandern, jede andere Angabe im Text ist
+# historisch -- "Since 0.9.4.36", "fixed in 0.9.4.49", "kept as
+# ticket*/ directories until 0.9.4.45".
+#
+# Gemessen: die Zeile ueber die ticket-Verzeichnisse nannte
+# urspruenglich richtig 0.9.4.45 und wanderte ueber acht Bumps bis
+# 0.9.4.53 mit, bis sie am 2026-08-23 auffiel -- und war da laengst in
+# eine oeffentliche Antwort uebernommen worden. Der naechste Kandidat
+# waere "fixed in 0.9.4.53" im Abschnitt ueber die Herkunft gewesen.
+#
+# Die Titelzeile ist die erste Zeile und hat die Form
+#     # pdf4tcl fork (0.9.4.53)
+if {[file exists README.md]} {
+    regsubInFile README.md \
+        "^(# pdf4tcl fork \\()\[0-9.\]+(\\))" \
+        "\\1$newVersion\\2" "Titelzeile"
+} else {
+    puts "  SKIP README.md"
 }
 
 # ---------------------------------------------------------------

@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.52)
+# pdf4tcl fork (0.9.4.53)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -126,7 +126,11 @@ Schekin, and they stay there. Beyond that:
   came from there; no code did. The ChangeLog entry says so at the place
   it belongs.
 
-That is a finding, not code. If code from tclpdf is ever taken over, the
+- **`/Length` in the encryption dictionary** (fixed in 0.9.4.53) was
+  pointed out by Alexander Schoepe of tclpdf on 2026-08-22: the entry
+  belongs only to V 2 or 3, and pdf4tcl wrote it beside V 4 and V 5.
+
+Those are findings, not code. If code from tclpdf is ever taken over, the
 copyright notice comes with it -- the one condition the MIT licence makes,
 and the least this project owes a second implementation written from the
 ISO standards rather than from someone else's source.
@@ -139,8 +143,8 @@ suite nor veraPDF.
 ## Upstream
 
 Patches for the individual SourceForge tickets (9 to 24, fixed in
-0.9.4.1 through 0.9.4.24) were kept as `ticket*/` directories until
-0.9.4.52. They are all in the released code by now; the patches
+0.9.4.1 through 0.9.4.24) were kept as `0.9.4.x/ticket*/` directories until
+0.9.4.45. They are all in the released code by now; the patches
 themselves remain in the git history.
 
 Original project: https://sourceforge.net/projects/pdf4tcl/

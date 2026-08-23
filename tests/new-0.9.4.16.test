@@ -73,17 +73,27 @@ test encrypt-9.3 {AES-256: R=6 im Encrypt-Dict} \
         regexp {/R 6\y} $data
     } -result 1
 
-test encrypt-9.4 {AES-256: Length 256 im Encrypt-Dict} \
+test encrypt-9.4 {AES-256: KEIN Length im Encrypt-Dict} \
     -constraints aes256 \
     -body {
+        # Umgestellt in 0.9.4.53. Beide Normen fuehren /Length im
+        # Verschluesselungswoerterbuch als "Optional; PDF 1.4; only if V
+        # is 2 or 3" -- ISO 32000-1 Tabelle 20 ebenso wie ISO 32000-2,
+        # das zusaetzlich "deprecated in PDF 2.0" vermerkt. Bei V 5 ist
+        # die Schluessellaenge Teil des Algorithmus (256 Bit).
+        #
+        # Geprueft wird das Woerterbuch, NICHT die ganze Datei: das
+        # /Length 32 im Crypt-Filter gehoert zu einer anderen Tabelle
+        # und bleibt (siehe encrypt-9.5).
         set p [pdf4tcl::new %AUTO% -paper a4 \
             -userpassword "hello" -encversion 5]
         $p startPage
         $p endPage
         set data [$p get]
         $p destroy
-        regexp {/Length 256\y} $data
-    } -result 1
+        regexp {/V 5.*?/CF} $data dict
+        list [regexp {/Length 256} $dict] [regexp {/V 5} $data]
+    } -result {0 1}
 
 test encrypt-9.5 {AES-256: CFM ist AESV3} \
     -constraints aes256 \

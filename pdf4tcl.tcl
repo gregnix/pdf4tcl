@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.52
+package provide pdf4tcl 0.9.4.53
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -12432,7 +12432,31 @@ oo::define ::pdf4tcl::pdf4tcl {
 
             my Pdfout "/V 5\n"
             my Pdfout "/R 6\n"
-            my Pdfout "/Length 256\n"
+            # KEIN /Length hier. Beide Normen fuehren den Eintrag als
+            # "Optional; PDF 1.4; only if V is 2 or 3" -- ISO 32000-1
+            # Tabelle 20 ebenso wie ISO 32000-2, das zusaetzlich
+            # "deprecated in PDF 2.0" vermerkt. Bei V 5 steht die
+            # Schluessellaenge im Algorithmus selbst (256 Bit,
+            # Abschnitt 7.6.3.3), bei V 4 im Crypt-Filter.
+            #
+            # Das /Length 32 weiter unten im /CF ist eine ANDERE Tabelle
+            # (Crypt-Filter-Woerterbuch) und bleibt.
+            #
+            # Hinweis von Alexander Schoepe (tclpdf), 2026-08-22.
+            #
+            # NEBENWIRKUNG, auf beiden Fassungen nachgemessen: qpdf liest
+            # den Eintrag unbedingt, auch wo die Norm ihn verbietet.
+            #
+            #   qpdf 11.9.0   rc=0, keine Warnung
+            #   qpdf 12.4.0   rc=3, "dictionary key /Length: operation for
+            #                 integer attempted on object of type null:
+            #                 returning 0" / "succeeded with warnings"
+            #
+            # Es ist eine Warnung, kein Fehler -- die Pruefung laeuft
+            # durch, und entschluesseln laesst sich die Datei in beiden
+            # Faellen, auch mit pdftotext. Wer aber den Rueckgabewert von
+            # "qpdf --check" auswertet, sieht ab 0.9.4.53 einen Ausfall.
+            # Hier gilt die Norm, nicht das Werkzeug.
             my Pdfout "/P $pdf(encP)\n"
             my Pdfout "/O <$ohex>\n"
             my Pdfout "/OE <$oehex>\n"
@@ -12451,7 +12475,9 @@ oo::define ::pdf4tcl::pdf4tcl {
 
             my Pdfout "/V 4\n"
             my Pdfout "/R 4\n"
-            my Pdfout "/Length 128\n"
+            # Auch hier kein /Length -- siehe oben, V 4 ist ebenfalls
+            # ausserhalb von "only if V is 2 or 3". Die Laenge steht im
+            # Crypt-Filter (/Length 16, also 16 Byte = 128 Bit).
             my Pdfout "/P $pdf(encP)\n"
             my Pdfout "/O <$ohex>\n"
             my Pdfout "/U <$uhex>\n"
