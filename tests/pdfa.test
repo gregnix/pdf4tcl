@@ -638,13 +638,22 @@ test mark-1.3 {conformance level A switches too} -body {
     set ::pdf4tcl::warnings {}
 } -result 0
 
-test mark-1.4 {level B keeps the glyph} -body {
-    # Level B has no structure requirement and the glyph is not what makes
-    # it fail, so there is no reason to change the look.
+test mark-1.4 {level B uses the vector mark too} -body {
+    # Hier stand die Annahme, die Glyphe sei nicht das, was eine
+    # B-Datei durchfallen laesst. Gemessen mit veraPDF 1.30.2 an einem
+    # Dokument, dessen einziges Formularfeld eine Checkbox ist:
+    #
+    #   mit Glyphe:  -pdfa 1b, 2b, 3b -> alle FAIL, Klausel 6.2.11.4.1
+    #   mit Vektor:  -pdfa 1b, 2b, 3b -> alle PASS
+    #
+    # Die verletzte Regel ist "das Fontprogramm ist nicht eingebettet",
+    # und die kennt keine Stufen -- ZapfDingbats gehoert zu den
+    # Standard-14 und hat keins. Das Dokument war also schon beim
+    # ERZEUGEN unkonform, bevor jemand etwas ausgefuellt hat.
     markProbe {-pdfa 3b}
 } -cleanup {
     set ::pdf4tcl::warnings {}
-} -result 1
+} -result 0
 
 test mark-1.5 {-markstyle font overrides the claim} -body {
     markProbe {-markstyle font} {1 -lang de-DE -ua 1}
@@ -844,6 +853,123 @@ test pdfa-xobject-1 {ein XObject nennt seine Resources} -body {
     # Das XObject-Woerterbuch selbst, nicht das der Seite.
     regexp {/Type /XObject.*?>>} $data teil
     expr {[string first "/Resources" $teil] >= 0}
+} -result 1
+
+# ---------------------------------------------------------------------------
+# pdfa-enc-x  PDF/A und Verschluesselung schliessen einander aus
+# ---------------------------------------------------------------------------
+
+test pdfa-enc-1 {-pdfa zusammen mit einem Passwort wird abgelehnt} -body {
+    # ISO 19005 Klausel 6.1.3, in jedem Teil gleichlautend: "The Encrypt
+    # key shall not be present in the trailer dictionary". Keine Stufe,
+    # keine Ausnahme.
+    #
+    # Bis 0.9.4.54 ging es durch, und die Datei trug ihre
+    # pdfaid-Behauptung neben einem /Encrypt. veraPDF meldete dann
+    # "appears to be an encrypted PDF file and could not be processed" --
+    # der Pruefer kommt nicht einmal dazu, die Behauptung zu widerlegen.
+    set p [pdf4tcl::new %AUTO% -paper a5 -pdfa 3b -userpassword geheim]
+    $p startPage
+    set rc [catch {$p get} e]
+    catch {$p destroy}
+    list $rc [string match {*clause 6.1.3*} $e]
+} -result {1 1}
+
+test pdfa-enc-2 {einzeln bleibt beides erlaubt} -body {
+    # Gegenprobe: die Pruefung darf nur greifen, wenn beides zusammen
+    # verlangt wird.
+    set r {}
+    set p [pdf4tcl::new %AUTO% -paper a5 -pdfa 3b]
+    $p startPage
+    lappend r [catch {$p get}]
+    catch {$p destroy}
+    set q [pdf4tcl::new %AUTO% -paper a5 -userpassword geheim]
+    $q startPage
+    lappend r [catch {$q get}]
+    catch {$q destroy}
+    set r
+} -result {0 0}
+
+test pdfa-6.10 {pdf:Producer nennt Programm und Version} -body {
+    # pdf:Producer ist vom Typ AgentName (XMP Part 2, Tabelle 30), und
+    # dafuer empfiehlt Part 1 Klausel 8.2.2.1 die Form
+    #   Organisation Programmname Version
+    # Vorher stand dort nur "pdf4tcl" -- ohne die Angabe, die man bei
+    # einer fremden Datei als erstes sucht.
+    set data [make_pdfa 2b]
+    regexp {<pdf:Producer>([^<]*)</pdf:Producer>} $data -> wert
+    expr {[string match "*pdf4tcl*" $wert]
+            && [string match "*[package provide pdf4tcl]*" $wert]}
+} -result 1
+
+test pdfa-6.11 {-producer ueberschreibt die Vorgabe} -body {
+    # Die Hoheit liegt beim Werkzeug (XMP Part 2, Abschnitt 4.9), aber
+    # wer pdf4tcl einbettet, ist selbst das Werkzeug.
+    set pdf [pdf4tcl::new %AUTO% -pdfa 2b]
+    $pdf metadata -producer "Musterfirma Rechnungsdruck 2.1"
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "x" -x 50 -y 700
+    set data [$pdf get]
+    $pdf destroy
+    regexp {<pdf:Producer>([^<]*)</pdf:Producer>} $data -> wert
+    set wert
+} -result "Musterfirma Rechnungsdruck 2.1"
+
+test pdfa-6.12 {xmp:MetadataDate wird neben ModifyDate geschrieben} -body {
+    # "Wann zuletzt IRGENDWELCHE Metadaten geaendert wurden" (XMP Part 1,
+    # Tabelle 5), im Unterschied zu ModifyDate fuer den Inhalt. Muss
+    # gleich oder spaeter als ModifyDate sein.
+    set pdf [pdf4tcl::new %AUTO% -pdfa 2b]
+    set jetzt [clock seconds]
+    $pdf metadata -moddate $jetzt -creationdate $jetzt
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "x" -x 50 -y 700
+    set data [$pdf get]
+    $pdf destroy
+    regexp {<xmp:ModifyDate>([^<]*)<} $data -> mod
+    regexp {<xmp:MetadataDate>([^<]*)<} $data -> meta
+    expr {$meta ne "" && $meta eq $mod}
+} -result 1
+
+test pdfa-6.13 {ohne ModifyDate auch kein MetadataDate} -body {
+    # Gegenprobe: ein Datum zu erfinden, das niemand gesetzt hat, waere
+    # schlechter als keines.
+    set data [make_pdfa 2b]
+    expr {[string first "xmp:MetadataDate" $data] < 0}
+} -result 1
+
+test mark-1.6 {ohne -pdfa bleibt die Glyphe} -body {
+    # Gegenprobe: die Aenderung darf nur Dokumente betreffen, die einen
+    # Anspruch erheben. Wer keinen erhebt, behaelt das Aussehen, das er
+    # immer hatte.
+    markProbe {}
+} -cleanup {
+    set ::pdf4tcl::warnings {}
+} -result 1
+
+test pdfa-7.1 {der Katalog fuehrt /Version als NAME} -body {
+    # ISO 32000 Klausel 7.7.2 gibt fuer diesen Eintrag den Typ "name" an.
+    # pdf4tcl schrieb eine Zahl -- in jeder Datei ueber Version 1.4, also
+    # in aller PDF/A-2- und -3-Ausgabe, seit es diese Stufen gibt.
+    #
+    # Die Dateien blieben lesbar; ein Leser, der die Version aus dem
+    # Katalog nimmt statt aus dem Kopf, bekam den falschen Typ.
+    set data [make_pdfa 2b]
+    expr {[regexp {/Version\s+/1\.7\M} $data] > 0}
+} -result 1
+
+test pdfa-7.2 {unter 1.5 steht gar kein /Version} -body {
+    # Gegenprobe: der Eintrag ist optional und wird nur gesetzt, wo die
+    # Kopfzeile nicht ausreicht.
+    set pdf [pdf4tcl::new %AUTO%]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    $pdf text "x" -x 50 -y 700
+    set data [$pdf get]
+    $pdf destroy
+    expr {[string first "/Version" $data] < 0}
 } -result 1
 
 ::tcltest::cleanupTests

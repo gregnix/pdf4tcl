@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.53 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.55 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.53?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.55?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -524,7 +524,10 @@ The info is a dictionary with the following fields:</p>
 <dt><b class="option">type</b></dt>
 <dd><p>Field type.</p></dd>
 <dt><b class="option">value</b></dt>
-<dd><p>Form value.</p></dd>
+<dd><p>Form value, unpacked: a text value comes back without its
+brackets and escapes, exactly the form <b class="cmd">::pdf4tcl::fillForms</b> takes in,
+so reading a form and writing it back does not accumulate escaping. A name
+value (<b class="const">/Yes</b>, <b class="const">/Off</b>) is left as it is.</p></dd>
 <dt><b class="option">flags</b></dt>
 <dd><p>Value of form flags field.</p></dd>
 <dt><b class="option">default</b></dt>
@@ -903,7 +906,18 @@ Multiple keywords should be passed as a comma-separated string,
 e.g. <i class="arg">-keywords &quot;tcl,pdf,document&quot;</i>.
 For <i class="arg">-creationdate</i> and <i class="arg">-moddate</i> a <b class="const">clock seconds</b> value is expected.
 A value of <b class="const">0</b> uses the current date and time.
-Unknown option names cause an error.</p></dd>
+Unknown option names cause an error.</p>
+<p>With <b class="option">-pdfa</b> the fields also go into the XMP packet, as
+<b class="const">dc:title</b>, <b class="const">dc:creator</b>, <b class="const">dc:description</b>,
+<b class="const">dc:subject</b>, <b class="const">pdf:Keywords</b>, <b class="const">pdf:Producer</b>,
+<b class="const">xmp:CreateDate</b> and <b class="const">xmp:ModifyDate</b>.</p>
+<p>Two entries are written without being asked for. <b class="const">pdf:Producer</b>
+defaults to the organization, the package name and the release, the form
+recommended for an <b class="const">AgentName</b> (XMP part 1 clause 8.2.2.1);
+<b class="option">-producer</b> overrides it. <b class="const">xmp:MetadataDate</b> accompanies
+<b class="const">xmp:ModifyDate</b> with the same value and records when the metadata
+last changed as against the content (XMP part 1 table 5); it is absent when
+no modification date was given.</p></dd>
 <dt><a name="36"><i class="arg">objectName</i> <b class="method">bookmarkAdd</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add a bookmark on the current page.</p>
 <dl class="doctools_options">
@@ -2287,7 +2301,7 @@ elements are never folded.</p></li>
 <li><p><b class="option">-markstyle</b> decides how the mark of a check box or radio
 button is drawn: <b class="const">font</b> uses a ZapfDingbats glyph as before,
 <b class="const">vector</b> draws it with lines and curves, and <b class="const">auto</b>, the default,
-picks vectors where the document claims PDF/UA or a level A conformance. The
+picks vectors wherever the document claims PDF/UA or any PDF/A level. The
 glyph cannot be embedded and both standards require embedded font programs,
 so a single check box used to make a document non-conformant whatever else it
 did right. Documents claiming nothing keep the appearance they always had.</p></li>

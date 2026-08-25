@@ -492,7 +492,7 @@ test form-21.1 {fillForms setzt einen Textwert} -body {
     list $n [dict get $res name value]
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {1 (Meier)}
+} -result {1 Meier}
 
 test form-21.2 {Sonderzeichen werden maskiert} -body {
     # Eine unmaskierte Klammer beendet die PDF-Zeichenkette vorzeitig --
@@ -509,7 +509,7 @@ test form-21.2 {Sonderzeichen werden maskiert} -body {
     dict get $res firma value
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {(Meier & Co \(GmbH\))}
+} -result {Meier & Co (GmbH)}
 
 test form-21.3 {eine Checkbox nimmt einen Zustandsnamen} -body {
     mytest -file {addForm checkbutton 0 0 15 15 -id ok} {}
@@ -541,7 +541,7 @@ test form-21.5 {nicht genannte Felder bleiben unveraendert} -body {
     list [dict get $res eins value] [dict get $res zwei value]
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {(A) {}}
+} -result {A {}}
 
 test form-21.6 {NeedAppearances wird gesetzt} -body {
     # Ohne das traegt das Feld den Wert und zeigt das alte Aussehen.
@@ -603,6 +603,52 @@ test form-22.2 {fillForms ebenso} -body {
     dict get $res name value
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {(Meier)}
+} -result {Meier}
+
+
+test form-21.2a {der Rundlauf ist stabil} -body {
+    # Auslesen, ein Feld aendern, zurueckschreiben -- und das dreimal.
+    # Vorher verdoppelte sich dabei die Maskierung JEDES Feldes, das
+    # nicht angefasst wurde, bei jedem Durchgang:
+    #
+    #   Meier & Co (GmbH)
+    #   (Meier & Co \(GmbH\))
+    #   (\(Meier & Co \\\(GmbH\\\)\)))
+    #
+    # Zwei Fehler, einer je Richtung: getForms gab den Wert roh zurueck,
+    # und das Schreibmuster endete an der ersten maskierten Klammer.
+    #
+    # Raeumt zu Beginn auf, nicht nur am Ende: nach einem abgebrochenen
+    # Lauf nahm der Test sonst die alte Datei als Eingabe und fiel mit
+    # genau dem Wert durch, den er ausschliessen soll.
+    foreach f {rtA.pdf rtB.pdf rtC.pdf rtD.pdf} {
+        catch {file delete $f}
+    }
+    mytest -file {addForm text 0 0 100 20 -id firma} \
+            {addForm text 0 30 100 20 -id ort} {}
+    file rename testdebug.pdf rtA.pdf
+
+    pdf4tcl::fillForms rtA.pdf rtB.pdf {firma "Meier & Co (GmbH)" ort "A"}
+    foreach {von nach} {rtB.pdf rtC.pdf rtC.pdf rtD.pdf} {
+        set alt [pdf4tcl::getForms $von]
+        set neu {}
+        dict for {k v} $alt { dict set neu $k [dict get $v value] }
+        dict set neu ort "geaendert"
+        pdf4tcl::fillForms $von $nach $neu
+    }
+    dict get [pdf4tcl::getForms rtD.pdf] firma value
+} -cleanup {
+    foreach f {rtA.pdf rtB.pdf rtC.pdf rtD.pdf} { catch {file delete $f} }
+} -result {Meier & Co (GmbH)}
+
+test form-21.2b {ein Name-Wert bleibt unangetastet} -body {
+    # Checkboxen tragen /Yes oder /Off -- genau die Form, die fillForms
+    # erwartet. Auspacken duerfte sie nicht.
+    mytest -file {addForm checkbutton 0 0 15 15 -id ok} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {ok /Yes}
+    dict get [pdf4tcl::getForms testfilled.pdf] ok value
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result "/Yes"
 
 ::tcltest::cleanupTests

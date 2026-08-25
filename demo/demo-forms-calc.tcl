@@ -15,10 +15,29 @@
 # (Adobe Acrobat/Reader, Firefox, Chrome/Edge, Foxit) wird die Summe live neu
 # berechnet, sobald ein Betrag geaendert wird.
 
-set scriptDir  [file dirname [file normalize [info script]]]
-set pdf4tclDir [file normalize [file join $scriptDir .. .. ..]]
-set auto_path  [linsert $auto_path 0 $pdf4tclDir]
-package require pdf4tcl 0.9.4.32
+# ---------------------------------------------------------------------------
+# Wurzel suchen, nicht zaehlen. Markierung ist pkgIndex.tcl neben src/.
+#
+# Vorher stand hier [file join $scriptDir .. .. ..] -- drei Ebenen nach
+# oben, also AUSSERHALB des Baums. Beide Demos scheiterten mit
+# "can't find package pdf4tcl 0.9.4.32", was nach einer zu alten Version
+# aussieht und ein Pfadfehler war.
+# ---------------------------------------------------------------------------
+proc pdf4tclRepoRoot {start} {
+    set dir [file normalize $start]
+    for {set i 0} {$i < 8} {incr i} {
+        if {[file exists [file join $dir pkgIndex.tcl]]
+                && [file isdirectory [file join $dir src]]} { return $dir }
+        set parent [file dirname $dir]
+        if {$parent eq $dir} break
+        set dir $parent
+    }
+    return -code error "pdf4tcl-Wurzel nicht gefunden ueber $start"
+}
+set scriptDir [file dirname [file normalize [info script]]]
+lappend auto_path [pdf4tclRepoRoot $scriptDir] \
+                  [file join $scriptDir ../../..]
+package require pdf4tcl
 
 # Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
 # Datei als erstes Argument.

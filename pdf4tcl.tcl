@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.53
+package provide pdf4tcl 0.9.4.55
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -3850,6 +3850,33 @@ oo::define ::pdf4tcl::pdf4tcl {
     # which every paragraph is /P and every heading is /H1 passes this and
     # tells a reader nothing. Nor does it check that all content is tagged;
     # see the open points in doc/en/TAGGED.md.
+    # PDF/A und Verschluesselung schliessen einander aus.
+    #
+    # Klausel 6.1.3 Test 2, in jedem PDF/A-Profil vorhanden: "The keyword
+    # Encrypt shall not be used in the trailer dictionary" (Teile 1 bis 3)
+    # bzw. "The Encrypt key shall not be present in the trailer
+    # dictionary" (Teil 4). Keine Stufe, keine Ausnahme -- 1b bis 4f
+    # verbieten es. Nachgelesen in den veraPDF-Pruefprofilen 1.28.
+    #
+    # Bis 0.9.4.54 liess pdf4tcl die Kombination durch: die Datei trug
+    # ihre pdfaid-Behauptung UND ein /Encrypt. Gemessen mit veraPDF
+    # 1.30.2 an einem -pdfa 3b mit -userpassword: "appears to be an
+    # encrypted PDF file and could not be processed" -- der Pruefer kommt
+    # nicht einmal so weit, die Behauptung zu widerlegen.
+    #
+    # Wer ein Dokument schuetzen will, kann es nicht zugleich als
+    # archivtauglich ausweisen. Das ist keine Einschraenkung von pdf4tcl,
+    # sondern der Zweck von PDF/A: eine Datei, die in dreissig Jahren
+    # noch lesbar ist, darf nicht von einem Passwort abhaengen.
+    method CheckPdfaEncrypt {} {
+        if {$options(-pdfa) eq ""} { return }
+        if {!$pdf(encrypt)} { return }
+        throw {PDF4TCL} "-pdfa $options(-pdfa) and encryption exclude each\
+                other: ISO 19005 clause 6.1.3 forbids an Encrypt key in the\
+                trailer, in every part of the standard. Drop -pdfa or drop\
+                the password."
+    }
+
     method CheckPdfaLevelA {} {
         if {$options(-pdfa) eq ""} { return }
         if {[string index $options(-pdfa) 1] ne "a"} { return }
@@ -3884,12 +3911,20 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfout "<<\n"
         my Pdfout "/Type /Catalog\n"
         if {$pdf(version) > 1.4} {
-            my Pdfout "/Version $pdf(version)\n"
+            # A NAME, not a number. ISO 32000 clause 7.7.2 gives the type
+            # as name for this entry, and pdf4tcl wrote a number -- so in
+            # every file above version 1.4, which is all PDF/A-2 and -3
+            # output since those levels exist.
+            #
+            # The files stayed readable; a reader taking the version from
+            # the catalog rather than the header got the wrong type.
+            my Pdfout "/Version /$pdf(version)\n"
         }
         my Pdfout "/Pages 2 0 R\n"
         # Tagged PDF: /StructTreeRoot, /MarkInfo, /Lang. Reserves the
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
+        my CheckPdfaEncrypt
         my CheckPdfaLevelA
         # An XObject with tagged content must be drawn exactly once --
         # checked before anything is written, so the error arrives instead
@@ -4261,23 +4296,51 @@ Use -pdfa-icc to specify a profile path."
         # Embedded files NameTree object
         # (ISO 32000 SS7.11.4; flat tree sufficient for small lists)
         if {$embnames_oid ne "" && [llength $pdf(embfiles)] > 0} {
-            my StoreXref $embnames_oid
-            my Pdfout "$embnames_oid 0 obj\n"
-            my Pdfout "<< /Names \[\n"
+            # Koerper erst aufbauen, dann durch EncryptStringsInBody --
+            # nicht Zeile fuer Zeile mit Pdfout hinausschreiben.
+            #
+            # ISO 32000-2 Abschnitt 7.6.2 nennt vier Ausnahmen von der
+            # Verschluesselung: /ID im Trailer, Zeichenketten im
+            # Encrypt-Woerterbuch, Zeichenketten innerhalb bereits
+            # verschluesselter Stroeme, und die Contents einer Signatur.
+            # Der Anhangsname im Namensbaum gehoert zu keiner davon.
+            #
+            # Bis 0.9.4.53 ging er an der Verschluesselung vorbei, weil
+            # dieses Objekt direkt geschrieben wurde, waehrend die in
+            # pdf(objects) gesammelten Objekte in FlushObjects durch
+            # EncryptStringsInBody laufen. Ergebnis, gemessen: /F und /UF
+            # im Filespec verschluesselt, der Name im Namensbaum im
+            # Klartext -- und "qpdf --list-attachments" zeigte einen
+            # leeren Namen, "--show-attachment=anhang.txt" meldete
+            # "not found". Der Anhang war damit unerreichbar; ohne
+            # Verschluesselung funktionierte beides.
+            set body "$embnames_oid 0 obj\n"
+            append body "<< /Names \[\n"
             foreach {basename fsid} $pdf(embfiles) {
-                my Pdfout "[QuoteString $basename] $fsid 0 R\n"
+                append body "[QuoteString $basename] $fsid 0 R\n"
             }
-            my Pdfout "\] >>\n"
-            my Pdfout "endobj\n\n"
+            append body "\] >>\n"
+            append body "endobj\n\n"
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $embnames_oid $body]
+            }
+            my StoreXref $embnames_oid
+            my Pdfout $body
         }
 
         # OCG objects (Optional Content Groups / Layers)
         foreach layer $pdf(layers) {
             lassign $layer oid name visible
+            # Wie beim Namensbaum oben: der Ebenenname ist eine
+            # gewoehnliche Zeichenkette und gehoert verschluesselt.
+            set body "$oid 0 obj\n"
+            append body "<< /Type /OCG /Name [QuoteString $name] >>\n"
+            append body "endobj\n\n"
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $oid $body]
+            }
             my StoreXref $oid
-            my Pdfout "$oid 0 obj\n"
-            my Pdfout "<< /Type /OCG /Name [QuoteString $name] >>\n"
-            my Pdfout "endobj\n\n"
+            my Pdfout $body
         }
 
         # Tagged PDF: structure elements, parent tree, StructTreeRoot.
@@ -4643,7 +4706,15 @@ Use -pdfa-icc to specify a profile path."
         set subject  [expr {[info exists metadata(Subject)]  ? [_XmlEsc $metadata(Subject)]  : ""}]
         set keywords [expr {[info exists metadata(Keywords)] ? [_XmlEsc $metadata(Keywords)] : ""}]
         set creator  [expr {[info exists metadata(Creator)]  ? [_XmlEsc $metadata(Creator)]  : ""}]
-        set producer [expr {[info exists metadata(Producer)] ? [_XmlEsc $metadata(Producer)] : "pdf4tcl"}]
+        # pdf:Producer is an AgentName (XMP part 2 table 30), and the
+        # recommended form for one is "Organization Software Version"
+        # (part 1 clause 8.2.2.1). It used to be the bare word "pdf4tcl",
+        # which says nothing about which release wrote the file -- the
+        # first thing worth knowing when a document from elsewhere turns
+        # out to be wrong.
+        set producer [expr {[info exists metadata(Producer)] \
+                ? [_XmlEsc $metadata(Producer)] \
+                : "gregnix pdf4tcl [package provide pdf4tcl]"}]
         set cdate    ""
         set mdate    ""
         if {[info exists metadata(CreationDate)]} {
@@ -4712,6 +4783,15 @@ Use -pdfa-icc to specify a profile path."
         }
         if {$mdate ne ""} {
             append x "   <xmp:ModifyDate>$mdate</xmp:ModifyDate>\n"
+            # xmp:MetadataDate -- when the METADATA last changed, as
+            # against ModifyDate for the content (part 1 table 5). It
+            # shall be the same as or later than ModifyDate; the same
+            # value is the honest answer here, because nothing touches
+            # the metadata after this point.
+            #
+            # Absent when no modification date was given: inventing a
+            # date nobody set would be worse than none.
+            append x "   <xmp:MetadataDate>$mdate</xmp:MetadataDate>\n"
         }
         # pdf:Keywords
         if {$keywords ne ""} {
@@ -8984,13 +9064,24 @@ Use -pdfa-icc to specify a profile path."
             vector { return 1 }
             font   { return 0 }
         }
-        # auto: only where the document claims a conformance that the glyph
-        # would break. Everything else keeps the appearance it always had.
+        # auto: wherever the document claims a conformance the glyph would
+        # break. Without -pdfa the glyph stays.
         if {[info exists pdf(tag,uapart)] && $pdf(tag,uapart) ne ""} {
             return 1
         }
-        if {$options(-pdfa) ne "" &&
-                [string index $options(-pdfa) 1] eq "a"} {
+        # EVERY PDF/A level, not only "a".
+        #
+        # The rule the glyph breaks is "the font program is not embedded",
+        # and that one knows no levels -- ZapfDingbats is one of the base
+        # 14 and carries none. Measured on a document whose only form
+        # field is a single check box: -pdfa 1b, 2b and 3b all FAIL at
+        # clause 6.2.11.4.1 with the glyph.
+        #
+        # So such a document was non-conformant at CREATION time, before
+        # anyone filled anything in. Restricting this to level "a" rested
+        # on the assumption that the glyph is not what makes a b-level
+        # file fail; the measurement says otherwise.
+        if {$options(-pdfa) ne ""} {
             return 1
         }
         return 0
@@ -15645,7 +15736,15 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 proc pdf4tcl::FormSetKey {body key value} {
     # Replace an existing entry. The value may be a string in brackets, a
     # name, or a number -- each ends differently, so three patterns.
-    set muster1 "${key}\\s*\\(\[^)\]*\\)"
+    # A literal string may contain escaped brackets. "[^)]*" stops at the
+    # first one of those, so replacing a value that held one left the rest
+    # of the old string behind -- the other half of the round-trip defect
+    # that FormUnquoteString fixes on the reading side. Measured: three
+    # passes added one bracket each.
+    #
+    # This matches an escaped pair, or any character that is not a
+    # backslash or a closing bracket.
+    set muster1 "${key}\\s*\\((?:\\\\.|\[^\\\\)\])*\\)"
     set muster2 "${key}\\s*/\\w+"
     set muster3 "${key}\\s+\\d+"
     foreach muster [list $muster1 $muster2 $muster3] {
@@ -15665,6 +15764,107 @@ proc pdf4tcl::FormSetKey {body key value} {
         regsub -- {<<} $body [string map {& \\& \\ \\\\} "<<\n  $key $value"] body
     }
     return $body
+}
+
+# Unpack a PDF string the way fillForms takes one in.
+#
+# getForms used to hand the value back raw -- with its brackets and its
+# escapes -- while fillForms expects a plain string. The obvious round
+# trip, read a form, change one field, write it back, therefore doubled
+# the escaping of every field it did NOT touch, on every pass. Measured
+# over three passes:
+#
+#   Meier & Co (GmbH)
+#   (Meier & Co \(GmbH\))
+#   (\(Meier & Co \\\(GmbH\\\)\)))
+#
+# A NAME value (/Yes, /Off) is left alone: that is the form fillForms
+# expects for check boxes and radio buttons.
+#
+# Handled: literal strings with escapes and octal, hex strings, and
+# UTF-16BE with a byte order mark (ISO 32000 clauses 7.3.4.2, 7.3.4.3
+# and 7.9.2.2).
+proc pdf4tcl::FormUnquoteString {raw} {
+    set raw [string trim $raw]
+    if {$raw eq ""} { return "" }
+
+    # A name object stays as it is.
+    if {[string index $raw 0] eq "/"} { return $raw }
+
+    # Hex string: <48656C6C6F>
+    if {[string index $raw 0] eq "<" && [string index $raw end] eq ">"} {
+        set hex [string range $raw 1 end-1]
+        set hex [regsub -all {\s} $hex ""]
+        # An odd number of digits is padded with a zero (clause 7.3.4.3).
+        if {[string length $hex] % 2} { append hex 0 }
+        if {![regexp {^[0-9A-Fa-f]*$} $hex]} { return $raw }
+        set bytes [binary format H* $hex]
+        return [FormDecodeText $bytes]
+    }
+
+    # Literal string: (Hello)
+    if {[string index $raw 0] ne "(" || [string index $raw end] ne ")"} {
+        return $raw
+    }
+    set body [string range $raw 1 end-1]
+
+    set out ""
+    set i 0
+    set n [string length $body]
+    while {$i < $n} {
+        set c [string index $body $i]
+        if {$c ne "\\"} {
+            append out $c
+            incr i
+            continue
+        }
+        incr i
+        set e [string index $body $i]
+        switch -- $e {
+            n { append out "\n"; incr i }
+            r { append out "\r"; incr i }
+            t { append out "\t"; incr i }
+            b { append out "\b"; incr i }
+            f { append out "\f"; incr i }
+            "(" - ")" - "\\" { append out $e; incr i }
+            "\n" { incr i }
+            default {
+                # Octal, one to three digits.
+                if {[regexp {^([0-7]{1,3})} [string range $body $i end] -> okt]} {
+                    append out [format %c [scan $okt %o]]
+                    incr i [string length $okt]
+                } else {
+                    append out $e
+                    incr i
+                }
+            }
+        }
+    }
+    return [FormDecodeText $out]
+}
+
+# A PDF text string is either PDFDocEncoding or UTF-16BE with a byte
+# order mark (clause 7.9.2.2).
+proc pdf4tcl::FormDecodeText {bytes} {
+    if {[string length $bytes] >= 2} {
+        binary scan [string range $bytes 0 1] H4 bom
+        if {[string equal -nocase $bom "feff"]} {
+            return [encoding convertfrom unicode \
+                    [_SwapBytes [string range $bytes 2 end]]]
+        }
+    }
+    return $bytes
+}
+
+# UTF-16BE to the host order that [encoding convertfrom unicode] wants.
+proc pdf4tcl::_SwapBytes {s} {
+    binary scan $s cu* bytes
+    set out ""
+    foreach {hi lo} $bytes {
+        if {$lo eq ""} { set lo 0 }
+        append out [binary format cucu $lo $hi]
+    }
+    return $out
 }
 
 proc pdf4tcl::getForms {pdfFile} {
@@ -15700,7 +15900,8 @@ proc pdf4tcl::getForms {pdfFile} {
             }
             # Value
             if {[dict exists $d /V]} {
-                dict set result $id value [dict get $d /V]
+                dict set result $id value \
+                        [FormUnquoteString [dict get $d /V]]
             } else {
                 dict set result $id value {}
             }

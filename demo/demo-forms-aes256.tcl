@@ -150,3 +150,5 @@ $p destroy
 puts "Geschrieben: $outfile"
 puts "\u00D6ffnen mit: evince --password=$user $outfile"
 puts "Pr\u00FCfen mit: qpdf --password=$user --check $outfile"
+puts "  qpdf 12 meldet dabei eine Warnung zu /Length und endet mit 3 --"
+puts "  erwartet, siehe demo-aes256.tcl. Die Datei ist in Ordnung."

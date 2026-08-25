@@ -48,7 +48,10 @@ regenerateExampleRefs
 proc pdfdiff {ref new} {
     # /ID is an FNV hash over the whole file (incl. the dates), so it changes
     # every run; ignore it like the date lines for content comparison.
-    set skipPat {/ModDate |/CreationDate |xmp:ModifyDate>|xmp:CreateDate>|/ID \[}
+    # xmp:MetadataDate kam mit 0.9.4.55 dazu und ist wie die anderen ein
+    # Zeitstempel -- ohne diesen Eintrag scheitert jeder Beispielvergleich
+    # an einer Sekunde Unterschied.
+    set skipPat {/ModDate |/CreationDate |xmp:ModifyDate>|xmp:CreateDate>|xmp:MetadataDate>|/ID \[}
     proc _stripDates {file pat} {
         set fh [open $file rb]
         set lines [split [read $fh] \n]

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.53 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.55 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.53?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.55?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -787,7 +787,10 @@ The info is a dictionary with the following fields:
 Field type\&.
 .TP
 \fBvalue\fR
-Form value\&.
+Form value, unpacked: a text value comes back without its
+brackets and escapes, exactly the form \fB::pdf4tcl::fillForms\fR takes in,
+so reading a form and writing it back does not accumulate escaping\&. A name
+value (\fB/Yes\fR, \fB/Off\fR) is left as it is\&.
 .TP
 \fBflags\fR
 Value of form flags field\&.
@@ -1249,6 +1252,19 @@ e\&.g\&. \fI-keywords "tcl,pdf,document"\fR\&.
 For \fI-creationdate\fR and \fI-moddate\fR a \fBclock seconds\fR value is expected\&.
 A value of \fB0\fR uses the current date and time\&.
 Unknown option names cause an error\&.
+.sp
+With \fB-pdfa\fR the fields also go into the XMP packet, as
+\fBdc:title\fR, \fBdc:creator\fR, \fBdc:description\fR,
+\fBdc:subject\fR, \fBpdf:Keywords\fR, \fBpdf:Producer\fR,
+\fBxmp:CreateDate\fR and \fBxmp:ModifyDate\fR\&.
+.sp
+Two entries are written without being asked for\&. \fBpdf:Producer\fR
+defaults to the organization, the package name and the release, the form
+recommended for an \fBAgentName\fR (XMP part 1 clause 8\&.2\&.2\&.1);
+\fB-producer\fR overrides it\&. \fBxmp:MetadataDate\fR accompanies
+\fBxmp:ModifyDate\fR with the same value and records when the metadata
+last changed as against the content (XMP part 1 table 5); it is absent when
+no modification date was given\&.
 .TP
 \fIobjectName\fR \fBbookmarkAdd\fR ?\fIoption value\fR\&.\&.\&.?
 Add a bookmark on the current page\&.
@@ -2961,7 +2977,7 @@ elements are never folded\&.
 \fB-markstyle\fR decides how the mark of a check box or radio
 button is drawn: \fBfont\fR uses a ZapfDingbats glyph as before,
 \fBvector\fR draws it with lines and curves, and \fBauto\fR, the default,
-picks vectors where the document claims PDF/UA or a level A conformance\&. The
+picks vectors wherever the document claims PDF/UA or any PDF/A level\&. The
 glyph cannot be embedded and both standards require embedded font programs,
 so a single check box used to make a document non-conformant whatever else it
 did right\&. Documents claiming nothing keep the appearance they always had\&.

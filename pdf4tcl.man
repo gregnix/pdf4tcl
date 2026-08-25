@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.53]
+[manpage_begin pdf4tcl n 0.9.4.55]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.53]]
+[require pdf4tcl [opt 0.9.4.55]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -285,7 +285,10 @@ The info is a dictionary with the following fields:
 
 [list_begin options]
 [opt_def type] Field type.
-[opt_def value] Form value.
+[opt_def value] Form value, unpacked: a text value comes back without its
+brackets and escapes, exactly the form [cmd ::pdf4tcl::fillForms] takes in,
+so reading a form and writing it back does not accumulate escaping. A name
+value ([const /Yes], [const /Off]) is left as it is.
 [opt_def flags] Value of form flags field.
 [opt_def default] Default value, if any.
 [list_end]
@@ -780,6 +783,21 @@ e.g. [arg {-keywords "tcl,pdf,document"}].
 For [arg -creationdate] and [arg -moddate] a [const {clock seconds}] value is expected.
 A value of [const 0] uses the current date and time.
 Unknown option names cause an error.
+
+[para]
+With [option -pdfa] the fields also go into the XMP packet, as
+[const dc:title], [const dc:creator], [const dc:description],
+[const dc:subject], [const pdf:Keywords], [const pdf:Producer],
+[const xmp:CreateDate] and [const xmp:ModifyDate].
+
+[para]
+Two entries are written without being asked for. [const pdf:Producer]
+defaults to the organization, the package name and the release, the form
+recommended for an [const AgentName] (XMP part 1 clause 8.2.2.1);
+[option -producer] overrides it. [const xmp:MetadataDate] accompanies
+[const xmp:ModifyDate] with the same value and records when the metadata
+last changed as against the content (XMP part 1 table 5); it is absent when
+no modification date was given.
 
 [call [arg objectName] [method bookmarkAdd] [opt [arg "option value"]...]]
 
@@ -2507,7 +2525,7 @@ elements are never folded.
 [item] [option -markstyle] decides how the mark of a check box or radio
 button is drawn: [const font] uses a ZapfDingbats glyph as before,
 [const vector] draws it with lines and curves, and [const auto], the default,
-picks vectors where the document claims PDF/UA or a level A conformance. The
+picks vectors wherever the document claims PDF/UA or any PDF/A level. The
 glyph cannot be embedded and both standards require embedded font programs,
 so a single check box used to make a document non-conformant whatever else it
 did right. Documents claiming nothing keep the appearance they always had.

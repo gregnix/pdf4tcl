@@ -85,14 +85,28 @@ segments, needing no font at all. The option `-markstyle` decides:
 
 | value | |
 |---|---|
-| `auto` (default) | vectors where PDF/UA or a level A conformance is claimed, the glyph otherwise |
+| `auto` (default) | vectors where PDF/UA or **any** PDF/A level is claimed, the glyph otherwise |
 | `font` | always the glyph, as before |
 | `vector` | always vectors |
 
-The default leaves every existing document looking exactly as it did:
-measured, a document without a claim still contains ZapfDingbats, one with
-`-ua 1` or `-pdfa 3a` does not. The proportions follow the glyph closely
-enough that a form does not visibly change.
+Until 0.9.4.55 `auto` only switched at level A, on the assumption that the
+glyph is not what makes a B-level file fail. **That assumption was wrong.**
+Measured with veraPDF on a document whose only form field is a single check
+box:
+
+```
+with the glyph:   -pdfa 1b, 2b, 3b  ->  all FAIL, clause 6.2.11.4.1
+with the vector:  -pdfa 1b, 2b, 3b  ->  all PASS
+```
+
+The rule the glyph breaks is that the font program is not embedded, and that
+one knows no levels. Such a document was non-conformant at **creation** time,
+before anyone filled anything in.
+
+The default still leaves every document without a claim looking exactly as it
+did: measured, one without a claim still contains ZapfDingbats. The
+proportions follow the glyph closely enough that a form does not visibly
+change.
 
 ### What a merge does not do
 
