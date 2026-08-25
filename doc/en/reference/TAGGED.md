@@ -85,14 +85,28 @@ segments, needing no font at all. The option `-markstyle` decides:
 
 | value | |
 |---|---|
-| `auto` (default) | vectors where PDF/UA or a level A conformance is claimed, the glyph otherwise |
+| `auto` (default) | vectors where PDF/UA or **any** PDF/A level is claimed, the glyph otherwise |
 | `font` | always the glyph, as before |
 | `vector` | always vectors |
 
-The default leaves every existing document looking exactly as it did:
-measured, a document without a claim still contains ZapfDingbats, one with
-`-ua 1` or `-pdfa 3a` does not. The proportions follow the glyph closely
-enough that a form does not visibly change.
+Until 0.9.4.55 `auto` only switched at level A, on the assumption that the
+glyph is not what makes a B-level file fail. **That assumption was wrong.**
+Measured with veraPDF on a document whose only form field is a single check
+box:
+
+```
+with the glyph:   -pdfa 1b, 2b, 3b  ->  all FAIL, clause 6.2.11.4.1
+with the vector:  -pdfa 1b, 2b, 3b  ->  all PASS
+```
+
+The rule the glyph breaks is that the font program is not embedded, and that
+one knows no levels. Such a document was non-conformant at **creation** time,
+before anyone filled anything in.
+
+The default still leaves every document without a claim looking exactly as it
+did: measured, one without a claim still contains ZapfDingbats. The
+proportions follow the glyph closely enough that a form does not visibly
+change.
 
 ### What a merge does not do
 
@@ -184,6 +198,7 @@ than one that claims nothing.
 
     $pdf tagBegin type ?-alt text? ?-actualtext text? ?-title text? ?-lang tag?
                        ?-scope Row|Column|Both? ?-id name? ?-headers list?
+                       ?-colspan n? ?-rowspan n? ?-summary text?
                        ?-listnumbering style?
     $pdf tagEnd
 
@@ -203,6 +218,12 @@ tree.
 - `-id` names a table cell, `-headers` lists the `-id`s of the header cells
   that apply to it. `-headers` is what works for irregular tables, where
   `-scope` alone cannot express the relation.
+- `-colspan` and `-rowspan` apply to `TH` and `TD` and give the number of
+  columns or rows the cell spans. A value of 1 is the default and is not
+  written.
+- `-summary` applies to `Table` and becomes `/Summary`: what the table is
+  for and how it is built, meant for speech or braille. A reader announces
+  it before the cells.
 - `-listnumbering` applies to `L` only and becomes
   `/A <</O /List /ListNumbering ...>>`, so a reader can announce the list
   style instead of reading the painted bullet glyph.
@@ -709,3 +730,43 @@ heading hierarchy is carried by size rather than boldness.
 position counter was updated in a variable nobody reads. Harmless today
 because it is the final call, but it would become a data error the moment a
 line is added below it.
+
+
+## Table attributes
+
+ISO 32000-1 table 349 (clause 14.8.5.7) defines five standard attributes
+for tables. pdf4tcl covers all of them:
+
+| Attribute | Option | Applies to |
+|---|---|---|
+| `/RowSpan` | `-rowspan` | `TH`, `TD` |
+| `/ColSpan` | `-colspan` | `TH`, `TD` |
+| `/Headers` | `-headers` | `TH`, `TD` |
+| `/Scope` | `-scope` | `TH` |
+| `/Summary` | `-summary` | `Table` |
+
+### Why the spans matter
+
+Clause 14.8.4.3.4 note 2 says the association of headers with rows and
+columns is determined **heuristically** and "may fail for complex tables".
+The attributes exist to make it explicit, and a merged cell is exactly such
+a case.
+
+Without them a heading spanning two columns looks like a single cell in the
+tree. A reader then names the wrong heading for everything under the second
+column -- and **no validator reports it**, because the tree is well formed;
+it simply does not describe the table on the page.
+
+```tcl
+$pdf tagBegin Table -summary "Revenue by region, three rows"
+$pdf tagBegin TR
+$pdf tagText TH "Revenue" -colspan 2 -scope Column -x 200 -y 60
+$pdf tagEnd
+$pdf tagBegin TR
+$pdf tagText TD "North" -rowspan 2 -x 50 -y 80
+$pdf tagText TD "12400" -x 200 -y 80
+$pdf tagEnd
+$pdf tagEnd
+```
+
+Measured: veraPDF passes this as PDF/UA-1.

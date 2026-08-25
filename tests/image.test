@@ -6,10 +6,10 @@ set thisDir [file dirname [file join [pwd] [info script]]]
 source [file join $thisDir init.tcl]
 
 if {![file exists tcl.jpg]} {
-    file link tcl.jpg ../examples/tcl.jpg
+    file link tcl.jpg [file join $::pdf4tclTestRoot examples]/tcl.jpg
 }
 if {![file exists tcl.ext]} {
-    file link tcl.ext ../examples/tcl.jpg
+    file link tcl.ext [file join $::pdf4tclTestRoot examples]/tcl.jpg
 }
 
 test image-1.1 {misc image handling} -body {

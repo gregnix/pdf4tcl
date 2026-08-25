@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.53 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.56 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.53?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.56?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -680,7 +680,18 @@ This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encod
 from a previously loaded TrueType base font\&. Unlike \fBcreateFont\fR and \fBcreateFontSpecEnc\fR,
 which are limited to 256 characters per font instance, a CID font supports any Unicode
 character covered by the underlying TTF file\&. This includes Latin Extended, Greek, Cyrillic,
-CJK ideographs, and other scripts\&. The full TTF binary is embedded in the PDF\&.
+CJK ideographs, and other scripts\&.
+.sp
+The full TTF binary is embedded in the PDF -- pdf4tcl does not subset on this
+path, where \fBcreateFontSpecEnc\fR does\&. Measured on the same page with
+DejaVuSans: 31 kB through \fBcreateFontSpecEnc\fR against 386 kB here, because
+the whole 760 kB font goes in\&. For a long document that is a one-off cost; for
+a handful of symbols in many small files, the 256-codepoint route stays
+smaller\&.
+.sp
+See "\fIdoc/en/reference/pdf4tcl-fonts-and-unicode\&.md\fR" for the three ways of
+choosing a font side by side, with what each one costs and what it can
+render\&.
 .sp
 Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
 supported\&. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
@@ -787,7 +798,10 @@ The info is a dictionary with the following fields:
 Field type\&.
 .TP
 \fBvalue\fR
-Form value\&.
+Form value, unpacked: a text value comes back without its
+brackets and escapes, exactly the form \fB::pdf4tcl::fillForms\fR takes in,
+so reading a form and writing it back does not accumulate escaping\&. A name
+value (\fB/Yes\fR, \fB/Off\fR) is left as it is\&.
 .TP
 \fBflags\fR
 Value of form flags field\&.
@@ -1249,6 +1263,19 @@ e\&.g\&. \fI-keywords "tcl,pdf,document"\fR\&.
 For \fI-creationdate\fR and \fI-moddate\fR a \fBclock seconds\fR value is expected\&.
 A value of \fB0\fR uses the current date and time\&.
 Unknown option names cause an error\&.
+.sp
+With \fB-pdfa\fR the fields also go into the XMP packet, as
+\fBdc:title\fR, \fBdc:creator\fR, \fBdc:description\fR,
+\fBdc:subject\fR, \fBpdf:Keywords\fR, \fBpdf:Producer\fR,
+\fBxmp:CreateDate\fR and \fBxmp:ModifyDate\fR\&.
+.sp
+Two entries are written without being asked for\&. \fBpdf:Producer\fR
+defaults to the organization, the package name and the release, the form
+recommended for an \fBAgentName\fR (XMP part 1 clause 8\&.2\&.2\&.1);
+\fB-producer\fR overrides it\&. \fBxmp:MetadataDate\fR accompanies
+\fBxmp:ModifyDate\fR with the same value and records when the metadata
+last changed as against the content (XMP part 1 table 5); it is absent when
+no modification date was given\&.
 .TP
 \fIobjectName\fR \fBbookmarkAdd\fR ?\fIoption value\fR\&.\&.\&.?
 Add a bookmark on the current page\&.
@@ -1321,9 +1348,15 @@ Human-readable description stored as \fB/Desc\fR in the FileSpec
 dictionary\&.
 .TP
 \fB-afrelationship\fR \fIrel\fR
-PDF/A-3 \fB/AFRelationship\fR entry\&.  Valid values are
-\fBAlternative\fR, \fBData\fR, \fBSource\fR,
-\fBSupplement\fR, and \fBUnspecified\fR\&.
+PDF/A-3 \fB/AFRelationship\fR entry: how the embedded file relates to
+the document\&.  Valid values are \fBAlternative\fR, \fBData\fR,
+\fBSource\fR, \fBSupplement\fR, and \fBUnspecified\fR, which is the
+default\&.
+.sp
+The entry is not optional in a PDF/A-3 document\&. ISO 19005-3 clause 6\&.8
+refers to annex E: an embedded file meeting the extra requirements is an
+associated file and shall carry one\&. A document whose attachment has none
+fails validation at that clause\&.
 .RE
 .CS
 
@@ -2049,6 +2082,27 @@ Applies to \fBTH\fR only and writes
 \fBColumn\fR or \fBBoth\fR\&. ISO 14289-1 clause 7\&.5 requires it wherever
 the relation between a header cell and its data cells cannot be derived
 algorithmically\&.
+.TP
+\fB-colspan\fR \fIn\fR
+.TP
+\fB-rowspan\fR \fIn\fR
+Apply to \fBTH\fR
+and \fBTD\fR and write \fB/ColSpan\fR and \fB/RowSpan\fR: how many
+columns or rows the cell spans\&. A value of 1 is the default and is not
+written\&.
+.sp
+Without them a heading spanning two columns looks like a single cell in the
+structure tree, and a reader names the wrong heading for everything under
+the second\&. No validator reports this -- the tree is well formed, it simply
+does not match the table\&. ISO 32000-1 clause 14\&.8\&.4\&.3\&.4 note 2 says the
+association of headers with rows and columns is determined heuristically
+and may fail for complex tables, which is what these attributes are for\&.
+.TP
+\fB-summary\fR \fItext\fR
+Applies to \fBTable\fR and writes
+\fB/Summary\fR: a summary of the table's purpose and structure, meant for
+non-visual rendering -- speech or braille\&. A reader announces it before the
+cells\&.
 .RE
 .IP
 Text passed to these options is written as a UTF-16BE string when it contains
@@ -2319,14 +2373,29 @@ Default value is the document's \fB-compress\fR setting\&.
 .CE
 .TP
 \fIobjectName\fR \fBgetImageHeight\fR \fIid\fR
-This method returns the height of the image identified by \fIid\fR\&.
+This method returns the height of the image identified by \fIid\fR,
+in pixels\&.
 .TP
 \fIobjectName\fR \fBgetImageSize\fR \fIid\fR
 This method returns the size of the image identified by \fIid\fR\&.  The
-return value is a list of width and height\&.
+return value is a list of width and height, both in PIXELS -- not in the
+document's unit, and not in points\&. It is the size the image has in
+itself, which is what a resolution check needs:
+.CS
+
+
+lassign [$pdfobject getImageSize $id] px py
+# the image is to be placed 50 mm wide
+set dpi [expr {$px / (50 / 25\&.4)}]
+if {$dpi < 300} {
+    puts "too coarse for print: [format %\&.0f $dpi] dpi"
+}
+
+.CE
 .TP
 \fIobjectName\fR \fBgetImageWidth\fR \fIid\fR
-This method returns the width of the image identified by \fIid\fR\&.
+This method returns the width of the image identified by \fIid\fR,
+in pixels\&.
 .PP
 .SS "OBJECT METHODS, COLORS"
 Colors can be expressed in various formats\&. First, as a three element list
@@ -2712,12 +2781,29 @@ This option can only be set at object creation\&.
 \fB-pdfa\fR \fIlevel\fR
 Enables PDF/A conformance for the document\&.
 Valid values are \fB\fR (none, default), \fB1b\fR, \fB2b\fR and
-\fB3b\fR for conformance level B, and \fB1a\fR, \fB2a\fR and
-\fB3a\fR for level A\&.
+\fB3b\fR for conformance level B, \fB2u\fR and \fB3u\fR for level U,
+and \fB1a\fR, \fB2a\fR and \fB3a\fR for level A\&.
 .sp
-Level A adds tagged PDF, a natural language and Unicode mappings on top of
-level B\&. pdf4tcl always writes the Unicode mappings; the other two are the
-caller's job and are checked when the document is finished\&. Without tagging,
+The levels build on each other\&. ISO 19005-2 clause 5\&.4: a level B file
+skips the requirements of clauses 6\&.2\&.11\&.7 and 6\&.7, a level U file skips
+only 6\&.7, and a level A file skips neither\&.
+.RS
+.IP \(bu
+\fIB\fR -- the visual appearance is preservable\&.
+.IP \(bu
+\fIU\fR -- and the text can be extracted as Unicode\&.
+.IP \(bu
+\fIA\fR -- and the logical structure is preserved: tagged PDF and a
+natural language\&.
+.RE
+.sp
+There is no \fB1u\fR: level U was introduced with part 2 and has no
+equivalent in part 1 (clause 5\&.4 note 3)\&.
+.sp
+pdf4tcl always writes the Unicode mappings, so a document that satisfies
+level B with an embedded font satisfies level U as well\&. The tagging and
+the language are the caller's job and are checked when the document is
+finished\&. Without tagging,
 or without a language, writing the document raises an error rather than
 putting \fIpdfaid:conformance A\fR into a file that does not have what
 that claims\&. In other words, \fB3a\fR needs at least:
@@ -2961,7 +3047,7 @@ elements are never folded\&.
 \fB-markstyle\fR decides how the mark of a check box or radio
 button is drawn: \fBfont\fR uses a ZapfDingbats glyph as before,
 \fBvector\fR draws it with lines and curves, and \fBauto\fR, the default,
-picks vectors where the document claims PDF/UA or a level A conformance\&. The
+picks vectors wherever the document claims PDF/UA or any PDF/A level\&. The
 glyph cannot be embedded and both standards require embedded font programs,
 so a single check box used to make a document non-conformant whatever else it
 did right\&. Documents claiming nothing keep the appearance they always had\&.

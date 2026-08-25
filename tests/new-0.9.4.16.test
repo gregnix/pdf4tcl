@@ -7,15 +7,57 @@ package require aes
 # Constraints
 # ---------------------------------------------------------------------------
 
-# aes256: AES-256 in vertretbarer Zeit verfuegbar?
-# Mit Tcllib-AES dauert ein PDF ~24s -- zu lang fuer Testlauf.
-# Tests laufen nur wenn openssl UND ein schnelles AES-Backend vorhanden ist.
-# Aktuell: kein schnelles Backend implementiert -> Tests uebersprungen.
-# Sobald cffi-Backend fertig: Constraint hier anpassen.
-testConstraint aes256 0
+# aes256: laesst sich AES-256 hier in vertretbarer Zeit rechnen?
+#
+# MESSEN STATT ANNEHMEN. Hier stand "testConstraint aes256 0" mit der
+# Begruendung, es gebe kein schnelles Backend -- ein fester Wert, der nie
+# nachgeprueft wurde. Ob er stimmt, haengt aber an der Maschine:
+#
+#   Algorithmus 2.B (ISO 32000-2 Klausel 7.6.4.3.3) rechnet mindestens
+#   64 Runden. Jede verschluesselt einen Puffer von rund 3,4 KB mit
+#   AES-CBC -- zusammen etwa 216 KB, in reinem Tcl.
+#
+#   NICHT das Hashen ist der Engpass, obwohl die Runden je einen
+#   SHA-256, -384 oder -512 brauchen: gemessen 64 SHA-384 ueber 3 KB in
+#   EINER Millisekunde. Auch das schnellere tcl-sha-Backend (C-Erweiterung)
+#   bringt nur 20,5 statt 22,4 Sekunden.
+#
+#   Zum Vergleich: AES-128 (V=4) braucht 157 ms, ein Dokument ohne
+#   Verschluesselung 9 ms.
+#
+#   Schnell wird das erst mit einem AES in C -- cffi gegen libcrypto oder
+#   eine critcl-Erweiterung.
+#
+# Also einmal eine Datei schreiben und die Zeit nehmen. Faellt sie unter
+# die Schwelle, laufen die Tests; sonst werden sie uebersprungen und der
+# Grund steht da.
+set aesGrenzeMs 3000
+set aesDauer 0
+if {[catch {
+    set _t [clock milliseconds]
+    set _p [pdf4tcl::new %AUTO% -paper a4 -userpassword geheim -encversion 5]
+    $_p startPage
+    $_p setFont 10 Helvetica
+    $_p text "x" -x 50 -y 700
+    $_p get
+    $_p destroy
+    set aesDauer [expr {[clock milliseconds] - $_t}]
+}]} {
+    set aesDauer -1
+}
+testConstraint aes256 [expr {$aesDauer >= 0 && $aesDauer < $aesGrenzeMs}]
 
-puts "new-0.9.4.16.test: AES-256-Tests uebersprungen (Tcllib-AES zu langsam fuer Testlauf)"
-puts "  Begruendung: 14 Tests x ~24s = ~6 Minuten. Manuell testen mit demo-aes256.tcl"
+if {![testConstraint aes256]} {
+    if {$aesDauer < 0} {
+        puts "new-0.9.4.16.test: AES-256 nicht verfuegbar -- Tests uebersprungen"
+    } else {
+        puts "new-0.9.4.16.test: AES-256 braucht hier ${aesDauer} ms je Datei\
+                (Grenze ${aesGrenzeMs} ms), Backend\
+                $::pdf4tcl::_shaBackend -- 14 Tests uebersprungen"
+        puts "  Der Engpass ist das AES in reinem Tcl, nicht das Hashen --\
+                ein SHA-Backend hilft kaum."
+    }
+}
 
 
 # ---------------------------------------------------------------------------

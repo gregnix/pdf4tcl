@@ -4,8 +4,16 @@
 
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
-testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
-testConstraint a010013l [file exists ../examples/a010013l.afm]
+testConstraint FreeSans [file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf]
+testConstraint a010013l [file exists [file join $::pdf4tclTestRoot examples]/a010013l.afm]
+
+# MyArial is registered by font-4.1 (FreeSans) and by font-5.1
+# (a010013l), so it exists when EITHER face is present. font-6.1 asks for
+# it and carried no constraint at all -- on a machine with neither font
+# it failed, and the message named getFonts rather than the missing
+# prerequisite.
+testConstraint haveMyArial [expr {[testConstraint FreeSans]
+        || [testConstraint a010013l]}]
 
 test font-1.1 {font metrics} -body {
     set pdf [pdf4tcl::new %AUTO%]
@@ -62,7 +70,7 @@ test font-3.1 {font, unicode} -body {
 } -result 1
 
 test font-4.1 {font, truetype} -constraints {FreeSans} -body {
-    pdf4tcl::loadBaseTrueTypeFont BaseArial "../examples/FreeSans.ttf"
+    pdf4tcl::loadBaseTrueTypeFont BaseArial "$::pdf4tclTestRoot/examples/FreeSans.ttf"
     # "1" "euro" and "!" maps to 0 1 end 2
     set subset [list 49 [expr 0x20AC] 33]
     pdf4tcl::createFontSpecEnc BaseArial MyArial $subset
@@ -71,7 +79,7 @@ test font-4.1 {font, truetype} -constraints {FreeSans} -body {
 } -result 1
 
 test font-4.2 {font, truetype} -constraints {FreeSans} -body {
-    set ch [open "../examples/FreeSans.ttf" "rb"]
+    set ch [open "$::pdf4tclTestRoot/examples/FreeSans.ttf" "rb"]
     set ttf [read $ch]
     close $ch
     pdf4tcl::createBaseTrueTypeFont BaseArial2 $ttf 1
@@ -83,7 +91,7 @@ test font-4.2 {font, truetype} -constraints {FreeSans} -body {
 test font-4.3 {font, truetype} -constraints {FreeSans} -body {
     # Just try to locate a bunch of ttf and load them. Just to exercise
     # the code for now.
-    set fn [file normalize "../examples/FreeSans.ttf"]
+    set fn [file normalize "$::pdf4tclTestRoot/examples/FreeSans.ttf"]
     catch {set fn [file link $fn]}
     set dir [file dirname [file dirname $fn]]
     set files [glob -nocomplain -dir $dir -type f */*.ttf]
@@ -129,17 +137,17 @@ test font-4.3b {font, truetype} -constraints FreeSans -body {
 
 test font-5.1 {font, type1} -constraints {a010013l} -body {
     pdf4tcl::loadBaseType1Font BaseFont1 \
-            ../examples/a010013l.afm ../examples/a010013l.pfb
+            [file join $::pdf4tclTestRoot examples]/a010013l.afm [file join $::pdf4tclTestRoot examples]/a010013l.pfb
     pdf4tcl::createFont BaseFont1 MyArial cp1252
 
     mytest {setFont 16 MyArial} {text 1\u20ac!} *1\x80!*
 } -result 1
 
 test font-5.2 {font, type1} -constraints {a010013l} -body {
-    set ch [open "../examples/a010013l.afm" "rb"]
+    set ch [open "$::pdf4tclTestRoot/examples/a010013l.afm" "rb"]
     set afm [read $ch]
     close $ch
-    set ch [open "../examples/a010013l.pfb" "rb"]
+    set ch [open "$::pdf4tclTestRoot/examples/a010013l.pfb" "rb"]
     set pfb [read $ch]
     close $ch
 
@@ -151,13 +159,29 @@ test font-5.2 {font, type1} -constraints {a010013l} -body {
     mytest {setFont 16 MyArial2} {text 1\u20ac!} *\x00\x01\x02*
 } -result 1
 
-test font-6.1 {getFonts call} -body {
+test font-6.1 {getFonts call} -constraints {haveMyArial} -body {
     lsort -dictionary [pdf4tcl::getFonts]
 } -match glob -result {*Courier * MyArial * ZapfDingbats*}
 # MyArial2 only show up with this constraint
 test font-6.1b {getFonts call} -constraints {a010013l} -body {
     lsort -dictionary [pdf4tcl::getFonts]
 } -match glob -result {*Courier * MyArial * MyArial2 * ZapfDingbats*}
+
+test font-7.1 {die Testdateien finden die Wurzel, egal von wo} -body {
+    # Der Pfad zu den Beispielschriften hing am ARBEITSVERZEICHNIS:
+    # [file join [pwd] ..] stimmte aus tests/, zeigte aus der Wurzel aber
+    # nach draussen. Dann fand "file exists ../examples/FreeSans.ttf"
+    # nichts, sieben Tests wurden uebersprungen, und font-6.1 fiel mit
+    # einer Meldung ueber getFonts durch -- fuer einen Pfadfehler.
+    expr {[file exists [file join $::pdf4tclTestRoot pkgIndex.tcl]]
+            && [file isdirectory [file join $::pdf4tclTestRoot src]]}
+} -result 1
+
+test font-7.2 {die Beispielschriften liegen darunter} -body {
+    # Gegenprobe: die Wurzel zu finden nuetzt nichts, wenn darunter
+    # nicht liegt, was die Tests brauchen.
+    file exists [file join $::pdf4tclTestRoot examples FreeSans.ttf]
+} -result 1
 
 ::tcltest::cleanupTests
 
@@ -210,7 +234,7 @@ test font-7.6 {createFontSpecEnc: a valid subset still works} -constraints FreeS
     # them pass just as well. Note the base font has to be loaded here --
     # the tests above never get that far, their argument check fires first,
     # so "FreeSans" there is a name nothing ever loaded.
-    pdf4tcl::loadBaseTrueTypeFont BaseEncOk "../examples/FreeSans.ttf"
+    pdf4tcl::loadBaseTrueTypeFont BaseEncOk "$::pdf4tclTestRoot/examples/FreeSans.ttf"
     catch {pdf4tcl::createFontSpecEnc BaseEncOk TestEncOk {63 65 66 67}} err
     set err
 } -result {}

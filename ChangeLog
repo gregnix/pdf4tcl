@@ -1,3 +1,209 @@
+2026-08-25 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.56
+	* src/tagged.tcl (tagBegin): -colspan and -rowspan on TH and TD,
+	-summary on Table, written as /ColSpan, /RowSpan and /Summary (ISO
+	32000-1 table 349). A span of 1 is not written. Table 349 is now
+	covered in full: RowSpan, ColSpan, Headers, Scope, Summary.
+	* tests/tagged.test: 8 tests, 72 in total.
+	* src/main.tcl (CheckFormOptions): addForm reports an option that
+	belongs to another field type. "addForm text ... -value x" set nothing
+	and said nothing; -value is the radiobutton's export name and a text
+	field takes -init. A warning, not an error, so a caller passing a
+	harmless extra option keeps working. The table is read off the
+	grouping the manual already uses; measured against the suite, doc/en
+	and pdf4tcllib without a single false report.
+	* tests/form-ext.test: 5 tests, 84 in total.
+	* pdf4tcl.man (createFontSpecCID): says what the missing subsetting
+	costs and points at the reference. It already said the full TTF is
+	embedded, without the consequence or the alternative -- the one thing
+	a caller weighing the two mechanisms needs.
+	* doc/en/reference/README.md: new. Thirteen reference files had no
+	index, and the question that comes up most -- which font mechanism for
+	non-Latin-1 text -- is answered at the top with the measured sizes.
+	* tests/new-0.9.4.16.test: the aes256 constraint measures instead of
+	being hard-coded to 0. It wrote one encrypted file and timed it;
+	under the threshold the fourteen tests run, over it they are skipped
+	and the message names the figure, the threshold and the backend.
+	Whether AES-256 is too slow depends on the machine: algorithm 2.B runs
+	at least 64 rounds, each encrypting some 3.4 kB with AES-CBC -- about
+	216 kB in pure Tcl. Not the hashing: 64 SHA-384 over 3 kB take one
+	millisecond, and the C-based tcl-sha backend brings 22.4 s down to
+	only 20.5. AES-128 takes 157 ms by comparison.
+	* tests/init.tcl: the test tree is located by searching upwards for
+	pkgIndex.tcl next to src/, not by taking [file join [pwd] ..]. That
+	pointed one level above the WORKING directory rather than above the
+	test file, so "tclsh tests/font.test" from the root looked for
+	../examples outside the tree: seven tests skipped and font-6.1 failing
+	with a message about getFonts for what was a path error. 38 uses of
+	../examples across eight files now go through $::pdf4tclTestRoot.
+	* tests/font.test: font-6.1 asks for MyArial, which font-4.1 and
+	font-5.1 register, and carried no constraint -- on a machine with
+	neither face it failed rather than being skipped. font-7.1 and 7.2
+	pin that the root is found and carries the example fonts.
+	* src/main.tcl: /Producer is filled in where the caller left it. ISO
+	19005-3 table 7 pairs it with pdf:Producer, which pdf4tcl writes
+	unasked, so the two sides of the crosswalk disagreed -- XMP named the
+	release, /Info named nothing. Clause 6.6.3 puts this as a should, so
+	no file was ever invalid for it; it was inconsistent. -producer still
+	overrides, on both sides.
+	* tests/pdfa.test: 4 tests covering all eight pairs of table 7, 92 in
+	total.
+	* src/main.tcl (addEmbeddedFile): /AFRelationship defaults to
+	Unspecified instead of being left out. ISO 19005-3 clause 6.8 refers
+	to annex E: an embedded file meeting the extra requirements is an
+	associated file and needs one. Measured: without it veraPDF fails the
+	document at clause 6.8 -- a PDF/A-3 file that was not one. facturx
+	set it already; a plain attachment did not.
+	* tests/pdfa.test: 3 tests, 88 in total.
+	* src/options.tcl, src/main.tcl: -pdfa accepts 2u and 3u, and the XMP
+	says U. ISO 19005-2 clause 5.4: a level U file skips only the
+	requirements of clause 6.7, where a level B file also skips 6.2.11.7 --
+	so U is B plus the Unicode mappings, which pdf4tcl writes anyway.
+	Measured: veraPDF accepts both. There is no 1u; the level came in with
+	part 2 (clause 5.4 note 3).
+	* tests/pdfa.test: 5 tests, 85 in total.
+	* pdf4tcl.man, doc/en/howtos/howto-pdfa.md: the level and how the three
+	build on each other.
+	* tests/ligatures.test: kerning across a ligature is covered. The
+	KNOWN said no face here carries a kern pair on a ligature glyph;
+	measured over all installed fonts, five of the 38 with ligatures do --
+	Carlito in all four cuts and Caladea-BoldItalic. In Carlito the tf
+	ligature kerns with seventeen characters. ligatures-5.0 is a guard:
+	it fails when the search finds nothing, rather than letting the test
+	be skipped in silence. 19 in total.
+	* pdf4tcl.man (getImageSize, getImageWidth, getImageHeight): the
+	values are PIXELS, with the resolution check that needs them.
+	* pdf4tcl.man, doc/en/reference/TAGGED.md,
+	doc/en/howtos/howto-tagged.md: the three options.
+
+2026-08-24 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.55
+	* src/main.tcl (UseVectorMark): the vector tick is chosen for every
+	PDF/A level, not just for "a" -- ZapfDingbats has no font program to
+	embed, and that rule knows no levels. Measured on a document whose
+	only form field is one check box: -pdfa 1b, 2b and 3b all FAIL with
+	the glyph and PASS with the vector mark. Without -pdfa the glyph
+	stays; -markstyle font still overrides.
+	* src/cat.tcl (FormUnquoteString, getForms): a text value comes back
+	unpacked, the way fillForms takes it in; it used to come back raw, so
+	reading a form and writing it back doubled the escaping of every
+	untouched field on every pass. A name value (/Yes, /Off) is left
+	alone. Literal strings, hex strings, octal escapes and UTF-16BE with
+	a byte order mark are handled (ISO 32000 clauses 7.3.4.2, 7.3.4.3 and
+	7.9.2.2).
+	* src/cat.tcl (FormSetKey): the pattern for a string value stopped at
+	the first escaped bracket, so replacing a value that contained one
+	left the rest of the old string behind -- the other half of the round
+	trip defect above. It now matches escaped pairs.
+	* src/main.tcl: the catalog /Version entry is written as a NAME.
+	ISO 32000 clause 7.7.2 gives the type as name; pdf4tcl wrote a number,
+	in every file above version 1.4 -- so in all PDF/A-2 and -3 output
+	since those levels exist. The files stayed readable; a reader taking
+	the version from the catalog rather than the header got the wrong
+	type. Found by tools/pdfcheck-native.tcl over examples/, which
+	reported it on two of fifteen files.
+	* tools/pdfcheck-native.tcl (checkInfoXmp): reads /Info through the
+	trailer rather than searching the whole file for /Title. That key is
+	not unique in a PDF -- every bookmark carries one -- so in a document
+	with an outline the first hit was the first bookmark. Measured on
+	tutorial-06-pack-body.pdf: five /Title entries, the document's own
+	last, and the check reported Info "Cover" against XMP "Reading pack"
+	when both were right. A real mismatch is still reported.
+	* src/main.tcl (_BuildXMPStream): pdf:Producer names the release. The
+	property is an AgentName (XMP part 2 table 30) and the recommended
+	form for one is "Organization Software Version" (part 1 clause
+	8.2.2.1); it used to be the bare word "pdf4tcl", which says nothing
+	about which release wrote a file -- the first thing worth knowing when
+	a document from elsewhere turns out to be wrong. -producer still
+	overrides it.
+	* src/main.tcl (_BuildXMPStream): xmp:MetadataDate is written beside
+	xmp:ModifyDate. The one records when the metadata last changed, the
+	other when the content did (part 1 table 5); the first shall be the
+	same as or later than the second, and the same value is the honest
+	answer at write time. Absent when no modification date was given --
+	inventing a date nobody set would be worse than none.
+	* tests/pdfa.test: mark-1.4 pinned the old behaviour on the assumption
+	that "the glyph is not what makes it fail"; that assumption was wrong
+	and the test now carries the measurement. mark-1.6 pins that a document
+	without a claim keeps the glyph, pdfa-6.10 to 6.13 cover the two XMP
+	entries and pdfa-7.1/7.2 the catalog version. 80 in total.
+	* tests/form-ext.test: form-21.2a is the round trip over three passes
+	and clears its own leftovers before it starts, not only after; on its
+	own after an aborted run it would otherwise take the stale file as
+	input. form-21.2b pins that a name value is left alone. 79 in total.
+	* tests/test-aes256.tcl: the qpdf check reads the output text rather
+	than the exit status. qpdf exits with 3 when it warned, and catch
+	turns that into a failure -- so from qpdf 12 on every backend failed
+	the check over the /Length entry the Encrypt dictionary deliberately
+	does not carry for V 5. Measured: qpdf 11.9.0 exits 0 without a
+	warning, qpdf 12.4.0 exits 3 with one, on the same file, and the file
+	decrypts either way. A damaged file is still reported.
+	* tests/examples.test: xmp:MetadataDate joins the lines the reference
+	comparison skips. It is a timestamp and differs by a second between
+	writing the reference and running the test.
+	* demo/demo-forms-calc.tcl, demo/demo-forms-enc.tcl: find the package
+	by searching for pkgIndex.tcl next to src/ rather than counting three
+	directories upwards, which pointed outside the tree. Both failed with
+	"can't find package pdf4tcl 0.9.4.32", which reads like a version that
+	is too old and was a path error. Pre-existing.
+	* pdf4tcl.man, doc/en/reference/TAGGED.md: -markstyle auto is
+	described as switching at any PDF/A level, not only at level A, and
+	TAGGED.md carries the measurement that overturned the old assumption.
+	* pdf4tcl.man (metadata, getForms): the XMP fields the option writes,
+	the two entries written unasked, and that a text value comes back
+	unpacked.
+	* doc/en/howtos/howto-forms.md: the round trip, and a section on forms
+	under PDF/A -- a document with one check box used to be non-conformant
+	the moment it was written.
+	* demo/demo-forms.tcl: shows the round trip over three passes.
+	* KNOWN: addForm ignores a type-specific option given to the wrong
+	field type. "addForm text ... -value x" sets nothing and throws
+	nothing; -value is the radiobutton's export name and a text field
+	takes -init.
+
+2026-08-23 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.54
+	* src/main.tcl: two objects were written straight out with Pdfout and
+	so bypassed EncryptStringsInBody -- the name tree of the embedded
+	files and the OCG dictionaries of the layers. ISO 32000-2 clause 7.6.2
+	lists four exceptions from encryption (trailer /ID, strings in the
+	encryption dictionary, strings inside already encrypted streams, and a
+	signature's Contents); neither of these is among them.
+	In an encrypted file /F and /UF of the file specification were
+	encrypted while the name in the name tree stayed in the clear, so the
+	two no longer matched: "qpdf --list-attachments" printed an empty name
+	and "--show-attachment=anhang.txt" answered "attachment not found".
+	The attachment was unreachable. Without encryption both worked. This
+	cannot arise under PDF/A, which forbids encryption altogether; it
+	affects attachments in an encrypted document that claims no
+	conformance.
+	Pointed out indirectly by Alexander Schoepe (tclpdf), whose remark
+	about the EFF entry led here.
+	* src/main.tcl (CheckPdfaEncrypt): -pdfa together with a password is
+	refused. Every PDF/A profile carries the rule at clause 6.1.3 test 2:
+	"The keyword Encrypt shall not be used in the trailer dictionary" in
+	parts 1 to 3, "The Encrypt key shall not be present in the trailer
+	dictionary" in part 4 -- no level, no exception. Read from the veraPDF
+	1.28 validation profiles. pdf4tcl let the combination through, and the
+	resulting file carried its pdfaid claim beside an /Encrypt entry.
+	veraPDF 1.30.2 on such a file answers "appears to be an encrypted PDF
+	file and could not be processed" -- it never gets far enough to refute
+	the claim.
+	* demo/demo-aes256.tcl and the three other encryption demos that
+	suggest "qpdf --check": they now say that qpdf 12 warns about /Length
+	and exits 3, and why that is expected. The demos invited the check;
+	leaving the reader to wonder about the warning would be worse than
+	the warning itself.
+	* tests/encrypt.test: 5 tests for the encrypted strings, tests/pdfa.test
+	2 for the refusal. encrypt-empty-1.2 and 1.3 measured the encrypted
+	empty appearance stream and needed -pdfa and a password at once; that
+	is now refused, and without -pdfa addForm writes no appearance XObject
+	at all, so the subject no longer exists. Replaced by one test that
+	pins the refusal.
+
 2026-08-22 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.53

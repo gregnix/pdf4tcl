@@ -77,6 +77,36 @@ The nesting is checked: a `TD` outside a `TR`, or a `TR` outside a
 335 and 337 fix which element may sit where; no validator reports a
 violation and no reader repairs it, so the check happens here.
 
+### Merged cells
+
+A heading across two columns, a cell across two rows:
+
+```tcl
+$pdf tagText TH "Revenue" -colspan 2 -scope Column -x 200 -y 170
+$pdf tagText TD "North"   -rowspan 2 -x 50  -y 190
+```
+
+**Without these the tree is a lie.** A heading spanning two columns looks
+like a single cell in it, and a reader names the wrong heading for
+everything under the second column.
+
+No validator reports that -- the tree is well formed, it simply does not
+describe the table on the page. ISO 32000-1 clause 14.8.4.3.4 says so
+itself: the association is determined heuristically and may fail for
+complex tables.
+
+A value of 1 is the default and is not written.
+
+### Describing the table
+
+```tcl
+$pdf tagBegin Table -summary "Revenue by region, three rows"
+```
+
+`/Summary` says what the table is for and how it is built, meant for
+speech and braille. A reader announces it before the cells, so someone who
+cannot see the shape of the table knows what is coming.
+
 ## Decoration is not content
 
 A rule, a frame, a background tint carry no meaning. Marked as artifacts

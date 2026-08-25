@@ -4,7 +4,7 @@
 
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
-testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
+testConstraint FreeSans [file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf]
 testConstraint runin87p [package vsatisfies [package present Tcl] 8.7-]
 
 # Try to locate any tkpath
@@ -135,7 +135,7 @@ test canvas-3.2 {text, font} -constraints {FreeSans} -body {
     .c create text 10 10 -text "1\u20ac!" -anchor nw \
             -font $font
 
-    pdf4tcl::loadBaseTrueTypeFont BaseArial "../examples/FreeSans.ttf"
+    pdf4tcl::loadBaseTrueTypeFont BaseArial "$::pdf4tclTestRoot/examples/FreeSans.ttf"
     # "1" "euro" and "!" maps to 0 1 end 2
     set subset [list 49 [expr 0x20AC] 33]
     pdf4tcl::createFontSpecEnc BaseArial MyArial $subset
