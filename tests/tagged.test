@@ -58,7 +58,7 @@ proc inflatedStreams {data} {
 # 1.x  Off by default -- no cost for untagged documents
 # -----------------------------------------------------------------------
 
-testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
+testConstraint FreeSans [file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf]
 
 test tagged-1.1 {untagged document has no structure tree} -body {
     set data [taggedPdf {
@@ -1155,7 +1155,7 @@ test tagged-17.1 {an embedded font survives a merge only once} -constraints \
     # Merging documents built from the same template duplicates everything
     # they share. Measured before: two documents of 28961 bytes, each
     # embedding FreeSans, produced 57757 bytes with the font twice in it.
-    ::pdf4tcl::loadBaseTrueTypeFont BaseDup "../examples/FreeSans.ttf"
+    ::pdf4tcl::loadBaseTrueTypeFont BaseDup "$::pdf4tclTestRoot/examples/FreeSans.ttf"
     ::pdf4tcl::createFont BaseDup DupFont iso8859-1
     foreach n {1 2} {
         set p [::pdf4tcl::new %AUTO% -paper a4 -margin 40]
@@ -1227,5 +1227,144 @@ test tagged-17.3 {the structure survives the fold} -body {
     }
     set ::pdf4tcl::warnings {}
 } -result {0 1 2 3}
+
+
+# ---------------------------------------------------------------------------
+# tagged-span-x  Verbundene Zellen (0.9.4.56)
+#
+# ISO 32000-1 Tabelle 349 (Klausel 14.8.5.7) fuehrt /ColSpan und
+# /RowSpan als Standard-Tabellenattribute, beide nur an TH und TD.
+#
+# Fehlt der Eintrag, nimmt ein Leser 1 an -- deshalb wird 1 nicht
+# geschrieben.
+#
+# Klausel 14.8.4.3.4 Anmerkung 2 sagt, die Zuordnung von Ueberschriften
+# zu Zeilen und Spalten werde heuristisch ermittelt und koenne bei
+# komplexen Tabellen fehlschlagen -- die Attribute gibt es, um sie
+# ausdruecklich zu machen. Eine verbundene Zelle ist genau so ein Fall.
+#
+# Ohne sie sieht eine Ueberschrift ueber zwei Spalten im Baum aus wie
+# eine Zelle, und ein Vorleseprogramm nennt fuer alles unter der zweiten
+# die falsche. Kein Validator meldet das -- der Baum ist wohlgeformt, er
+# passt nur nicht zur Tabelle.
+# ---------------------------------------------------------------------------
+
+test tagged-span-1 {ColSpan landet im Baum} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Table
+        $p tagBegin TR
+        $p tagText TH "Umsatz" -colspan 2 -scope Column -x 50 -y 60
+        $p tagEnd
+        $p tagBegin TR
+        $p tagText TD "12400" -x 50 -y 80
+        $p tagEnd
+        $p tagEnd
+    }]
+    regexp {/ColSpan\s+2\M} $data
+} -result 1
+
+test tagged-span-2 {RowSpan ebenso} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Table
+        $p tagBegin TR
+        $p tagText TD "Nord" -rowspan 2 -x 50 -y 60
+        $p tagEnd
+        $p tagBegin TR
+        $p tagText TD "9850" -x 50 -y 80
+        $p tagEnd
+        $p tagEnd
+    }]
+    regexp {/RowSpan\s+2\M} $data
+} -result 1
+
+test tagged-span-3 {ein Span von 1 wird nicht geschrieben} -body {
+    # Das ist der Standardwert; ihn hinzuschreiben blaeht den Baum ohne
+    # Aussage.
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Table
+        $p tagBegin TR
+        $p tagText TD "x" -colspan 1 -x 50 -y 60
+        $p tagEnd
+        $p tagEnd
+    }]
+    expr {[string first "/ColSpan" $data] < 0}
+} -result 1
+
+test tagged-span-4 {nur an TH und TD} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4]
+    $p tagged 1 -lang de-DE
+    $p startPage
+    catch {$p tagBegin P -colspan 2} e
+    $p destroy
+    expr {[string match {*applies to TH or TD*} $e]}
+} -result 1
+
+test tagged-span-5 {nur positive ganze Zahlen} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4]
+    $p tagged 1 -lang de-DE
+    $p startPage
+    $p tagBegin Table
+    $p tagBegin TR
+    set fehler {}
+    foreach wert {0 -1 zwei 1.5} {
+        catch {$p tagText TD "x" -colspan $wert -x 50 -y 60} e
+        lappend fehler [string match {*must be a positive integer*} $e]
+    }
+    $p destroy
+    set fehler
+} -result {1 1 1 1}
+
+test tagged-span-6 {Span und -scope zusammen} -body {
+    # Beide gehen in dasselbe /Attributes-Woerterbuch mit /O /Table --
+    # sie duerfen sich nicht gegenseitig verdraengen.
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Table
+        $p tagBegin TR
+        $p tagText TH "Umsatz" -colspan 2 -scope Column -x 50 -y 60
+        $p tagEnd
+        $p tagEnd
+    }]
+    expr {[regexp {/ColSpan\s+2\M} $data]
+            && [regexp {/Scope\s*/Column\M} $data]}
+} -result 1
+
+test tagged-span-7 {Summary steht am Table} -body {
+    # ISO 32000-1 Tabelle 349: eine Zusammenfassung von Zweck und Aufbau
+    # der Tabelle, nur am Table selbst. Die Anmerkung dort nennt den
+    # Zweck: nichtvisuelle Wiedergabe, also Sprache oder Braille.
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Table -summary "Umsatz nach Region, drei Zeilen"
+        $p tagBegin TR
+        $p tagText TD "x" -x 50 -y 60
+        $p tagEnd
+        $p tagEnd
+    }]
+    regexp {/Summary\s*\(Umsatz nach Region} $data
+} -result 1
+
+test tagged-span-8 {Summary nur am Table} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4]
+    $p tagged 1 -lang de-DE
+    $p startPage
+    $p tagBegin Table
+    catch {$p tagBegin TR -summary "x"} e
+    $p destroy
+    expr {[string match {*applies to Table*} $e]}
+} -result 1
 
 cleanupTests

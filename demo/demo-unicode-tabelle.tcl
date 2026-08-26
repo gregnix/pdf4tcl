@@ -239,8 +239,19 @@ proc newPage {pdf title fontName} {
         $pdf setFont $fTxt Helvetica
         $pdf text "Achtung: Tcl [info patchlevel] kann diese Zeichen nicht\
                 darstellen -- die Glyphen unten sind nicht die des Blocks." \
-                -x $mL -y [expr {$mT + 6.5}]
+                -x $mL -y [expr {$mT + 6.0}]
     }
+}
+
+# Wieviel Platz die Warnzeile braucht, in Millimetern.
+#
+# Vorher stand die Warnung bei mT+6.5 und die Spaltenueberschrift bei
+# mT+5.5 -- ein Millimeter Abstand bei 4pt Schrift, die 1,4 mm hoch ist.
+# Sie lagen uebereinander. Auf der Seite sieht man einen Buchstabensalat,
+# und man haelt ihn fuer ein Schriftproblem, weil es eine Schrifttabelle
+# ist. Gefunden hat es tools/layout-check.tcl.
+proc noticeOffset {} {
+    return [expr {($::inSmpBlock && !$::smpOk) ? 4.0 : 0.0}]
 }
 
 # Hinweisseite vor der SMP-Gruppe, nur wenn die Laufzeit die Zeichen nicht kann
@@ -292,12 +303,29 @@ proc tableHeader {pdf y} {
 proc drawRow {pdf x y cp symFont} {
     global cCode cGlyph fTxt fSym cpToGlyph
     $pdf setFont $fTxt Helvetica
-    $pdf text [format "%04X" $cp] -x $x -y $y
+    set code [format "%04X" $cp]
+    $pdf text $code -x $x -y $y
+    # Die Glyphspalte weicht aus, wenn der Code breiter ist als cCode.
+    # Oberhalb von U+FFFF sind es fuenf Stellen -- "1F42D" misst 34 Punkt,
+    # die Spalte ist 28 breit, und der Code lief in die Glyphe hinein.
+    set codeBreite [$pdf getStringWidth $code]
+    set glyphX [expr {$x + $cCode + 1.5}]
+    if {$x + $codeBreite + 1.5 > $glyphX} {
+        set glyphX [expr {$x + $codeBreite + 1.5}]
+    }
     $pdf setFont $fSym $symFont
-    $pdf text [format "%c" $cp] -x [expr {$x + $cCode + 1.5}] -y $y
+    $pdf text [format "%c" $cp] -x $glyphX -y $y
     set name [expr {[info exists cpToGlyph($cp)] ? $cpToGlyph($cp) : ""}]
     if {$name ne ""} {
         $pdf setFont $fTxt Helvetica
+        # Auf die Spaltenbreite kuerzen. Glyphnamen werden lang --
+        # "whitediamondcontainingblacksmalldiamond" sind neununddreissig
+        # Zeichen und liefen bis 0.9.4.57 in die rechte Spalte hinein.
+        global cName
+        set platz [expr {$cName - 1.0}]
+        while {$name ne "" && [$pdf getStringWidth $name] > $platz} {
+            set name [string range $name 0 end-1]
+        }
         $pdf text $name -x [expr {$x + $cCode + $cGlyph}] -y $y
     }
 }
@@ -320,7 +348,7 @@ proc fontHasGlyphs {baseName from to} {
 
 proc rangePage {pdf title from to symFont fontName} {
     global mT mB pH rowH x0L x0R nextGroupLabel
-    set yStart [expr {$mT + 9.0}]
+    set yStart [expr {$mT + 9.0 + [noticeOffset]}]
     set yMax   [expr {$pH - $mB}]
     set perPage [expr {int(($yMax - $yStart) / $rowH) * 2}]
     set chars {}
@@ -336,7 +364,7 @@ proc rangePage {pdf title from to symFont fontName} {
             $pdf bookmarkAdd -title $title -level 1
             set firstPage 0
         }
-        tableHeader $pdf [expr {$mT + 5.5}]
+        tableHeader $pdf [expr {$mT + 5.5 + [noticeOffset]}]
         set y $yStart; set col 0; set n 0
         while {$i < $total && $n < $perPage} {
             set x [expr {$col == 0 ? $x0L : $x0R}]

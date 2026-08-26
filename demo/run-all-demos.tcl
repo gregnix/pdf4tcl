@@ -112,6 +112,8 @@ set DEMOS {
     {demo-alpha.tcl              0  {file demo-alpha.pdf}  "Transparenz (setAlpha/getAlpha)"}
     {demo-api-vergleich.tcl      0  none       "API-Vergleich (Font-Demo)"}
     {demo-cidfont.tcl            0  none       "CIDFont Unicode-Support"}
+    {demo-catpdf.tcl             0  none       "PDFs zusammenfuehren (catPdf)"}
+    {demo-kerning-ligatures.tcl  0  none       "Kerning und Ligaturen"}
     {demo-embedfile.tcl          0  --out      "Eingebettete Dateien (addEmbeddedFile)"}
     {demo-interlaced-png.tcl     0  dir        "Interlaced PNG (Adam7, 0.9.4.28)"}
     {demo-encryption.tcl         0  dir        "AES-128 Verschluesselung + -permissions"}

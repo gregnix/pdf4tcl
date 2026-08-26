@@ -21,7 +21,7 @@ pdf4tcl::loadBaseTrueTypeFont Base /path/DejaVuSans.ttf
 pdf4tcl::createFontSpecEnc Base Sub {63 65 66 67 ...}
 $pdf setFont 12 Sub
 
-# 3. CID font -- the whole font, every character it has
+# 3. CID font -- every character the font has
 pdf4tcl::loadBaseTrueTypeFont Base /path/DejaVuSans.ttf
 pdf4tcl::createFontSpecCID Base Uni
 $pdf setFont 12 Uni
@@ -35,7 +35,7 @@ proper spelling, one page, uncompressed:
 |---|---|---|
 | `Helvetica` | `Grüße ?????? ?????? ? ?` | 5 027 bytes |
 | `createFontSpecEnc` (11 codepoints) | `Grüße GGGGGG ПGGGGG → ✓` | 22 732 bytes |
-| `createFontSpecCID` | `Grüße Ελλάδα Привет → ✓` | 762 698 bytes |
+| `createFontSpecCID` | `Grüße Ελλάδα Привет → ✓` | 137 060 bytes |
 
 Three things to read out of that table.
 
@@ -49,8 +49,11 @@ replaced by `?` *if `?` is part of the subset*, and otherwise by slot 0 --
 the first codepoint you listed. Text that reads like real text and is not.
 See the trap below.
 
-**The CID font is right and large.** 762 KB for one line, because the entire
-font file is embedded. Compressed it is still 386 728 bytes.
+**The CID font is right and, since 0.9.4.57, no longer large.** The figures
+in the table are uncompressed, which is what makes them comparable; with
+`-compress 1` the same line comes to about 50 KB. Before 0.9.4.57 it was
+762 698 uncompressed and 386 728 compressed, because the entire font went in
+whatever the document drew.
 
 ---
 
@@ -172,13 +175,70 @@ Same document, one line of text, compressed:
 | subset, 5 codepoints | 8 860 bytes |
 | subset, 50 codepoints | 15 140 bytes |
 | subset, 200 codepoints | 29 761 bytes |
-| CID, whole font | 386 728 bytes |
+| CID | 50 004 bytes |
 
-pdf4tcl builds a real TrueType subset for `createFontSpecEnc` -- the file
-grows with the number of characters you ask for, not with the font. For
-`createFontSpecCID` the complete font goes in, and 256 codepoints is not a
-limit you can raise: the subset way is capped by the PDF simple-font model,
-not by pdf4tcl.
+Both paths build a real TrueType subset -- the file grows with what the
+document uses, not with the size of the face. Before 0.9.4.57 the CID row
+read 386 728 bytes.
+
+### Why the CID font stays larger
+
+The two subsetters solve different problems.
+
+`createFontSpecEnc` **renumbers**: the subset gets glyphs 0 to N-1 and the
+encoding maps character codes onto them. Nothing outside the font object
+refers to a glyph number, so the numbering is free.
+
+`createFontSpecCID` **cannot renumber.** With `/CIDToGIDMap /Identity` the
+glyph number *is* what stands in the content stream, and that stream is
+written while you draw -- long before the font goes out. So the numbering is
+kept: `loca` keeps an entry for every glyph of the original face, `hmtx` its
+metrics, and only `glyf` is emptied out.
+
+That is where the bytes are. Measured on DejaVuSans, 759 720 bytes:
+
+| Table | Bytes | |
+|---|---|---|
+| `glyf` | 557 508 | 73% -- this is what shrinks |
+| `GPOS` | 40 586 | dropped; read into memory at load time |
+| `loca` | 25 016 | kept in full |
+| `hmtx` | 24 982 | kept in full |
+
+`cmap` goes too: Identity-H addresses glyphs directly and never consults it.
+
+### What comes along besides the glyphs you drew
+
+**Components of composite glyphs.** An a-umlaut is not one outline but two:
+the base letter and the accent, each a glyph of its own. Keep only the
+composite and a reader draws nothing. pdf4tcl walks the closure -- measured,
+three umlauts in DejaVuSans end up as eight glyphs: the three composites,
+four components between them, and glyph 0.
+
+**Glyph 0.** A CID font needs a description for CID 0 -- the counterpart
+of `.notdef` in a simple font. See ISO 32000-2, clause 9.7.4.2.
+
+### What a subset has to declare
+
+Two entries exist only because the font is a subset, and both were required
+from the moment subsetting arrived:
+
+`/BaseFont` and the descriptor's `/FontName` carry a tag of six uppercase
+letters and a plus sign (ISO 32000-1 clause 9.6.4) -- `DCUEDB+DejaVuSans`.
+Different subsets of one face in one file must carry different tags, which
+is how a reader tells them apart and can merge them. pdf4tcl derives the
+letters from the glyph set, so the same subset always gets the same tag.
+
+`/CIDSet` names the CIDs present in the font programme (ISO 19005-1 clause
+6.3.5). Measured: a PDF/A-1b document failed at that clause the moment the
+tag appeared, because a tagged font is a subset and a subset needs the set.
+
+### What is not subsetted
+
+**CFF and OpenType/CFF.** The format differs enough to need its own writer;
+`FontFile3` still carries the whole binary.
+
+256 codepoints is not a limit you can raise: the subset way is capped by
+the PDF simple-font model, not by pdf4tcl.
 
 ```tcl
 # Refused, and rightly so

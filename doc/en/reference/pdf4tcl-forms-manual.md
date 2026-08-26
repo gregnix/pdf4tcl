@@ -241,7 +241,7 @@ $pdf addForm radiobutton 100 360 12 12 -group locked -value No -readonly 1
 - The appearance uses a filled circle (ZapfDingbats bullet) for the selected
   state and an empty circle for unselected.
 - Radio groups are finalized at document write time. A parent field object
-  is created with `/Ff` flags including NoToggleToOff and Radio bits.
+  is created with the field flags for a radio group.
 
 ---
 
@@ -330,7 +330,7 @@ $pdf addForm signature 100 340 200 60 -id sig_locked \
 ## The -readonly Option
 
 The `-readonly` option is available on all eight field types. It sets bit 1
-of the PDF field flags (`/Ff`), preventing the user from modifying the field
+of the field flags, preventing the user from modifying the field
 in a PDF viewer.
 
 ### Common Patterns
@@ -429,7 +429,7 @@ transforms coordinates automatically based on the document orientation.
 Form fields use the current font set via `setFont`. This affects:
 
 - Text rendering in appearance streams (initial values, captions)
-- The `/DA` (Default Appearance) string in the annotation dictionary
+- The default appearance string stored with the field
 
 ```tcl
 $pdf setFont 10 Helvetica
@@ -659,7 +659,7 @@ Page and Margins: Paper format, orientation, compression, margin
 spinboxes (mm), computed printable area display.
 
 Fonts and Sizes: Three combobox pairs for title, label, and form field
-fonts. The form field font determines the /DA string in the PDF which
+fonts. The form field font determines the default appearance string, which
 controls how text appears in interactive fields.
 
 Field Types: Checkbuttons for each of the eight types. Fields can be
@@ -701,7 +701,7 @@ Two new options improve PDF/UA accessibility and keyboard navigation:
 
 ### -tooltip
 
-Sets the `/TU` (tooltip) field in the PDF annotation dictionary.
+Sets the tooltip a reader shows and a screen reader announces.
 PDF viewers display this string as a tooltip when hovering over the field.
 Screen readers use it as the accessible label.
 
@@ -719,7 +719,7 @@ $pdf addForm combobox 140 130 200 16 \
 
 ### -tabindex
 
-Sets the `/TI` (tab index) field. Controls the keyboard tab order between
+Sets the tab index. Controls the keyboard tab order between
 fields. Fields are visited in ascending order of their tab index.
 
 ```tcl
@@ -738,8 +738,8 @@ fields are present, enabling row-based tab order in compliant viewers.
 ## Encryption and Forms (0.9.4.16)
 
 When encryption is active, pdf4tcl encrypts all PDF string objects in
-field dictionaries (ISO 32000 §7.6.5), including `/T` (field name), `/DA`
-(default appearance), `/V` (initial value), `/TU` (tooltip), and `/CA`
+field dictionaries (ISO 32000 clause 7.6.5) -- the field name, its default
+appearance, its initial value, the tooltip, and the
 (button caption). Appearance streams (AP entries) are encrypted as PDF
 streams. Each encrypted value gets its own random 16-byte IV.
 
@@ -783,10 +783,10 @@ $pdf addForm text 50 110 80 16 -id total -calculate {sum {pos1 pos2}}
 
 `operation` is one of `sum`, `product`, `average`, `min` or `max`.
 
-This emits an `/AA /C` calculate action calling the viewer's built-in
-`AFSimple_Calculate`, adds the field to the AcroForm `/CO` calculation order,
+This emits a calculate action calling the viewer's built-in
+`AFSimple_Calculate`, adds the field to the form's calculation order,
 and marks the field read-only. Verified in the generated file: the
-`AFSimple_Calculate` call and the `/CO` array are both present.
+`AFSimple_Calculate` call and the calculation order are both present.
 
 The calculation runs in the *viewer*, not in pdf4tcl. A viewer without
 JavaScript shows the field empty. If the value must be there regardless,
@@ -812,7 +812,7 @@ $pdf addForm text 50 140 80 16 -id vat \
 | `validate` | `/V` | when the value is committed |
 | `keystroke` | `/K` | on every keystroke |
 
-`-js` and `-calculate` share one `/AA` dictionary, so they can be combined on
+`-js` and `-calculate` share one action dictionary, so they can be combined on
 the same field; `-js calculate` overrides what `-calculate` would emit.
 
 Two things to keep in mind. The code is written into the PDF verbatim -- if

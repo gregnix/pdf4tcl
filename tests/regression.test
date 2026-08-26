@@ -8,7 +8,7 @@
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 # Constraints
-testConstraint FreeSans    [file exists ../examples/FreeSans.ttf]
+testConstraint FreeSans    [file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf]
 testConstraint DejaVuSans  [file exists /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf]
 
 # ===========================================================================
@@ -82,7 +82,7 @@ test regression-1.5 {compat: getStringWidth Standard-Font} -body {
 # ===========================================================================
 
 test regression-2.1 {compat: TTF createFont/setFont} -constraints FreeSans -body {
-    pdf4tcl::loadBaseTrueTypeFont BFRegr ../examples/FreeSans.ttf
+    pdf4tcl::loadBaseTrueTypeFont BFRegr [file join $::pdf4tclTestRoot examples]/FreeSans.ttf
     pdf4tcl::createFont BFRegr RegrFont cp1252
     set pdf [pdf4tcl::new %AUTO% -compress 0]
     $pdf startPage

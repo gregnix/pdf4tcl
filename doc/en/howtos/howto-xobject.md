@@ -84,9 +84,10 @@ marked as.
 counted too. For a conformant document, give each placement its own
 XObject.
 
-Under the hood the XObject carries its own `/StructParents`, MCIDs restart
-inside it, and every `/MCR` names the stream in `/Stm` and the page in
-`/Pg`. See [`../reference/TAGGED.md`](../reference/TAGGED.md).
+An XObject keeps its own markers, and pdf4tcl records for each one both the
+stream it lives in and the page it appears on -- otherwise a reader could
+not tell where content placed twice actually is. See
+[`../reference/TAGGED.md`](../reference/TAGGED.md).
 
 ## Artifacts
 

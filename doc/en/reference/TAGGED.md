@@ -1,132 +1,3 @@
-## Merging tagged documents
-
-`pdf4tcl::catPdf` merges the logical structure of the input documents.
-
-`AppendPdf` already renumbers every object of the second document, so its
-structure tree arrives intact, just detached. What the merge adds:
-
-* the `/Document` children of the second root are appended to the first
-  root's `/K`, and their `/P` is redirected
-* the parent tree keys of the second document are shifted by the first
-  document's `/ParentTreeNextKey`, in the tree itself and in every
-  `/StructParents` on a page and `/StructParent` on an annotation
-* the two `/Nums` arrays are merged and sorted, since ISO 32000-1
-  clause 7.9.7 requires increasing keys
-
-**MCIDs are deliberately not renumbered.** They are scoped to the content
-stream of one page, and merging documents does not merge pages, so an MCID
-of 0 in one document never meets an MCID of 0 in the other. Only the parent
-tree keys have to be unique across the result. Measured on two two-page
-documents, both using keys 0 and 1 before the merge: the result has four
-pages with keys 0, 1, 2, 3, two `/Document` subtrees under one root, and
-`tools/check-tagged.py` reports the full content of both documents.
-
-Merging is chainable -- three documents give six pages with keys 0 to 5 and
-three subtrees.
-
-### When only one side is tagged
-
-| combination | result |
-|---|---|
-| tagged + tagged | merged, no warning |
-| tagged + untagged | first tree kept, warning |
-| untagged + tagged | second structure dropped, warning |
-| untagged + untagged | nothing to do, no warning |
-
-The third row is the one worth explaining. Adopting the appended tree would
-leave the first document's pages outside it, which is the same half state as
-the second row but harder to notice, so the structure is dropped instead. In
-both mixed cases the result is legal PDF and not PDF/UA conformant, and the
-warning says which.
-
-Both mixed cases append a note to `::pdf4tcl::warnings`, so check them after
-a merge:
-
-```tcl
-set ::pdf4tcl::warnings {}
-pdf4tcl::catPdf a.pdf b.pdf out.pdf
-foreach w $::pdf4tcl::warnings { puts stderr $w }
-```
-
-A merged document keeps its conformance. Measured on two PDF/A-3a documents
-that also claim PDF/UA: the result carries `pdfaid 3A`, `pdfuaid:part 1`, one
-`pdfaExtension:schemas`, the OutputIntent and the joined structure tree, and
-veraPDF passes it under both profiles.
-
-That was not true before 0.9.4.41. The merged file failed PDF/A on a single
-rule -- the binary comment in the header had three bytes above 127 where
-ISO 19005 clause 6.1.2 requires four, which every reader accepts and no
-other check notices. 154 of 155 rules passed.
-
-### Form fields
-
-A form field is an annotation, so it needs a structure element to be reachable
--- `Form` is the type ISO 32000-1 table 337 provides, and PDF/UA clause 7.18.4
-requires exactly that nesting:
-
-```tcl
-$pdf tagBegin Form -alt "Surname"
-$pdf addForm text 100 50 120 16 -id surname
-$pdf tagEnd
-```
-
-The alternate text satisfies clause 7.18.1, which wants either a `/TU` entry
-on the field or an `/Alt` on the enclosing element. With tagging on, pages
-carrying annotations also get `/Tabs /S` automatically.
-
-**Check boxes and radio buttons draw their mark with vectors where a
-conformance is claimed.** Their appearance streams used to use a glyph from
-ZapfDingbats, one of the 14 standard fonts, and clause 7.21.4.1 requires
-every font program to be embedded -- which for a standard font is
-impossible, so a single check box made the whole document non-conformant.
-
-Since 0.9.4.42 the mark is two strokes and the radio dot four Bezier
-segments, needing no font at all. The option `-markstyle` decides:
-
-| value | |
-|---|---|
-| `auto` (default) | vectors where PDF/UA or a level A conformance is claimed, the glyph otherwise |
-| `font` | always the glyph, as before |
-| `vector` | always vectors |
-
-The default leaves every existing document looking exactly as it did:
-measured, a document without a claim still contains ZapfDingbats, one with
-`-ua 1` or `-pdfa 3a` does not. The proportions follow the glyph closely
-enough that a form does not visibly change.
-
-### What a merge does not do
-
-Two properties of `catPdf` predate this work and apply to untagged merges as
-well, but they matter more once the result is meant to be PDF/UA:
-
-**The metadata of the first document wins.** `catPdf` keeps the first
-catalog, so the merged file carries the first document's `dc:title` --
-measured, merging "Teil 1" and "Teil 2" gives a document titled "Teil 1".
-PDF/UA is satisfied, because *a* title is present and `/DisplayDocTitle` is
-set, but a reader announces the wrong one.
-
-**Since 0.9.4.48 the title can be given** (this paragraph used to say there
-was no way):
-
-```tcl
-::pdf4tcl::catPdf -title "Complete file" part1.pdf part2.pdf out.pdf
-```
-
-`-title -author -subject -keywords -creator -producer`, before the file
-names. Since 0.9.4.51 each value is written to both `/Info` and the XMP
-packet, as ISO 19005-1 clause 6.7.3 requires; merging is no longer a reason
-to build the whole document in one run.
-
-**Embedded font programs ARE shared** -- this paragraph used to say the
-opposite, measured before `DedupObjects` existed (0.9.4.42). Measured again
-on FreeSans: four documents of 814628 bytes each merge into 819503 with one
-`/FontFile2` in the result. The font *dictionaries* around it stay
-duplicated, since renumbering makes their bodies differ; that costs a few
-hundred bytes per font.
-
-`AcroForm` is merged since 0.9.4.44. `Metadata` and the remaining catalog
-entries are still those of the first document.
-
 # Tagged PDF in pdf4tcl
 
 Added in 0.9.4.36, extended with annotation support in 0.9.4.37.
@@ -145,15 +16,13 @@ use -- which is wrong as soon as the page has more than one column.
 
 A tagged PDF adds a tree of structure elements next to the content:
 
-    /StructTreeRoot
-      /Document
-        /H1   -> marked content 0 on page 1
-        /P    -> marked content 1 on page 1, marked content 0 on page 2
-        /Figure  /Alt (Red square next to a blue circle)
+    Document
+      H1       -> the heading on page 1
+      P        -> a paragraph running from page 1 onto page 2
+      Figure   -> alternate text: "Red square next to a blue circle"
 
-The link between tree and content is the marked content operator pair
-`BDC ... EMC` carrying an `/MCID`, plus `/StructParents` on the page and a
-`/ParentTree` that maps the pair (page, MCID) back to the owning element.
+The tree and the page content are linked by markers that pdf4tcl writes and
+keeps consistent; you never touch them yourself.
 
 This matters for:
 
@@ -184,6 +53,7 @@ than one that claims nothing.
 
     $pdf tagBegin type ?-alt text? ?-actualtext text? ?-title text? ?-lang tag?
                        ?-scope Row|Column|Both? ?-id name? ?-headers list?
+                       ?-colspan n? ?-rowspan n? ?-summary text?
                        ?-listnumbering style?
     $pdf tagEnd
 
@@ -192,19 +62,23 @@ it. Elements nest; the nesting of `tagBegin`/`tagEnd` is the nesting of the
 tree.
 
 - `-alt` replaces the content for a screen reader. The only thing that makes
-  a `/Figure` readable at all.
+  a `Figure` readable at all.
 - `-actualtext` replaces the content for text extraction, e.g. for a ligature
   drawn as one glyph.
-- `-title` becomes `/T`, a human readable label.
+- `-title` gives the element a human readable label.
 - `-lang` marks a passage in another language than the document.
-- `-scope` applies to `TH` only and becomes an `/A <</O /Table /Scope ...>>`
-  dictionary. ISO 14289-1 clause 7.5 requires it wherever the relation
-  between a header cell and its data cells cannot be derived algorithmically.
+- `-scope` applies to `TH` only: whether the heading is for its row or its
+  column. Required wherever the relation between a header cell and its data
+  cells cannot be derived automatically (ISO 14289-1 clause 7.5).
 - `-id` names a table cell, `-headers` lists the `-id`s of the header cells
   that apply to it. `-headers` is what works for irregular tables, where
   `-scope` alone cannot express the relation.
-- `-listnumbering` applies to `L` only and becomes
-  `/A <</O /List /ListNumbering ...>>`, so a reader can announce the list
+- `-colspan` and `-rowspan` apply to `TH` and `TD` and give the number of
+  columns or rows the cell spans. A value of 1 is the default and is not
+  written.
+- `-summary` applies to `Table`: what the table is for and how it is built,
+  meant for speech or braille. A reader announces it before the cells.
+- `-listnumbering` applies to `L` only, so a reader can announce the list
   style instead of reading the painted bullet glyph.
 
     $pdf tagText type str ?tag options? ?text options?
@@ -217,17 +91,16 @@ Convenience for a single `text` call. Options are split by name: `-alt`,
     $pdf tagArtifactEnd
 
 Mark content that is not part of the document: running heads, page numbers,
-rules, background decoration. Artifacts carry no MCID and are skipped by
-assistive technology.
+rules, background decoration. Artifacts are skipped by assistive
+technology.
 
-Accepted structure types are the standard ones of ISO 32000-1 Table 333-337:
+The types `tagBegin` accepts are listed in `src/tagged.tcl`, variable
+`StdStructTypes` -- that list is what the check runs against, so it is the
+one to read. It covers the standard structure types of ISO 32000-1.
 
-    Document Part Art Sect Div BlockQuote Caption TOC TOCI Index NonStruct
-    Private P H H1..H6 L LI Lbl LBody Table TR TH TD THead TBody TFoot Span
-    Quote Note Reference BibEntry Code Figure Formula Form
-
-Anything else is refused. A non-standard type would need a `/RoleMap` entry,
-and without one a reader silently ignores the element.
+Anything outside it is refused: a type the standard does not define needs a
+mapping that pdf4tcl does not write, and without one a reader silently
+ignores the element.
 
 ## Example
 
@@ -275,16 +148,16 @@ or `Annot` element is open:
     $pdf tagEnd
     $pdf tagEnd
 
-The element then gets an `/OBJR` entry and the annotation a `/StructParent`
-key pointing back (ISO 32000-1 clause 14.7.4.4). PDF/UA also wants the
-annotation itself to carry `/Contents`, since that is what a reader
-announces; it is filled from the element's `-alt` when the annotation has
-none, and an explicit `/Contents` always wins.
+The element and the annotation then reference each other, so a reader can
+find one from the other (ISO 32000-1 clause 14.7.4.4). PDF/UA also wants the
+annotation to carry its own description, since that is what gets announced;
+pdf4tcl fills it from `-alt` when the annotation has none, and anything you
+set explicitly wins.
 
-While tagging is on, a page carrying annotations is written with `/Tabs /S`
-rather than `/Tabs /R`, so that tabbing follows the structure tree
-(ISO 14289-1 clause 7.18.3). Untagged documents keep `/R`, which is what a
-plain form wants.
+While tagging is on, tabbing through a page with annotations follows the
+structure tree rather than the order the fields were created in
+(ISO 14289-1 clause 7.18.3). Untagged documents keep the plain order, which
+is what an ordinary form wants.
 
 An annotation created outside such an element stays unattached: the link
 still works when clicked, but assistive technology cannot reach it and
@@ -308,30 +181,44 @@ set ::pdf4tcl::warnings {}
 foreach w $::pdf4tcl::warnings { puts stderr $w }
 ```
 
-Every annotation now goes through `AddAnnot` in `src/main.tcl` rather than
-`AddObject`, which is what gives the tagging module a chance to see it. A new
-kind of annotation added later must use `AddAnnot` too, or it will silently
-be missing from the structure tree.
-
-## Coordinates in the examples
+## Coordinates
 
 `pdf4tcl` defaults to `-orient 1`: y counts downward from the top margin and
 x rightward from the left margin, so `(0,0)` is the top left corner of the
 drawable area and the margins are already included.
 
-The first version of `examples/tagged.tcl` was written as if the origin were
-at the bottom left, with the heading at `y 780` and the running foot at
-`y 40`. Measured afterwards, the heading sat 12 points above the bottom edge,
-the foot at the top, and the page read from bottom to top. The x coordinates
-were off by the margin as well, because it was added a second time.
-
-veraPDF called that file PDF/UA-1 compliant. It validates the structure tree,
-not the layout, and the structure tree really was correct -- the reading
-order a screen reader follows comes from the tree, not from where the glyphs
-landed. This is the clearest example of the point made further down: a green
-validator run says the file obeys the standard, not that it is any good.
+Worth keeping in mind while tagging: **a validator checks the tree, not the
+layout.** A document whose text landed in the wrong places still passes
+PDF/UA if the structure is right, because the reading order a screen reader
+follows comes from the tree rather than from where the glyphs sit. For the
+layout there is `tools/layout-check.tcl`.
 
 ## Checking the result
+
+### What was left untagged
+
+    set open [$pdf getUntaggedCount]
+
+Content painted while tagging is on, belonging to neither an element nor an
+artifact, is **counted, not refused**. Anything above zero means part of the
+document cannot be reached by a reader, and ISO 14289-1 clause 7.1 requires
+every piece of content to be one or the other.
+
+Only painting operators count -- setting a colour or a font outside an
+element is not a defect. Since 0.9.4.46 content inside an XObject counts as
+well.
+
+It stays a warning rather than an error: untagged content is legal PDF, and
+a caller who marks up only part of a page may mean it. Only PDF/UA and the
+PDF/A a-levels rule it out.
+
+`finish` also puts a message into `$::pdf4tcl::warnings` -- but only a caller
+who reads that list will see it. **`getUntaggedCount` tells you how much, not
+where.** Narrowing it down means commenting out drawing calls until the
+number moves.
+
+### The structure checker
+
 
     python3 tools/check-tagged.py tagged.pdf
 
@@ -339,373 +226,88 @@ The script walks the structure tree, reconstructs for every element the text
 its marked content actually paints, and checks the consistency rules a broken
 generator gets wrong:
 
-- `BDC`/`EMC` balance in every content stream
-- no MCID nested inside another MCID
-- MCIDs numbered from 0 without gaps on each page
-- `/StructParents` present on every page carrying an MCID
-- `/StructParents` keys unique across pages
-- the `/ParentTree` covering every MCID
-- every marked content sequence claimed by exactly one structure element
-- every annotation claimed by exactly one `/OBJR`, its `/StructParent`
-  resolving back to that element, and link annotations carrying `/Contents`
-
-The last two checks were added after the fact. The first version verified
-everything per page, and the broken `catPdf` merge passed it cleanly: both
-pages carried `/StructParents 0`, both resolved to the same parent tree
-entry, and that entry happened to hold exactly one element, so the per-page
-count matched. A verifier that only ever looks at one page at a time cannot
-see a collision between pages.
+- the content markers are balanced and correctly numbered on every page
+- every marked passage belongs to exactly one element, and every element
+  finds its passage again
+- the same for annotations, in both directions
+- link annotations carry a description
 
 Needs `pypdf`.
 
 `qpdf --check` catches syntax and stream errors but knows nothing about
-logical structure. veraPDF is the tool for actual PDF/UA conformance; see the
-veraPDF section below for what it found and what it still does not cover.
+logical structure; veraPDF is the tool for actual PDF/UA conformance. Neither
+says whether the tree is *sensible* -- a document where every paragraph is
+`/P` and every heading `/H1` passes both and tells a reader nothing.
 
-## Implementation notes
+## Table attributes
 
-`src/tagged.tcl` is concatenated into `pdf4tcl.tcl` by the Makefile, after
-`src/encrypt.tcl`. It reopens the class with a second `oo::define`, the same
-way `src/encrypt.tcl` does.
+`tagBegin` takes five options for tables:
 
-Two traps in that file worth repeating:
-
-- It must not contain a `variable` declaration. `oo::define ... variable`
-  replaces the class variable list rather than extending it, so declaring
-  only `pdf` there would hide `options`, `fonts`, `images` and the rest from
-  every method of the class.
-- TclOO exports a method only when its name starts with a lowercase letter.
-  The public API is therefore `tagBegin`, `tagEnd` ...; the hooks called from
-  `main.tcl` are `TagPageStart`, `TagPageEnd` ... and stay private without an
-  explicit `unexport`.
-
-All state lives in the `pdf()` array, because `finish -dryRun` saves and
-restores exactly that array.
-
-`main.tcl` calls into the module in five places, each a single line that
-returns immediately when tagging is off:
-
-| Location | Hook | Purpose |
+| Option | Applies to | |
 |---|---|---|
-| end of `startPage`, after `Flush` | `TagPageStart` | reopen marked content across a page break |
-| start of `endPage` | `TagPageEnd` | close marked content before the stream ends |
-| page dictionary in `endPage` | `TagPageDict` | `/StructParents` |
-| catalog in `finish` | `TagCatalogEntries` | `/StructTreeRoot`, `/MarkInfo`, `/Lang` |
-| `finish`, before the last `FlushObjects` | `TagWriteObjects` | structure elements, parent tree, root |
+| `-rowspan` | `TH`, `TD` | how many rows the cell covers |
+| `-colspan` | `TH`, `TD` | how many columns |
+| `-headers` | `TH`, `TD` | which heading cells this one belongs to |
+| `-scope` | `TH` | whether the heading is for a row or a column |
+| `-summary` | `Table` | what the table shows, in one sentence |
 
-`src/main.tcl` also defines all six as no-ops, before the real ones in
-`src/tagged.tcl` override them. Without that, a build whose CATFILES does not
-include `src/tagged.tcl` -- or an older installed copy of the package
-shadowing the freshly built one -- fails at the first `startPage` with
-`unknown method "TagPageStart"` followed by every method the class does have,
-which says nothing about the cause. This is not a silent fallback: if
-`tagged.tcl` is missing then so is the `tagged` method, tagging cannot have
-been switched on, and doing nothing is the correct behaviour. Covered by test
-`tagged-11.1`.
+Each becomes the corresponding table attribute in the file; they are
+specified in ISO 32000-1, clause 14.8.5.7.
 
-The position of the first hook matters. `Flush` at the end of `startPage`
-writes uncompressed, while `endPage` deflates whatever is still buffered and
-derives `/Length` from that. Writing the reopened `BDC` before that `Flush`
-put a few raw bytes in front of the deflate stream: the page inflated to
-nothing, every reader showed it as empty, and no error was raised anywhere.
-Covered by test `tagged-8.1a`.
+### Why the spans matter
 
-`/Alt` and the other text strings are written as UTF-16BE literal strings
-with octal escapes, not as hex strings. `EncryptStringsInBody` only rewrites
-`(...)` literals, so a hex string would stay in the clear in an encrypted
-document. `pdf4tcl::QuoteString` is deliberately not used: it transliterates
-code points above U+00FF and replaces the rest with `?`, which is acceptable
-for a bookmark title but not for the only text a screen reader gets.
+Without them a heading spanning two columns looks like a single cell in the
+tree. A reader then names the wrong heading for everything under the second
+column -- and **no validator reports it**, because the tree is well formed;
+it simply does not describe the table on the page.
 
-## Measured
+Clause 14.8.4.3.4 explains why the attributes exist at all: without them a
+reader has to work the association out for itself, and that guesswork is
+what fails on an irregular table.
 
-The totals below come from a minimal container without Tk, tkpath, OTF fonts
-or Ghostscript, so many tests are skipped there and the numbers are lower
-than on a full workstation. What matters is the failure count, which is zero
-in every combination; the totals are only comparable within one environment.
+```tcl
+$pdf tagBegin Table -summary "Revenue by region, three rows"
+$pdf tagBegin TR
+$pdf tagText TH "Revenue" -colspan 2 -scope Column -x 200 -y 60
+$pdf tagEnd
+$pdf tagBegin TR
+$pdf tagText TD "North" -rowspan 2 -x 50 -y 80
+$pdf tagText TD "12400" -x 200 -y 80
+$pdf tagEnd
+$pdf tagEnd
+```
 
-Tcl 8.6.14:
+Measured: veraPDF passes this as PDF/UA-1.
 
-- `tests/tagged.test`: 57 cases, all green.
-- Full suite `tests/all.tcl`: 851 total, 827 passed, 24 skipped, 0 failed.
 
-Tcl 9.0.4 (built from `core-9-0-4`):
+---
 
-- `tests/tagged.test`: 46 green, 1 skipped.
-- Full suite `tests/all.tcl`: 805 total, 792 passed, 13 skipped, 0 failed.
-- The skip is `hasAes`. tcllib 1.21 cannot be loaded under Tcl 9 at all: its
-  `pkgIndex.tcl` guards with `package vsatisfies [package provide Tcl] 8.5`
-  without a trailing dash, which means "same major version" and is therefore
-  false under Tcl 9. Measured: `vsatisfies 9.0.4 8.5` is 0, `vsatisfies
-  9.0.4 8.5-` is 1. Nothing to do with pdf4tcl; a newer tcllib fixes it.
-- `examples/tagged.tcl` produces the same document under both runtimes. The
-  files are not byte identical because Tcl 8.6 and Tcl 9 deflate differently,
-  but every decompressed content stream compares equal byte for byte.
+## Merging tagged documents
 
-Both runtimes:
+`pdf4tcl::catPdf` merges the logical structure of the input documents: the
+second document's tree is appended to the first, its parent-tree keys are
+renumbered, and page and annotation references follow. The result validates
+as PDF/UA-1.
 
-- `examples/tagged.tcl` verified with `tools/check-tagged.py`: all checks
-  pass, and the extracted per-element text matches the source, including the
-  paragraph spanning the page break and the list and table nesting.
-- Tagging combined with `-pdfa 1b`, `2b` and `3a`: `qpdf --check` clean,
-  structure tree intact.
-- `-userpassword` with `-encversion 4`: `/Alt` does not survive in the clear.
-- `tools/check-ascii.tcl`: 54 files OK, 0 failures.
+How that is done is in `src/cat.tcl`, at the procedures that do it; for
+using `catPdf` see
+[`../howtos/howto-catpdf.md`](../howtos/howto-catpdf.md).
 
-Nagelfar 1.3.x, same two-stage invocation the Makefile uses (generate the
-header, then check), against the concatenated `pdf4tcl.tcl`:
+Three things are worth knowing before you rely on it.
 
-| build | messages | distinct kinds |
-|---|---|---|
-| without this change | 747 | 28 |
-| with `src/tagged.tcl` | 776 | 28 |
+**When only one side is tagged**, the untagged pages end up outside the
+tree. `getUntaggedCount` on the merged file says how much, and a document
+that claims PDF/UA will fail on it -- correctly, because part of it cannot
+be reached.
 
-No new kind of message. The 29 extra ones are all `Unknown variable "pdf"`,
-the same artefact `src/encrypt.tcl` already produces 26 times: nagelfar does
-not see the class variables through a second `oo::define`. Two genuine false
-positives (`dict set attrs`, `dict set props`) are silenced with
-`##nagelfar ignore`. Note that the directive applies to the following line
-only, not to the enclosing block.
+**Form fields need a `Form` element** to be reachable at all; the field on
+its own is an annotation, not content. `-alt` on the element, or `-tooltip`
+on the field, gives the reader something to announce.
 
-## Checked since 0.9.4.43
+**The metadata of the first document wins.** `catPdf -title` sets the title
+of the result in both `/Info` and the XMP packet; everything else --
+author, subject, keywords -- comes from the first input.
 
-`/TD` outside a `/TR` used to be accepted and produced a tree no checker
-would like. Both directions are now refused:
-
-| when | what |
-|---|---|
-| `tagBegin` | `LI` in `L`; `LBody` in `LI`; `THead`, `TBody`, `TFoot` in `Table`; `TR` in `Table`/`THead`/`TBody`/`TFoot`; `TH`, `TD` in `TR`; `TOCI` in `TOC` |
-| `tagEnd` | `L` holds an `LI`; `LI` an `LBody`; `Table` a `TR` or a row group; a row group a `TR`; `TR` a `TH` or `TD` |
-
-Only relations the standard fixes without exception are checked; `P`, `Span`,
-`Figure` and the rest stay unrestricted. `NonStruct` is transparent in both
-directions (clause 14.8.4.2). A refused `tagBegin` leaves no trace, and a
-refused `tagEnd` leaves the element open so the missing content can be added.
-
-An element closed with nothing in it at all -- no marked content, no child
-element, no annotation -- is reported in `::pdf4tcl::warnings` rather than
-refused. The standard permits it; it just designates nothing. `TD` and `TH`
-are exempt, since a blank cell belongs in the tree.
-
-## Open
-
-- Untagged content is reported, not prevented. Since 0.9.4.43 pdf4tcl counts
-  painting operations that belong to neither an element nor an artifact and
-  says so once, at `finish`:
-
-  ```
-  tagged: 3 painting operation(s) on 1 page(s) belong to neither a structure
-  element nor an artifact. ISO 14289-1 clause 7.1 requires every piece of
-  content to be one or the other, so this document does not meet the level
-  it claims.
-  ```
-
-  Ask before finishing with `[$pdf getUntaggedCount]`. Only painting
-  operators count -- setting a colour or a font outside an element is not a
-  defect. Since 0.9.4.46 content inside an XObject counts too -- see the
-  entry on XObjects below. Measured: `examples/tagged.tcl` and the
-  pdf4tcllib table export both report zero.
-
-  It stays a warning. Untagged content is legal PDF, and a caller who marks
-  up part of a page may mean it; only PDF/UA and level A rule it out.
-- `/Attributes` covers `/Scope`, `/Headers`, `/ID` and `/ListNumbering`.
-  Other attribute owners (`/Layout`, `/PrintField`) are not implemented.
-- Structure inside an XObject works since 0.9.4.46, with one condition: the
-  XObject must be drawn exactly once.
-
-  ```tcl
-  set xo [$pdf startXObject -paper {200p 100p}]
-  $pdf tagBegin P
-  $pdf text "Inside the XObject" -x 10 -y 30
-  $pdf tagEnd
-  $pdf endXObject
-
-  $pdf tagBegin Figure -alt "A box with a caption"
-  $pdf putImage $xo 50 700 -width 200 -height 100
-  $pdf tagEnd
-  ```
-
-  Three things have to line up for that, all of them ISO 32000-1 clause
-  14.7.4.4:
-
-  | | |
-  |---|---|
-  | MCIDs are scoped to the **content stream**, not the page | the counter restarts inside the XObject, so its first element is MCID 0 even on page 5 |
-  | the XObject dictionary carries its own `/StructParents` | allocated when the dictionary is written, which is before its content exists -- an XObject that ends up carrying nothing gets an empty parent tree entry |
-  | every `/MCR` for that content names the stream in `/Stm` | `<</Type /MCR /Pg 8 0 R /Stm 4 0 R /MCID 0>>` -- without `/Stm` the reference points at an MCID of the *page*, where it does not exist |
-
-  **Drawn more than once, it is refused** when the document is written:
-
-  ```
-  XObject 4 carries tagged content and is drawn more than once. One
-  structure tree cannot describe two appearances (ISO 32000-1 clause
-  14.7.4.4): draw it once, or leave its content untagged and tag the
-  "Do" that places it.
-  ```
-
-  That is not a limitation of this implementation. One tree, two
-  appearances: where the content sits in the reading order is undecidable,
-  and `/Pg` would have to name two pages at once.
-
-  **And PDF/UA goes further: a form XObject may not be reused at all.**
-  Measured with veraPDF 1.30.2 -- every placement beyond the first fails
-  rule 7.20-2, *"The content of Form XObjects shall be incorporated into
-  structure elements"*:
-
-  | placements | failed checks |
-  |---|---|
-  | 1 | 0 |
-  | 2 | 1 |
-  | 3 | 2 |
-
-  It makes no difference how the content is marked. Artifact inside the
-  XObject, artifact around the `Do`, `Figure` around the `Do`, nothing at
-  all -- all four fail from the second placement on. The obvious workaround
-  for the paragraph above, *leave the content untagged and tag the
-  placement*, therefore does not produce a conformant file either; this
-  document recommended it until the demo was run against veraPDF and did
-  not pass.
-
-  pdf4tcl warns about every reused XObject in a tagged document, whatever
-  its content:
-
-  ```
-  XObject 4 is drawn more than once. Valid PDF, but not PDF/UA: veraPDF
-  reports rule 7.20-2 once per extra placement, whatever the content is
-  marked as. For a conformant document, give each placement its own
-  XObject.
-  ```
-
-  A warning and not an error, because reuse is perfectly good PDF -- a
-  document that claims neither PDF/UA nor level A may do it, and saving one
-  copy of a logo is what XObjects are for. It is only the conformance claim
-  that rules it out.
-
-  **The reading order follows the calls, not the placement.** Structure
-  elements enter the tree when `tagBegin` runs, so an XObject built at the
-  top of the script lands at the top of the tree -- before the heading of
-  the page it is drawn on. Measured on a document whose XObject was built
-  first:
-
-  ```
-  Document
-    H2   'Adresse'          <- from the XObject
-    P    'Muster GmbH...'
-    H1   'Struktur in ...'  <- the page heading, read second
-  ```
-
-  That is not a cosmetic problem. **veraPDF 1.30.2 fails such a document as
-  PDF/UA**: ISO 14289-1 clause 7.4.2 wants headings in ascending order
-  without gaps, in the order of the *structure tree*. A tree that opens with
-  an H2 is malformed even though nothing on the page looks wrong, and every
-  other check -- `qpdf --check`, and `tools/check-tagged.py` before this
-  round -- said the file was fine. The checker now looks at heading order
-  too, so this class is caught before veraPDF sees it.
-
-  The practical rule: **do not put headings inside an XObject** unless the
-  XObject is built at the point where its content is meant to be read. An
-  address block or a logo carries `P` and artifacts, not `H2`.
-
-  Build the XObject at the point where its content belongs in the reading
-  order, and the tree comes out right. But note what that costs:
-
-  > `startXObject` calls `startPage`, and `startPage` **ends an open page**.
-  > Building an XObject in the middle of a page therefore closes that page:
-  > one page became two in the measurement above. Either build the XObject
-  > between pages, or accept the tree order and check it with
-  > `tools/check-tagged.py`, which prints the extracted structure.
-
-  An XObject carrying tagged content that is **never** drawn is a warning,
-  not an error, and its `/MCR` is written without `/Pg`: the element still
-  says which stream it belongs to rather than disappearing.
-
-  One consequence worth knowing: since content inside an XObject *can* be
-  tagged now, leaving it untagged counts. `getUntaggedCount` used to skip
-  XObjects entirely -- it no longer does. A document that placed a raw
-  XObject under a tagged `Do` reported 0 before 0.9.4.46 and reports the
-  painting operations inside it now. Nothing about the file changed; the
-  measurement got honest.
-
-Since 0.9.4.41 `-pdfa 1a`, `2a` and `3a` are available. They require tagging
-and a document language, both checked when the document is finished; a
-missing one raises an error rather than writing `pdfaid:conformance A` into a
-file that has neither. What is not checked, and what the two entries above
-describe, is whether the markup is any good.
-- Not checked with a real screen reader. veraPDF verifies that the file obeys
-  the standard; it cannot tell whether the tagging is *sensible*. A document
-  where every paragraph is `/P` and every heading is `/H1` passes just as
-  cleanly as a well structured one.
-- Nothing *enforces* tagging. A caller who never calls `tagBegin` gets a
-  valid untagged PDF; a caller who tags half the page now gets a warning,
-  but the file is still written.
-
-## veraPDF
-
-Measured with veraPDF 1.28.2, profile PDF/UA-1, against `examples/tagged.tcl`.
-
-**Result as of 0.9.4.37: compliant.** 106 rules and 1492 checks passed, none
-failed, with a tagged link annotation in the tree. `examples/facturx.tcl`
-remains PDF/A-3B compliant alongside it (146 rules, 1226 checks).
-
-Getting there took four rounds:
-
-| round | rules passed | rules failed | checks failed |
-|---|---|---|---|
-| first run | 99 | 7 | 8 |
-| lazy marked content, artifact placement, title, DisplayDocTitle | 105 | 1 | 2 |
-| `pdfuaid`, `/Scope`, embedded font | 106 | 0 | 0 |
-| annotations added; `/Tabs /S` fixed | 106 | 0 | 0 |
-
-The first run already left the structure tree itself unfaulted -- no complaint
-about `/StructTreeRoot`, `/ParentTree`, `/StructParents`, the MCR references
-or the roles.
-
-Two of the failures were defects in this module and are fixed:
-
-**Nested MCID.** veraPDF logged 21 warnings of the form
-`Content stream (object 4 0 obj): Nested MCID - 4`. `tagBegin` opened marked
-content for every element, so a container's MCID enclosed its children's:
-
-    /L    <</MCID 3>> BDC
-      /LI   <</MCID 4>> BDC
-        /Lbl <</MCID 5>> BDC ... EMC
-
-A grouping element paints nothing and must carry no marked content at all.
-Marked content is now opened lazily, at the first painting operation, and
-only for the innermost open element -- see `TagEnsureMC`, called from
-`Pdfoutcmd` and `BeginTextObj`. An element that is interrupted by a nested
-one simply gets a second `/MCR` when painting resumes.
-
-**Artifact inside tagged content** (rules 7.1-1 and 7.1-2). The running foot
-on page 2 of the demo was emitted while a paragraph spanning the page break
-was still open, so it landed inside that paragraph's marked content.
-`tagArtifact` now closes the open sequence first; the artifact sits between
-two sequences of the element rather than inside one.
-
-The verifier missed both. It checked `BDC`/`EMC` balance but not whether one
-MCID sat inside another, and it had no notion of artifact placement. The
-nesting check is now in `tools/check-tagged.py` and reports exactly the same
-21 MCIDs veraPDF did.
-
-The remaining failures were addressed one round at a time. Measured against
-`examples/tagged.pdf` after each round, same tool and profile:
-
-| round | rules passed | rules failed | checks failed |
-|---|---|---|---|
-| first run | 99 | 7 | 8 |
-| lazy marked content, artifact placement, title, DisplayDocTitle | 105 | 1 | 2 |
-| `pdfuaid`, `/Scope`, embedded font | see below | | |
-
-The one remaining failure after the second round was rule 7.21.4.1, font
-embedding: the demo still used the base 14 fonts, which have no embeddable
-font program. It now loads `examples/FreeSans.ttf`, the same font
-`examples/facturx.tcl` uses for PDF/A. Only one weight is available, so the
-heading hierarchy is carried by size rather than boldness.
-
-## Fixed along the way
-
-`src/cat.tcl`, `WritePdf`: the last `WriteCh` passed `po` instead of `pos`.
-`upvar` creates the variable silently and `incr` initialises it to 0, so the
-position counter was updated in a variable nobody reads. Harmless today
-because it is the final call, but it would become a data error the moment a
-line is added below it.
+Embedded font programs are shared between the merged documents where they
+are identical, so merging two documents that use the same face does not
+embed it twice.

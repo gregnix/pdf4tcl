@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.53?**
+package require **pdf4tcl ?0****.9****.4****.58?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -330,7 +330,7 @@ mypdf destroy
 ```
 
 **::pdf4tcl::createFontSpecEnc basefontname fontname subset**
-: This call creates a font that can be used in documents from a base font. The *subset* must be a list of (up to 256) unicode values which are the characters that can be drawn when *fontname* is selected.
+: This call creates a font that can be used in documents from a base font. The *subset* must be a list of (up to 256) unicode values which are the characters that can be drawn when *fontname* is selected. Only the glyphs for those codepoints are embedded -- a real subset of the font programme, not the whole file. That is the difference to **createFontSpecCID**, which has no 256-codepoint limit but embeds the entire TTF. Measured on the same page with DejaVuSans: 31 kB here against 386 kB there. Two things to watch. Put **63** (**?**) in the list: a character outside it falls back to **?** where that is present, and otherwise to slot 0 -- the FIRST codepoint listed, which then reads like real text and is not. And check **getSubstCount** afterwards; a missing glyph is reported there and nowhere else.
 
 ```tcl
 pdf4tcl::loadBaseTrueTypeFont BaseArial "arial.ttf"
@@ -348,7 +348,7 @@ mypdf destroy
 ```
 
 **::pdf4tcl::createFontSpecCID basefontname fontname**
-: This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encoding) from a previously loaded TrueType base font. Unlike **createFont** and **createFontSpecEnc**, which are limited to 256 characters per font instance, a CID font supports any Unicode character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic, CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF. Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap, as required by the PDF specification (ISO 32000, §9.10.3). This enables correct text extraction and copy-paste from PDF viewers for characters such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100), or emoji from vector outline fonts (U+1F300 and above).
+: This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encoding) from a previously loaded TrueType base font. Unlike **createFont** and **createFontSpecEnc**, which are limited to 256 characters per font instance, a CID font supports any Unicode character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic, CJK ideographs, and other scripts. Since 0.9.4.57 only the glyphs the document actually draws are embedded. Measured on the same page with DejaVuSans: 31 kB through **createFontSpecEnc** against 50 kB here, where it used to be 386 kB. The glyph numbers are kept as they are, so composite glyphs pull in the parts they are built from -- an a-umlaut needs its base letter and its accent, both separate glyphs. See "*doc/en/reference/pdf4tcl-fonts-and-unicode**.md*" for the three ways of choosing a font side by side, with what each one costs and what it can render. Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap, as required by the PDF specification (ISO 32000, §9.10.3). This enables correct text extraction and copy-paste from PDF viewers for characters such as mathematical alphanumerics (U+1D400), musical symbols (U+1D100), or emoji from vector outline fonts (U+1F300 and above).
 
 ```tcl
 pdf4tcl::loadBaseTrueTypeFont DejaVuSans "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -406,7 +406,7 @@ mypdf destroy
 : Field type.
 
 **value**
-: Form value.
+: Form value, unpacked: a text value comes back without its brackets and escapes, exactly the form **::pdf4tcl::fillForms** takes in, so reading a form and writing it back does not accumulate escaping. A name value (**/Yes**, **/Off**) is left as it is.
 
 **flags**
 : Value of form flags field.
@@ -633,7 +633,7 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 : Draws the contents of the canvas widget *path* on the current page. The return value is the bounding box in pdf page coordinates of the area covered. Option *-bbox* gives the area of the canvas to be drawn. Default is the entire contents, i.e. the result of $path bbox all. Options *-x*, *-y*, *-width* and *-height* defines an area on the page where to place the contents. Default area starts at origin, stretching over the drawable area of the page. Option *-sticky* defines how to place the contents within the area. The area is always filled in one direction, preserving aspect ratio, unless *-sticky* defines that the other direction should be filled too. Default *-sticky* is *nw*. If option *-bg* is true, a background is drawn in the canvas' background color. Otherwise only objects are drawn. Default is false. Option *-fontmap* gives a dictionary mapping from Tk font names to PDF font names. Option *-textscale* overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If *-textscale* is larger than 1, all text items are reduced in size by that factor. Fonts: If no font mapping is given, fonts for text items are limited to PDF's builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which one to use to get a reasonable display on the page. An element in a font mapping must exactly match the -font option in the text item. The corresponding mapping value is a PDF font family, e.g. one created by **pdf4tcl::createFont**, possibly followed by a size. It is recommended to use named fonts in Tk to control the font mapping in detail. Limitations: Option **-splinesteps** for lines/polygons is not applicable: PDF uses exact cubic Bezier curves (**CanvasBezier**), which are mathematically equivalent to any number of spline steps. The visual result is equal to or better than Tk's screen rendering. *Stipple:* Both offset forms are supported: **x,y** (absolute pixel offset) and **#x,y** (bitmap-relative -- aligns bitmap pixel (x,y) with canvas origin). Empty offset (no adjustment) is handled correctly. Minor visual differences from on-screen rendering may remain due to pattern scaling. *Widget classes supported:* **tk::canvas** (class **Canvas**) -- all standard item types: rectangle, oval, line, polygon, arc, text, image, bitmap, window. **tkpath** (**::tkp::canvas**, class **PathCanvas**) -- tkpath item types: pimage, ptext, pline, polyline, ppolygon, prect, circle, ellipse, path, group. Handled via **itempdf** delegation (C-level). **tko::path** (class **tko::path**) -- tko::path item types: image, text, line, polyline, polygon, rect, circle, ellipse, path, group, window. Handled via **itempdf** delegation. *Window items (tk::canvas):* The embedded widget must be visible on-screen when the canvas is exported. Package **Img** with **-format window** support is required to capture the widget as a raster image. If **Img** is not available or the widget is unmapped, a solid black rectangle is drawn in its place. *Window items (tko::path):* The item is silently skipped -- no crash, no error message (fix in 0.9.4.24, BUG-C1). All other items on the same **tko::path** are exported correctly. Raster capture of embedded widgets is not supported for **tko::path**.
 
 **objectName metadata ?option value...?**
-: This method sets metadata fields for this document. Supported field options are *-author*, *-creator*, *-keywords*, *-producer*, *-subject*, *-title*, *-creationdate* and *-moddate*. Multiple keywords should be passed as a comma-separated string, e.g. *-keywords "tcl,pdf,document"*. For *-creationdate* and *-moddate* a **clock seconds** value is expected. A value of **0** uses the current date and time. Unknown option names cause an error.
+: This method sets metadata fields for this document. Supported field options are *-author*, *-creator*, *-keywords*, *-producer*, *-subject*, *-title*, *-creationdate* and *-moddate*. Multiple keywords should be passed as a comma-separated string, e.g. *-keywords "tcl,pdf,document"*. For *-creationdate* and *-moddate* a **clock seconds** value is expected. A value of **0** uses the current date and time. Unknown option names cause an error. With **-pdfa** the fields also go into the XMP packet, as **dc:title**, **dc:creator**, **dc:description**, **dc:subject**, **pdf:Keywords**, **pdf:Producer**, **xmp:CreateDate** and **xmp:ModifyDate**. Two entries are written without being asked for. **pdf:Producer** defaults to the organization, the package name and the release, the form recommended for an **AgentName** (XMP part 1 clause 8.2.2.1); **-producer** overrides it. **xmp:MetadataDate** accompanies **xmp:ModifyDate** with the same value and records when the metadata last changed as against the content (XMP part 1 table 5); it is absent when no modification date was given.
 
 **objectName bookmarkAdd ?option value...?**
 : Add a bookmark on the current page.
@@ -659,7 +659,7 @@ $pdfobject attachFile 0 0 100 100 $fid "This is the description"
 : Human-readable description stored as **/Desc** in the FileSpec dictionary.
 
 **-afrelationship rel**
-: PDF/A-3 **/AFRelationship** entry. Valid values are **Alternative**, **Data**, **Source**, **Supplement**, and **Unspecified**.
+: PDF/A-3 **/AFRelationship** entry: how the embedded file relates to the document. Valid values are **Alternative**, **Data**, **Source**, **Supplement**, and **Unspecified**, which is the default. The entry is not optional in a PDF/A-3 document. ISO 19005-3 clause 6.8 refers to annex E: an embedded file meeting the extra requirements is an associated file and shall carry one. A document whose attachment has none fails validation at that clause.
 
 **objectName addEmbeddedFile filename ?option value...?**
 : This method embeds a file silently into the PDF document via the Catalog **/Names** / **/EmbeddedFiles** NameTree (ISO 32000 SS7.11.4). No visible annotation is created on any page. This is the correct mechanism for electronic invoice attachments (ZUGFeRD, Factur-X) and other document-level file attachments. *filename* is used as the display name stored in the PDF (**/F** and **/UF** entries of the FileSpec dictionary). When **-contents** is not given, the file is read from disk using *filename* as path; in that case the basename is used as the PDF name. *PDF/A-1 restriction:* embedded files are forbidden by ISO 19005-1 SS6.1.7. Calling this method when **-pdfa** is set to **1b** raises an error. PDF/A-2b and PDF/A-3b allow embedded files.
@@ -1103,7 +1103,7 @@ Being tagged is not the same as being accessible. A document in which every para
 : in **TOC**
 
 **objectName tagBegin type ?options?**
-: Opens a structure element. Everything painted until the matching **tagEnd** belongs to it. Elements nest, and the nesting of the calls is the nesting of the tree. *type* must be one of the standard structure types of ISO 32000-1 Table 333 to 337: **Document**, **Part**, **Art**, **Sect**, **Div**, **BlockQuote**, **Caption**, **TOC**, **TOCI**, **Index**, **NonStruct**, **Private**, **P**, **H**, **H1** to **H6**, **L**, **LI**, **Lbl**, **LBody**, **Table**, **TR**, **TH**, **TD**, **THead**, **TBody**, **TFoot**, **Span**, **Quote**, **Note**, **Reference**, **BibEntry**, **Code**, **Figure**, **Formula** and **Form**. Any other type would require a **/RoleMap** entry and is refused rather than written out and then silently ignored by readers. Where the standard fixes the parent of a type, a call that would put it somewhere else is refused as well:
+: Opens a structure element. Everything painted until the matching **tagEnd** belongs to it. Elements nest, and the nesting of the calls is the nesting of the tree. *type* must be one of the types pdf4tcl accepts, all of them standard structure types of ISO 32000-1: **Document**, **Part**, **Art**, **Sect**, **Div**, **BlockQuote**, **Caption**, **TOC**, **TOCI**, **Index**, **NonStruct**, **Private**, **P**, **H**, **H1** to **H6**, **L**, **LI**, **Lbl**, **LBody**, **Table**, **TR**, **TH**, **TD**, **THead**, **TBody**, **TFoot**, **Span**, **Quote**, **Note**, **Reference**, **BibEntry**, **Code**, **Figure**, **Formula** and **Form**. Any other type would require a **/RoleMap** entry and is refused rather than written out and then silently ignored by readers. Where the standard fixes the parent of a type, a call that would put it somewhere else is refused as well:
 
 **L**
 : holds at least one **LI**
@@ -1143,6 +1143,15 @@ Being tagged is not the same as being accessible. A document in which every para
 
 **-scope scope**
 : Applies to **TH** only and writes **/A <</O /Table /Scope ****.****.****.>>**. *scope* is **Row**, **Column** or **Both**. ISO 14289-1 clause 7.5 requires it wherever the relation between a header cell and its data cells cannot be derived algorithmically.
+
+**-colspan**
+: *n*
+
+**-rowspan n**
+: Apply to **TH** and **TD** and write **/ColSpan** and **/RowSpan**: how many columns or rows the cell spans. A value of 1 is the default and is not written. Without them a heading spanning two columns looks like a single cell in the structure tree, and a reader names the wrong heading for everything under the second. No validator reports this -- the tree is well formed, it simply does not match the table. ISO 32000-1 clause 14.8.4.3.4 note 2 says the association of headers with rows and columns is determined heuristically and may fail for complex tables, which is what these attributes are for.
+
+**-summary text**
+: Applies to **Table** and writes **/Summary**: a summary of the table's purpose and structure, meant for non-visual rendering -- speech or braille. A reader announces it before the cells.
 
 - Every other type may appear anywhere. **NonStruct** carries no structural meaning of its own (ISO 32000-1 clause 14.8.4.2) and is skipped when the parent is determined, so a row wrapped in one is still a row. A refused call raises an error before the element exists and leaves the tree unchanged. This closes a class of defect that goes unreported otherwise: a validator checks conformance, not sense, and a reader repairs nothing. A cell outside a row passes every check and is announced as a table without rows. **tagEnd** checks the other direction and refuses to close a container the standard requires to hold something:
 - Marked content does not count here -- a table holding only text is still a table without rows. A refused **tagEnd** leaves the element open, so the missing content can be added and the element closed afterwards. An element closed without any content at all -- no marked content, no child element and no annotation -- is reported in **::pdf4tcl::warnings** rather than refused: the standard permits it, but such an element designates nothing. **TD** and **TH** are exempt, because a blank cell belongs in the tree; without it the column mapping shifts. An element that holds only an annotation, such as a **Link** or a **Form**, is not empty -- these consist of an **/OBJR** and never carry an MCID.
@@ -1282,13 +1291,22 @@ image create photo img1 -file image.gif
 ```
 
 **objectName getImageHeight id**
-: This method returns the height of the image identified by *id*.
+: This method returns the height of the image identified by *id*, in pixels.
 
 **objectName getImageSize id**
-: This method returns the size of the image identified by *id*. The return value is a list of width and height.
+: This method returns the size of the image identified by *id*. The return value is a list of width and height, both in PIXELS -- not in the document's unit, and not in points. It is the size the image has in itself, which is what a resolution check needs:
+
+```tcl
+lassign [$pdfobject getImageSize $id] px py
+# the image is to be placed 50 mm wide
+set dpi [expr {$px / (50 / 25.4)}]
+if {$dpi < 300} {
+    puts "too coarse for print: [format %.0f $dpi] dpi"
+}
+```
 
 **objectName getImageWidth id**
-: This method returns the width of the image identified by *id*.
+: This method returns the width of the image identified by *id*, in pixels.
 
 ### OBJECT METHODS, COLORS
 
@@ -1493,6 +1511,10 @@ $pdf endLayer
 
 All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which defines default page settings when used with a pdf4tcl object. The objects also understand the following configuration options:
 
+- *B* -- the visual appearance is preservable.
+- *U* -- and the text can be extracted as Unicode.
+- *A* -- and the logical structure is preserved: tagged PDF and a natural language.
+
 **-cmyk boolean**
 : If true, pdf4tcl will try to generate the document in CMYK color space. See **::pdf4tcl::rgb2Cmyk** for a way to control color translation. Default value is false. This option can only be set at object creation.
 
@@ -1506,7 +1528,7 @@ All pdf4tcl objects understand the options from **PAGE CONFIGURATION**, which de
 : Defines default unit for coordinates and distances. Any value given without a unit is interpreted using this unit. See **UNITS** for valid units. Default value is "p" as in points. This option can only be set at object creation.
 
 **-pdfa level**
-: Enables PDF/A conformance for the document. Valid values are (none, default), **1b**, **2b** and **3b** for conformance level B, and **1a**, **2a** and **3a** for level A. Level A adds tagged PDF, a natural language and Unicode mappings on top of level B. pdf4tcl always writes the Unicode mappings; the other two are the caller's job and are checked when the document is finished. Without tagging, or without a language, writing the document raises an error rather than putting *pdfaid:conformance A* into a file that does not have what that claims. In other words, **3a** needs at least:
+: Enables PDF/A conformance for the document. Valid values are (none, default), **1b**, **2b** and **3b** for conformance level B, **2u** and **3u** for level U, and **1a**, **2a** and **3a** for level A. The levels build on each other. ISO 19005-2 clause 5.4: a level B file skips the requirements of clauses 6.2.11.7 and 6.7, a level U file skips only 6.7, and a level A file skips neither. There is no **1u**: level U was introduced with part 2 and has no equivalent in part 1 (clause 5.4 note 3). pdf4tcl always writes the Unicode mappings, so a document that satisfies level B with an embedded font satisfies level U as well. The tagging and the language are the caller's job and are checked when the document is finished. Without tagging, or without a language, writing the document raises an error rather than putting *pdfaid:conformance A* into a file that does not have what that claims. In other words, **3a** needs at least:
 
 ```tcl
 $pdf tagged 1 -lang de-DE
@@ -1610,7 +1632,7 @@ These bytes are the AES file key, the initialisation vectors and the salts, so t
 
 - **::pdf4tcl::catPdf** folds objects with an identical body onto one and renumbers densely. Documents built from the same template share their embedded font programs; measured on two documents of 28961 bytes each, the result went from 57757 to 33762 bytes. Pages, the catalog and structure elements are never folded.
 - **::pdf4tcl::catPdf** folds objects with an identical body onto one and renumbers densely. Documents built from the same template share their embedded font programs; measured on two documents of 28961 bytes each, the result went from 57757 to 33762 bytes. Pages, the catalog and structure elements are never folded.
-- **-markstyle** decides how the mark of a check box or radio button is drawn: **font** uses a ZapfDingbats glyph as before, **vector** draws it with lines and curves, and **auto**, the default, picks vectors where the document claims PDF/UA or a level A conformance. The glyph cannot be embedded and both standards require embedded font programs, so a single check box used to make a document non-conformant whatever else it did right. Documents claiming nothing keep the appearance they always had.
+- **-markstyle** decides how the mark of a check box or radio button is drawn: **font** uses a ZapfDingbats glyph as before, **vector** draws it with lines and curves, and **auto**, the default, picks vectors wherever the document claims PDF/UA or any PDF/A level. The glyph cannot be embedded and both standards require embedded font programs, so a single check box used to make a document non-conformant whatever else it did right. Documents claiming nothing keep the appearance they always had.
 - out which profiles it claims and runs veraPDF against those; takes files or directories. A document claiming nothing is reported as such rather than failed against a profile it never promised.
 - attached to an open **Form** element as well, not only to **Link** and **Annot**. ISO 32000-1 table 337 gives **/Form** as the structure type of an interactive field and PDF/UA clause 7.18.1 wants the widget annotation attached through **/OBJR**; **tagBegin** accepted the type all along, so the element sat in the tree while the field stayed unreachable, and the warning about unattached annotations fired for a document that had done everything right.
 
@@ -1815,7 +1837,7 @@ These bytes are the AES file key, the initialisation vectors and the salts, so t
 
 ### VERSION 0.9.4.5
 
-- CIDFont Unicode support: **createFontSpecCID** for full TTF embedding.
+- CIDFont Unicode support: **createFontSpecCID** for subsetted TTF embedding.
 - Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.
 - ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.
 

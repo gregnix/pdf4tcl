@@ -23,8 +23,8 @@ package require pdf4tcl 0.9
 pdf4tcl::catPdf part1.pdf part2.pdf combined.pdf
 ```
 
-Both inputs tagged → one `/StructTreeRoot`, parent-tree keys of the second
-document shifted, `/Document` children joined. MCIDs stay per page (not
+Both inputs tagged -> one structure tree, with the second document's
+elements joined to the first. The page markers stay as they are (not
 renumbered).
 
 ```bash
@@ -44,8 +44,8 @@ Prefer tagging all parts the same way before merging.
 
 ## Interactive forms (since 0.9.4.44)
 
-`/Fields` is the union of all inputs, so a merged document keeps every field.
-Before 0.9.4.44 only the first document's `/AcroForm` survived: the other
+The field list is the union of all inputs, so a merged document keeps every
+field. Before 0.9.4.44 only the first document's form survived: the other
 documents' widgets sat on their pages, fully formed, and no reader offered
 them for filling — `pdftk dump_data_fields` reported one field where two had
 gone in.
@@ -76,7 +76,7 @@ Both are read now:
 | plain PDF from pdf4tcl | yes |
 | PDF/A-1b | yes |
 | PDF/A-2b, -3b, -3a | since 0.9.4.49 |
-| objects inside `/ObjStm` containers | since 0.9.4.50 |
+| objects packed into containers | since 0.9.4.50 |
 
 Measured: two PDF/A-2b files merge and the result passes veraPDF as 2b;
 two tagged PDF/A-3a files pass 3a and UA-1; a file written with `qpdf
@@ -160,7 +160,7 @@ A proof run against 2b therefore measures nothing at all.
 ## Upgrade note
 
 Code written against 0.9.4.36–0.9.4.39 that expected structure to disappear
-now gets a tagged result. See `../reference/UPGRADING.md` (0.9.4.40).
+now gets a tagged result. See `../../UPGRADING.md` (0.9.4.40).
 
 Code that merged form documents in a separate step because `catPdf` lost the
 fields no longer needs that workaround (0.9.4.44).

@@ -12,7 +12,7 @@ Companion: [`howto-colors.tcl`](howto-colors.tcl).
 Since **0.9.4.39** colours live in `src/color.tcl` and share one pipeline
 (`GetColor`) for fill, stroke, background, annotations, forms, and gradients.
 Details: `../reference/pdf4tcl-graphics-and-colors.md` (section "Color input"),
-`../reference/UPGRADING.md`.
+`../../UPGRADING.md`.
 
 ## Problem
 

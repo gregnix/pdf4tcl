@@ -152,10 +152,13 @@ oo::define ::pdf4tcl::options {
     # mappings. pdf4tcl cannot check all of that here, at construction time,
     # so what it can check happens in finish: see CheckPdfaLevelA.
     method CheckPdfa {option value} {
-        if {$value ni {"" "1a" "1b" "2a" "2b" "3a" "3b"}} {
+        # Level U exists only from part 2 on -- ISO 19005-2 clause 5.4
+        # note 3 says so outright, so there is no "1u".
+        if {$value ni {"" "1a" "1b" "2a" "2b" "2u" "3a" "3b" "3u"}} {
             throw {PDF4TCL} \
                 "invalid -pdfa value \"$value\": must be \"\", \"1a\",\
-                \"1b\", \"2a\", \"2b\", \"3a\" or \"3b\""
+                \"1b\", \"2a\", \"2b\", \"2u\", \"3a\", \"3b\" or\
+                \"3u\""
         }
     }
 

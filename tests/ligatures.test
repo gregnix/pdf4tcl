@@ -216,4 +216,115 @@ test ligatures-4.3 {ohne Ligaturen bleibt die Summe der Zeichen} \
     expr {abs($gemessen - $w) < 0.01}
 } -result 1
 
+
+# ---------------------------------------------------------------------------
+# ligatures-5.x  Kerning ueber eine Ligatur hinweg (0.9.4.56)
+#
+# Seit 0.9.4.55 schlaegt das Kerning das Paar auf der LIGATURGLYPHE nach --
+# was die Schrift so meint. Das war bis hierher UNGETESTET, mit der
+# Begruendung, keine der vorhandenen Schriften fuehre so ein Paar.
+#
+# GEMESSEN: von 38 Schriften mit Ligaturen fuehren FUENF eines --
+# Carlito in allen vier Schnitten und Caladea-BoldItalic. In Carlito ist
+# es die tf-Ligatur (Glyph 127), die mit siebzehn Zeichen kernt, unter
+# anderem mit "a" um -19.5.
+#
+# Die Annahme war also falsch, nicht die Suche zu klein.
+# ---------------------------------------------------------------------------
+
+# Eine Schrift suchen, die eine Ligaturglyphe mit Kernpaar hat, und dazu
+# das Zeichenpaar, das es ausloest. Wer nichts findet, ueberspringt --
+# aber der Guard unten meldet es, statt still gruen zu sein.
+set ::kernLigFont ""
+set ::kernLigText ""
+foreach k {
+    /usr/share/fonts/truetype/crosextra/Carlito-Regular.ttf
+    /usr/share/fonts/truetype/crosextra/Caladea-BoldItalic.ttf
+} {
+    if {![file readable $k]} continue
+    set nm KernLigProbe
+    catch {pdf4tcl::loadBaseTrueTypeFont $nm $k}
+    if {![info exists ::pdf4tcl::BFA($nm,ligatures)]} continue
+
+    # Jede Ligatur durchgehen: welche Ausgangszeichen, welche Zielglyphe?
+    dict for {ersterGlyph eintraege} $::pdf4tcl::BFA($nm,ligatures) {
+        foreach e $eintraege {
+            set folger   [lindex $e 0]
+            set ligGlyph [lindex $e 1]
+            # Kernt die Ligaturglyphe mit einem druckbaren Zeichen?
+            dict for {cp g} $::pdf4tcl::BFA($nm,charToGlyph) {
+                if {$cp < 32 || $cp > 126} continue
+                if {[::pdf4tcl::GetKernPair $nm $ligGlyph $g] == 0} continue
+                # Ausgangszeichen zurueckuebersetzen
+                set quelle ""
+                foreach gl [concat $ersterGlyph $folger] {
+                    dict for {c x} $::pdf4tcl::BFA($nm,charToGlyph) {
+                        if {$x == $gl} { append quelle [format %c $c]; break }
+                    }
+                }
+                if {[string length $quelle] < 2} continue
+                set ::kernLigFont $k
+                set ::kernLigText "$quelle[format %c $cp]"
+                break
+            }
+            if {$::kernLigFont ne ""} break
+        }
+        if {$::kernLigFont ne ""} break
+    }
+    if {$::kernLigFont ne ""} break
+}
+testConstraint haveKernLig [expr {$::kernLigFont ne ""}]
+
+test ligatures-5.0 {die Suche hat etwas gefunden} -body {
+    # DER GUARD. Ein uebersprungener Test meldet gruen und misst nichts;
+    # dieser hier faellt, wenn die Suche nichts findet -- dann ist
+    # entweder keine passende Schrift installiert oder die Suche kaputt.
+    #
+    # Ohne ihn waere ligatures-5.1 stumm uebersprungen, und niemand
+    # wuesste, dass die Sache weiterhin ungetestet ist.
+    expr {$::kernLigFont ne "" && [string length $::kernLigText] >= 3}
+} -result 1
+
+test ligatures-5.1 {Kerning wirkt auf der Ligaturglyphe} \
+        -constraints haveKernLig -body {
+    # Der eigentliche Nachweis: die Ligatur entsteht UND das Kerning
+    # dahinter greift. Mit Carlito und "tfa":
+    #
+    #   [<007F> 19.5312 <002D>] TJ
+    #    tf-Ligatur   Kern      a
+    #
+    # Vorher konnte das niemand belegen.
+    pdf4tcl::loadBaseTrueTypeFont KernLigBase $::kernLigFont
+    pdf4tcl::createFontSpecCID KernLigBase KernLigFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 KernLigFont
+    $pdf setLigatures 1
+    $pdf setKerning 1
+    $pdf text $::kernLigText -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    # Eine TJ-Anpassung mit genau zwei Glyphgruppen: Ligatur, Kern, Rest.
+    regexp {\[<[0-9A-F]{4}> *-?[0-9.]+ *<[0-9A-F]{4}>\] *TJ} $data
+} -result 1
+
+test ligatures-5.2 {ohne Ligaturen sind es drei Glyphen} \
+        -constraints haveKernLig -body {
+    # Gegenprobe: derselbe Text ohne Ligaturen ergibt keinen Zweiergruppen-
+    # Lauf, sondern mehr Glyphen. Ohne diesen Test wuerde 5.1 auch dann
+    # gruen, wenn gar keine Ligatur gebildet wird.
+    pdf4tcl::loadBaseTrueTypeFont KernLigBase $::kernLigFont
+    pdf4tcl::createFontSpecCID KernLigBase KernLigFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 KernLigFont
+    $pdf setLigatures 0
+    $pdf setKerning 1
+    $pdf text $::kernLigText -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    # Mindestens drei Glyphen irgendwo im Strom.
+    regexp {<[0-9A-F]{12}} $data
+} -result 1
+
 ::tcltest::cleanupTests

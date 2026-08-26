@@ -315,11 +315,11 @@ below.
 |-----------------------|---------------|--------------------|---------------------|
 | Character limit       | 256           | up to 256          | unlimited           |
 | Encoding              | WinAnsi       | user-defined       | Identity-H          |
-| TTF embedding         | subset        | subset             | complete TTF        |
+| TTF embedding         | subset        | subset             | subset (0.9.4.57)   |
 | Type1 fonts           | yes           | yes                | no                  |
 | CJK support           | no            | limited            | yes (with CJK TTF)  |
 | AcroForm fields       | yes           | yes                | no                  |
-| File size impact      | small         | small              | larger              |
+| File size impact      | small         | small              | slightly larger     |
 | getStringWidth        | yes           | yes                | yes                 |
 | Text copyable in PDF  | yes           | yes                | yes (ToUnicode CMap)|
 
@@ -386,14 +386,6 @@ supported. Characters above U+FFFF (outside the Basic Multilingual Plane)
 require `\U` escaping in Tcl source and depend on the font containing those
 glyphs.
 
-### File Size
-
-The complete TTF is embedded for each base font, regardless of how many
-characters are actually used. A typical DejaVuSans.ttf adds approximately
-750 KB to the PDF. Documents with multiple CID fonts grow accordingly.
-
----
-
 ## Technical Notes
 
 ### PDF Object Structure
@@ -442,6 +434,25 @@ the TTF hmtx table via the `charToGlyph` dictionary:
 
 CJK characters are typically full-width (advance = unitsPerEm), which
 `getStringWidth` returns correctly.
+
+---
+
+
+### File Size
+
+Since 0.9.4.57 only the glyphs the document actually draws are embedded.
+One line of German text with DejaVuSans measures about 50 KB, where it used
+to be 386 KB -- the whole 760 KB face went in whatever the page contained.
+
+What is still carried in full: `loca` keeps an entry per glyph of the
+original face, and `hmtx` its metrics. Only `glyf` shrinks, and that is
+where the bytes are -- 73% of DejaVuSans. Cutting the other two would mean
+renumbering, and the glyph number is what the content stream already
+contains.
+
+So a document using one CID font is not much larger than the text in it. A
+document using several still pays for each, since a subset of one face
+cannot serve another.
 
 ---
 

@@ -326,6 +326,53 @@ oo::define ::pdf4tcl::pdf4tcl {
                     ##nagelfar ignore Found constant
                     dict set attrs $option $value
                 }
+                -colspan - -rowspan {
+                    # ISO 32000-1 table 349, standard table attributes
+                    # (clause 14.8.5.7). /ColSpan and /RowSpan give the
+                    # number of columns or rows the cell spans; a reader
+                    # assumes 1 where the entry is absent, so 1 is not
+                    # written.
+                    #
+                    # The spec restricts both to TH and TD, which is what
+                    # the check below enforces.
+                    #
+                    # Clause 14.8.4.3.4 note 2 says the association of
+                    # headers with rows and columns is determined
+                    # heuristically and "may fail for complex tables" --
+                    # the attributes exist to make it explicit. A merged
+                    # cell is exactly such a case.
+                    #
+                    # Without them a heading spanning two columns looks
+                    # like one cell in the tree, and a reader names the
+                    # wrong heading for everything under the second. No
+                    # validator reports it -- the tree is well formed, it
+                    # just does not match the table.
+                    if {$type ni {TH TD}} {
+                        throw {PDF4TCL} "$option applies to TH or TD,\
+                                not $type"
+                    }
+                    if {![string is integer -strict $value] || $value < 1} {
+                        throw {PDF4TCL} "invalid $option value \"$value\":\
+                                must be a positive integer"
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
+                -summary {
+                    # ISO 32000-1 table 349: a summary of the table's
+                    # purpose and structure, only on Table itself.
+                    #
+                    # The note there says what it is for: non-visual
+                    # rendering -- speech or braille. A reader announces it
+                    # before the cells, so someone who cannot see the shape
+                    # of the table learns what to expect.
+                    if {$type ne "Table"} {
+                        throw {PDF4TCL} "-summary applies to Table,\
+                                not $type"
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
                 default {
                     throw {PDF4TCL} "unknown option \"$option\""
                 }
@@ -432,7 +479,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set tagOpts {}
         set textOpts {}
         foreach {option value} $args {
-            if {$option in {-alt -actualtext -title -lang -scope
+            if {$option in {-alt -actualtext -title -lang -scope -colspan
+                    -rowspan -summary
                             -listnumbering -id -headers}} {
                 lappend tagOpts $option $value
             } else {
@@ -1001,6 +1049,18 @@ oo::define ::pdf4tcl::pdf4tcl {
             set tableAttrs {}
             if {[dict exists $attrs -scope]} {
                 lappend tableAttrs "/Scope /[dict get $attrs -scope]"
+            }
+            if {[dict exists $attrs -summary]} {
+                lappend tableAttrs "/Summary\
+                        [::pdf4tcl::TagTextString [dict get $attrs -summary]]"
+            }
+            foreach {opt name} {-colspan ColSpan -rowspan RowSpan} {
+                if {[dict exists $attrs $opt]} {
+                    # A span of 1 is the default and adds nothing.
+                    if {[dict get $attrs $opt] > 1} {
+                        lappend tableAttrs "/$name [dict get $attrs $opt]"
+                    }
+                }
             }
             if {[dict exists $attrs -headers]} {
                 set ids {}

@@ -25,7 +25,7 @@ Factur-X XMP extension.
 ## What pdf4tcl does *not* do
 
 Validate the invoice **business content** against EN 16931 / XRechnung
-Schematron. That is application data. See `../reference/todo-en16931.md`.
+Schematron. That is application data.
 
 ## Recipe
 

@@ -42,7 +42,4 @@ Useful options: `-bbox`, `-sticky`, `-bg`, `-fontmap`, `-textscale`.
 ## Notes
 
 - `tko::path` uses the same `$pdf canvas .path …` entry point.
-- Under **tko 0.4**, closing the interpreter can crash on exit (refcount bug
-  outside pdf4tcl). Demos often end with `exit 0`; details in
-  `pdf4tcl-canvas.md`.
 - Window items: coordinates are taken before rasterising (fixed in 0.9.4.38).

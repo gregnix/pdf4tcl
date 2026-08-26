@@ -75,7 +75,7 @@ automatically.
 All seven produce a real annotation object; verified in the output of a
 single test document:
 
-| Method | `/Subtype` | Visible without clicking |
+| Method | Annotation type | Visible without clicking |
 |---|---|---|
 | `addAnnotNote` | `/Text` | icon only, popup on click |
 | `addAnnotFreeText` | `/FreeText` | yes |
@@ -179,9 +179,8 @@ foreach w $::pdf4tcl::warnings { puts stderr $w }
 ## What to check in the result
 
 `tools/check-tagged.py` verifies annotations against the structure tree of a
-tagged document: every annotation claimed by exactly one `/OBJR`, its
-`/StructParent` resolving back to that element, link annotations carrying
-`/Contents`, and `/Tabs /S` on pages with annotations.
+tagged document: that each one belongs to exactly one element and finds it
+again, that links carry a description, and that tabbing follows the tree.
 
 For anything else, `qpdf --check` catches syntax and stream errors, and
 veraPDF checks conformance against a profile:

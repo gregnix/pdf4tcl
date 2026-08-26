@@ -1,7 +1,7 @@
 # new-0.9.4.12.test -- Tests for pdf4tcl 0.9.4.12 new features
 # roundedRect, unit procs, _ValidatePdfDate
 
-source init.tcl
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 # -- Unit conversion procs ----------------------------------------------------
 

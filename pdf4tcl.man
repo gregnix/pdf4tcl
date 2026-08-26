@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.53]
+[manpage_begin pdf4tcl n 0.9.4.58]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.53]]
+[require pdf4tcl [opt 0.9.4.58]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -158,6 +158,20 @@ This call creates a font that can be used in documents from a base font.
 The [arg "subset"] must be a list of (up to 256) unicode values which are the characters that can be
 drawn when [arg "fontname"] is selected.
 
+[para]
+Only the glyphs for those codepoints are embedded -- a real subset of the
+font programme, not the whole file. That is the difference to
+[cmd createFontSpecCID], which has no 256-codepoint limit but embeds the
+entire TTF. Measured on the same page with DejaVuSans: 31 kB here against
+386 kB there.
+
+[para]
+Two things to watch. Put [const 63] ([const ?]) in the list: a character
+outside it falls back to [const ?] where that is present, and otherwise to
+slot 0 -- the FIRST codepoint listed, which then reads like real text and is
+not. And check [method getSubstCount] afterwards; a missing glyph is
+reported there and nowhere else.
+
 [example {
 pdf4tcl::loadBaseTrueTypeFont BaseArial "arial.ttf"
 # Subset is a list of unicodes:
@@ -179,7 +193,22 @@ This call creates a Unicode-capable CID font (CIDFontType2 with Identity-H encod
 from a previously loaded TrueType base font. Unlike [cmd createFont] and [cmd createFontSpecEnc],
 which are limited to 256 characters per font instance, a CID font supports any Unicode
 character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic,
-CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.
+CJK ideographs, and other scripts.
+
+[para]
+Since 0.9.4.57 only the glyphs the document actually draws are embedded.
+Measured on the same page with DejaVuSans: 31 kB through
+[cmd createFontSpecEnc] against 50 kB here, where it used to be 386 kB.
+
+[para]
+The glyph numbers are kept as they are, so composite glyphs pull in the
+parts they are built from -- an a-umlaut needs its base letter and its
+accent, both separate glyphs.
+
+[para]
+See [file doc/en/reference/pdf4tcl-fonts-and-unicode.md] for the three ways of
+choosing a font side by side, with what each one costs and what it can
+render.
 
 [para]
 Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
@@ -285,7 +314,10 @@ The info is a dictionary with the following fields:
 
 [list_begin options]
 [opt_def type] Field type.
-[opt_def value] Form value.
+[opt_def value] Form value, unpacked: a text value comes back without its
+brackets and escapes, exactly the form [cmd ::pdf4tcl::fillForms] takes in,
+so reading a form and writing it back does not accumulate escaping. A name
+value ([const /Yes], [const /Off]) is left as it is.
 [opt_def flags] Value of form flags field.
 [opt_def default] Default value, if any.
 [list_end]
@@ -781,6 +813,21 @@ For [arg -creationdate] and [arg -moddate] a [const {clock seconds}] value is ex
 A value of [const 0] uses the current date and time.
 Unknown option names cause an error.
 
+[para]
+With [option -pdfa] the fields also go into the XMP packet, as
+[const dc:title], [const dc:creator], [const dc:description],
+[const dc:subject], [const pdf:Keywords], [const pdf:Producer],
+[const xmp:CreateDate] and [const xmp:ModifyDate].
+
+[para]
+Two entries are written without being asked for. [const pdf:Producer]
+defaults to the organization, the package name and the release, the form
+recommended for an [const AgentName] (XMP part 1 clause 8.2.2.1);
+[option -producer] overrides it. [const xmp:MetadataDate] accompanies
+[const xmp:ModifyDate] with the same value and records when the metadata
+last changed as against the content (XMP part 1 table 5); it is absent when
+no modification date was given.
+
 [call [arg objectName] [method bookmarkAdd] [opt [arg "option value"]...]]
 
 Add a bookmark on the current page.
@@ -860,9 +907,16 @@ Human-readable description stored as [const /Desc] in the FileSpec
 dictionary.
 
 [opt_def -afrelationship [arg rel]]
-PDF/A-3 [const /AFRelationship] entry.  Valid values are
-[const Alternative], [const Data], [const Source],
-[const Supplement], and [const Unspecified].
+PDF/A-3 [const /AFRelationship] entry: how the embedded file relates to
+the document.  Valid values are [const Alternative], [const Data],
+[const Source], [const Supplement], and [const Unspecified], which is the
+default.
+
+[para]
+The entry is not optional in a PDF/A-3 document. ISO 19005-3 clause 6.8
+refers to annex E: an embedded file meeting the extra requirements is an
+associated file and shall carry one. A document whose attachment has none
+fails validation at that clause.
 
 [list_end]
 
@@ -1463,8 +1517,8 @@ Opens a structure element. Everything painted until the matching
 the nesting of the tree.
 
 [para]
-[arg type] must be one of the standard structure types of ISO 32000-1
-Table 333 to 337:
+[arg type] must be one of the types pdf4tcl accepts, all of them standard
+structure types of ISO 32000-1:
 [const Document], [const Part], [const Art], [const Sect], [const Div],
 [const BlockQuote], [const Caption], [const TOC], [const TOCI],
 [const Index], [const NonStruct], [const Private],
@@ -1554,6 +1608,24 @@ relation cannot be derived from the layout.
 [const Column] or [const Both]. ISO 14289-1 clause 7.5 requires it wherever
 the relation between a header cell and its data cells cannot be derived
 algorithmically.
+
+[opt_def -colspan [arg n]] [opt_def -rowspan [arg n]] Apply to [const TH]
+and [const TD] and write [const /ColSpan] and [const /RowSpan]: how many
+columns or rows the cell spans. A value of 1 is the default and is not
+written.
+
+[para]
+Without them a heading spanning two columns looks like a single cell in the
+structure tree, and a reader names the wrong heading for everything under
+the second. No validator reports this -- the tree is well formed, it simply
+does not match the table. ISO 32000-1 clause 14.8.4.3.4 note 2 says the
+association of headers with rows and columns is determined heuristically
+and may fail for complex tables, which is what these attributes are for.
+
+[opt_def -summary [arg text]] Applies to [const Table] and writes
+[const /Summary]: a summary of the table's purpose and structure, meant for
+non-visual rendering -- speech or braille. A reader announces it before the
+cells.
 [list_end]
 
 Text passed to these options is written as a UTF-16BE string when it contains
@@ -1845,16 +1917,29 @@ Default value is the document's [option -compress] setting.
 
 [call [arg objectName] [method getImageHeight] [arg "id"]]
 
-This method returns the height of the image identified by [arg "id"].
+This method returns the height of the image identified by [arg "id"],
+in pixels.
 
 [call [arg objectName] [method getImageSize] [arg "id"]]
 
 This method returns the size of the image identified by [arg "id"].  The
-return value is a list of width and height.
+return value is a list of width and height, both in PIXELS -- not in the
+document's unit, and not in points. It is the size the image has in
+itself, which is what a resolution check needs:
+
+[example {
+lassign [$pdfobject getImageSize $id] px py
+# the image is to be placed 50 mm wide
+set dpi [expr {$px / (50 / 25.4)}]
+if {$dpi < 300} {
+    puts "too coarse for print: [format %.0f $dpi] dpi"
+}
+}]
 
 [call [arg objectName] [method getImageWidth] [arg "id"]]
 
-This method returns the width of the image identified by [arg "id"].
+This method returns the width of the image identified by [arg "id"],
+in pixels.
 
 [list_end]
 
@@ -2241,13 +2326,30 @@ This option can only be set at object creation.
 
 Enables PDF/A conformance for the document.
 Valid values are [const ""] (none, default), [const 1b], [const 2b] and
-[const 3b] for conformance level B, and [const 1a], [const 2a] and
-[const 3a] for level A.
+[const 3b] for conformance level B, [const 2u] and [const 3u] for level U,
+and [const 1a], [const 2a] and [const 3a] for level A.
 
 [para]
-Level A adds tagged PDF, a natural language and Unicode mappings on top of
-level B. pdf4tcl always writes the Unicode mappings; the other two are the
-caller's job and are checked when the document is finished. Without tagging,
+The levels build on each other. ISO 19005-2 clause 5.4: a level B file
+skips the requirements of clauses 6.2.11.7 and 6.7, a level U file skips
+only 6.7, and a level A file skips neither.
+
+[list_begin itemized]
+[item] [emph B] -- the visual appearance is preservable.
+[item] [emph U] -- and the text can be extracted as Unicode.
+[item] [emph A] -- and the logical structure is preserved: tagged PDF and a
+natural language.
+[list_end]
+
+[para]
+There is no [const 1u]: level U was introduced with part 2 and has no
+equivalent in part 1 (clause 5.4 note 3).
+
+[para]
+pdf4tcl always writes the Unicode mappings, so a document that satisfies
+level B with an embedded font satisfies level U as well. The tagging and
+the language are the caller's job and are checked when the document is
+finished. Without tagging,
 or without a language, writing the document raises an error rather than
 putting [term "pdfaid:conformance A"] into a file that does not have what
 that claims. In other words, [const 3a] needs at least:
@@ -2507,7 +2609,7 @@ elements are never folded.
 [item] [option -markstyle] decides how the mark of a check box or radio
 button is drawn: [const font] uses a ZapfDingbats glyph as before,
 [const vector] draws it with lines and curves, and [const auto], the default,
-picks vectors where the document claims PDF/UA or a level A conformance. The
+picks vectors wherever the document claims PDF/UA or any PDF/A level. The
 glyph cannot be embedded and both standards require embedded font programs,
 so a single check box used to make a document non-conformant whatever else it
 did right. Documents claiming nothing keep the appearance they always had.
@@ -3055,7 +3157,7 @@ for Tcl 9.0 compatibility (ticket #17).
 
 [subsection {Version 0.9.4.5}]
 [list_begin itemized]
-[item] CIDFont Unicode support: [cmd createFontSpecCID] for full TTF embedding.
+[item] CIDFont Unicode support: [cmd createFontSpecCID] for subsetted TTF embedding.
 [item] Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.
 [item] ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.
 [list_end]
