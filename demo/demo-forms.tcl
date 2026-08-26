@@ -146,6 +146,32 @@ if {$textfeld ne ""} {
     puts "  Der Wert steht in der Datei, GEZEICHNET wird er nicht."
     puts "  /NeedAppearances weist den Leser an, ihn darzustellen --"
     puts "  Acrobat und die gaengigen Browser tun das."
+
+    # ----------------------------------------------------------------------
+    # Der Rundlauf: auslesen, aendern, zurueckschreiben (0.9.4.55)
+    # ----------------------------------------------------------------------
+    puts ""
+    puts "  Rundlauf ueber drei Durchgaenge:"
+    set quelle $gefuellt
+    for {set i 1} {$i <= 3} {incr i} {
+        set alt [pdf4tcl::getForms $quelle]
+        set neu {}
+        dict for {k v} $alt {
+            if {[string index [dict get $v value] 0] ne "/"} {
+                dict set neu $k [dict get $v value]
+            }
+        }
+        set ziel [file rootname $outfile]-rund$i.pdf
+        pdf4tcl::fillForms $quelle $ziel $neu
+        set jetzt [dict get [pdf4tcl::getForms $ziel] $textfeld value]
+        puts "    $i. Durchgang: $jetzt"
+        set quelle $ziel
+    }
+    puts ""
+    puts "  getForms gibt AUSGEPACKT zurueck -- genau die Form, die"
+    puts "  fillForms nimmt. Vorher verdoppelte sich die Maskierung"
+    puts "  jedes Feldes, das man nicht angefasst hat, bei jedem"
+    puts "  Durchgang."
 }
 
 # Ein Feld, das es nicht gibt, wird gemeldet statt uebergangen.

@@ -66,10 +66,12 @@ $pdf setFont 11 Uni
 $pdf text "Καλημέρα -- Ελληνικά κείμενα" -x 90 -y $y
 ```
 
-The same call carries every script. That is the whole point of the CID font,
-and the reason the file is 760 KB: the entire font goes in. If the repertoire
-is fixed and small, `createFontSpecEnc` embeds a subset instead and lands
-under 30 KB -- see
+The same call carries every script. That is the whole point of the CID font.
+
+Since 0.9.4.57 it only embeds the glyphs the page actually draws, so this
+file measures about 50 KB rather than the 386 KB it used to. If the
+repertoire is fixed and small, `createFontSpecEnc` still lands lower, around
+30 KB -- see
 [`../reference/pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md).
 
 ## Step 3 -- mixing two fonts on one line

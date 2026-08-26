@@ -21,12 +21,35 @@ if {[lsearch [namespace children] ::tcltest] == -1} {
     namespace import -force ::tcltest::*
 }
 
-set tmp [file join [pwd] ..]
+# Wurzel suchen, nicht zaehlen. Markierung ist pkgIndex.tcl neben src/.
+#
+# Vorher stand hier [file join [pwd] ..] -- eine Ebene ueber dem
+# ARBEITSVERZEICHNIS, nicht ueber der Testdatei. Aus tests/ aufgerufen
+# stimmte das, aus der Wurzel zeigte es nach draussen. Dann fand
+# "file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf" nichts, sieben Tests wurden
+# uebersprungen und font-6.1 fiel durch, weil es MyArial erwartete --
+# eine Meldung ueber getFonts fuer einen Pfadfehler.
+#
+# ::pdf4tclTestRoot steht allen Testdateien zur Verfuegung; damit
+# brauchen sie kein "..".
+proc pdf4tclTestRoot {start} {
+    set dir [file normalize $start]
+    for {set i 0} {$i < 8} {incr i} {
+        if {[file exists [file join $dir pkgIndex.tcl]]
+                && [file isdirectory [file join $dir src]]} { return $dir }
+        set parent [file dirname $dir]
+        if {$parent eq $dir} break
+        set dir $parent
+    }
+    return -code error "pdf4tcl-Wurzel nicht gefunden ueber $start"
+}
+set ::pdf4tclTestRoot [pdf4tclTestRoot [file dirname [info script]]]
+set tmp $::pdf4tclTestRoot
 set ::auto_path [concat [list $tmp] $::auto_path]
 if {[file exists $tmp/pdf4tcl.tcl_i]} {
     source $tmp/pdf4tcl.tcl_i
 }
-package require pdf4tcl 0.9.4.53
+package require pdf4tcl 0.9.4.57
 
 proc myexec {args} {
     set ch [open "|$args"]

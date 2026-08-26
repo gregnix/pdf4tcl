@@ -160,7 +160,7 @@ A proof run against 2b therefore measures nothing at all.
 ## Upgrade note
 
 Code written against 0.9.4.36–0.9.4.39 that expected structure to disappear
-now gets a tagged result. See `../reference/UPGRADING.md` (0.9.4.40).
+now gets a tagged result. See `../../UPGRADING.md` (0.9.4.40).
 
 Code that merged form documents in a separate step because `catPdf` lost the
 fields no longer needs that workaround (0.9.4.44).

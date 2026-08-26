@@ -492,7 +492,7 @@ test form-21.1 {fillForms setzt einen Textwert} -body {
     list $n [dict get $res name value]
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {1 (Meier)}
+} -result {1 Meier}
 
 test form-21.2 {Sonderzeichen werden maskiert} -body {
     # Eine unmaskierte Klammer beendet die PDF-Zeichenkette vorzeitig --
@@ -509,7 +509,7 @@ test form-21.2 {Sonderzeichen werden maskiert} -body {
     dict get $res firma value
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {(Meier & Co \(GmbH\))}
+} -result {Meier & Co (GmbH)}
 
 test form-21.3 {eine Checkbox nimmt einen Zustandsnamen} -body {
     mytest -file {addForm checkbutton 0 0 15 15 -id ok} {}
@@ -541,7 +541,7 @@ test form-21.5 {nicht genannte Felder bleiben unveraendert} -body {
     list [dict get $res eins value] [dict get $res zwei value]
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {(A) {}}
+} -result {A {}}
 
 test form-21.6 {NeedAppearances wird gesetzt} -body {
     # Ohne das traegt das Feld den Wert und zeigt das alte Aussehen.
@@ -603,6 +603,187 @@ test form-22.2 {fillForms ebenso} -body {
     dict get $res name value
 } -cleanup {
     file delete testdebug.pdf testfilled.pdf
-} -result {(Meier)}
+} -result {Meier}
+
+
+test form-21.2a {der Rundlauf ist stabil} -body {
+    # Auslesen, ein Feld aendern, zurueckschreiben -- und das dreimal.
+    # Vorher verdoppelte sich dabei die Maskierung JEDES Feldes, das
+    # nicht angefasst wurde, bei jedem Durchgang:
+    #
+    #   Meier & Co (GmbH)
+    #   (Meier & Co \(GmbH\))
+    #   (\(Meier & Co \\\(GmbH\\\)\)))
+    #
+    # Zwei Fehler, einer je Richtung: getForms gab den Wert roh zurueck,
+    # und das Schreibmuster endete an der ersten maskierten Klammer.
+    #
+    # Raeumt zu Beginn auf, nicht nur am Ende: nach einem abgebrochenen
+    # Lauf nahm der Test sonst die alte Datei als Eingabe und fiel mit
+    # genau dem Wert durch, den er ausschliessen soll.
+    foreach f {rtA.pdf rtB.pdf rtC.pdf rtD.pdf} {
+        catch {file delete $f}
+    }
+    mytest -file {addForm text 0 0 100 20 -id firma} \
+            {addForm text 0 30 100 20 -id ort} {}
+    file rename testdebug.pdf rtA.pdf
+
+    pdf4tcl::fillForms rtA.pdf rtB.pdf {firma "Meier & Co (GmbH)" ort "A"}
+    foreach {von nach} {rtB.pdf rtC.pdf rtC.pdf rtD.pdf} {
+        set alt [pdf4tcl::getForms $von]
+        set neu {}
+        dict for {k v} $alt { dict set neu $k [dict get $v value] }
+        dict set neu ort "geaendert"
+        pdf4tcl::fillForms $von $nach $neu
+    }
+    dict get [pdf4tcl::getForms rtD.pdf] firma value
+} -cleanup {
+    foreach f {rtA.pdf rtB.pdf rtC.pdf rtD.pdf} { catch {file delete $f} }
+} -result {Meier & Co (GmbH)}
+
+test form-21.2b {ein Name-Wert bleibt unangetastet} -body {
+    # Checkboxen tragen /Yes oder /Off -- genau die Form, die fillForms
+    # erwartet. Auspacken duerfte sie nicht.
+    mytest -file {addForm checkbutton 0 0 15 15 -id ok} {}
+    pdf4tcl::fillForms testdebug.pdf testfilled.pdf {ok /Yes}
+    dict get [pdf4tcl::getForms testfilled.pdf] ok value
+} -cleanup {
+    file delete testdebug.pdf testfilled.pdf
+} -result "/Yes"
+
+
+# ---------------------------------------------------------------------------
+# form-23.x  Optionen zum falschen Feldtyp (0.9.4.56)
+#
+# "addForm text ... -value x" setzte nichts und meldete nichts. -value ist
+# der Ausgabename eines Optionsfeldes, ein Textfeld nimmt -init.
+#
+# Gemeldet, nicht abgelehnt: wer heute eine harmlose Zusatzoption
+# uebergibt, soll nicht stehenbleiben. Die Zuordnung ist aus der
+# Gliederung des Handbuchs abgelesen, nicht geraten.
+# ---------------------------------------------------------------------------
+
+test form-23.1 {-value an einem Textfeld wird gemeldet} -body {
+    set ::pdf4tcl::warnings {}
+    mytest -file {addForm text 0 0 100 20 -id a -value X} {}
+    file delete testdebug.pdf
+    expr {[llength [lsearch -all -inline $::pdf4tcl::warnings \
+            {*-value applies to radiobutton*}]] == 1}
+} -cleanup {set ::pdf4tcl::warnings {}} -result 1
+
+test form-23.2 {-options an einem Textfeld ebenso} -body {
+    set ::pdf4tcl::warnings {}
+    mytest -file {addForm text 0 0 100 20 -id b -options {A B}} {}
+    file delete testdebug.pdf
+    expr {[llength [lsearch -all -inline $::pdf4tcl::warnings \
+            {*-options applies to combobox, listbox*}]] == 1}
+} -cleanup {set ::pdf4tcl::warnings {}} -result 1
+
+test form-23.3 {richtige Zuordnung meldet nichts} -body {
+    # Gegenprobe. Eine Tabelle, die immer meldet, waere schlimmer als
+    # keine -- sie wuerde gueltige Aufrufe verdaechtigen.
+    set ::pdf4tcl::warnings {}
+    mytest -file {addForm radiobutton 0 0 15 15 -group g -value ja} \
+            {addForm text 0 30 100 20 -id c -init "ok" -multiline 1} \
+            {addForm combobox 0 60 100 20 -id d -options {A B} -sort 1} \
+            {addForm pushbutton 0 90 90 20 -id e -caption "OK" -action reset} {}
+    file delete testdebug.pdf
+    llength $::pdf4tcl::warnings
+} -cleanup {set ::pdf4tcl::warnings {}} -result 0
+
+test form-23.4 {gemeinsame Optionen gelten ueberall} -body {
+    # -id, -init, -readonly, -required, -tooltip und die Aussehen-Optionen
+    # stehen in keiner Typliste und duerfen nie gemeldet werden.
+    set ::pdf4tcl::warnings {}
+    mytest -file {addForm signature 0 0 100 20 -id s -readonly 1 -tooltip "x"} \
+            {addForm checkbutton 0 30 15 15 -id t -required 1 -bgcolor {1 1 0}} {}
+    file delete testdebug.pdf
+    llength $::pdf4tcl::warnings
+} -cleanup {set ::pdf4tcl::warnings {}} -result 0
+
+test form-23.5 {das Feld entsteht trotzdem} -body {
+    # Gemeldet, nicht abgelehnt -- der Aufruf laeuft durch.
+    set ::pdf4tcl::warnings {}
+    mytest -file {addForm text 0 0 100 20 -id a -value X} {}
+    set res [pdf4tcl::getForms testdebug.pdf]
+    file delete testdebug.pdf
+    dict get $res a type
+} -cleanup {set ::pdf4tcl::warnings {}} -result "/Tx"
+
+
+# ---------------------------------------------------------------------------
+# form-24.x  Ein Formular aus FREMDER Erzeugung (0.9.4.57)
+#
+# tests/fixtures/foreign-form.pdf stammt aus OpenOffice.org 3.4, nicht aus
+# pdf4tcl. Bis hierher wurde getForms und fillForms nur gegen eigene
+# Ausgabe geprueft -- und eigene Ausgabe trifft die eigenen Annahmen.
+#
+# Gleich der erste Versuch fand einen Fehler: OpenOffice schreibt fuer ein
+# leeres Textfeld /V <FEFF>, eine leere UTF-16-Zeichenkette. FormSetKey
+# kannte drei Muster (literale Zeichenkette, Name, Zahl), aber keines fuer
+# eine HEX-Zeichenkette. Also galt der Schluessel als nicht vorhanden und
+# ein zweites /V wurde angehaengt:
+#
+#   qpdf: dictionary has duplicated key /V; last occurrence overrides
+#         earlier ones
+#
+# getForms las danach das aeltere, leere.
+# ---------------------------------------------------------------------------
+
+set ::foreignForm [file join $::pdf4tclTestRoot tests fixtures foreign-form.pdf]
+testConstraint haveForeignForm [file exists $::foreignForm]
+
+test form-24.1 {ein fremdes Formular laesst sich auslesen} \
+        -constraints {haveForeignForm} -body {
+    set f [pdf4tcl::getForms $::foreignForm]
+    expr {[dict size $f] > 10
+            && [dict exists $f {Given Name Text Box}]
+            && [dict get $f {Given Name Text Box} type] eq "/Tx"}
+} -result 1
+
+test form-24.2 {ein Wert kommt zurueck, was hineinging} \
+        -constraints {haveForeignForm} -body {
+    # Der Fall, der den Fehler zeigte: das Feld traegt /V <FEFF>, und der
+    # neue Wert muss das ERSETZEN, nicht danebengeschrieben werden.
+    pdf4tcl::fillForms $::foreignForm ffout.pdf \
+            {"Given Name Text Box" "Meier & Co (GmbH)"}
+    set v [dict get [pdf4tcl::getForms ffout.pdf] {Given Name Text Box} value]
+    file delete ffout.pdf
+    set v
+} -result {Meier & Co (GmbH)}
+
+test form-24.3 {kein doppelter Schluessel} -constraints {haveForeignForm} -body {
+    # Die Gegenprobe zu 24.2. Ohne sie wuerde der Test auch gruen, wenn
+    # zwei /V dastuenden und zufaellig das richtige gewinnt.
+    pdf4tcl::fillForms $::foreignForm ffout.pdf \
+            {"Given Name Text Box" "Meier"}
+    set fh [open ffout.pdf rb]
+    set data [read $fh]
+    close $fh
+    file delete ffout.pdf
+    # Objekt 5 ist das Feld; darin darf /V genau einmal vorkommen.
+    regexp {\n5 0 obj(.*?)endobj} $data -> obj
+    expr {[regexp -all {/V[\s(<]} $obj] == 1}
+} -result 1
+
+test form-24.4 {der Rundlauf haelt auch hier} -constraints {haveForeignForm} -body {
+    pdf4tcl::fillForms $::foreignForm ff1.pdf \
+            {"Given Name Text Box" "Meier & Co (GmbH)"}
+    set quelle ff1.pdf
+    foreach ziel {ff2.pdf ff3.pdf} {
+        set alt [pdf4tcl::getForms $quelle]
+        set neu {}
+        dict for {k v} $alt {
+            if {[string index [dict get $v value] 0] ne "/"} {
+                dict set neu $k [dict get $v value]
+            }
+        }
+        pdf4tcl::fillForms $quelle $ziel $neu
+        set quelle $ziel
+    }
+    set v [dict get [pdf4tcl::getForms ff3.pdf] {Given Name Text Box} value]
+    foreach f {ff1.pdf ff2.pdf ff3.pdf} { catch {file delete $f} }
+    set v
+} -result {Meier & Co (GmbH)}
 
 ::tcltest::cleanupTests

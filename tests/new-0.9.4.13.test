@@ -2,7 +2,7 @@
 # setBlendMode, getBlendMode, linearGradient, radialGradient,
 # _colorToRGB (indirekt), addForm -tooltip/-tabindex, /Tabs /R
 
-source init.tcl
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 # Hilfsproc: prueft ob Substring in Datei vorkommt
 proc pdfContains {file pattern} {

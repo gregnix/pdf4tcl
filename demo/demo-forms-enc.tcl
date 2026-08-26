@@ -6,10 +6,29 @@
 # Viewer: Firefox / Evince / Acrobat (Chrome zeigt AcroForm nicht an)
 # Passwort zum Oeffnen: geheim
 
+# ---------------------------------------------------------------------------
+# Wurzel suchen, nicht zaehlen. Markierung ist pkgIndex.tcl neben src/.
+#
+# Vorher stand hier [file join $scriptDir .. .. ..] -- drei Ebenen nach
+# oben, also AUSSERHALB des Baums. Beide Demos scheiterten mit
+# "can't find package pdf4tcl 0.9.4.32", was nach einer zu alten Version
+# aussieht und ein Pfadfehler war.
+# ---------------------------------------------------------------------------
+proc pdf4tclRepoRoot {start} {
+    set dir [file normalize $start]
+    for {set i 0} {$i < 8} {incr i} {
+        if {[file exists [file join $dir pkgIndex.tcl]]
+                && [file isdirectory [file join $dir src]]} { return $dir }
+        set parent [file dirname $dir]
+        if {$parent eq $dir} break
+        set dir $parent
+    }
+    return -code error "pdf4tcl-Wurzel nicht gefunden ueber $start"
+}
 set scriptDir [file dirname [file normalize [info script]]]
-set pdf4tclDir [file normalize [file join $scriptDir .. .. ..]]
-set auto_path  [linsert $auto_path 0 $pdf4tclDir]
-package require pdf4tcl 0.9.4.16
+lappend auto_path [pdf4tclRepoRoot $scriptDir] \
+                  [file join $scriptDir ../../..]
+package require pdf4tcl
 
 # Ausgabe standardmaessig nach demo/out, optional ein Verzeichnis oder eine
 # Datei als erstes Argument.
@@ -118,4 +137,6 @@ $p destroy
 
 puts "Geschrieben: $outfile ([file size $outfile] Bytes)"
 puts "Pruefen:     qpdf --password=$user --check $outfile"
+puts "  qpdf 12 meldet dabei eine Warnung zu /Length und endet mit 3 --"
+puts "  erwartet, siehe demo-aes256.tcl. Die Datei ist in Ordnung."
 puts "Oeffnen:     firefox $outfile"

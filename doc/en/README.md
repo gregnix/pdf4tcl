@@ -38,7 +38,7 @@ Full index (with demo mapping): [`howtos/README.md`](howtos/README.md).
 | Forms / files | `howto-forms.md`, `howto-embed-file.md`, `howto-images.md` |
 | I/O / canvas | `howto-write-chan.md`, `howto-canvas.md`, `howto-paper-sizes.md` |
 
-Run demos: `tclsh demo/run-all-demos.tcl` → `demo/out/` (see
+Run demos: `tclsh demo/run-all-demos.tcl` -> `demo/out/` (see
 `howtos/howto-run-demos.md`).
 
 Runnable tutorial/howto companions:
@@ -78,24 +78,33 @@ produces a page that looks plausible in the code and upside down on screen.
 
 | Document | Contents |
 |---|---|
-| `UPGRADING.md` | What changes between versions (**0.9.4.43** structure checks, **0.9.4.42** accessible forms, **0.9.4.41** PDF/A-a, **0.9.4.40** catPdf merge, 0.9.4.39 colour) |
-| `todo-en16931.md` | State of the Factur-X demo and what EN 16931 still needs |
+| [`../../UPGRADING.md`](../../UPGRADING.md) | What changes between versions, most recently **0.9.4.57** subsetted CID fonts, **0.9.4.56** table attributes and PDF/A level U, **0.9.4.48** naming a merged document |
 | `howtos/howto-pdfa.md` | PDF/A how-to including level A |
 | `howtos/howto-catpdf.md` | Merging tagged PDFs |
 | `howtos/howto-colors.md` | Colour inputs after 0.9.4.39 |
 
 PDF/A is also demonstrated by `demo/demo-pdfa.tcl` and
-`examples/facturx.tcl`.
+`examples/facturx.tcl`. The whole set of demos is listed in
+[`../../demo/README.md`](../../demo/README.md).
 
 ## Checking the output
 
 ```bash
 qpdf --check out.pdf                          # syntax and streams
+tclsh tools/pdfcheck-native.tcl out.pdf       # structures, fonts, metadata
+tclsh tools/layout-check.tcl out.pdf          # overlapping text, margins
 python3 tools/check-tagged.py out.pdf         # logical structure
 python3 tools/check-conformance.py out.pdf    # veraPDF, profiles from the
                                               # document's own claims
 verapdf -f 3b out.pdf                         # a single profile by hand
 ```
+
+The first three need nothing but Tcl and poppler. `pdfcheck-native.tcl`
+looks at what the others do not: whether `/Info` and the XMP agree, whether
+an attachment is reachable, whether a subset font carries the tag its name
+needs. `layout-check.tcl` looks at where the text ends up -- a page can pass
+every structural check and still be unreadable because two blocks sit on top
+of each other.
 
 `check-conformance.py` reads each file's XMP, works out which profiles it
 claims -- `pdfaid` for PDF/A, `pdfuaid` for PDF/UA -- and runs veraPDF

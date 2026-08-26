@@ -27,7 +27,13 @@ lappend auto_path [pdf4tclRepoRoot [file dirname [info script]]] \
 package require pdf4tcl
 
 set outdir [lindex $argv 0]
-if {$outdir eq ""} { set outdir [file dirname [info script]] }
+# Ohne Argument nach out/, wie die uebrigen Demos. Vorher landeten die
+# Dateien im Demoverzeichnis selbst und blieben dort liegen -- gemessen,
+# sechzehn Stueck.
+if {$outdir eq ""} {
+    set outdir [file join [file dirname [info script]] out]
+    file mkdir $outdir
+}
 file mkdir $outdir
 proc out {name} { return [file join $::outdir $name] }
 

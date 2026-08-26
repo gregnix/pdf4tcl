@@ -11,7 +11,7 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 # 1.x  XMP extension schema + fx: invoice fields
 # ---------------------------------------------------------------------------
 
-testConstraint FreeSans [file exists ../examples/FreeSans.ttf]
+testConstraint FreeSans [file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf]
 
 test facturx-1.1 {fx: namespace declared in XMP} -body {
     set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
@@ -196,7 +196,7 @@ test facturx-3.5 {no warning under -pdfa 3b} -constraints FreeSans -body {
     # the only one asserting silence -- has to build a document that could
     # actually validate. The others only check what facturx writes and are
     # unaffected.
-    pdf4tcl::loadBaseTrueTypeFont BaseFxA "../examples/FreeSans.ttf"
+    pdf4tcl::loadBaseTrueTypeFont BaseFxA "$::pdf4tclTestRoot/examples/FreeSans.ttf"
     pdf4tcl::createFont BaseFxA FxAFont iso8859-1
     set ::pdf4tcl::warnings {}
     set p [pdf4tcl::new %AUTO% -pdfa 3b]

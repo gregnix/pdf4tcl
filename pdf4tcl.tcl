@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.53
+package provide pdf4tcl 0.9.4.57
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -1391,6 +1391,217 @@ space instead of the usual empty rectangle."
     }
 
     # Create a subset of a TrueType font. Subset is a list of unicode values.
+    # The six-letter tag a subset font name has to carry.
+    #
+    # ISO 32000-1 clause 9.6.4: for a font subset, BaseFont and the
+    # descriptor's FontName shall begin with a tag of exactly six uppercase
+    # letters followed by a plus sign. Different subsets of the same face in
+    # one file shall have different tags -- that is what lets a reader tell
+    # them apart and merge them.
+    #
+    # The letters are arbitrary, so derive them from the glyph set: the same
+    # glyphs give the same tag, a different set a different one. That meets
+    # the "different subsets, different tags" rule without keeping a counter.
+    proc CIDSubsetTag {bfname glyphs} {
+        set roh "$bfname:[join [lsort -integer $glyphs] ,]"
+        # A small, stable hash. Nothing here is security relevant; what
+        # matters is that equal input gives equal output and unequal input
+        # rarely collides.
+        set h 5381
+        foreach c [split $roh ""] {
+            scan $c %c n
+            set h [expr {(($h * 33) + $n) & 0xFFFFFFFF}]
+        }
+        set tag ""
+        for {set i 0} {$i < 6} {incr i} {
+            append tag [format %c [expr {65 + ($h % 26)}]]
+            set h [expr {$h / 26}]
+            if {$h == 0} { set h [expr {5381 + $i}] }
+        }
+        return $tag
+    }
+
+    # Strip a TrueType file down to the glyphs a CID font actually used.
+    #
+    # NOT the same job as MakeTTFSubset. That one RENUMBERS: the subset font
+    # gets glyphs 0..N-1 and the encoding maps codes onto them. A CID font
+    # with /CIDToGIDMap /Identity cannot do that -- the glyph number IS what
+    # stands in the content stream, and that stream is already written by the
+    # time the font goes out.
+    #
+    # So keep every number and empty the glyphs nobody drew: loca keeps all
+    # its entries, unused ones get zero length, and glyf carries only the
+    # data that is reached. /CIDToGIDMap stays /Identity, the text stream and
+    # the /W array are untouched.
+    #
+    # Where the bytes are, measured on DejaVuSans (759 720 bytes):
+    #
+    #   glyf  557 508  73.4%      <- this is what shrinks
+    #   GPOS   40 586   5.3%
+    #   loca   25 016   3.3%
+    #   hmtx   24 982   3.3%
+    #
+    # A page of German text uses 24 glyphs of the 5918 the font maps.
+    proc MakeCIDSubset {bfname glyphs} {
+        variable BFA
+        variable BFP
+
+        if {![info exists BFP($bfname,rawttf)]} { return "" }
+        if {![info exists BFA($bfname,glyphPos)]} { return "" }
+        set roh $BFP($bfname,rawttf)
+
+        set behalten [CIDSubsetGlyphs $bfname $glyphs]
+
+        # New glyf and loca, numbering and glyph COUNT unchanged.
+        #
+        # Truncating loca at the highest used glyph would save a few kB, but
+        # then maxp, hmtx and hhea all have to follow -- measured, a font cut
+        # that way is rejected. Keeping the count means only glyf shrinks,
+        # and that is where the bytes are (73% of DejaVuSans).
+        set pos $BFA($bfname,glyphPos)
+        set n [expr {[llength $pos] - 1}]
+        set neuGlyf ""
+        set neuLoca {}
+        for {set i 0} {$i < $n} {incr i} {
+            lappend neuLoca [string length $neuGlyf]
+            if {[dict exists $behalten $i]} {
+                set a [lindex $pos $i]
+                set b [lindex $pos [expr {$i + 1}]]
+                if {$b > $a} {
+                    append neuGlyf [string range $BFP($bfname,glyf) $a \
+                            [expr {$b - 1}]]
+                }
+            }
+            # Glyph data is aligned to four bytes.
+            while {[string length $neuGlyf] % 4} { append neuGlyf "\x00" }
+        }
+        lappend neuLoca [string length $neuGlyf]
+
+        # Long loca format throughout: the short one stores offsets halved
+        # and cannot express every length.
+        set locaBin [binary format Iu* $neuLoca]
+
+        return [CIDRebuildTtf $roh [dict create glyf $neuGlyf loca $locaBin]]
+    }
+
+    # Every glyph the subset ends up carrying, not just the ones asked for.
+    #
+    # Two things come along beyond the requested set:
+    #
+    #   - the components of composite glyphs. An a-umlaut is built from the
+    #     base letter and the accent, both glyphs of their own; without them
+    #     the reader draws nothing.
+    #   - glyph 0. ISO 32000-2 clause 9.7.4.2: every CIDFont shall have a
+    #     description for CID 0, the counterpart of .notdef.
+    #
+    # /CIDSet has to name exactly this set, not the requested one. ISO
+    # 19005-2 clause 6.2.11.4.2: a CIDSet shall identify all CIDs PRESENT IN
+    # THE FONT PROGRAM. Listing only what the document drew failed there --
+    # measured, and veraPDF said so precisely.
+    proc CIDSubsetGlyphs {bfname glyphs} {
+        set behalten {}
+        foreach g $glyphs { dict set behalten $g 1 }
+        dict set behalten 0 1
+        set warteschlange [dict keys $behalten]
+        while {[llength $warteschlange]} {
+            set g [lindex $warteschlange 0]
+            set warteschlange [lrange $warteschlange 1 end]
+            foreach teil [CIDGlyphParts $bfname $g] {
+                if {![dict exists $behalten $teil]} {
+                    dict set behalten $teil 1
+                    lappend warteschlange $teil
+                }
+            }
+        }
+        return $behalten
+    }
+
+    # Which glyphs does a composite glyph refer to?
+    proc CIDGlyphParts {bfname g} {
+        variable BFA
+        variable BFP
+        set pos $BFA($bfname,glyphPos)
+        if {$g + 1 >= [llength $pos]} { return {} }
+        set a [lindex $pos $g]
+        set b [lindex $pos [expr {$g + 1}]]
+        if {$b - $a < 10} { return {} }
+        binary scan $BFP($bfname,glyf) "@${a}S" konturen
+        if {$konturen >= 0} { return {} }     ;# simple glyph
+
+        set MEHR   [expr {1 << 5}]
+        set WORTE  [expr {1 << 0}]
+        set SKAL   [expr {1 << 3}]
+        set XYSKAL [expr {1 << 6}]
+        set ZWEIx2 [expr {1 << 7}]
+
+        set teile {}
+        set o [expr {$a + 10}]
+        while {1} {
+            if {$o + 4 > $b} break
+            binary scan $BFP($bfname,glyf) "@${o}SuSu" flags idx
+            lappend teile $idx
+            incr o 4
+            incr o [expr {($flags & $WORTE) ? 4 : 2}]
+            if {$flags & $SKAL}        { incr o 2 } \
+            elseif {$flags & $XYSKAL}  { incr o 4 } \
+            elseif {$flags & $ZWEIx2}  { incr o 8 }
+            if {!($flags & $MEHR)} break
+        }
+        return $teile
+    }
+
+    # Write a TrueType file with some tables replaced.
+    #
+    # Tables that a CID font does not need are dropped: cmap (Identity-H
+    # addresses glyphs directly), and the layout tables, whose contents
+    # pdf4tcl has already read into BFA at load time.
+    proc CIDRebuildTtf {roh ersatz} {
+        binary scan $roh IuSu ver anzahl
+        set tabellen {}
+        for {set i 0} {$i < $anzahl} {incr i} {
+            set o [expr {12 + $i * 16}]
+            binary scan [string range $roh $o [expr {$o + 15}]] a4IuIuIu \
+                    tag chk off len
+            if {$tag in {cmap GPOS GSUB GDEF kern MATH FFTM DSIG}} { continue }
+            if {[dict exists $ersatz $tag]} {
+                lappend tabellen [list $tag [dict get $ersatz $tag]]
+            } else {
+                lappend tabellen [list $tag \
+                        [string range $roh $off [expr {$off + $len - 1}]]]
+            }
+        }
+        # head: indexToLocFormat must say "long", since that is what
+        # MakeCIDSubset writes.
+        set neu {}
+        foreach e $tabellen {
+            lassign $e tag inhalt
+            if {$tag eq "head" && [string length $inhalt] >= 52} {
+                set inhalt [string replace $inhalt 50 51 [binary format Su 1]]
+            }
+            lappend neu [list $tag $inhalt]
+        }
+        set tabellen [lsort -index 0 $neu]
+
+        set anzahl [llength $tabellen]
+        set suchbereich [expr {16 * (1 << int(log($anzahl) / log(2)))}]
+        set kopf [binary format IuSuSuSuSu 0x00010000 $anzahl $suchbereich \
+                [expr {int(log($anzahl) / log(2))}] \
+                [expr {$anzahl * 16 - $suchbereich}]
+        ]
+        set off [expr {12 + $anzahl * 16}]
+        set verz ""
+        set daten ""
+        foreach e $tabellen {
+            lassign $e tag inhalt
+            append verz [binary format a4IuIuIu $tag 0 \
+                    [expr {$off + [string length $daten]}] \
+                    [string length $inhalt]]
+            append daten $inhalt
+            while {[string length $daten] % 4} { append daten "\x00" }
+        }
+        return "$kopf$verz$daten"
+    }
+
     proc MakeTTFSubset {bfname fontname subset} {
         variable BFA
         variable BFP
@@ -3063,10 +3274,13 @@ oo::define ::pdf4tcl::options {
     # mappings. pdf4tcl cannot check all of that here, at construction time,
     # so what it can check happens in finish: see CheckPdfaLevelA.
     method CheckPdfa {option value} {
-        if {$value ni {"" "1a" "1b" "2a" "2b" "3a" "3b"}} {
+        # Level U exists only from part 2 on -- ISO 19005-2 clause 5.4
+        # note 3 says so outright, so there is no "1u".
+        if {$value ni {"" "1a" "1b" "2a" "2b" "2u" "3a" "3b" "3u"}} {
             throw {PDF4TCL} \
                 "invalid -pdfa value \"$value\": must be \"\", \"1a\",\
-                \"1b\", \"2a\", \"2b\", \"3a\" or \"3b\""
+                \"1b\", \"2a\", \"2b\", \"2u\", \"3a\", \"3b\" or\
+                \"3u\""
         }
     }
 
@@ -3850,6 +4064,56 @@ oo::define ::pdf4tcl::pdf4tcl {
     # which every paragraph is /P and every heading is /H1 passes this and
     # tells a reader nothing. Nor does it check that all content is tagged;
     # see the open points in doc/en/TAGGED.md.
+    # PDF/A und Verschluesselung schliessen einander aus.
+    #
+    # Klausel 6.1.3 Test 2, in jedem PDF/A-Profil vorhanden: "The keyword
+    # Encrypt shall not be used in the trailer dictionary" (Teile 1 bis 3)
+    # bzw. "The Encrypt key shall not be present in the trailer
+    # dictionary" (Teil 4). Keine Stufe, keine Ausnahme -- 1b bis 4f
+    # verbieten es. Nachgelesen in den veraPDF-Pruefprofilen 1.28.
+    #
+    # Bis 0.9.4.54 liess pdf4tcl die Kombination durch: die Datei trug
+    # ihre pdfaid-Behauptung UND ein /Encrypt. Gemessen mit veraPDF
+    # 1.30.2 an einem -pdfa 3b mit -userpassword: "appears to be an
+    # encrypted PDF file and could not be processed" -- der Pruefer kommt
+    # nicht einmal so weit, die Behauptung zu widerlegen.
+    #
+    # Wer ein Dokument schuetzen will, kann es nicht zugleich als
+    # archivtauglich ausweisen. Das ist keine Einschraenkung von pdf4tcl,
+    # sondern der Zweck von PDF/A: eine Datei, die in dreissig Jahren
+    # noch lesbar ist, darf nicht von einem Passwort abhaengen.
+    method CheckPdfaEncrypt {} {
+        if {$options(-pdfa) eq ""} { return }
+        if {!$pdf(encrypt)} { return }
+        throw {PDF4TCL} "-pdfa $options(-pdfa) and encryption exclude each\
+                other: ISO 19005 clause 6.1.3 forbids an Encrypt key in the\
+                trailer, in every part of the standard. Drop -pdfa or drop\
+                the password."
+    }
+
+    # Level U: everything of level B plus clause 6.2.11.7 -- the text has
+    # to be extractable as Unicode.
+    #
+    # ISO 19005-2 clause 5.4: a level U file adheres to all requirements
+    # except those of 6.7, where a level B file also skips 6.2.11.7. So U
+    # is exactly B plus that one clause, and A is U plus the logical
+    # structure. Level U exists only from part 2 on (clause 5.4 note 3),
+    # hence no "1u".
+    #
+    # NOTHING IS CHECKED HERE, and that is deliberate. The obvious check --
+    # refuse a font that carries no ToUnicode map -- would repeat a rule
+    # that already applies at every level: a standard font has no font
+    # programme to embed and fails at clause 6.2.11.4.1 long before
+    # extraction comes into it. Measured: a -pdfa 3a document mixing an
+    # embedded font with Helvetica fails at 6.2.11.4.1, not at 6.2.11.7.
+    #
+    # And every CID font pdf4tcl writes carries a ToUnicode map already,
+    # so a document that gets past the embedding rule meets 6.2.11.7 as
+    # well -- measured, -pdfa 2u and 3u both pass veraPDF.
+    #
+    # A check that fires only where another has already fired is noise. If
+    # a case turns up where the two differ, this is where it belongs.
+
     method CheckPdfaLevelA {} {
         if {$options(-pdfa) eq ""} { return }
         if {[string index $options(-pdfa) 1] ne "a"} { return }
@@ -3884,12 +4148,24 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfout "<<\n"
         my Pdfout "/Type /Catalog\n"
         if {$pdf(version) > 1.4} {
-            my Pdfout "/Version $pdf(version)\n"
+            # A NAME, not a number. ISO 32000 clause 7.7.2 gives the type
+            # as name for this entry, and pdf4tcl wrote a number -- so in
+            # every file above version 1.4, which is all PDF/A-2 and -3
+            # output since those levels exist.
+            #
+            # The files stayed readable; a reader taking the version from
+            # the catalog rather than the header got the wrong type.
+            my Pdfout "/Version /$pdf(version)\n"
         }
         my Pdfout "/Pages 2 0 R\n"
         # Tagged PDF: /StructTreeRoot, /MarkInfo, /Lang. Reserves the
         # StructTreeRoot oid; the objects are written by TagWriteObjects
         # further down. See src/tagged.tcl.
+        my CheckPdfaEncrypt
+        # Level A first: it is the stronger statement, and its message
+        # ("requires tagged PDF") tells the caller more than the font
+        # message would. A document that is neither tagged nor uses an
+        # embedded font should hear about the tagging.
         my CheckPdfaLevelA
         # An XObject with tagged content must be drawn exactly once --
         # checked before anything is written, so the error arrives instead
@@ -4188,6 +4464,18 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
 
         # Create the PDF document information dictionary (Info Dict).
+        #
+        # /Producer is filled in where the caller left it: ISO 19005-3
+        # table 7 pairs it with pdf:Producer, and pdf4tcl writes that one
+        # unasked. Leaving /Info without it made the two sides of the
+        # crosswalk disagree -- XMP named the release, /Info named nothing.
+        #
+        # Clause 6.6.3 puts this as a "should", not a "shall", so a file
+        # was never invalid for it. It was simply inconsistent, which is
+        # what the crosswalk exists to prevent.
+        if {[array exists metadata] && ![info exists metadata(Producer)]} {
+            set metadata(Producer) "gregnix pdf4tcl [package provide pdf4tcl]"
+        }
         if {[array exists metadata]} {
             set metadata_oid [my GetOid]
             set infobody "$metadata_oid 0 obj\n<<\n"
@@ -4261,23 +4549,51 @@ Use -pdfa-icc to specify a profile path."
         # Embedded files NameTree object
         # (ISO 32000 SS7.11.4; flat tree sufficient for small lists)
         if {$embnames_oid ne "" && [llength $pdf(embfiles)] > 0} {
-            my StoreXref $embnames_oid
-            my Pdfout "$embnames_oid 0 obj\n"
-            my Pdfout "<< /Names \[\n"
+            # Koerper erst aufbauen, dann durch EncryptStringsInBody --
+            # nicht Zeile fuer Zeile mit Pdfout hinausschreiben.
+            #
+            # ISO 32000-2 Abschnitt 7.6.2 nennt vier Ausnahmen von der
+            # Verschluesselung: /ID im Trailer, Zeichenketten im
+            # Encrypt-Woerterbuch, Zeichenketten innerhalb bereits
+            # verschluesselter Stroeme, und die Contents einer Signatur.
+            # Der Anhangsname im Namensbaum gehoert zu keiner davon.
+            #
+            # Bis 0.9.4.53 ging er an der Verschluesselung vorbei, weil
+            # dieses Objekt direkt geschrieben wurde, waehrend die in
+            # pdf(objects) gesammelten Objekte in FlushObjects durch
+            # EncryptStringsInBody laufen. Ergebnis, gemessen: /F und /UF
+            # im Filespec verschluesselt, der Name im Namensbaum im
+            # Klartext -- und "qpdf --list-attachments" zeigte einen
+            # leeren Namen, "--show-attachment=anhang.txt" meldete
+            # "not found". Der Anhang war damit unerreichbar; ohne
+            # Verschluesselung funktionierte beides.
+            set body "$embnames_oid 0 obj\n"
+            append body "<< /Names \[\n"
             foreach {basename fsid} $pdf(embfiles) {
-                my Pdfout "[QuoteString $basename] $fsid 0 R\n"
+                append body "[QuoteString $basename] $fsid 0 R\n"
             }
-            my Pdfout "\] >>\n"
-            my Pdfout "endobj\n\n"
+            append body "\] >>\n"
+            append body "endobj\n\n"
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $embnames_oid $body]
+            }
+            my StoreXref $embnames_oid
+            my Pdfout $body
         }
 
         # OCG objects (Optional Content Groups / Layers)
         foreach layer $pdf(layers) {
             lassign $layer oid name visible
+            # Wie beim Namensbaum oben: der Ebenenname ist eine
+            # gewoehnliche Zeichenkette und gehoert verschluesselt.
+            set body "$oid 0 obj\n"
+            append body "<< /Type /OCG /Name [QuoteString $name] >>\n"
+            append body "endobj\n\n"
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $oid $body]
+            }
             my StoreXref $oid
-            my Pdfout "$oid 0 obj\n"
-            my Pdfout "<< /Type /OCG /Name [QuoteString $name] >>\n"
-            my Pdfout "endobj\n\n"
+            my Pdfout $body
         }
 
         # Tagged PDF: structure elements, parent tree, StructTreeRoot.
@@ -4643,7 +4959,15 @@ Use -pdfa-icc to specify a profile path."
         set subject  [expr {[info exists metadata(Subject)]  ? [_XmlEsc $metadata(Subject)]  : ""}]
         set keywords [expr {[info exists metadata(Keywords)] ? [_XmlEsc $metadata(Keywords)] : ""}]
         set creator  [expr {[info exists metadata(Creator)]  ? [_XmlEsc $metadata(Creator)]  : ""}]
-        set producer [expr {[info exists metadata(Producer)] ? [_XmlEsc $metadata(Producer)] : "pdf4tcl"}]
+        # pdf:Producer is an AgentName (XMP part 2 table 30), and the
+        # recommended form for one is "Organization Software Version"
+        # (part 1 clause 8.2.2.1). It used to be the bare word "pdf4tcl",
+        # which says nothing about which release wrote the file -- the
+        # first thing worth knowing when a document from elsewhere turns
+        # out to be wrong.
+        set producer [expr {[info exists metadata(Producer)] \
+                ? [_XmlEsc $metadata(Producer)] \
+                : "gregnix pdf4tcl [package provide pdf4tcl]"}]
         set cdate    ""
         set mdate    ""
         if {[info exists metadata(CreationDate)]} {
@@ -4712,6 +5036,15 @@ Use -pdfa-icc to specify a profile path."
         }
         if {$mdate ne ""} {
             append x "   <xmp:ModifyDate>$mdate</xmp:ModifyDate>\n"
+            # xmp:MetadataDate -- when the METADATA last changed, as
+            # against ModifyDate for the content (part 1 table 5). It
+            # shall be the same as or later than ModifyDate; the same
+            # value is the honest answer here, because nothing touches
+            # the metadata after this point.
+            #
+            # Absent when no modification date was given: inventing a
+            # date nobody set would be worse than none.
+            append x "   <xmp:MetadataDate>$mdate</xmp:MetadataDate>\n"
         }
         # pdf:Keywords
         if {$keywords ne ""} {
@@ -4723,7 +5056,8 @@ Use -pdfa-icc to specify a profile path."
         if {$options(-pdfa) ne ""} {
             # pdfaid:part = "1" fuer 1b/1a, "2" fuer 2b/2a
             set pdfaid_part [string index $options(-pdfa) 0]
-            # pdfaid:conformance = "B" oder "A" (uppercase)
+            # pdfaid:conformance = "A", "B" or "U" (uppercase). Level U
+            # exists from part 2 on, see ISO 19005-2 clause 5.4 note 3.
             set pdfaid_conf [string toupper [string index $options(-pdfa) 1]]
             append x "   <pdfaid:part>$pdfaid_part</pdfaid:part>\n"
             append x "   <pdfaid:conformance>$pdfaid_conf</pdfaid:conformance>\n"
@@ -5439,6 +5773,35 @@ Use -pdfa-icc to specify a profile path."
         # TTF: /Length1 = uncompressed size (required by PDF spec ss.9.9)
         # CFF/OTF: /Subtype /OpenType (FontFile3, no /Length1)
         set rawttf $BFP($BFN,rawttf)
+        # Embed only the glyphs this document drew. glyphChars has collected
+        # them while drawing; without subsetting a page carrying three glyphs
+        # still hauls the whole face -- measured on DejaVuSans, 760 kB of
+        # which glyf alone is 557 kB.
+        #
+        # CFF is left alone: the format is different enough that the same
+        # trick does not apply, and it would need its own writer.
+        set subsetName $BFN
+        if {$BFA($BFN,isCFF)} {
+            # Say so rather than quietly embedding the whole thing. A caller
+            # who switched to CID for the size will otherwise wonder why the
+            # file did not shrink, and nothing in the document says why.
+            lappend ::pdf4tcl::warnings "font $BFN is CFF/OpenType --\
+                    embedded in full, pdf4tcl subsets TrueType only"
+        }
+        if {!$BFA($BFN,isCFF)} {
+            set benutzt [dict keys $FontsAttrs($fontname,glyphChars)]
+            if {[llength $benutzt]} {
+                set klein [::pdf4tcl::MakeCIDSubset $BFN $benutzt]
+                if {$klein ne ""} {
+                    set rawttf $klein
+                    # Clause 9.6.4 makes the tag mandatory once the font is
+                    # a subset: six uppercase letters and a plus sign, in
+                    # BaseFont and in the descriptor's FontName alike.
+                    set subsetName \
+                            "[::pdf4tcl::CIDSubsetTag $BFN $benutzt]+$BFN"
+                }
+            }
+        }
         set lc [string length $rawttf]
         if {$BFA($BFN,isCFF)} {
             set dictv "<<\n/Subtype /OpenType"
@@ -5451,7 +5814,7 @@ Use -pdfa-icc to specify a profile path."
 
         # 2. Font descriptor
         set body "<<\n/Type /FontDescriptor\n"
-        append body "/FontName /$BFN\n"
+        append body "/FontName /$subsetName\n"
         append body "/Flags $BFA($BFN,flags)\n"
         set fbbox {}
         foreach n $BFA($BFN,bbox) {lappend fbbox [Nf $n]}
@@ -5465,6 +5828,41 @@ Use -pdfa-icc to specify a profile path."
             append body "/FontFile3 $fsoid 0 R\n"
         } else {
             append body "/FontFile2 $fsoid 0 R\n"
+        }
+        # /CIDSet: which CIDs the subset carries, one bit each, the high bit
+        # of the first byte being CID 0.
+        #
+        # ISO 19005-1 clause 6.3.5 requires it for every CIDFont SUBSET in a
+        # conforming file. Before 0.9.4.57 pdf4tcl embedded whole faces, so
+        # nothing was a subset and the rule never applied -- adding the
+        # subset tag brought the requirement with it. Measured: a PDF/A-1b
+        # document failed at 6.3.5 the moment the tag appeared.
+        #
+        # PDF/A-2 and -3 dropped the entry; writing it there is harmless and
+        # keeps one path.
+        if {$subsetName ne $BFN} {
+            # Every glyph loca has an entry for -- which, since the count
+            # is kept, is the whole range. A validator reads "present in
+            # the font program" that way: measured, a CIDSet naming only
+            # the drawn glyphs is rejected at clause 6.2.11.4.2, one
+            # naming the full range passes.
+            #
+            # So the set says little about the subset. That is the price
+            # of keeping the numbering, and the numbering is what lets the
+            # already-written content stream stay as it is.
+            set bits {}
+            set anzGlyphen [expr {[llength $BFA($BFN,glyphPos)] - 1}]
+            for {set cid 0} {$cid < $anzGlyphen} {incr cid} {
+                while {[llength $bits] <= $cid / 8} { lappend bits 0 }
+                lset bits [expr {$cid / 8}] [expr {[lindex $bits [expr {$cid / 8}]]
+                        | (1 << (7 - ($cid % 8)))}]
+            }
+            set cidset ""
+            foreach b $bits { append cidset [binary format cu $b] }
+            set csoid [my GetOid]
+            my Pdfout "$csoid 0 obj\n[MakeStream {<<} $cidset \
+                    $pdf(compress)]\nendobj\n\n"
+            append body "/CIDSet $csoid 0 R\n"
         }
         append body ">>"
         set fdoid [my GetOid]
@@ -5549,7 +5947,7 @@ Use -pdfa-icc to specify a profile path."
         } else {
             append body "/Subtype /CIDFontType2\n"
         }
-        append body "/BaseFont /$BFN\n"
+        append body "/BaseFont /$subsetName\n"
         append body "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>\n"
         append body "/FontDescriptor $fdoid 0 R\n"
         if {$warray ne ""} {
@@ -5565,7 +5963,7 @@ Use -pdfa-icc to specify a profile path."
         # 6. Type0 font (top-level) - write with the pre-reserved OID
         set body "<<\n/Type /Font\n"
         append body "/Subtype /Type0\n"
-        append body "/BaseFont /$BFN\n"
+        append body "/BaseFont /$subsetName\n"
         append body "/Encoding /Identity-H\n"
         append body "/DescendantFonts \[$cidoid 0 R\]\n"
         append body "/ToUnicode $ucoid 0 R\n"
@@ -8310,7 +8708,15 @@ Use -pdfa-icc to specify a profile path."
         set contentsIsSet  0
         set mimetype       ""
         set description    ""
-        set afrelationship ""
+        # PDF/A-3 clause 6.8 refers to annex E: an embedded file that
+        # complies with the extra requirements is an "associated file", and
+        # such a file needs an /AFRelationship naming how it relates to the
+        # document. Without one veraPDF fails the file at clause 6.8, so
+        # leaving it empty produced a PDF/A-3 document that was not one.
+        #
+        # Unspecified is what the standard calls "the relationship is not
+        # known" -- the honest default when the caller did not say.
+        set afrelationship "Unspecified"
 
         foreach {opt val} $args {
             switch -- $opt {
@@ -8984,13 +9390,24 @@ Use -pdfa-icc to specify a profile path."
             vector { return 1 }
             font   { return 0 }
         }
-        # auto: only where the document claims a conformance that the glyph
-        # would break. Everything else keeps the appearance it always had.
+        # auto: wherever the document claims a conformance the glyph would
+        # break. Without -pdfa the glyph stays.
         if {[info exists pdf(tag,uapart)] && $pdf(tag,uapart) ne ""} {
             return 1
         }
-        if {$options(-pdfa) ne "" &&
-                [string index $options(-pdfa) 1] eq "a"} {
+        # EVERY PDF/A level, not only "a".
+        #
+        # The rule the glyph breaks is "the font program is not embedded",
+        # and that one knows no levels -- ZapfDingbats is one of the base
+        # 14 and carries none. Measured on a document whose only form
+        # field is a single check box: -pdfa 1b, 2b and 3b all FAIL at
+        # clause 6.2.11.4.1 with the glyph.
+        #
+        # So such a document was non-conformant at CREATION time, before
+        # anyone filled anything in. Restricting this to level "a" rested
+        # on the assumption that the glyph is not what makes a b-level
+        # file fail; the measurement says otherwise.
+        if {$options(-pdfa) ne ""} {
             return 1
         }
         return 0
@@ -9244,6 +9661,46 @@ Use -pdfa-icc to specify a profile path."
         return [my AddObject $body]
     }
 
+    # Which options belong to which field type.
+    #
+    # Read off the grouping the manual already uses -- Text/Password,
+    # Checkbutton, Combobox/Listbox, Radiobutton, Pushbutton, Signature.
+    # Everything not listed here applies to every type.
+    #
+    # A WARNING, not an error. "addForm text ... -value x" set nothing and
+    # said nothing; -value is the radiobutton's export name and a text
+    # field takes -init. Refusing outright would stop callers that pass a
+    # harmless extra option today, so this reports and carries on. Once
+    # the table has proven itself against real code it can become an
+    # error.
+    variable FormTypeOptions
+    method CheckFormOptions {ftype opts} {
+        if {![info exists FormTypeOptions]} {
+            set FormTypeOptions [dict create \
+                -multiline  {text password} \
+                -align      {text password} \
+                -on         {checkbutton} \
+                -off        {checkbutton} \
+                -options    {combobox listbox} \
+                -editable   {combobox listbox} \
+                -sort       {combobox listbox} \
+                -multiselect {combobox listbox} \
+                -group      {radiobutton} \
+                -value      {radiobutton} \
+                -action     {pushbutton} \
+                -url        {pushbutton} \
+                -caption    {pushbutton} \
+                -label      {signature}]
+        }
+        foreach {opt val} $opts {
+            if {![dict exists $FormTypeOptions $opt]} { continue }
+            set erlaubt [dict get $FormTypeOptions $opt]
+            if {$ftype in $erlaubt} { continue }
+            lappend ::pdf4tcl::warnings "addForm: $opt applies to\
+                    [join $erlaubt {, }], not to $ftype -- ignored"
+        }
+    }
+
     method addForm {ftype x y width height args} {
         # Allow "checkbox" as alias for "checkbutton"
         if {$ftype eq "checkbox"} {
@@ -9252,6 +9709,7 @@ Use -pdfa-icc to specify a profile path."
         if {$ftype ni {text checkbutton combobox listbox password radiobutton pushbutton signature}} {
             throw {PDF4TCL} "unknown form type $ftype"
         }
+        my CheckFormOptions $ftype $args
         set initValue ""
         set onObj ""
         set offObj ""
@@ -12821,6 +13279,53 @@ oo::define ::pdf4tcl::pdf4tcl {
                     ##nagelfar ignore Found constant
                     dict set attrs $option $value
                 }
+                -colspan - -rowspan {
+                    # ISO 32000-1 table 349, standard table attributes
+                    # (clause 14.8.5.7). /ColSpan and /RowSpan give the
+                    # number of columns or rows the cell spans; a reader
+                    # assumes 1 where the entry is absent, so 1 is not
+                    # written.
+                    #
+                    # The spec restricts both to TH and TD, which is what
+                    # the check below enforces.
+                    #
+                    # Clause 14.8.4.3.4 note 2 says the association of
+                    # headers with rows and columns is determined
+                    # heuristically and "may fail for complex tables" --
+                    # the attributes exist to make it explicit. A merged
+                    # cell is exactly such a case.
+                    #
+                    # Without them a heading spanning two columns looks
+                    # like one cell in the tree, and a reader names the
+                    # wrong heading for everything under the second. No
+                    # validator reports it -- the tree is well formed, it
+                    # just does not match the table.
+                    if {$type ni {TH TD}} {
+                        throw {PDF4TCL} "$option applies to TH or TD,\
+                                not $type"
+                    }
+                    if {![string is integer -strict $value] || $value < 1} {
+                        throw {PDF4TCL} "invalid $option value \"$value\":\
+                                must be a positive integer"
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
+                -summary {
+                    # ISO 32000-1 table 349: a summary of the table's
+                    # purpose and structure, only on Table itself.
+                    #
+                    # The note there says what it is for: non-visual
+                    # rendering -- speech or braille. A reader announces it
+                    # before the cells, so someone who cannot see the shape
+                    # of the table learns what to expect.
+                    if {$type ne "Table"} {
+                        throw {PDF4TCL} "-summary applies to Table,\
+                                not $type"
+                    }
+                    ##nagelfar ignore Found constant
+                    dict set attrs $option $value
+                }
                 default {
                     throw {PDF4TCL} "unknown option \"$option\""
                 }
@@ -12927,7 +13432,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set tagOpts {}
         set textOpts {}
         foreach {option value} $args {
-            if {$option in {-alt -actualtext -title -lang -scope
+            if {$option in {-alt -actualtext -title -lang -scope -colspan
+                    -rowspan -summary
                             -listnumbering -id -headers}} {
                 lappend tagOpts $option $value
             } else {
@@ -13496,6 +14002,18 @@ oo::define ::pdf4tcl::pdf4tcl {
             set tableAttrs {}
             if {[dict exists $attrs -scope]} {
                 lappend tableAttrs "/Scope /[dict get $attrs -scope]"
+            }
+            if {[dict exists $attrs -summary]} {
+                lappend tableAttrs "/Summary\
+                        [::pdf4tcl::TagTextString [dict get $attrs -summary]]"
+            }
+            foreach {opt name} {-colspan ColSpan -rowspan RowSpan} {
+                if {[dict exists $attrs $opt]} {
+                    # A span of 1 is the default and adds nothing.
+                    if {[dict get $attrs $opt] > 1} {
+                        lappend tableAttrs "/$name [dict get $attrs $opt]"
+                    }
+                }
             }
             if {[dict exists $attrs -headers]} {
                 set ids {}
@@ -15645,10 +16163,24 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 proc pdf4tcl::FormSetKey {body key value} {
     # Replace an existing entry. The value may be a string in brackets, a
     # name, or a number -- each ends differently, so three patterns.
-    set muster1 "${key}\\s*\\(\[^)\]*\\)"
+    # A literal string may contain escaped brackets. "[^)]*" stops at the
+    # first one of those, so replacing a value that held one left the rest
+    # of the old string behind -- the other half of the round-trip defect
+    # that FormUnquoteString fixes on the reading side. Measured: three
+    # passes added one bracket each.
+    #
+    # This matches an escaped pair, or any character that is not a
+    # backslash or a closing bracket.
+    set muster1 "${key}\\s*\\((?:\\\\.|\[^\\\\)\])*\\)"
+    # Hex string: /V <FEFF> -- what OpenOffice writes for an empty text
+    # field. Without this pattern the key was not recognised as present and
+    # a second one was appended, so the dictionary carried /V twice.
+    # Measured on a foreign form: qpdf reported "dictionary has duplicated
+    # key /V", and getForms read the older, empty one.
+    set muster1b "${key}\\s*<\[0-9A-Fa-f\\s\]*>"
     set muster2 "${key}\\s*/\\w+"
     set muster3 "${key}\\s+\\d+"
-    foreach muster [list $muster1 $muster2 $muster3] {
+    foreach muster [list $muster1 $muster1b $muster2 $muster3] {
         if {[regexp $muster $body]} {
             # Ein "&" im Ersatz waere ein Rueckverweis auf den Treffer.
             # Beim ersten Anlauf machte das aus "Meier & Co" ein
@@ -15665,6 +16197,107 @@ proc pdf4tcl::FormSetKey {body key value} {
         regsub -- {<<} $body [string map {& \\& \\ \\\\} "<<\n  $key $value"] body
     }
     return $body
+}
+
+# Unpack a PDF string the way fillForms takes one in.
+#
+# getForms used to hand the value back raw -- with its brackets and its
+# escapes -- while fillForms expects a plain string. The obvious round
+# trip, read a form, change one field, write it back, therefore doubled
+# the escaping of every field it did NOT touch, on every pass. Measured
+# over three passes:
+#
+#   Meier & Co (GmbH)
+#   (Meier & Co \(GmbH\))
+#   (\(Meier & Co \\\(GmbH\\\)\)))
+#
+# A NAME value (/Yes, /Off) is left alone: that is the form fillForms
+# expects for check boxes and radio buttons.
+#
+# Handled: literal strings with escapes and octal, hex strings, and
+# UTF-16BE with a byte order mark (ISO 32000 clauses 7.3.4.2, 7.3.4.3
+# and 7.9.2.2).
+proc pdf4tcl::FormUnquoteString {raw} {
+    set raw [string trim $raw]
+    if {$raw eq ""} { return "" }
+
+    # A name object stays as it is.
+    if {[string index $raw 0] eq "/"} { return $raw }
+
+    # Hex string: <48656C6C6F>
+    if {[string index $raw 0] eq "<" && [string index $raw end] eq ">"} {
+        set hex [string range $raw 1 end-1]
+        set hex [regsub -all {\s} $hex ""]
+        # An odd number of digits is padded with a zero (clause 7.3.4.3).
+        if {[string length $hex] % 2} { append hex 0 }
+        if {![regexp {^[0-9A-Fa-f]*$} $hex]} { return $raw }
+        set bytes [binary format H* $hex]
+        return [FormDecodeText $bytes]
+    }
+
+    # Literal string: (Hello)
+    if {[string index $raw 0] ne "(" || [string index $raw end] ne ")"} {
+        return $raw
+    }
+    set body [string range $raw 1 end-1]
+
+    set out ""
+    set i 0
+    set n [string length $body]
+    while {$i < $n} {
+        set c [string index $body $i]
+        if {$c ne "\\"} {
+            append out $c
+            incr i
+            continue
+        }
+        incr i
+        set e [string index $body $i]
+        switch -- $e {
+            n { append out "\n"; incr i }
+            r { append out "\r"; incr i }
+            t { append out "\t"; incr i }
+            b { append out "\b"; incr i }
+            f { append out "\f"; incr i }
+            "(" - ")" - "\\" { append out $e; incr i }
+            "\n" { incr i }
+            default {
+                # Octal, one to three digits.
+                if {[regexp {^([0-7]{1,3})} [string range $body $i end] -> okt]} {
+                    append out [format %c [scan $okt %o]]
+                    incr i [string length $okt]
+                } else {
+                    append out $e
+                    incr i
+                }
+            }
+        }
+    }
+    return [FormDecodeText $out]
+}
+
+# A PDF text string is either PDFDocEncoding or UTF-16BE with a byte
+# order mark (clause 7.9.2.2).
+proc pdf4tcl::FormDecodeText {bytes} {
+    if {[string length $bytes] >= 2} {
+        binary scan [string range $bytes 0 1] H4 bom
+        if {[string equal -nocase $bom "feff"]} {
+            return [encoding convertfrom unicode \
+                    [_SwapBytes [string range $bytes 2 end]]]
+        }
+    }
+    return $bytes
+}
+
+# UTF-16BE to the host order that [encoding convertfrom unicode] wants.
+proc pdf4tcl::_SwapBytes {s} {
+    binary scan $s cu* bytes
+    set out ""
+    foreach {hi lo} $bytes {
+        if {$lo eq ""} { set lo 0 }
+        append out [binary format cucu $lo $hi]
+    }
+    return $out
 }
 
 proc pdf4tcl::getForms {pdfFile} {
@@ -15700,7 +16333,8 @@ proc pdf4tcl::getForms {pdfFile} {
             }
             # Value
             if {[dict exists $d /V]} {
-                dict set result $id value [dict get $d /V]
+                dict set result $id value \
+                        [FormUnquoteString [dict get $d /V]]
             } else {
                 dict set result $id value {}
             }

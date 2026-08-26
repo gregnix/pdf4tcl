@@ -41,15 +41,21 @@ $pdf destroy
 
 ## Two things the recipe does not tell you
 
-**A CID font embeds the whole file.** One line of Greek in DejaVu Sans comes
-to 762 698 bytes uncompressed, 386 728 compressed. If the character
-repertoire is fixed, `createFontSpecEnc` embeds a real subset instead:
+**Both paths subset since 0.9.4.57**, so the gap is much smaller than it
+was. One line of Greek in DejaVu Sans, measured:
 
 | | file |
 |---|---|
 | subset, 5 codepoints | 8 860 bytes |
 | subset, 200 codepoints | 29 761 bytes |
-| CID, whole font | 386 728 bytes |
+| CID | 50 004 bytes |
+
+Before 0.9.4.57 the CID row read 386 728 bytes -- the whole face went in
+whatever the document drew.
+
+What is left of the difference is the tables a CID font keeps that a subset
+does not need, and the fact that the subset declares a fixed repertoire
+while CID keeps the numbering of the original.
 
 256 codepoints is the ceiling for a subset -- beyond that only CID works.
 And always put `?` (63) in the subset: characters outside the list fall back
@@ -73,7 +79,9 @@ U+FFFF in code that must run on 8.6, and measure widths with
 ## See also
 
 - [`../reference/pdf4tcl-fonts-and-unicode.md`](../reference/pdf4tcl-fonts-and-unicode.md) --
-  the three routes compared, with sizes
+  the three routes compared with sizes, and what subsetting does: why the
+  CID font stays larger than the 256-codepoint one, what comes along besides
+  the glyphs you drew, and the two entries a subset has to declare
 - [`howto-font-coverage.md`](howto-font-coverage.md) -- does the font
   actually have the glyph?
 - [`../tutorials/tutorial-07-multilingual.md`](../tutorials/tutorial-07-multilingual.md)

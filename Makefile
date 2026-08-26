@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09453
+VERSION = 09457
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -66,6 +66,25 @@ checkdoc: pdf4tcl.tcl
 # rsync nach pspjuth@web.sourceforge.net -- das Konto des Originalprojekts,
 # nicht das des Forks. Die Seite war fuer diesen Baum nicht
 # veroeffentlichbar. mkweb.tcl ist damit ebenfalls weg.
+
+# Die Demos. "example" erzeugt nur examples/, so dass demo/out/ von der
+# Abnahme nie angefasst wurde -- gemessen: demo-forms-enc.pdf lag zwei Tage
+# alt herum und meldete einen Fehler, der laengst behoben war.
+# Bricht nicht ab: einzelne Demos brauchen Werkzeuge, die nicht ueberall
+# da sind (demo-pdfa-gs.tcl will Ghostscript). Ein fehlendes Werkzeug ist
+# kein Fehler im Baum. Was wirklich schiefging, steht in der Ausgabe.
+demos:
+	@cd demo && $(TCLSH) run-all-demos.tcl || true
+
+# Wo landet der Text? qpdf prueft die Unversehrtheit, veraPDF den Anspruch,
+# pdfcheck-native die Strukturen -- keines davon sieht, ob zwei Textbloecke
+# uebereinanderliegen oder ein Wort im Rand steht.
+#
+# Zwei der ausgelieferten Beispiele melden etwas und sind trotzdem richtig;
+# die Begruendung steht im Kopf von tools/layout-check.tcl. Deshalb bricht
+# das Ziel nicht ab, sondern berichtet.
+layoutcheck:
+	@$(TCLSH) tools/layout-check.tcl doc/en/out/ || true
 
 example:
 	@cd examples && $(TCLSH) test0.tcl

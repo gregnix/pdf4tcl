@@ -32,6 +32,30 @@ $pdf write -file archive-2b.pdf
 $pdf destroy
 ```
 
+## Level U (since 0.9.4.56)
+
+Between B and A. The visual appearance is preservable **and** the text can
+be extracted as Unicode -- but no tagging is required.
+
+```tcl
+set pdf [::pdf4tcl::new %AUTO% -paper a4 -pdfa 3u]
+```
+
+U sits between B and A: it adds the requirement that the text be
+extractable as Unicode, and stops short of the logical structure that A
+wants. The three levels are defined in ISO 19005-2, clause 5.4.
+
+**In practice there is nothing extra to do.** pdf4tcl writes a ToUnicode
+map for every CID font, so a document that passes level B with an embedded
+font passes level U as well -- measured, veraPDF accepts `2u` and `3u`.
+
+There is no `1u`: the level was introduced with part 2 (clause 5.4
+note 3).
+
+**When to use it:** an archive that has to stay searchable, without the
+effort of a full structure tree. A scanned document with an OCR text layer
+is the usual case.
+
 ## Level A (since 0.9.4.41)
 
 Level A adds tagged PDF and a document language on top of level B. Both are

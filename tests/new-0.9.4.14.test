@@ -1,7 +1,7 @@
 # new-0.9.4.14.test -- Tests for pdf4tcl 0.9.4.14 new features
 # addEmbeddedFile: silent catalog embedding (ZUGFeRD / Factur-X)
 
-source init.tcl
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 # Helper: check whether a byte pattern exists in a PDF file
 proc pdfContains {file pattern} {

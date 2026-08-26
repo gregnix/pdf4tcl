@@ -114,36 +114,6 @@ itself reports how each item should be drawn, rather than pdf4tcl knowing
 every item type. An item type the widget does not describe that way is
 skipped rather than guessed at.
 
-One caveat that has nothing to do with pdf4tcl: with `tko` 0.4 under
-`wish8.6`, closing the window through the window manager aborts the
-interpreter *after* the PDF has been written:
-
-    alloc: invalid block: 0x55aac2363ae0: f0 c2
-
-The panic comes from Tcl's threaded allocator, `Ptr2Block` in
-`generic/tclThreadAlloc.c`: `ckfree` is handed a pointer whose magic numbers
-are gone. Pure Tcl cannot cause that, and pdf4tcl is pure Tcl. The cause is
-in tko: `generic/tkoWidget.c` stores `clientdata->option` without taking a
-reference, while `WidgetClientdataDelete` releases one and
-`WidgetClientdataClone` acquires one. One line fixes it:
-
-```c
-clientdata->option = myObjv[3];
-Tcl_IncrRefCount(clientdata->option);   /* was missing */
-```
-
-Reproducible in three lines without pdf4tcl at all:
-
-```tcl
-package require tko
-after 400 {destroy .}
-```
-
-`tclsh` never shows it, because it ends without tearing Tk down; `wish9.0`
-does not either, most likely because Tcl 9 no longer uses the threaded
-allocator and simply does not notice. Until tko is patched,
-`demo-canvas-0.9.4.24.tcl` works around it by ending with `exit 0`.
-
 ---
 
 ## Window items

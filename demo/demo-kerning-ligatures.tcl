@@ -59,7 +59,10 @@ set ligaErste   [dict size $::pdf4tcl::BFA(DemoBase,ligatures)]
 puts "  Kernpaare einzeln: $einzelpaare, Klassentabellen: $klassen"
 puts "  Glyphen mit Ligaturen: $ligaErste"
 
-set outfile [file join [file dirname [info script]] demo-kerning-ligatures.pdf]
+# Nach out/, wie die uebrigen Demos.
+set outdir [file join [file dirname [info script]] out]
+file mkdir $outdir
+set outfile [file join $outdir demo-kerning-ligatures.pdf]
 set pdf [::pdf4tcl::new %AUTO% -paper a4 -margin 50 -compress 1]
 $pdf startPage
 
@@ -135,25 +138,29 @@ set ffiRun [pdf4tcl::CIDEncodeText "ffi" DemoFont 1]
 zeile 460 "\"ffi\" mit beiden Schaltern: [expr {([string length $ffiRun] - 2) / 4}] Glyph(en)" 9
 
 # Wie viele Glyphen es kostet.
+#
+# Die y-Werte liefen hier rueckwaerts: nach 460 ging es wieder bei 390
+# los, und fuenf Zeilenpaare lagen ineinander. Auf der Seite sieht man
+# es kaum -- gefunden hat es tools/layout-check.tcl mit 39 Meldungen.
 set ohne  [pdf4tcl::CIDEncodeText "Auflage" DemoFont]
 set mit   [pdf4tcl::CIDEncodeText "Auflage" DemoFont 1]
-zeile 390 "\"Auflage\": [expr {([string length $ohne] - 2) / 4}] Glyphen ohne,\
+zeile 478 "\"Auflage\": [expr {([string length $ohne] - 2) / 4}] Glyphen ohne,\
         [expr {([string length $mit] - 2) / 4}] mit Ligaturen" 10
 
-zeile 420 "Der Text bleibt durchsuchbar: die ToUnicode-Zuordnung haelt beide" 10
-zeile 434 "Zeichen fest, fuer die eine Ligatur steht. Probe:" 10
-zeile 452 "    pdftotext demo-kerning-ligatures.pdf -" 10 Courier
-zeile 470 "liefert die Woerter vollstaendig zurueck." 10
+zeile 508 "Der Text bleibt durchsuchbar: die ToUnicode-Zuordnung haelt beide" 10
+zeile 522 "Zeichen fest, fuer die eine Ligatur steht. Probe:" 10
+zeile 540 "    pdftotext demo-kerning-ligatures.pdf -" 10 Courier
+zeile 558 "liefert die Woerter vollstaendig zurueck." 10
 
 # --- was diese Schrift kann ------------------------------------------------
-zeile 510 "Was diese Schrift mitbringt" 12 Helvetica-Bold
-zeile 535 "Kernpaare einzeln:      $einzelpaare" 10 Courier
-zeile 549 "Klassentabellen:        $klassen" 10 Courier
-zeile 563 "Glyphen mit Ligaturen:  $ligaErste" 10 Courier
+zeile 592 "Was diese Schrift mitbringt" 12 Helvetica-Bold
+zeile 617 "Kernpaare einzeln:      $einzelpaare" 10 Courier
+zeile 631 "Klassentabellen:        $klassen" 10 Courier
+zeile 645 "Glyphen mit Ligaturen:  $ligaErste" 10 Courier
 
-zeile 595 "Nicht jede Schrift meint dasselbe: DejaVu Sans hat ein" 9
-zeile 607 "arabisches liga-Feature und gar kein fi-Glyph, Liberation" 9
-zeile 619 "Serif hat keine Ligaturen, Carlito hat 424." 9
+zeile 677 "Nicht jede Schrift meint dasselbe: DejaVu Sans hat ein" 9
+zeile 689 "arabisches liga-Feature und gar kein fi-Glyph, Liberation" 9
+zeile 701 "Serif hat keine Ligaturen, Carlito hat 424." 9
 
 $pdf write -file $outfile
 $pdf destroy

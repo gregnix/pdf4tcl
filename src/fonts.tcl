@@ -1237,6 +1237,217 @@ space instead of the usual empty rectangle."
     }
 
     # Create a subset of a TrueType font. Subset is a list of unicode values.
+    # The six-letter tag a subset font name has to carry.
+    #
+    # ISO 32000-1 clause 9.6.4: for a font subset, BaseFont and the
+    # descriptor's FontName shall begin with a tag of exactly six uppercase
+    # letters followed by a plus sign. Different subsets of the same face in
+    # one file shall have different tags -- that is what lets a reader tell
+    # them apart and merge them.
+    #
+    # The letters are arbitrary, so derive them from the glyph set: the same
+    # glyphs give the same tag, a different set a different one. That meets
+    # the "different subsets, different tags" rule without keeping a counter.
+    proc CIDSubsetTag {bfname glyphs} {
+        set roh "$bfname:[join [lsort -integer $glyphs] ,]"
+        # A small, stable hash. Nothing here is security relevant; what
+        # matters is that equal input gives equal output and unequal input
+        # rarely collides.
+        set h 5381
+        foreach c [split $roh ""] {
+            scan $c %c n
+            set h [expr {(($h * 33) + $n) & 0xFFFFFFFF}]
+        }
+        set tag ""
+        for {set i 0} {$i < 6} {incr i} {
+            append tag [format %c [expr {65 + ($h % 26)}]]
+            set h [expr {$h / 26}]
+            if {$h == 0} { set h [expr {5381 + $i}] }
+        }
+        return $tag
+    }
+
+    # Strip a TrueType file down to the glyphs a CID font actually used.
+    #
+    # NOT the same job as MakeTTFSubset. That one RENUMBERS: the subset font
+    # gets glyphs 0..N-1 and the encoding maps codes onto them. A CID font
+    # with /CIDToGIDMap /Identity cannot do that -- the glyph number IS what
+    # stands in the content stream, and that stream is already written by the
+    # time the font goes out.
+    #
+    # So keep every number and empty the glyphs nobody drew: loca keeps all
+    # its entries, unused ones get zero length, and glyf carries only the
+    # data that is reached. /CIDToGIDMap stays /Identity, the text stream and
+    # the /W array are untouched.
+    #
+    # Where the bytes are, measured on DejaVuSans (759 720 bytes):
+    #
+    #   glyf  557 508  73.4%      <- this is what shrinks
+    #   GPOS   40 586   5.3%
+    #   loca   25 016   3.3%
+    #   hmtx   24 982   3.3%
+    #
+    # A page of German text uses 24 glyphs of the 5918 the font maps.
+    proc MakeCIDSubset {bfname glyphs} {
+        variable BFA
+        variable BFP
+
+        if {![info exists BFP($bfname,rawttf)]} { return "" }
+        if {![info exists BFA($bfname,glyphPos)]} { return "" }
+        set roh $BFP($bfname,rawttf)
+
+        set behalten [CIDSubsetGlyphs $bfname $glyphs]
+
+        # New glyf and loca, numbering and glyph COUNT unchanged.
+        #
+        # Truncating loca at the highest used glyph would save a few kB, but
+        # then maxp, hmtx and hhea all have to follow -- measured, a font cut
+        # that way is rejected. Keeping the count means only glyf shrinks,
+        # and that is where the bytes are (73% of DejaVuSans).
+        set pos $BFA($bfname,glyphPos)
+        set n [expr {[llength $pos] - 1}]
+        set neuGlyf ""
+        set neuLoca {}
+        for {set i 0} {$i < $n} {incr i} {
+            lappend neuLoca [string length $neuGlyf]
+            if {[dict exists $behalten $i]} {
+                set a [lindex $pos $i]
+                set b [lindex $pos [expr {$i + 1}]]
+                if {$b > $a} {
+                    append neuGlyf [string range $BFP($bfname,glyf) $a \
+                            [expr {$b - 1}]]
+                }
+            }
+            # Glyph data is aligned to four bytes.
+            while {[string length $neuGlyf] % 4} { append neuGlyf "\x00" }
+        }
+        lappend neuLoca [string length $neuGlyf]
+
+        # Long loca format throughout: the short one stores offsets halved
+        # and cannot express every length.
+        set locaBin [binary format Iu* $neuLoca]
+
+        return [CIDRebuildTtf $roh [dict create glyf $neuGlyf loca $locaBin]]
+    }
+
+    # Every glyph the subset ends up carrying, not just the ones asked for.
+    #
+    # Two things come along beyond the requested set:
+    #
+    #   - the components of composite glyphs. An a-umlaut is built from the
+    #     base letter and the accent, both glyphs of their own; without them
+    #     the reader draws nothing.
+    #   - glyph 0. ISO 32000-2 clause 9.7.4.2: every CIDFont shall have a
+    #     description for CID 0, the counterpart of .notdef.
+    #
+    # /CIDSet has to name exactly this set, not the requested one. ISO
+    # 19005-2 clause 6.2.11.4.2: a CIDSet shall identify all CIDs PRESENT IN
+    # THE FONT PROGRAM. Listing only what the document drew failed there --
+    # measured, and veraPDF said so precisely.
+    proc CIDSubsetGlyphs {bfname glyphs} {
+        set behalten {}
+        foreach g $glyphs { dict set behalten $g 1 }
+        dict set behalten 0 1
+        set warteschlange [dict keys $behalten]
+        while {[llength $warteschlange]} {
+            set g [lindex $warteschlange 0]
+            set warteschlange [lrange $warteschlange 1 end]
+            foreach teil [CIDGlyphParts $bfname $g] {
+                if {![dict exists $behalten $teil]} {
+                    dict set behalten $teil 1
+                    lappend warteschlange $teil
+                }
+            }
+        }
+        return $behalten
+    }
+
+    # Which glyphs does a composite glyph refer to?
+    proc CIDGlyphParts {bfname g} {
+        variable BFA
+        variable BFP
+        set pos $BFA($bfname,glyphPos)
+        if {$g + 1 >= [llength $pos]} { return {} }
+        set a [lindex $pos $g]
+        set b [lindex $pos [expr {$g + 1}]]
+        if {$b - $a < 10} { return {} }
+        binary scan $BFP($bfname,glyf) "@${a}S" konturen
+        if {$konturen >= 0} { return {} }     ;# simple glyph
+
+        set MEHR   [expr {1 << 5}]
+        set WORTE  [expr {1 << 0}]
+        set SKAL   [expr {1 << 3}]
+        set XYSKAL [expr {1 << 6}]
+        set ZWEIx2 [expr {1 << 7}]
+
+        set teile {}
+        set o [expr {$a + 10}]
+        while {1} {
+            if {$o + 4 > $b} break
+            binary scan $BFP($bfname,glyf) "@${o}SuSu" flags idx
+            lappend teile $idx
+            incr o 4
+            incr o [expr {($flags & $WORTE) ? 4 : 2}]
+            if {$flags & $SKAL}        { incr o 2 } \
+            elseif {$flags & $XYSKAL}  { incr o 4 } \
+            elseif {$flags & $ZWEIx2}  { incr o 8 }
+            if {!($flags & $MEHR)} break
+        }
+        return $teile
+    }
+
+    # Write a TrueType file with some tables replaced.
+    #
+    # Tables that a CID font does not need are dropped: cmap (Identity-H
+    # addresses glyphs directly), and the layout tables, whose contents
+    # pdf4tcl has already read into BFA at load time.
+    proc CIDRebuildTtf {roh ersatz} {
+        binary scan $roh IuSu ver anzahl
+        set tabellen {}
+        for {set i 0} {$i < $anzahl} {incr i} {
+            set o [expr {12 + $i * 16}]
+            binary scan [string range $roh $o [expr {$o + 15}]] a4IuIuIu \
+                    tag chk off len
+            if {$tag in {cmap GPOS GSUB GDEF kern MATH FFTM DSIG}} { continue }
+            if {[dict exists $ersatz $tag]} {
+                lappend tabellen [list $tag [dict get $ersatz $tag]]
+            } else {
+                lappend tabellen [list $tag \
+                        [string range $roh $off [expr {$off + $len - 1}]]]
+            }
+        }
+        # head: indexToLocFormat must say "long", since that is what
+        # MakeCIDSubset writes.
+        set neu {}
+        foreach e $tabellen {
+            lassign $e tag inhalt
+            if {$tag eq "head" && [string length $inhalt] >= 52} {
+                set inhalt [string replace $inhalt 50 51 [binary format Su 1]]
+            }
+            lappend neu [list $tag $inhalt]
+        }
+        set tabellen [lsort -index 0 $neu]
+
+        set anzahl [llength $tabellen]
+        set suchbereich [expr {16 * (1 << int(log($anzahl) / log(2)))}]
+        set kopf [binary format IuSuSuSuSu 0x00010000 $anzahl $suchbereich \
+                [expr {int(log($anzahl) / log(2))}] \
+                [expr {$anzahl * 16 - $suchbereich}]
+        ]
+        set off [expr {12 + $anzahl * 16}]
+        set verz ""
+        set daten ""
+        foreach e $tabellen {
+            lassign $e tag inhalt
+            append verz [binary format a4IuIuIu $tag 0 \
+                    [expr {$off + [string length $daten]}] \
+                    [string length $inhalt]]
+            append daten $inhalt
+            while {[string length $daten] % 4} { append daten "\x00" }
+        }
+        return "$kopf$verz$daten"
+    }
+
     proc MakeTTFSubset {bfname fontname subset} {
         variable BFA
         variable BFP

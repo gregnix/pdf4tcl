@@ -81,6 +81,34 @@ fillForms: no such field(s) in "order.pdf": no_such_field
 Ignoring it would mean a form comes out empty and nobody knows why.
 Fields present but not named keep what they had.
 
+### The round trip
+
+`getForms` hands a text value back **unpacked** -- exactly the form
+`fillForms` takes in. So the obvious thing works:
+
+```tcl
+set fields [pdf4tcl::getForms "in.pdf"]
+set values {}
+dict for {id info} $fields {
+    dict set values $id [dict get $info value]
+}
+dict set values f_name "Meier & Co (GmbH)"
+pdf4tcl::fillForms "in.pdf" "out.pdf" $values
+```
+
+Until 0.9.4.55 the value came back raw, with its brackets and escapes,
+and every pass doubled the escaping of every field the caller did not
+touch:
+
+```
+Meier & Co (GmbH)
+(Meier & Co \(GmbH\))
+(\(Meier & Co \\\(GmbH\\\)\)))
+```
+
+A **name** value (`/Yes`, `/Off`) is left as it is -- that is the form
+`fillForms` expects for check boxes and radio buttons.
+
 ### The value is written, not drawn
 
 `fillForms` sets `/NeedAppearances`, which tells the viewer to render the
@@ -90,6 +118,29 @@ value present but invisible.
 
 Building an appearance stream per field would need the font metrics of
 the target document, which is more than a string. It is on the list.
+
+## Forms and PDF/A
+
+A check box is drawn with a ZapfDingbats glyph, and ZapfDingbats is one of
+the fourteen standard faces -- it has no font program to embed. PDF/A wants
+every font program in the file, so **a document with a single check box was
+non-conformant the moment it was written**, before anyone filled anything
+in.
+
+Since 0.9.4.55 the mark is drawn with lines and curves wherever the
+document claims PDF/UA or **any** PDF/A level. Measured with veraPDF on a
+document whose only form field is one check box:
+
+```
+with the glyph:   -pdfa 1b, 2b, 3b  ->  all FAIL, clause 6.2.11.4.1
+with the vector:  -pdfa 1b, 2b, 3b  ->  all PASS
+```
+
+A document that claims nothing keeps the glyph and looks exactly as it did.
+`-markstyle font` forces the glyph, `-markstyle vector` the drawing.
+
+The text in the fields is a separate matter: it needs an embedded font like
+any other text. See [`howto-pdfa.md`](howto-pdfa.md).
 
 ## Limits
 

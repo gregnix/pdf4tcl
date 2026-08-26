@@ -67,9 +67,28 @@ $p text "Verifizierung:" -x 72 -y 202
 $p text "  qpdf --password=$user --check demo-aes256.pdf" -x 72 -y 222
 $p text "  python3 verify_enc3.py demo-aes256.pdf $user"  -x 72 -y 242
 
+$p setFont 9 Helvetica
+$p text "qpdf 12 meldet dabei eine Warnung zu /Length und endet mit 3." \
+        -x 72 -y 272
+$p text "Das ist erwartet: seit 0.9.4.53 schreibt pdf4tcl den Eintrag nicht" \
+        -x 72 -y 288
+$p text "mehr, weil ISO 32000 ihn nur fuer V 2 oder 3 vorsieht. qpdf liest" \
+        -x 72 -y 304
+$p text "ihn trotzdem unbedingt. Die Datei ist in Ordnung und lesbar." \
+        -x 72 -y 320
+
 $p endPage
 $p write -file $outfile
 $p destroy
 
 puts "Geschrieben: $outfile ([file size $outfile] Bytes)"
 puts "Pruefen mit: qpdf --password=$user --check $outfile"
+puts ""
+puts "Hinweis: qpdf 12 meldet dabei"
+puts "  WARNING: ... dictionary key /Length: operation for integer"
+puts "           attempted on object of type null: returning 0"
+puts "und endet mit Rueckgabewert 3. Das ist erwartet und kein Fehler der"
+puts "Datei: seit 0.9.4.53 schreibt pdf4tcl /Length nicht mehr in das"
+puts "Verschluesselungswoerterbuch, weil ISO 32000 den Eintrag nur fuer"
+puts "V 2 oder 3 vorsieht -- qpdf liest ihn dennoch unbedingt. Die Datei"
+puts "laesst sich entschluesseln, mit qpdf wie mit pdftotext."

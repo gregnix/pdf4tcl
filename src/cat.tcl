@@ -2072,10 +2072,24 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 proc pdf4tcl::FormSetKey {body key value} {
     # Replace an existing entry. The value may be a string in brackets, a
     # name, or a number -- each ends differently, so three patterns.
-    set muster1 "${key}\\s*\\(\[^)\]*\\)"
+    # A literal string may contain escaped brackets. "[^)]*" stops at the
+    # first one of those, so replacing a value that held one left the rest
+    # of the old string behind -- the other half of the round-trip defect
+    # that FormUnquoteString fixes on the reading side. Measured: three
+    # passes added one bracket each.
+    #
+    # This matches an escaped pair, or any character that is not a
+    # backslash or a closing bracket.
+    set muster1 "${key}\\s*\\((?:\\\\.|\[^\\\\)\])*\\)"
+    # Hex string: /V <FEFF> -- what OpenOffice writes for an empty text
+    # field. Without this pattern the key was not recognised as present and
+    # a second one was appended, so the dictionary carried /V twice.
+    # Measured on a foreign form: qpdf reported "dictionary has duplicated
+    # key /V", and getForms read the older, empty one.
+    set muster1b "${key}\\s*<\[0-9A-Fa-f\\s\]*>"
     set muster2 "${key}\\s*/\\w+"
     set muster3 "${key}\\s+\\d+"
-    foreach muster [list $muster1 $muster2 $muster3] {
+    foreach muster [list $muster1 $muster1b $muster2 $muster3] {
         if {[regexp $muster $body]} {
             # Ein "&" im Ersatz waere ein Rueckverweis auf den Treffer.
             # Beim ersten Anlauf machte das aus "Meier & Co" ein
@@ -2092,6 +2106,107 @@ proc pdf4tcl::FormSetKey {body key value} {
         regsub -- {<<} $body [string map {& \\& \\ \\\\} "<<\n  $key $value"] body
     }
     return $body
+}
+
+# Unpack a PDF string the way fillForms takes one in.
+#
+# getForms used to hand the value back raw -- with its brackets and its
+# escapes -- while fillForms expects a plain string. The obvious round
+# trip, read a form, change one field, write it back, therefore doubled
+# the escaping of every field it did NOT touch, on every pass. Measured
+# over three passes:
+#
+#   Meier & Co (GmbH)
+#   (Meier & Co \(GmbH\))
+#   (\(Meier & Co \\\(GmbH\\\)\)))
+#
+# A NAME value (/Yes, /Off) is left alone: that is the form fillForms
+# expects for check boxes and radio buttons.
+#
+# Handled: literal strings with escapes and octal, hex strings, and
+# UTF-16BE with a byte order mark (ISO 32000 clauses 7.3.4.2, 7.3.4.3
+# and 7.9.2.2).
+proc pdf4tcl::FormUnquoteString {raw} {
+    set raw [string trim $raw]
+    if {$raw eq ""} { return "" }
+
+    # A name object stays as it is.
+    if {[string index $raw 0] eq "/"} { return $raw }
+
+    # Hex string: <48656C6C6F>
+    if {[string index $raw 0] eq "<" && [string index $raw end] eq ">"} {
+        set hex [string range $raw 1 end-1]
+        set hex [regsub -all {\s} $hex ""]
+        # An odd number of digits is padded with a zero (clause 7.3.4.3).
+        if {[string length $hex] % 2} { append hex 0 }
+        if {![regexp {^[0-9A-Fa-f]*$} $hex]} { return $raw }
+        set bytes [binary format H* $hex]
+        return [FormDecodeText $bytes]
+    }
+
+    # Literal string: (Hello)
+    if {[string index $raw 0] ne "(" || [string index $raw end] ne ")"} {
+        return $raw
+    }
+    set body [string range $raw 1 end-1]
+
+    set out ""
+    set i 0
+    set n [string length $body]
+    while {$i < $n} {
+        set c [string index $body $i]
+        if {$c ne "\\"} {
+            append out $c
+            incr i
+            continue
+        }
+        incr i
+        set e [string index $body $i]
+        switch -- $e {
+            n { append out "\n"; incr i }
+            r { append out "\r"; incr i }
+            t { append out "\t"; incr i }
+            b { append out "\b"; incr i }
+            f { append out "\f"; incr i }
+            "(" - ")" - "\\" { append out $e; incr i }
+            "\n" { incr i }
+            default {
+                # Octal, one to three digits.
+                if {[regexp {^([0-7]{1,3})} [string range $body $i end] -> okt]} {
+                    append out [format %c [scan $okt %o]]
+                    incr i [string length $okt]
+                } else {
+                    append out $e
+                    incr i
+                }
+            }
+        }
+    }
+    return [FormDecodeText $out]
+}
+
+# A PDF text string is either PDFDocEncoding or UTF-16BE with a byte
+# order mark (clause 7.9.2.2).
+proc pdf4tcl::FormDecodeText {bytes} {
+    if {[string length $bytes] >= 2} {
+        binary scan [string range $bytes 0 1] H4 bom
+        if {[string equal -nocase $bom "feff"]} {
+            return [encoding convertfrom unicode \
+                    [_SwapBytes [string range $bytes 2 end]]]
+        }
+    }
+    return $bytes
+}
+
+# UTF-16BE to the host order that [encoding convertfrom unicode] wants.
+proc pdf4tcl::_SwapBytes {s} {
+    binary scan $s cu* bytes
+    set out ""
+    foreach {hi lo} $bytes {
+        if {$lo eq ""} { set lo 0 }
+        append out [binary format cucu $lo $hi]
+    }
+    return $out
 }
 
 proc pdf4tcl::getForms {pdfFile} {
@@ -2127,7 +2242,8 @@ proc pdf4tcl::getForms {pdfFile} {
             }
             # Value
             if {[dict exists $d /V]} {
-                dict set result $id value [dict get $d /V]
+                dict set result $id value \
+                        [FormUnquoteString [dict get $d /V]]
             } else {
                 dict set result $id value {}
             }

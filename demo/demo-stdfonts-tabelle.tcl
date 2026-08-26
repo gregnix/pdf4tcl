@@ -153,7 +153,10 @@ proc drawRow {pdf x y byte sfont} {
 # ---------------------------------------------------------------------------
 proc rangePage {pdf title from to sfont} {
     global mT mB pH rowH x0L x0R
-    set yStart [expr {$mT + 8.0}]
+    # Abstand zur Spaltenueberschrift. Vorher 3 mm bei 4,5 mm Zeilenhoehe --
+    # die Ueberschrift lag auf der ersten Datenzeile, gefunden mit
+    # tools/layout-check.tcl.
+    set yStart [expr {$mT + 10.0}]
     set yMax   [expr {$pH - $mB}]
     set perPage [expr {int(($yMax - $yStart) / $rowH) * 2}]
     set chars {}

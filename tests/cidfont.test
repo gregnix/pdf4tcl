@@ -506,4 +506,202 @@ test cidfont-10.2 {loadBaseTrueTypeFont: CBDT font throws descriptive error} \
           [string match "*NotoEmoji-Regular*" $err]}
 } -result 1
 
+
+# ---------------------------------------------------------------------------
+# cidfont-9.x  Subsetting fuer CID-Fonts (0.9.4.57)
+#
+# Eingebettet wird nur noch, was gezeichnet wurde. glyphChars sammelt es
+# beim Zeichnen; ohne Subsetting trug eine Seite mit drei Glyphen die
+# ganze Schrift.
+#
+# Gemessen an DejaVuSans (759 720 Bytes), Verteilung der Tabellen:
+#
+#   glyf  557 508  73.4%      <- das schrumpft
+#   GPOS   40 586   5.3%
+#   loca   25 016   3.3%
+#   hmtx   24 982   3.3%
+#
+# Die Glyphnummern bleiben UNVERAENDERT -- bei /CIDToGIDMap /Identity ist
+# die Nummer der Textinhalt, und der Strom steht schon, wenn die Schrift
+# geschrieben wird. Also loca vollstaendig lassen und ungenutzte Glyphen
+# leeren.
+# ---------------------------------------------------------------------------
+
+test cidfont-9.1 {die Datei schrumpft deutlich} -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    pdf4tcl::createFontSpecCID SubBase SubFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 1]
+    $pdf startPage
+    $pdf setFont 12 SubFont
+    $pdf text "Gruesse aus Muenchen" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    # Ohne Subsetting waren es rund 386 000 Bytes.
+    expr {[string length $data] < 150000}
+} -result 1
+
+test cidfont-9.2 {der Text bleibt lesbar} -constraints {DejaVuSans} -body {
+    # Die Probe, die zaehlt: schrumpfen ist wertlos, wenn nichts mehr
+    # dargestellt wird.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    pdf4tcl::createFontSpecCID SubBase SubFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 SubFont
+    $pdf text "ABC" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    # Glyphnummern im Strom, ToUnicode dazu, FontFile2 vorhanden. Ob Tj
+    # oder ein TJ-Lauf mit Kerning dabei herauskommt, haengt an der
+    # Schrift -- geprueft wird, DASS Glyphen dastehen.
+    expr {[regexp {<[0-9A-F]{4,}>} $data]
+            && [string first "FontFile2" $data] >= 0
+            && [string first "ToUnicode" $data] >= 0}
+} -result 1
+
+test cidfont-9.3 {zusammengesetzte Glyphen nehmen ihre Teile mit} \
+        -constraints {DejaVuSans} -body {
+    # Ein Umlaut ist Grundbuchstabe plus Akzent, beide eigene Glyphen. Wer
+    # nur den zusammengesetzten behaelt, bekommt eine leere Flaeche --
+    # gemessen: 780 Bytes Unterschied bei drei Umlauten, und ohne die
+    # Teile zeichnet der Leser nichts.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    set g [dict get $::pdf4tcl::BFA(SubBase,charToGlyph) 228]
+    set teile [::pdf4tcl::CIDGlyphParts SubBase $g]
+    expr {[llength $teile] >= 2}
+} -result 1
+
+test cidfont-9.4 {die Glyphnummern bleiben, wie sie waren} \
+        -constraints {DejaVuSans} -body {
+    # Der Kern der Sache. Wuerde umnummeriert, muesste der Textstrom mit --
+    # der steht aber schon. Also muss die Nummer im Strom dieselbe sein wie
+    # in der Basisschrift.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    pdf4tcl::createFontSpecCID SubBase SubFont
+    set erwartet [dict get $::pdf4tcl::BFA(SubBase,charToGlyph) 65]  ;# "A"
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 SubFont
+    $pdf text "A" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    regexp {<([0-9A-F]{4})> *Tj} $data -> hex
+    expr {[scan $hex %x] == $erwartet}
+} -result 1
+
+test cidfont-9.5 {mehr Glyphen, mehr Datei} -constraints {DejaVuSans} -body {
+    # Gegenprobe: schrumpft es wirklich MIT dem Inhalt, oder wird nur
+    # pauschal etwas weggeschnitten?
+    set groessen {}
+    foreach txt {"A" "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"} {
+        pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+        pdf4tcl::createFontSpecCID SubBase SubFont
+        set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 1]
+        $pdf startPage
+        $pdf setFont 12 SubFont
+        $pdf text $txt -x 50 -y 60
+        lappend groessen [string length [$pdf get]]
+        $pdf destroy
+    }
+    expr {[lindex $groessen 1] > [lindex $groessen 0]}
+} -result 1
+
+test cidfont-9.6 {der Subset-Name traegt das Praefix} \
+        -constraints {DejaVuSans} -body {
+    # ISO 32000-1 Klausel 9.6.4: bei einem Subset MUSS der Name mit einem
+    # Tag aus genau sechs Grossbuchstaben und einem Pluszeichen beginnen --
+    # in BaseFont und im FontName des Deskriptors gleichermassen. Daran
+    # erkennt ein Leser das Subset und kann zwei davon zusammenfuehren.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    pdf4tcl::createFontSpecCID SubBase SubFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 SubFont
+    $pdf text "ABC" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    # Kein Name ohne Tag darf uebrigbleiben -- auch der Type0-Font nicht.
+    expr {[regexp {/BaseFont /[A-Z]{6}\+} $data]
+            && [regexp {/FontName /[A-Z]{6}\+} $data]
+            && ![regexp {/BaseFont /SubBase\M} $data]}
+} -result 1
+
+test cidfont-9.7 {gleiche Glyphen, gleicher Tag} -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    expr {[::pdf4tcl::CIDSubsetTag SubBase {1 2 3}]
+            eq [::pdf4tcl::CIDSubsetTag SubBase {3 2 1}]}
+} -result 1
+
+test cidfont-9.8 {andere Glyphen, anderer Tag} -constraints {DejaVuSans} -body {
+    # Die Klausel verlangt es: verschiedene Subsets derselben Schrift in
+    # einer Datei muessen verschiedene Tags tragen.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    expr {[::pdf4tcl::CIDSubsetTag SubBase {1 2 3}]
+            ne [::pdf4tcl::CIDSubsetTag SubBase {1 2 4}]}
+} -result 1
+
+test cidfont-9.9 {die Form stimmt} -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    set fehler {}
+    foreach g {{1} {5 9 17} {0 1 2 3 4 5 6 7 8 9}} {
+        set t [::pdf4tcl::CIDSubsetTag SubBase $g]
+        if {![regexp {^[A-Z]{6}$} $t]} { lappend fehler $t }
+    }
+    set fehler
+} -result {}
+
+test cidfont-9.10 {Glyph 0 bleibt, auch ungefragt} \
+        -constraints {DejaVuSans} -body {
+    # ISO 32000-2 Klausel 9.7.4.2: jede CIDFont MUSS eine Glyphbeschreibung
+    # fuer CID 0 haben -- das Gegenstueck zu .notdef in einfachen Schriften.
+    # Ein Subsetter, der nur das Angeforderte behaelt, verletzt das.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    set klein [::pdf4tcl::MakeCIDSubset SubBase {36 37 38}]
+    binary scan $klein IuSu ver n
+    set laenge -1
+    for {set i 0} {$i < $n} {incr i} {
+        set o [expr {12 + $i * 16}]
+        binary scan [string range $klein $o [expr {$o + 15}]] a4IuIuIu \
+                tag chk off len
+        if {$tag eq "loca"} {
+            binary scan $klein "@${off}IuIu" a b
+            set laenge [expr {$b - $a}]
+        }
+    }
+    expr {$laenge > 0}
+} -result 1
+
+test cidfont-9.11 {CIDToGIDMap steht da} -constraints {DejaVuSans} -body {
+    # ISO 32000-2 Klausel 9.7.4.2: ist das TrueType-Programm eingebettet,
+    # MUSS das CIDFont-Woerterbuch einen CIDToGIDMap-Eintrag fuehren. In
+    # Teil 1 war er optional mit Vorgabe Identity, in Teil 2 nicht mehr.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    pdf4tcl::createFontSpecCID SubBase SubFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 SubFont
+    $pdf text "A" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    regexp {/CIDToGIDMap\s*/Identity\M} $data
+} -result 1
+
+test cidfont-9.12 {ein Subset traegt einen CIDSet} \
+        -constraints {DejaVuSans} -body {
+    # ISO 19005-1 Klausel 6.3.5 verlangt ihn fuer jedes CIDFont-SUBSET.
+    # Vor 0.9.4.57 bettete pdf4tcl ganze Schriften ein, also war nichts ein
+    # Subset und die Regel griff nie -- das Subset-Praefix brachte die
+    # Anforderung mit. Gemessen: ein PDF/A-1b-Dokument fiel an 6.3.5 durch,
+    # sobald das Praefix da war.
+    pdf4tcl::loadBaseTrueTypeFont SubBase $::dejavuPath
+    pdf4tcl::createFontSpecCID SubBase SubFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 SubFont
+    $pdf text "ABC" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    string match "*/CIDSet*" $data
+} -result 1
+
 ::tcltest::cleanupTests

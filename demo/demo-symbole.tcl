@@ -64,7 +64,10 @@ set cfont cidFont
 # ---------------------------------------------------------------------------
 set FONT_SIZE  13
 set LINE_H     20
-set HEADER_H   38   ;# blauer Balken 20pt + 18pt Abstand bis erste Textzeile
+# Balken 20pt, Untertitel bei +28, und die Zeichenzeile ist 13pt hoch --
+# bei 38 lagen Untertitel und erste Zeile 1,6pt uebereinander. Gefunden mit
+# tools/layout-check.tcl, auf der Seite kaum zu sehen.
+set HEADER_H   42   ;# Balken 20pt + Untertitel + Abstand bis erste Zeile
 set GAP        10
 set MAX_W     490
 set LEFT       50

@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.53)
+# pdf4tcl fork (0.9.4.57)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -12,9 +12,10 @@ This fork started as a personal working environment -- features and
 fixes developed for own projects, submitted upstream where appropriate.
 
 The focus is on extending the 0.9.4.x line with practical features:
-full Unicode via CID fonts, PDF/A-1b/2b/3b support, Tagged PDF with
-PDF/UA-1 conformance, transparency, and AES-256 encryption -- covering
-real-world PDF generation needs in Tcl.
+full Unicode via subsetted CID fonts, PDF/A at every level from 1b to
+3u, Tagged PDF with PDF/UA-1 conformance, transparency, interactive
+forms, and AES-256 encryption -- covering real-world PDF generation
+needs in Tcl.
 
 
 ## Requirements
@@ -35,7 +36,8 @@ This runs:
 
 ```bash
 cat src/prologue.tcl src/fonts.tcl src/helpers.tcl src/options.tcl \
-    src/main.tcl src/encrypt.tcl src/tagged.tcl src/cat.tcl > pdf4tcl.tcl
+    src/main.tcl src/color.tcl src/encrypt.tcl src/tagged.tcl \
+    src/cat.tcl > pdf4tcl.tcl
 ```
 
 Do not edit `pdf4tcl.tcl` directly -- changes will be lost on the next build.
@@ -103,16 +105,43 @@ $pdf text "Second line of the same paragraph" -x 0 -y 65
 $pdf tagEnd
 ```
 
-`examples/tagged.tcl` produces a document that veraPDF 1.28.2 validates as
-PDF/UA-1 conformant: 106 rules and 1492 checks passed, none failed. The
-manual page describes the methods under *OBJECT METHODS, TAGGED PDF*,
-`doc/en/TAGGED.md` goes into the background and the open ends, and
+`examples/tagged.tcl` produces a document that veraPDF validates as PDF/UA-1
+conformant. The manual page describes the methods under *OBJECT METHODS,
+TAGGED PDF*, [`doc/en/reference/TAGGED.md`](doc/en/reference/TAGGED.md) goes
+into the structure tree and the table attributes, and
 `tools/check-tagged.py` verifies the structure of a generated file.
 
 Being tagged is not the same as being accessible. A document in which every
 paragraph is `/P` and every heading is `/H1` validates just as cleanly and
 still tells a reader nothing useful.
 
+
+## Documentation
+
+| | |
+|---|---|
+| [`doc/en/tutorials/`](doc/en/tutorials/README.md) | Follow along from a first page to a tagged, multilingual document |
+| [`doc/en/howtos/`](doc/en/howtos/README.md) | "How do I do X" -- one task per file, each with a runnable script |
+| [`doc/en/reference/`](doc/en/reference/README.md) | How an area works and what it costs |
+| [`demo/`](demo/README.md) | 39 small programs, one feature each, run end to end |
+| `pdf4tcl.man`, `pdf4tcl.html` | The manual page: every method and option |
+
+Every howto and tutorial ships the script it describes, and
+`doc/en/run-all-examples.tcl` runs all of them -- so what the documentation
+shows is what the current code produces, not what it produced once.
+
+## Checking what you generated
+
+```bash
+tclsh tools/pdfcheck-native.tcl out.pdf     # structures, fonts, metadata
+tclsh tools/layout-check.tcl    out.pdf     # overlapping text, margins
+python3 tools/check-tagged.py   out.pdf     # the structure tree
+verapdf -f 2b                   out.pdf     # the conformance claim
+```
+
+The first two need no external tools beyond poppler and report what they
+find rather than passing judgement -- a finding on a deliberately dense page
+is not a defect. Their file headers say where the limits are.
 
 ## Where the parts come from
 
@@ -129,6 +158,12 @@ Schekin, and they stay there. Beyond that:
 - **`/Length` in the encryption dictionary** (fixed in 0.9.4.53) was
   pointed out by Alexander Schoepe of tclpdf on 2026-08-22: the entry
   belongs only to V 2 or 3, and pdf4tcl wrote it beside V 4 and V 5.
+
+- **Strings that bypassed encryption** (fixed in 0.9.4.54) came out of
+  checking a remark of his about the EFF entry: EFF made no difference,
+  but the attachment name in the name tree was going out in the clear
+  while the file specification around it was encrypted -- which left the
+  attachment unreachable.
 
 Those are findings, not code. If code from tclpdf is ever taken over, the
 copyright notice comes with it -- the one condition the MIT licence makes,

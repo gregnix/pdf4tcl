@@ -31,7 +31,7 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-permissions.md` | Restrict print/copy after open? | `demo-permissions.tcl` |
 | `howto-encrypted-forms.md` | Encrypted AcroForms? | `demo-forms-aes128.tcl`, `demo-forms-aes256.tcl`, `demo-forms-enc.tcl` |
 | `howto-facturx.md` | Factur-X container? | `examples/facturx.tcl` |
-| `howto-cmyk.md` | DeviceCMYK? | — |
+| `howto-cmyk.md` | DeviceCMYK? | -- |
 | `howto-colors.md` | Colour inputs / range / names? | (see graphics guide; 0.9.4.39) |
 | `howto-alpha.md` | Transparency? | `demo-alpha.tcl` |
 | `howto-gradients.md` | Gradients / blend? | `demo-gradients.tcl` |

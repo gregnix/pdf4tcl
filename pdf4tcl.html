@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.53 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.57 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.53?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.57?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -416,6 +416,16 @@ mypdf destroy
 <dd><p>This call creates a font that can be used in documents from a base font.
 The <i class="arg">subset</i> must be a list of (up to 256) unicode values which are the characters that can be
 drawn when <i class="arg">fontname</i> is selected.</p>
+<p>Only the glyphs for those codepoints are embedded -- a real subset of the
+font programme, not the whole file. That is the difference to
+<b class="cmd">createFontSpecCID</b>, which has no 256-codepoint limit but embeds the
+entire TTF. Measured on the same page with DejaVuSans: 31 kB here against
+386 kB there.</p>
+<p>Two things to watch. Put <b class="const">63</b> (<b class="const">?</b>) in the list: a character
+outside it falls back to <b class="const">?</b> where that is present, and otherwise to
+slot 0 -- the FIRST codepoint listed, which then reads like real text and is
+not. And check <b class="method">getSubstCount</b> afterwards; a missing glyph is
+reported there and nowhere else.</p>
 <pre class="doctools_example">
 pdf4tcl::loadBaseTrueTypeFont BaseArial &quot;arial.ttf&quot;
 # Subset is a list of unicodes:
@@ -436,7 +446,16 @@ mypdf destroy
 from a previously loaded TrueType base font. Unlike <b class="cmd">createFont</b> and <b class="cmd">createFontSpecEnc</b>,
 which are limited to 256 characters per font instance, a CID font supports any Unicode
 character covered by the underlying TTF file. This includes Latin Extended, Greek, Cyrillic,
-CJK ideographs, and other scripts. The full TTF binary is embedded in the PDF.</p>
+CJK ideographs, and other scripts.</p>
+<p>Since 0.9.4.57 only the glyphs the document actually draws are embedded.
+Measured on the same page with DejaVuSans: 31 kB through
+<b class="cmd">createFontSpecEnc</b> against 50 kB here, where it used to be 386 kB.</p>
+<p>The glyph numbers are kept as they are, so composite glyphs pull in the
+parts they are built from -- an a-umlaut needs its base letter and its
+accent, both separate glyphs.</p>
+<p>See &quot;<b class="file">doc/en/reference/pdf4tcl-fonts-and-unicode.md</b>&quot; for the three ways of
+choosing a font side by side, with what each one costs and what it can
+render.</p>
 <p>Characters in the Supplementary Multilingual Plane (SMP, U+10000 and above) are
 supported. They are encoded as UTF-16BE surrogate pairs in the ToUnicode CMap,
 as required by the PDF specification (ISO 32000, &sect;9.10.3).
@@ -524,7 +543,10 @@ The info is a dictionary with the following fields:</p>
 <dt><b class="option">type</b></dt>
 <dd><p>Field type.</p></dd>
 <dt><b class="option">value</b></dt>
-<dd><p>Form value.</p></dd>
+<dd><p>Form value, unpacked: a text value comes back without its
+brackets and escapes, exactly the form <b class="cmd">::pdf4tcl::fillForms</b> takes in,
+so reading a form and writing it back does not accumulate escaping. A name
+value (<b class="const">/Yes</b>, <b class="const">/Off</b>) is left as it is.</p></dd>
 <dt><b class="option">flags</b></dt>
 <dd><p>Value of form flags field.</p></dd>
 <dt><b class="option">default</b></dt>
@@ -903,7 +925,18 @@ Multiple keywords should be passed as a comma-separated string,
 e.g. <i class="arg">-keywords &quot;tcl,pdf,document&quot;</i>.
 For <i class="arg">-creationdate</i> and <i class="arg">-moddate</i> a <b class="const">clock seconds</b> value is expected.
 A value of <b class="const">0</b> uses the current date and time.
-Unknown option names cause an error.</p></dd>
+Unknown option names cause an error.</p>
+<p>With <b class="option">-pdfa</b> the fields also go into the XMP packet, as
+<b class="const">dc:title</b>, <b class="const">dc:creator</b>, <b class="const">dc:description</b>,
+<b class="const">dc:subject</b>, <b class="const">pdf:Keywords</b>, <b class="const">pdf:Producer</b>,
+<b class="const">xmp:CreateDate</b> and <b class="const">xmp:ModifyDate</b>.</p>
+<p>Two entries are written without being asked for. <b class="const">pdf:Producer</b>
+defaults to the organization, the package name and the release, the form
+recommended for an <b class="const">AgentName</b> (XMP part 1 clause 8.2.2.1);
+<b class="option">-producer</b> overrides it. <b class="const">xmp:MetadataDate</b> accompanies
+<b class="const">xmp:ModifyDate</b> with the same value and records when the metadata
+last changed as against the content (XMP part 1 table 5); it is absent when
+no modification date was given.</p></dd>
 <dt><a name="36"><i class="arg">objectName</i> <b class="method">bookmarkAdd</b> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Add a bookmark on the current page.</p>
 <dl class="doctools_options">
@@ -958,9 +991,14 @@ Written as <b class="const">/Subtype</b> in the EmbeddedFile stream dictionary.<
 <dd><p>Human-readable description stored as <b class="const">/Desc</b> in the FileSpec
 dictionary.</p></dd>
 <dt><b class="option">-afrelationship</b> <i class="arg">rel</i></dt>
-<dd><p>PDF/A-3 <b class="const">/AFRelationship</b> entry.  Valid values are
-<b class="const">Alternative</b>, <b class="const">Data</b>, <b class="const">Source</b>,
-<b class="const">Supplement</b>, and <b class="const">Unspecified</b>.</p></dd>
+<dd><p>PDF/A-3 <b class="const">/AFRelationship</b> entry: how the embedded file relates to
+the document.  Valid values are <b class="const">Alternative</b>, <b class="const">Data</b>,
+<b class="const">Source</b>, <b class="const">Supplement</b>, and <b class="const">Unspecified</b>, which is the
+default.</p>
+<p>The entry is not optional in a PDF/A-3 document. ISO 19005-3 clause 6.8
+refers to annex E: an embedded file meeting the extra requirements is an
+associated file and shall carry one. A document whose attachment has none
+fails validation at that clause.</p></dd>
 </dl>
 <pre class="doctools_example">
 # ZUGFeRD / Factur-X pattern
@@ -1448,8 +1486,8 @@ validation is worse than one that claims nothing.</p></dd>
 <dd><p>Opens a structure element. Everything painted until the matching
 <b class="method">tagEnd</b> belongs to it. Elements nest, and the nesting of the calls is
 the nesting of the tree.</p>
-<p><i class="arg">type</i> must be one of the standard structure types of ISO 32000-1
-Table 333 to 337:
+<p><i class="arg">type</i> must be one of the types pdf4tcl accepts, all of them standard
+structure types of ISO 32000-1:
 <b class="const">Document</b>, <b class="const">Part</b>, <b class="const">Art</b>, <b class="const">Sect</b>, <b class="const">Div</b>,
 <b class="const">BlockQuote</b>, <b class="const">Caption</b>, <b class="const">TOC</b>, <b class="const">TOCI</b>,
 <b class="const">Index</b>, <b class="const">NonStruct</b>, <b class="const">Private</b>,
@@ -1545,6 +1583,24 @@ relation cannot be derived from the layout.</p></dd>
 <b class="const">Column</b> or <b class="const">Both</b>. ISO 14289-1 clause 7.5 requires it wherever
 the relation between a header cell and its data cells cannot be derived
 algorithmically.</p></dd>
+<dt><b class="option">-colspan</b> <i class="arg">n</i></dt>
+<dd></dd>
+<dt><b class="option">-rowspan</b> <i class="arg">n</i></dt>
+<dd><p>Apply to <b class="const">TH</b>
+and <b class="const">TD</b> and write <b class="const">/ColSpan</b> and <b class="const">/RowSpan</b>: how many
+columns or rows the cell spans. A value of 1 is the default and is not
+written.</p>
+<p>Without them a heading spanning two columns looks like a single cell in the
+structure tree, and a reader names the wrong heading for everything under
+the second. No validator reports this -- the tree is well formed, it simply
+does not match the table. ISO 32000-1 clause 14.8.4.3.4 note 2 says the
+association of headers with rows and columns is determined heuristically
+and may fail for complex tables, which is what these attributes are for.</p></dd>
+<dt><b class="option">-summary</b> <i class="arg">text</i></dt>
+<dd><p>Applies to <b class="const">Table</b> and writes
+<b class="const">/Summary</b>: a summary of the table's purpose and structure, meant for
+non-visual rendering -- speech or braille. A reader announces it before the
+cells.</p></dd>
 </dl>
 <p>Text passed to these options is written as a UTF-16BE string when it contains
 anything outside printable ASCII, so it is not restricted to Latin-1 the way
@@ -1765,12 +1821,25 @@ Default value is the document's <b class="option">-compress</b> setting.</p></dd
 </pre>
 </dd>
 <dt><a name="83"><i class="arg">objectName</i> <b class="method">getImageHeight</b> <i class="arg">id</i></a></dt>
-<dd><p>This method returns the height of the image identified by <i class="arg">id</i>.</p></dd>
+<dd><p>This method returns the height of the image identified by <i class="arg">id</i>,
+in pixels.</p></dd>
 <dt><a name="84"><i class="arg">objectName</i> <b class="method">getImageSize</b> <i class="arg">id</i></a></dt>
 <dd><p>This method returns the size of the image identified by <i class="arg">id</i>.  The
-return value is a list of width and height.</p></dd>
+return value is a list of width and height, both in PIXELS -- not in the
+document's unit, and not in points. It is the size the image has in
+itself, which is what a resolution check needs:</p>
+<pre class="doctools_example">
+lassign [$pdfobject getImageSize $id] px py
+# the image is to be placed 50 mm wide
+set dpi [expr {$px / (50 / 25.4)}]
+if {$dpi &lt; 300} {
+    puts &quot;too coarse for print: [format %.0f $dpi] dpi&quot;
+}
+</pre>
+</dd>
 <dt><a name="85"><i class="arg">objectName</i> <b class="method">getImageWidth</b> <i class="arg">id</i></a></dt>
-<dd><p>This method returns the width of the image identified by <i class="arg">id</i>.</p></dd>
+<dd><p>This method returns the width of the image identified by <i class="arg">id</i>,
+in pixels.</p></dd>
 </dl>
 </div>
 <div id="subsection8" class="doctools_subsection"><h3><a name="subsection8">OBJECT METHODS, COLORS</a></h3>
@@ -2087,11 +2156,23 @@ This option can only be set at object creation.</p></dd>
 <dt><b class="option">-pdfa</b> <i class="arg">level</i></dt>
 <dd><p>Enables PDF/A conformance for the document.
 Valid values are <b class="const"></b> (none, default), <b class="const">1b</b>, <b class="const">2b</b> and
-<b class="const">3b</b> for conformance level B, and <b class="const">1a</b>, <b class="const">2a</b> and
-<b class="const">3a</b> for level A.</p>
-<p>Level A adds tagged PDF, a natural language and Unicode mappings on top of
-level B. pdf4tcl always writes the Unicode mappings; the other two are the
-caller's job and are checked when the document is finished. Without tagging,
+<b class="const">3b</b> for conformance level B, <b class="const">2u</b> and <b class="const">3u</b> for level U,
+and <b class="const">1a</b>, <b class="const">2a</b> and <b class="const">3a</b> for level A.</p>
+<p>The levels build on each other. ISO 19005-2 clause 5.4: a level B file
+skips the requirements of clauses 6.2.11.7 and 6.7, a level U file skips
+only 6.7, and a level A file skips neither.</p>
+<ul class="doctools_itemized">
+<li><p><em>B</em> -- the visual appearance is preservable.</p></li>
+<li><p><em>U</em> -- and the text can be extracted as Unicode.</p></li>
+<li><p><em>A</em> -- and the logical structure is preserved: tagged PDF and a
+natural language.</p></li>
+</ul>
+<p>There is no <b class="const">1u</b>: level U was introduced with part 2 and has no
+equivalent in part 1 (clause 5.4 note 3).</p>
+<p>pdf4tcl always writes the Unicode mappings, so a document that satisfies
+level B with an embedded font satisfies level U as well. The tagging and
+the language are the caller's job and are checked when the document is
+finished. Without tagging,
 or without a language, writing the document raises an error rather than
 putting <i class="term">pdfaid:conformance A</i> into a file that does not have what
 that claims. In other words, <b class="const">3a</b> needs at least:</p>
@@ -2287,7 +2368,7 @@ elements are never folded.</p></li>
 <li><p><b class="option">-markstyle</b> decides how the mark of a check box or radio
 button is drawn: <b class="const">font</b> uses a ZapfDingbats glyph as before,
 <b class="const">vector</b> draws it with lines and curves, and <b class="const">auto</b>, the default,
-picks vectors where the document claims PDF/UA or a level A conformance. The
+picks vectors wherever the document claims PDF/UA or any PDF/A level. The
 glyph cannot be embedded and both standards require embedded font programs,
 so a single check box used to make a document non-conformant whatever else it
 did right. Documents claiming nothing keep the appearance they always had.</p></li>
@@ -2797,7 +2878,7 @@ for Tcl 9.0 compatibility (ticket #17).</p></li>
 </div>
 <div id="subsection38" class="doctools_subsection"><h3><a name="subsection38">Version 0.9.4.5</a></h3>
 <ul class="doctools_itemized">
-<li><p>CIDFont Unicode support: <b class="cmd">createFontSpecCID</b> for full TTF embedding.</p></li>
+<li><p>CIDFont Unicode support: <b class="cmd">createFontSpecCID</b> for subsetted TTF embedding.</p></li>
 <li><p>Supports Latin Extended, Greek, Cyrillic, CJK and all BMP/SMP codepoints.</p></li>
 <li><p>ToUnicode CMap with UTF-16BE surrogate pairs for SMP characters.</p></li>
 </ul>

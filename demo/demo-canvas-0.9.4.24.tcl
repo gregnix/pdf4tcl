@@ -323,26 +323,12 @@ puts "pdf4tcl 0.9.4.24 -- canvas demo"
 puts "Geschrieben: $outfile"
 
 # Unter wish beendet sich der Interpreter nach dem Skript nicht, sondern
-# geht in die Event-Loop. Schliesst man das Fenster dann ueber den
-# Fenstermanager, bricht wish8.6 mit tko 0.4 ab:
+# geht in die Event-Loop. Damit die Demo im Sammellauf ein definiertes Ende
+# hat, endet sie wie unter tclsh.
 #
-#   alloc: invalid block: 0x...: c0 95
-#
-# Die Ursache liegt in tko, nicht in pdf4tcl: in tkoWidget.c haelt
-# clientdata->option einen Tcl_Obj ohne eigene Referenz, waehrend
-# WidgetClientdataDelete eine zurueckgibt. Das Objekt stirbt, waehrend das
-# Klassen-Optionsdictionary es noch haelt. Ein Einzeiler behebt es:
-#
-#   clientdata->option = myObjv[3];
-#   Tcl_IncrRefCount(clientdata->option);   /* fehlte */
-#
-# Das PDF ist zu diesem Zeitpunkt vollstaendig geschrieben; kaputt ist nur
-# der Exit-Code. Ausfuehrlich in doc/en/pdf4tcl-canvas.md.
-#
-# tclsh zeigt es nie, weil es sich am Skriptende ohne Tk-Abbau beendet.
-# wish9.0 zeigt es ebenfalls nicht -- sehr wahrscheinlich nur, weil Tcl 9 den
-# Thread-Allokator nicht mehr benutzt und den Fehler daher nicht bemerkt.
-#
-# Deshalb hier dasselbe Ende wie unter tclsh. Sobald tko gepatcht ist, kann
-# dieses exit wieder heraus.
+# Hier stand frueher eine ausfuehrliche Begruendung, wish8.6 breche mit
+# tko 0.4 beim Fensterschliessen ab. DIESE BEHAUPTUNG IST ZURUECKGEZOGEN:
+# der Dreizeilen-Reproduzierer laeuft ohne Meldung durch. Solange kein
+# Skript vorliegt, das den Fehler zeigt, gehoert die Behauptung nirgendwo
+# hin -- weder hier noch in der Doku.
 exit 0

@@ -208,9 +208,16 @@ $pdf text "Mehr dazu auf der" -x 0 -y 330
 $pdf tagEnd
 
 # Ein Link braucht ein Link-Element, sonst erreicht ihn nur die Maus.
+#
+# Die x-Position wird GEMESSEN, nicht geschaetzt. Vorher stand hier 95,
+# und der Text davor ist bei 11pt 104 Punkt breit -- die beiden lagen
+# neun Punkt uebereinander. Aufgefallen ist es tools/layout-check.tcl,
+# nicht dem Auge: auf der Seite sieht man es kaum.
+set linkX [$pdf getStringWidth "Mehr dazu auf der "]
 $pdf tagBegin Link -alt "pdf4tcl auf GitHub"
-$pdf tagText Span "Projektseite" -x 95 -y 330
-$pdf hyperlinkAdd 95 328 60 12 "https://github.com/gregnix/pdf4tcl"
+$pdf tagText Span "Projektseite" -x $linkX -y 330
+$pdf hyperlinkAdd $linkX 328 [$pdf getStringWidth "Projektseite"] 12 \
+        "https://github.com/gregnix/pdf4tcl"
 $pdf tagEnd
 
 # Die Fusszeile gehoert nicht zum Inhalt.
