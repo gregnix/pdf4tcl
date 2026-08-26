@@ -154,6 +154,8 @@ set DEMOS {
         "benoetigt Tk"}
     {demo-canvas-tkpath.tcl      1  none       "Canvas-Export mit tkpath"
         "benoetigt Tk und tkpath"}
+    {demo-canvas-tko.tcl         1  none       "Canvas-Export mit tko::path"
+        "benoetigt Tk und tko"}
 }
 
 # ---------------------------------------------------------------------------

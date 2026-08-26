@@ -316,6 +316,57 @@ $pdf text "• kein Crash, kein Fehlermeldung" \
 
 $pdf endPage
 
+# ---------------------------------------------------------------------------
+# Seite 3: -fontmap mit einer CID-Schrift
+#
+# Ohne -fontmap raet der Export auf eine der vierzehn Standardschriften, und
+# alles ausserhalb Latin-1 wird zum Fragezeichen.
+#
+# DER SCHLUESSEL IST DIE GANZE FONTANGABE, so wie itemcget -font sie
+# zurueckgibt. {Helvetica 14} wird unter "Helvetica" NICHT gefunden, und der
+# Text kommt als Fragezeichen heraus, ohne Fehlermeldung. Ein benannter Font
+# ist leichter richtig zu treffen, weil der Name die ganze Angabe ist.
+#
+# Bei tko::path und tkpath ist es anders: dort wird die FAMILIE allein
+# zugeordnet. Siehe doc/en/reference/pdf4tcl-canvas.md.
+# ---------------------------------------------------------------------------
+source [file join $demodir .. tools findfont.tcl]
+set uniFont [::pdf4tcl::findFont unicode]
+
+if {$uniFont ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont UniBase $uniFont
+    pdf4tcl::createFontSpecCID UniBase UniCid
+    font create DemoUni -family Helvetica -size 14
+
+    canvas .cu -width 460 -height 150 -bg white
+    pack .cu
+    .cu create text 20 30 -anchor w -font DemoUni \
+            -text "Griechisch: \u0395\u03bb\u03bb\u03ac\u03b4\u03b1"
+    .cu create text 20 60 -anchor w -font DemoUni \
+            -text "Mathematik: \u0394 \u2211 \u221E \u03c6"
+    .cu create text 20 90 -anchor w -font DemoUni \
+            -text "Kyrillisch: \u041f\u0440\u0438\u0432\u0435\u0442"
+    update
+
+    $pdf startPage
+    $pdf setFont 14 Helvetica
+    $pdf text "-fontmap mit einer CID-Schrift" -x 50 -y 50
+
+    # Der benannte Font als Schluessel -- der Name IST die ganze Angabe.
+    $pdf canvas .cu -bbox [.cu bbox all] -x 50 -y 90 \
+            -width 460 -height 150 -fontmap {DemoUni UniCid}
+
+    $pdf setFont 9 Helvetica
+    $pdf text "getSubstCount: [$pdf getSubstCount]  (0 = jedes Zeichen hatte\
+            eine Glyphe)" -x 50 -y 260
+    $pdf text "Ohne -fontmap oder mit dem blossen Familiennamen als\
+            Schluessel stuenden hier Fragezeichen." -x 50 -y 275
+    $pdf endPage
+    destroy .cu
+} else {
+    puts "  keine Unicode-Schrift gefunden -- Seite 3 uebersprungen"
+}
+
 $pdf write -file $outfile
 $pdf destroy
 

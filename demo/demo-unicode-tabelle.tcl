@@ -140,6 +140,15 @@ set ::autoFonts {
 }
 foreach _f $::autoFonts { addFont $_f }
 
+# Wenn keiner der Pfade oben getroffen hat -- unter Windows und macOS
+# liegen die Schriften woanders --, wenigstens eine nehmen, damit die Demo
+# nicht mit leerer Liste durchlaeuft und eine halbe Datei schreibt.
+if {![llength $fontList]} {
+    source [file join [file dirname [info script]] .. tools findfont.tcl]
+    set _any [::pdf4tcl::findFont unicode]
+    if {$_any ne ""} { addFont $_any }
+}
+
 # 1b) Lokales Font-Verzeichnis relativ zum Skript: ../fonts/
 #     Struktur: demo/demo-unicode-tabelle.tcl  +  fonts/*.ttf
 set _scriptDir [file dirname [file normalize [info script]]]

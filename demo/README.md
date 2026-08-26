@@ -55,6 +55,7 @@ Output goes to `demo/out/`. The directory is rebuilt, not added to.
 These open a window or export one, so they need `wish` or a display.
 
 | [`demo-canvas-0.9.4.24.tcl`](demo-canvas-0.9.4.24.tcl) | Canvas-Export |
+| [`demo-canvas-tko.tcl`](demo-canvas-tko.tcl) | Canvas-Export mit tko::path |
 | [`demo-canvas-tkpath.tcl`](demo-canvas-tkpath.tcl) | Canvas-Export mit tkpath |
 | [`demo-forms-tk.tcl`](demo-forms-tk.tcl) | Formulare (Tk-GUI) |
 

@@ -302,6 +302,48 @@ $pdf canvas .tp3 -bbox $bb -x 50 -y 80 -width 480 -height 300
 destroy .tp3
 $pdf endPage
 
+# ---------------------------------------------------------------------------
+# Seite 4: Unicode ueber -fontmap
+#
+# Bis 0.9.4.58 rief der Rueckruf getTkpptext bedingungslos den 8-Bit-Weg,
+# und eine CID-Schrift brach mit
+#
+#     can't read "FontsAttrs(...,specialencoding)"
+#
+# ab. Ohne -fontmap kam stattdessen ein Fragezeichen, weil die
+# Standardschrift kein Griechisch fuehrt.
+# ---------------------------------------------------------------------------
+source [file join $demodir .. tools findfont.tcl]
+set uniFont [::pdf4tcl::findFont unicode]
+
+if {$uniFont ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont UniBase $uniFont
+    pdf4tcl::createFontSpecCID UniBase UniCid
+
+    $pdf startPage
+    $pdf setFont 14 Helvetica
+    $pdf text "Unicode ueber -fontmap (CID)" -x 50 -y 50
+
+    ::tkp::canvas .tp4 -width 480 -height 200 -bg white
+    pack .tp4
+    .tp4 create ptext 20 60 -text "Delta Sigma: \u0394 \u2211 \u221E" \
+            -fontfamily Helvetica -fontsize 16 -fill black
+    .tp4 create ptext 20 110 -text "Griechisch: \u0395\u03bb\u03bb\u03ac\u03b4\u03b1" \
+            -fontfamily Helvetica -fontsize 16 -fill black
+    update
+    set bb [.tp4 bbox all]
+    $pdf canvas .tp4 -bbox $bb -x 50 -y 90 -width 480 -height 200 \
+            -fontmap {Helvetica UniCid}
+    destroy .tp4
+
+    $pdf setFont 9 Helvetica
+    $pdf text "getSubstCount: [$pdf getSubstCount]  (0 = jedes Zeichen\
+            hatte eine Glyphe)" -x 50 -y 320
+    $pdf endPage
+} else {
+    puts "  keine Unicode-Schrift gefunden -- Seite 4 uebersprungen"
+}
+
 $pdf write -file $outfile
 $pdf destroy
 

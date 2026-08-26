@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.58 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.59 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.58?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.59?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -878,7 +878,17 @@ The area is always filled in one direction, preserving aspect ratio, unless
 <i class="arg">-sticky</i> is <i class="arg">nw</i>.
 If option <i class="arg">-bg</i> is true, a background is drawn in the canvas' background
 color.  Otherwise only objects are drawn.  Default is false.
-Option <i class="arg">-fontmap</i> gives a dictionary mapping from Tk font names to PDF font names.
+Option <i class="arg">-fontmap</i> gives a dictionary mapping from Tk font names to PDF
+font names.</p>
+<p>The key differs between the two canvases. A <b class="cmd">tk::canvas</b> item is looked
+up under its WHOLE font specification, as <b class="method">itemcget</b> returns it:
+<b class="const">Helvetica 14</b> is not found under <b class="const">Helvetica</b>, and the text
+then comes out as question marks without an error. A named font avoids that,
+since the name is the whole specification. A <b class="cmd">tko::path</b> or
+<b class="cmd">tkpath</b> item is looked up under its font FAMILY alone, because family,
+size and weight are separate options there.</p>
+<p>A CID font may be used on either, so text beyond Latin-1 works; through
+<b class="cmd">tko::path</b> that needs 0.9.4.59 or newer.
 Option <i class="arg">-textscale</i> overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If <i class="arg">-textscale</i> is larger than 1, all text items are reduced in size by that factor.</p>
 <p>Fonts:</p>
 <p>If no font mapping is given, fonts for text items are limited to PDF's

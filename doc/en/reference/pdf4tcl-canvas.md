@@ -96,6 +96,41 @@ pdf4tcl::createFont BaseFree DocFont iso8859-1
 $pdf canvas .c -fontmap [list {Helvetica 14 bold} DocFont]
 ```
 
+### The key is not the same for both canvases
+
+**`tk::canvas`** looks up the *whole* font specification, exactly as
+`itemcget -font` gives it back. `{Helvetica 14}` will not be found under
+`Helvetica`, and the text comes out as question marks with no error. A named
+font is easier to get right, since the name is the whole specification:
+
+```tcl
+font create DocText -family Helvetica -size 14
+.c create text 20 30 -text "..." -font DocText
+$pdf canvas .c -fontmap {DocText DocFont}
+```
+
+**`tko::path` and `tkpath`** map the font *family* on its own, because a
+`ptext` item carries family, size and weight as separate options:
+
+```tcl
+.tp create ptext 20 30 -text "..." -fontfamily Tahoma -fontsize 14
+$pdf canvas .tp -fontmap {Tahoma DocFont}
+```
+
+### Unicode on a canvas
+
+Both accept a CID font, so text beyond Latin-1 works:
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont Base DejaVuSans.ttf
+pdf4tcl::createFontSpecCID Base UniFont
+$pdf canvas .c -fontmap {DocText UniFont}
+$pdf getSubstCount                       ;# 0 = every character had a glyph
+```
+
+Through `tko::path` this needs pdf4tcl 0.9.4.59 or newer: the callback the
+widget uses took the 8-bit path unconditionally before that.
+
 `-textscale` overrides the automatic downsizing pdf4tcl applies to canvas
 text items it considers too large; a value above 1 shrinks all text by that
 factor.

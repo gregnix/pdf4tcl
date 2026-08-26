@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.58 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.59 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.58?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.59?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1216,7 +1216,19 @@ The area is always filled in one direction, preserving aspect ratio, unless
 \fI-sticky\fR is \fInw\fR\&.
 If option \fI-bg\fR is true, a background is drawn in the canvas' background
 color\&.  Otherwise only objects are drawn\&.  Default is false\&.
-Option \fI-fontmap\fR gives a dictionary mapping from Tk font names to PDF font names\&.
+Option \fI-fontmap\fR gives a dictionary mapping from Tk font names to PDF
+font names\&.
+.sp
+The key differs between the two canvases\&. A \fBtk::canvas\fR item is looked
+up under its WHOLE font specification, as \fBitemcget\fR returns it:
+\fBHelvetica 14\fR is not found under \fBHelvetica\fR, and the text
+then comes out as question marks without an error\&. A named font avoids that,
+since the name is the whole specification\&. A \fBtko::path\fR or
+\fBtkpath\fR item is looked up under its font FAMILY alone, because family,
+size and weight are separate options there\&.
+.sp
+A CID font may be used on either, so text beyond Latin-1 works; through
+\fBtko::path\fR that needs 0\&.9\&.4\&.59 or newer\&.
 Option \fI-textscale\fR overrides the automatic downsizing made for tk::canvas text items that are deemed too large\&. If \fI-textscale\fR is larger than 1, all text items are reduced in size by that factor\&.
 .sp
 Fonts:

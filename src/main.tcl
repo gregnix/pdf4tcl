@@ -5242,7 +5242,27 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Format one line of tkpath ptext
+    # Callback for tko::path and tkpath: encode one line of text.
+    #
+    # The caller wraps the result in round brackets and appends " Tj" -- see
+    # tkoPathCanvText.c, where that is fixed in C. A literal string is
+    # exactly what an 8-bit font needs, so this worked as long as there were
+    # only those.
+    #
+    # A CID font needs glyph numbers in angle brackets instead. There is no
+    # way to say that through a callback whose result is bracketed for it, so
+    # the brackets are closed and reopened around the real text:
+    #
+    #     () Tj <0024 0025> Tj ()
+    #
+    # Two empty strings are drawn either side, which costs nothing and
+    # changes nothing on the page. Measured against tko 0.4.
     method getTkpptext {font line} {
+        variable ::pdf4tcl::FontsAttrs
+        if {[info exists FontsAttrs($font,type)]
+                && $FontsAttrs($font,type) eq "CID"} {
+            return ") Tj [::pdf4tcl::PdfText $line $font] Tj ("
+        }
         return [CleanText $line $font]
     }
 

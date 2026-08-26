@@ -7,6 +7,21 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 testConstraint FreeSans [file exists [file join $::pdf4tclTestRoot examples]/FreeSans.ttf]
 testConstraint runin87p [package vsatisfies [package present Tcl] 8.7-]
 
+# Eine TrueType-Schrift mit Zeichen ausserhalb Latin-1, fuer die
+# CID-Tests weiter unten.
+set ::dejavuPath ""
+foreach _k {
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    /usr/share/fonts/truetype/freefont/FreeSans.ttf
+} {
+    if {[file readable $_k]} { set ::dejavuPath $_k; break }
+}
+if {$::dejavuPath eq ""} {
+    set _f [file join $::pdf4tclTestRoot examples FreeSans.ttf]
+    if {[file readable $_f]} { set ::dejavuPath $_f }
+}
+testConstraint DejaVuSans [expr {$::dejavuPath ne ""}]
+
 # Try to locate any tkpath
 lappend ::auto_path {*}[glob -nocomplain ~/install/lib/tkpath*]
 lappend ::auto_path ../../packages/tkpath ../packages/tkpath
@@ -431,5 +446,141 @@ test canvas-20.1 {demo} -constraints "demo" -body {
         *
     }
 } -cleanup {destroy .items .goldberg} -result 1
+
+
+# ---------------------------------------------------------------------------
+# canvas-9.x  getTkpptext mit einer CID-Schrift (0.9.4.58)
+#
+# tko::path und tkpath rufen diesen Rueckruf fuer jede Textzeile und setzen
+# das Ergebnis in runde Klammern, gefolgt von " Tj" -- fest im C-Code,
+# tkoPathCanvText.c. Das ist genau richtig fuer eine 8-Bit-Schrift.
+#
+# Eine CID-Schrift braucht dagegen Glyphnummern in spitzen Klammern. Bis
+# 0.9.4.57 rief getTkpptext bedingungslos CleanText, den 8-Bit-Weg:
+#
+#     can't read "FontsAttrs(Tahoma869,specialencoding)"
+#
+# Der Ausweg: die Klammer schliessen und wieder oeffnen. Aus
+#
+#     ( ) Tj <0024> Tj ( ) Tj
+#
+# wird zweimal eine leere Zeichenkette und dazwischen der echte Text. Das
+# kostet nichts und aendert nichts auf der Seite.
+#
+# GEPRUEFT WIRD HIER DIE FORM, nicht die Darstellung: der ganze Weg
+# braucht tko unter Tk. Wer das hat, sieht es in demo-canvas-tkpath.tcl.
+# ---------------------------------------------------------------------------
+
+test canvas-9.1 {8-Bit-Schrift: unveraendert} -body {
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    set res [$pdf getTkpptext Helvetica "AB"]
+    $pdf destroy
+    set res
+} -result {AB}
+
+test canvas-9.2 {8-Bit-Schrift: Klammern werden weiter maskiert} -body {
+    # Gegenprobe zu 9.1: der 8-Bit-Weg muss weiterhin maskieren, sonst
+    # zerbricht eine Klammer im Text den Strom.
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 12 Helvetica
+    set res [$pdf getTkpptext Helvetica "a(b)c"]
+    $pdf destroy
+    set res
+} -result {a\(b\)c}
+
+test canvas-9.3 {CID-Schrift: Glyphnummern statt Zeichenkette} \
+        -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont TkBase $::dejavuPath
+    pdf4tcl::createFontSpecCID TkBase TkCid
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 12 TkCid
+    set res [$pdf getTkpptext TkCid "AB"]
+    $pdf destroy
+    # ") Tj <....> Tj (" -- die Klammern zu und wieder auf
+    regexp {^\) Tj <[0-9A-F]{8}> Tj \($} $res
+} -result 1
+
+test canvas-9.4 {eingesetzt ergibt es gueltige Operatoren} \
+        -constraints {DejaVuSans} -body {
+    # Nachbilden, was tkoPathCanvText.c schreibt: "(" davor, ") Tj" danach.
+    pdf4tcl::loadBaseTrueTypeFont TkBase $::dejavuPath
+    pdf4tcl::createFontSpecCID TkBase TkCid
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 12 TkCid
+    set strom "([$pdf getTkpptext TkCid "AB"]) Tj"
+    $pdf destroy
+    # Zwei leere Zeichenketten, dazwischen die Glyphen.
+    regexp {^\(\) Tj <[0-9A-F]+> Tj \(\) Tj$} $strom
+} -result 1
+
+test canvas-9.5 {Unicode ausserhalb Latin-1 kommt durch} \
+        -constraints {DejaVuSans} -body {
+    # Der Fall, um den es geht. Ueber CleanText waeren daraus Fragezeichen
+    # geworden -- oder ein Abbruch.
+    pdf4tcl::loadBaseTrueTypeFont TkBase $::dejavuPath
+    pdf4tcl::createFontSpecCID TkBase TkCid
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    $pdf setFont 12 TkCid
+    set res [$pdf getTkpptext TkCid "\u0394\u2211"]
+    set fehlt [$pdf getSubstCount]
+    $pdf destroy
+    list [regexp {<[0-9A-F]{8}>} $res] $fehlt
+} -result {1 0}
+
+test canvas-9.6 {tk::canvas: der Schluessel ist die GANZE Fontangabe} \
+        -constraints {hasTk DejaVuSans} -body {
+    # Die Falle: -fontmap {Helvetica UniFont} findet ein Item mit
+    # -font {Helvetica 14} NICHT, und die Zeichen werden still zu "?".
+    # Bei tko::path ist es umgekehrt -- dort zaehlt die Familie allein,
+    # weil ptext family, size und weight getrennt fuehrt.
+    pdf4tcl::loadBaseTrueTypeFont KeyBase $::dejavuPath
+    pdf4tcl::createFontSpecCID KeyBase KeyCid
+    catch {destroy .keyc}
+    canvas .keyc -width 200 -height 60
+    .keyc create text 10 20 -text "\u0394\u2211" -font {Helvetica 14}
+    update idletasks
+
+    set res {}
+    foreach map {{Helvetica KeyCid} {{Helvetica 14} KeyCid}} {
+        set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $pdf startPage
+        $pdf canvas .keyc -bbox [.keyc bbox all] -x 20 -y 20 \
+                -width 200 -height 60 -fontmap $map
+        # Glyphnummern in spitzen Klammern heisst: die CID-Schrift greift.
+        lappend res [regexp {<[0-9A-F]{4,}> *Tj} [$pdf get]]
+        $pdf destroy
+    }
+    destroy .keyc
+    set res
+} -result {0 1}
+
+test canvas-9.7 {ein benannter Font ist der einfachere Schluessel} \
+        -constraints {hasTk DejaVuSans} -body {
+    # Weil der Name die ganze Angabe IST, gibt es hier nichts zu verwechseln.
+    pdf4tcl::loadBaseTrueTypeFont KeyBase $::dejavuPath
+    pdf4tcl::createFontSpecCID KeyBase KeyCid
+    catch {font delete KeyText}
+    font create KeyText -family Helvetica -size 14
+    catch {destroy .keyc}
+    canvas .keyc -width 200 -height 60
+    .keyc create text 10 20 -text "\u0394\u2211" -font KeyText
+    update idletasks
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf canvas .keyc -bbox [.keyc bbox all] -x 20 -y 20 \
+            -width 200 -height 60 -fontmap {KeyText KeyCid}
+    set data [$pdf get]
+    set fehlt [$pdf getSubstCount]
+    $pdf destroy
+    destroy .keyc
+    font delete KeyText
+    list [regexp {<[0-9A-F]{4,}> *Tj} $data] $fehlt
+} -result {1 0}
 
 ::tcltest::cleanupTests

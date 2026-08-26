@@ -34,21 +34,16 @@ lappend auto_path [pdf4tclRepoRoot [file dirname [info script]]] \
                   [file join [file dirname [info script]] ../../..]
 package require pdf4tcl
 
-# Font-Pfad ermitteln
+# Font-Pfad ermitteln. Ohne Argument sucht findFont eine Schrift mit
+# Zeichen ausserhalb Latin-1 -- unter Linux, Windows und macOS.
 set fontPath [lindex $argv 0]
 if {$fontPath eq ""} {
-    foreach candidate {
-        /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
-        /usr/share/fonts/TTF/DejaVuSans.ttf
-        /Library/Fonts/DejaVuSans.ttf
-        C:/Windows/Fonts/DejaVuSans.ttf
-    } {
-        if {[file exists $candidate]} { set fontPath $candidate; break }
-    }
+    source [file join [file dirname [info script]] .. tools findfont.tcl]
+    set fontPath [::pdf4tcl::findFont unicode]
 }
 if {$fontPath eq "" || ![file exists $fontPath]} {
-    puts stderr "Fehler: DejaVuSans.ttf nicht gefunden."
-    puts stderr "Aufruf: tclsh demo-cidfont.tcl /pfad/zu/DejaVuSans.ttf"
+    puts stderr "Fehler: keine Unicode-faehige TrueType-Schrift gefunden."
+    puts stderr "Aufruf: tclsh demo-cidfont.tcl /pfad/zu/schrift.ttf"
     exit 1
 }
 puts "Lade Font: $fontPath"

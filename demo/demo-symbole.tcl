@@ -42,12 +42,8 @@ package require pdf4tcl
 # ---------------------------------------------------------------------------
 set fontPath [lindex $argv 0]
 if {$fontPath eq ""} {
-    foreach c {
-        /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
-        /usr/share/fonts/TTF/DejaVuSans.ttf
-        /Library/Fonts/DejaVuSans.ttf
-        C:/Windows/Fonts/DejaVuSans.ttf
-    } { if {[file exists $c]} { set fontPath $c; break } }
+    source [file join [file dirname [info script]] .. tools findfont.tcl]
+    set fontPath [::pdf4tcl::findFont unicode]
 }
 if {$fontPath eq "" || ![file exists $fontPath]} {
     puts stderr "Fehler: DejaVuSans.ttf nicht gefunden."

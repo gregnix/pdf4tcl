@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.58]
+[manpage_begin pdf4tcl n 0.9.4.59]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.58]]
+[require pdf4tcl [opt 0.9.4.59]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -751,7 +751,21 @@ The area is always filled in one direction, preserving aspect ratio, unless
 [arg "-sticky"] is [arg "nw"].
 If option [arg "-bg"] is true, a background is drawn in the canvas' background
 color.  Otherwise only objects are drawn.  Default is false.
-Option [arg "-fontmap"] gives a dictionary mapping from Tk font names to PDF font names.
+Option [arg "-fontmap"] gives a dictionary mapping from Tk font names to PDF
+font names.
+
+[para]
+The key differs between the two canvases. A [cmd tk::canvas] item is looked
+up under its WHOLE font specification, as [method itemcget] returns it:
+[const {Helvetica 14}] is not found under [const Helvetica], and the text
+then comes out as question marks without an error. A named font avoids that,
+since the name is the whole specification. A [cmd tko::path] or
+[cmd tkpath] item is looked up under its font FAMILY alone, because family,
+size and weight are separate options there.
+
+[para]
+A CID font may be used on either, so text beyond Latin-1 works; through
+[cmd tko::path] that needs 0.9.4.59 or newer.
 Option [arg "-textscale"] overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If [arg "-textscale"] is larger than 1, all text items are reduced in size by that factor.
 [para]
 Fonts:

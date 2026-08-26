@@ -1,5 +1,37 @@
 2026-08-26 Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.59
+	* src/main.tcl (getTkpptext): a CID font works through the tko::path
+	and tkpath callback. It called CleanText unconditionally, so a CID font
+	died on FontsAttrs(...,specialencoding). The caller wraps the result in
+	round brackets and appends Tj, which is fixed in C, so the brackets are
+	closed and reopened around the glyph numbers: "() Tj <hex> Tj ()".
+	* pdf4tcl.man, doc/en/reference/pdf4tcl-canvas.md,
+	doc/en/howtos/howto-canvas.md: -fontmap uses a
+	different key for each canvas. A tk::canvas item is looked up under its
+	whole font specification as itemcget returns it, so {Helvetica 14} is
+	not found under Helvetica and the text becomes question marks without
+	an error. A tko::path item is looked up under its family alone.
+	* demo/demo-canvas-tko.tcl: new. Of the three canvas classes pdf4tcl
+	tells apart, tko::path had none.
+	* demo/demo-canvas-0.9.4.24.tcl, demo/demo-canvas-tkpath.tcl: a page
+	using -fontmap with a CID font.
+	* tools/findfont.tcl: new. Locates a TrueType font on Linux, Windows
+	and macOS. The demos each carried their own list of /usr/share/fonts
+	paths, so on Windows none of them found anything and the demo wrote
+	half a file without saying why -- "keine Unicode-Schrift gefunden".
+	Kinds: unicode, mono, otf, emoji. -required turns an empty result into
+	an error naming the directories searched.
+	* demo/demo-canvas-tko.tcl, demo/demo-canvas-tkpath.tcl,
+	demo/demo-canvas-0.9.4.24.tcl, demo/demo-cidfont.tcl,
+	demo/demo-symbole.tcl: use it. demo-unicode-tabelle.tcl keeps its own
+	list, which enumerates faces on purpose, but falls back to findFont
+	when none of them is present.
+	* tests/canvas.test: 7 tests.
+
+2026-08-26 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.58
 	* doc/en/reference/TAGGED.md,
 	doc/en/reference/pdf4tcl-annotations.md,
 	doc/en/reference/pdf4tcl-forms-manual.md,
