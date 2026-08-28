@@ -41,9 +41,23 @@ Useful options: `-bbox`, `-sticky`, `-bg`, `-fontmap`, `-textscale`.
 
 ## Text that is not Latin-1
 
-Without `-fontmap` the export guesses one of the fourteen standard fonts,
-and anything beyond Latin-1 becomes a question mark. Map the Tk font onto a
-PDF font instead:
+Load the font under the name of the Tk family, and nothing else is needed
+(0.9.4.60 and newer):
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont Base tahoma.ttf
+pdf4tcl::createFontSpecCID Base Tahoma       ;# named like the Tk family
+.tp create ptext 20 30 -text "\u0395\u03bb\u03bb\u03ac\u03b4\u03b1" \
+        -fontfamily Tahoma -fontsize 14
+$pdf canvas .tp -bbox [.tp bbox all]         ;# no -fontmap
+$pdf getSubstCount        ;# 0 = every character had a glyph
+```
+
+For a `tk::canvas` item the family is the one written in the font
+specification -- `Tahoma` in `-font {Tahoma 14}`.
+
+Where the name cannot be chosen freely, map the Tk font onto a PDF font
+instead. A mapping always wins over the lookup above:
 
 ```tcl
 pdf4tcl::loadBaseTrueTypeFont Base DejaVuSans.ttf
@@ -55,11 +69,12 @@ $pdf canvas .c -bbox [.c bbox all] -fontmap {DocText Uni}
 $pdf getSubstCount        ;# 0 = every character had a glyph
 ```
 
-**The key is not the same for both canvases.** A `tk::canvas` item is looked
-up under its *whole* font specification, so `{Helvetica 14}` is not found
-under `Helvetica` -- a named font is easier to get right. A `tko::path` item
-is looked up under its *family* alone. Getting it wrong gives question marks
-and no error, which is what `getSubstCount` is for.
+**The mapping key is not the same for both canvases.** A `tk::canvas` item
+is looked up under its *whole* font specification, so `{Helvetica 14}` is
+not found under `Helvetica` -- a named font is easier to get right. A
+`tko::path` item is looked up under its *family* alone. Getting it wrong
+gives question marks and no error, which is what `getSubstCount` is for.
+The family lookup has no such trap: it takes the family either way.
 
 See [`../reference/pdf4tcl-canvas.md`](../reference/pdf4tcl-canvas.md), and
 `demo/demo-canvas-0.9.4.24.tcl` and `demo/demo-canvas-tko.tcl` for both

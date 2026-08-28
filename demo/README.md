@@ -32,7 +32,7 @@ Output goes to `demo/out/`. The directory is rebuilt, not added to.
 | [`demo-interlaced-png.tcl`](demo-interlaced-png.tcl) | Interlaced PNG (Adam7, 0.9.4.28) |
 | [`demo-kerning-ligatures.tcl`](demo-kerning-ligatures.tcl) | Kerning und Ligaturen |
 | [`demo-layers.tcl`](demo-layers.tcl) | Layer / OCG (0.9.4.21) |
-| [`demo-make-cheatsheets.tcl`](demo-make-cheatsheets.tcl) | Cheat Sheets |
+| [`demo-make-cheatsheets.tcl`](demo-make-cheatsheets.tcl) | Cheat Sheets (vier Blaetter nach `out/`) |
 | [`demo-otf.tcl`](demo-otf.tcl) | OpenType-Fonts |
 | [`demo-paper-sizes.tcl`](demo-paper-sizes.tcl) | Papierformate |
 | [`demo-pdfa-3a.tcl`](demo-pdfa-3a.tcl) | PDF/A-3a und PDF/UA-1 |
@@ -55,19 +55,39 @@ Output goes to `demo/out/`. The directory is rebuilt, not added to.
 These open a window or export one, so they need `wish` or a display.
 
 | [`demo-canvas-0.9.4.24.tcl`](demo-canvas-0.9.4.24.tcl) | Canvas-Export |
-| [`demo-canvas-tko.tcl`](demo-canvas-tko.tcl) | Canvas-Export mit tko::path |
+| [`demo-canvas-tko.tcl`](demo-canvas-tko.tcl) | Canvas-Export mit tko::path, CID mit und ohne `-fontmap` |
 | [`demo-canvas-tkpath.tcl`](demo-canvas-tkpath.tcl) | Canvas-Export mit tkpath |
 | [`demo-forms-tk.tcl`](demo-forms-tk.tcl) | Formulare (Tk-GUI) |
 
 ## Checking what they produce
 
 ```bash
-tclsh ../tools/pdfcheck-native.tcl out/       # structures, fonts, metadata
-python3 ../tools/check-conformance.py out/    # veraPDF where a claim is made
+tclsh ../tools/pdfcheck-native.tcl --plain out/   # structures, fonts, metadata
+python3 ../tools/check-conformance.py out/       # veraPDF where a claim is made
 ```
 
-Most demos claim no conformance profile and are reported as such -- that is
-not a defect, it is what an unclaimed document looks like.
+Most demos claim no conformance profile and use standard fonts -- that is
+not a defect, it is what an unclaimed document looks like. Without
+`--plain` those two findings alone account for 58 of the 70 files and bury
+the rest; with it, 64 PASS and 6 WARN remain, all six the same one.
+
+### ZapfDingbats without a ToUnicode map -- on purpose
+
+Six demos are reported: `demo-all-output`, `demo-forms`,
+`demo-forms-gefuellt` and the three `demo-forms-rund*`. All of them draw
+check marks in form fields with ZapfDingbats, and none of them maps that
+font to Unicode. The consequence is real: the check marks cannot be copied
+out of the page.
+
+That is left as it is. A ToUnicode map for a symbol font would hand the
+reader the Dingbats codepoints -- U+2714 for a check mark at best, and
+nothing meaningful for the shapes that have no Unicode equivalent. Neither
+helps anyone reading the page, and the mark is decoration rather than text.
+
+Where it *would* be a defect is a document claiming PDF/A-3a or PDF/UA-1,
+because clause 6.3.6 wants every character mapped. None of these six claim
+anything -- and the two examples that do, `tagged.pdf` and
+`facturx-invoice.pdf`, use no symbol font.
 
 `../tools/layout-check.tcl` is deliberately **not** part of this: dense
 character tables, reference cards and rotated text all report findings that

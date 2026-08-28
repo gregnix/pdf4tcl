@@ -1,4 +1,4 @@
-# pdf4tcl fork (0.9.4.59)
+# pdf4tcl fork (0.9.4.60)
 
 **This is an unofficial personal fork** of
 [pdf4tcl 0.9.4](https://sourceforge.net/projects/pdf4tcl/)
@@ -142,6 +142,19 @@ verapdf -f 2b                   out.pdf     # the conformance claim
 The first two need no external tools beyond poppler and report what they
 find rather than passing judgement -- a finding on a deliberately dense page
 is not a defect. Their file headers say where the limits are.
+
+Over a directory of ordinary PDFs, `pdfcheck-native.tcl` warns on nearly
+every file that it claims no conformance and uses standard fonts -- true,
+but not news. `--plain` drops those two for files that claim nothing, and
+leaves everything else alone:
+
+```bash
+tclsh tools/pdfcheck-native.tcl --plain demo/out/   # 64 PASS, 6 WARN
+tclsh tools/pdfcheck-native.tcl         demo/out/   # 12 PASS, 58 WARN
+```
+
+A file that does claim PDF/A is checked unchanged, where an unembedded font
+is a FAIL under clause 6.3.4.
 
 ## Where the parts come from
 

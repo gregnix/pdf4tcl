@@ -384,3 +384,31 @@ python3 tools/check-conformance.py out.pdf
 | `howtos/howto-ligatures.md` | fi and fl, and is the text still searchable |
 | `howtos/howto-symbols.md` | symbol and coverage charts |
 | `tutorials/tutorial-07-multilingual.md` | a document in five scripts |
+
+## The name you give a font
+
+`createFont`, `createFontSpecEnc` and `createFontSpecCID` let you choose the
+name. Two things depend on it.
+
+**It ends up in the PDF as a name object.** A space is not allowed there
+unescaped; pdf4tcl writes `DejaVu Sans` as `/DejaVu#20Sans` (ISO 32000-1
+clause 7.3.5). Before 0.9.4.60 the space went in raw, and the page stayed
+empty -- no error, no warning, and qpdf reporting `unknown token while
+reading object`.
+
+**On a canvas it is looked up as a family name.** Since 0.9.4.60 the canvas
+export takes a font that is named like the Tk font family, so no `-fontmap`
+is needed:
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont Base tahoma.ttf
+pdf4tcl::createFontSpecCID Base Tahoma       ;# named like the Tk family
+$pdf canvas .tp                              ;# no mapping
+```
+
+The 14 standard fonts are excluded from that lookup. Naming your own font
+`Helvetica` therefore does replace the standard font on a canvas -- which is
+presumably what you meant by the name, but worth knowing.
+
+See [`pdf4tcl-canvas.md`](pdf4tcl-canvas.md) for which family name is used
+on which canvas.

@@ -1,6 +1,6 @@
 # Makefile for pdf4tcl
 
-VERSION = 09459
+VERSION = 09460
 
 # TOOL paths
 TCLSH    ?= tclsh8.6
@@ -97,7 +97,10 @@ example:
 	@cd examples && $(TCLSH) specenc.tcl
 	@cd examples && $(TCLSH) multiout.tcl
 	@cd examples && $(TCLSH) test7.tcl
+	@cd examples && $(TCLSH) test8.tcl
 	@cd examples && $(TCLSH) test-transform.tcl
+	@cd examples && $(TCLSH) tagged.tcl
+	@cd examples && $(TCLSH) facturx.tcl
 
 # Helpers
 

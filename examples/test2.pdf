@@ -365,7 +365,7 @@ stream
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
    xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
-   <pdf:Producer>gregnix pdf4tcl 0.9.4.59</pdf:Producer>
+   <pdf:Producer>gregnix pdf4tcl 0.9.4.60</pdf:Producer>
   </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>
@@ -389,7 +389,7 @@ trailer
 <<
 /Size 10
 /Root 1 0 R
-/ID [<4A89866FD6C5C49E4A89941AD6C5D6EB> <4A89866FD6C5C49E4A89941AD6C5D6EB>]
+/ID [<252EFA40A1AB6827252EE835A1AB7A52> <252EFA40A1AB6827252EE835A1AB7A52>]
 >>
 
 startxref

@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.59
+package provide pdf4tcl 0.9.4.60
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -39,6 +39,13 @@ namespace eval pdf4tcl {
     #   $::pdf4tcl::warnings
     # Reset with: set ::pdf4tcl::warnings {}
     variable warnings {}
+
+    # putImage notes an image placed below this resolution. The library
+    # knows the pixel count and the target size, so it can say what a
+    # picture will look like on paper before anyone prints it -- 150 dpi
+    # is the usual floor for print. Reported, never refused, the same way
+    # a missing glyph is: set to 0 to turn it off.
+    variable imageDpiWarn 150
 
     # Make mathops available
     namespace import ::tcl::mathop::*

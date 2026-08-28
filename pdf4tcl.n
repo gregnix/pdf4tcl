@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.59 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.60 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.59?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.60?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1229,11 +1229,34 @@ size and weight are separate options there\&.
 .sp
 A CID font may be used on either, so text beyond Latin-1 works; through
 \fBtko::path\fR that needs 0\&.9\&.4\&.59 or newer\&.
+.sp
+Since 0\&.9\&.4\&.60 a mapping is not always needed\&. If no entry matches, a font
+loaded under the NAME OF THE FAMILY is used\&. For a \fBtko::path\fR or
+\fBtkpath\fR item that is its \fB-fontfamily\fR; for a \fBtk::canvas\fR
+item it is the family written in the font specification (\fBTahoma\fR in
+\fB-font {Tahoma 14}\fR), and failing that the family Tk resolved it to\&.
+So this is enough:
+.CS
+
+
+pdf4tcl::loadBaseTrueTypeFont Base tahoma\&.ttf
+pdf4tcl::createFontSpecCID Base Tahoma      ;# named like the Tk family
+$pdf canvas \&.p                              ;# no -fontmap needed
+
+.CE
+.IP
+An explicit \fI-fontmap\fR entry still wins over this\&. The 14 standard
+fonts are not searched, so their weight and slant are chosen as before; a
+font loaded under a standard font's name does replace it\&. When bold or
+italic is asked for, \fB<family>-Bold\fR, \fB<family>-Italic\fR and
+\fB<family>-Oblique\fR are tried before the plain family name\&.
+.sp
 Option \fI-textscale\fR overrides the automatic downsizing made for tk::canvas text items that are deemed too large\&. If \fI-textscale\fR is larger than 1, all text items are reduced in size by that factor\&.
 .sp
 Fonts:
 .sp
-If no font mapping is given, fonts for text items are limited to PDF's
+If no font mapping is given and no font is loaded under the family name,
+fonts for text items are limited to PDF's
 builtins, i\&.e\&. Helvetica, Times and Courier\&. A guess is made to chose which
 one to use to get a reasonable display on the page\&.
 .sp
@@ -1892,6 +1915,11 @@ can be given directly (e\&.g\&. \fB{1 0 0}\fR for red)\&. All three options are 
 Draw the text string \fIstr\fR wrapping at blanks and tabs so that it fits within the box defined
 by \fIx\fR, \fIy\fR, \fIwidth\fR and \fIheight\fR\&. An embedded newline in \fIstr\fR causes
 a new line in the output\&. If \fIstr\fR is too long to fit in the specified box, it is truncated and the unused remainder is returned\&.
+A line may also break after a hyphen that joins two words, so
+\fBDonau-dampfschiff\fR keeps the hyphen at the end of the line\&. Since
+0\&.9\&.4\&.60 a hyphen preceded by anything but a letter or digit does not
+break: \fBDer Betrag -5 Euro\fR used to leave the sign behind on one
+line and put the number on the next\&.
 .RS
 .TP
 \fB-align\fR \fIleft|right|center|justify\fR
@@ -2343,6 +2371,14 @@ Set the width of the image\&.  Default width is one point per pixel\&.
 If \fIheight\fR is set but not \fIwidth\fR, the width is selected to
 preserve the aspect ratio of the image\&.
 .RE
+.IP
+Since 0\&.9\&.4\&.60 an image placed below 150 dpi adds a note to
+\fB::pdf4tcl::warnings\fR: the pixel count and the target size are both
+known here, so the resolution follows\&. Nothing is refused -- a screenshot
+at 96 dpi may be exactly what was wanted\&. Set
+\fB::pdf4tcl::imageDpiWarn\fR to another threshold, or to 0 to turn it
+off\&. A form XObject placed with \fBputImage\fR is never reported, since
+its dimensions are points rather than pixels\&.
 .TP
 \fIobjectName\fR \fBputRawImage\fR \fIdata\fR \fIx\fR \fIy\fR ?\fIoption value\fR\&.\&.\&.?
 Put an image on the current page\&. Works like \fBputImage\fR except that the raw image data is given directly\&.

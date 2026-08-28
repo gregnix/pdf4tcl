@@ -83,12 +83,40 @@ for a screenshot-like reproduction, switch it on.
 
 ## Fonts
 
-Without a mapping, text items are limited to the PDF built-ins: Helvetica,
-Times and Courier. pdf4tcl guesses which one comes closest to the Tk font.
+Since 0.9.4.60, a font loaded under the *name of the family* is used without
+any mapping at all:
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont Base tahoma.ttf
+pdf4tcl::createFontSpecCID Base Tahoma      ;# named like the Tk family
+.tp create ptext 20 30 -text "..." -fontfamily Tahoma -fontsize 14
+$pdf canvas .tp                             ;# no -fontmap
+```
+
+For a `tk::canvas` item the family is the one written in the font
+specification -- `Tahoma` in `-font {Tahoma 14}` -- and, failing that, the
+family Tk resolved it to. The written name comes first on purpose: whether
+Tk resolves `Tahoma` to Tahoma depends on what is installed, so a lookup on
+the resolved name alone would give a different result on another machine.
+
+The 14 standard fonts are not searched, so their weight and slant are still
+chosen by the guess below. When bold or italic is asked for,
+`<family>-Bold`, `<family>-Italic` and `<family>-Oblique` are tried before
+the plain family name.
+
+A font name is written into the PDF as a name object, so it may not contain
+a space unescaped. pdf4tcl escapes it (`DejaVu Sans` becomes
+`/DejaVu#20Sans`), which matters because Tk families such as `DejaVu Sans`
+or `Nimbus Sans` carry one. Before 0.9.4.60 such a name produced a file
+whose page stayed empty, with no error anywhere.
+
+Without a mapping *and* without a font of that name, text items are limited
+to the PDF built-ins: Helvetica, Times and Courier. pdf4tcl guesses which
+one comes closest to the Tk font.
 
 Where that is not good enough -- and it will not be for anything with an
 embedded or non-Latin font -- pass a mapping from Tk font names to PDF font
-names:
+names. An explicit mapping always wins over the lookup above:
 
 ```tcl
 pdf4tcl::loadBaseTrueTypeFont BaseFree FreeSans.ttf
@@ -100,8 +128,9 @@ $pdf canvas .c -fontmap [list {Helvetica 14 bold} DocFont]
 
 **`tk::canvas`** looks up the *whole* font specification, exactly as
 `itemcget -font` gives it back. `{Helvetica 14}` will not be found under
-`Helvetica`, and the text comes out as question marks with no error. A named
-font is easier to get right, since the name is the whole specification:
+`Helvetica` -- as a *mapping key*, that is; the family lookup described
+above does take `Helvetica` on its own. A named font is easier to get right,
+since the name is the whole specification:
 
 ```tcl
 font create DocText -family Helvetica -size 14
@@ -130,6 +159,14 @@ $pdf getSubstCount                       ;# 0 = every character had a glyph
 
 Through `tko::path` this needs pdf4tcl 0.9.4.59 or newer: the callback the
 widget uses took the 8-bit path unconditionally before that.
+
+### Weight and slant of a standard font
+
+For the built-ins the guess picks the variant: bold gives `-Bold`, italic
+gives `-Oblique` (`-Italic` for Times), both give `-BoldOblique`. Up to
+0.9.4.59 italic alone gave `-BoldOblique` as well, so slanted canvas text
+came out bold; fixed in 0.9.4.60. On a `tko::path` or `tkpath` item any
+`-fontslant` other than `normal` counts as slanted, `oblique` included.
 
 `-textscale` overrides the automatic downsizing pdf4tcl applies to canvas
 text items it considers too large; a value above 1 shrinks all text by that

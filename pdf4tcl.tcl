@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.59
+package provide pdf4tcl 0.9.4.60
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -39,6 +39,13 @@ namespace eval pdf4tcl {
     #   $::pdf4tcl::warnings
     # Reset with: set ::pdf4tcl::warnings {}
     variable warnings {}
+
+    # putImage notes an image placed below this resolution. The library
+    # knows the pixel count and the target size, so it can say what a
+    # picture will look like on paper before anyone prints it -- 150 dpi
+    # is the usual floor for print. Reported, never refused, the same way
+    # a missing glyph is: set to 0 to turn it off.
+    variable imageDpiWarn 150
 
     # Make mathops available
     namespace import ::tcl::mathop::*
@@ -2151,6 +2158,56 @@ space instead of the usual empty rectangle."
         lappend Fonts $fontname
     }
 
+    # Find a loaded font that carries the name of a Tk font family.
+    #
+    # The canvas export knows a font family only by its name. Without a
+    # -fontmap entry it used to guess among the 14 standard fonts, and an
+    # unrecognised family ended at Helvetica -- which has no glyph beyond
+    # Latin-1, so the text came out as "?" without an error. A font the
+    # caller loaded under exactly that family name was not considered.
+    #
+    # The 14 standard fonts are skipped here on purpose: for them the
+    # existing family switch already picks the right weight and slant, and
+    # that behaviour stays untouched.
+    #
+    # Returns the font name, or the empty string when nothing matches.
+    proc FindFontByFamily {family {bold 0} {italic 0}} {
+        variable Fonts
+        variable FontsAttrs
+
+        if {$family eq ""} {
+            return ""
+        }
+        # Most specific first, so a caller who loaded <family>-Bold gets it
+        # for bold text; the plain family name is the last resort.
+        set candidates {}
+        if {$bold && $italic} {
+            lappend candidates $family-BoldItalic $family-BoldOblique
+        } elseif {$bold} {
+            lappend candidates $family-Bold
+        } elseif {$italic} {
+            lappend candidates $family-Italic $family-Oblique
+        }
+        lappend candidates $family
+
+        foreach candidate $candidates {
+            if {$candidate in $Fonts &&
+                    $FontsAttrs($candidate,type) ne "std"} {
+                return $candidate
+            }
+            # Tk family names do not carry case reliably ("tahoma" against
+            # "Tahoma"), so an exact hit is tried first and case is ignored
+            # only afterwards.
+            foreach font $Fonts {
+                if {[string equal -nocase $font $candidate] &&
+                        $FontsAttrs($font,type) ne "std"} {
+                    return $font
+                }
+            }
+        }
+        return ""
+    }
+
     proc GetCharWidth {font ch} {
         if {$ch eq "\n"} {
             return 0.0
@@ -2234,6 +2291,33 @@ proc ::pdf4tcl::MakeStream {dictval body compress} {
     append res "\n/Length $len\n>>\nstream\n"
     append res $body
     append res "\nendstream"
+    return $res
+}
+
+# Write a string as a PDF name (ISO 32000-1 clause 7.3.5).
+#
+# A name carries regular characters as they are; whitespace, the
+# delimiters, the number sign itself and everything outside 0x21..0x7e
+# have to be written as a number sign followed by two hex digits.
+#
+# This matters for font resource names, which pdf4tcl takes from the
+# caller. A font loaded as "DejaVu Sans" used to be written as
+# "/DejaVu Sans 15 Tf" -- the space ends the name, the rest is garbage,
+# and the page shows nothing at all. No error was raised anywhere.
+proc ::pdf4tcl::PdfName {name} {
+    set res ""
+    # Names are byte strings, so a character above U+007F contributes its
+    # UTF-8 bytes, each escaped.
+    binary scan [encoding convertto utf-8 $name] cu* bytes
+    foreach byte $bytes {
+        set ch [format %c $byte]
+        if {$byte > 0x20 && $byte < 0x7f &&
+                $ch ni {"#" "(" ")" "<" ">" "\[" "\]" "\{" "\}" "/" "%"}} {
+            append res $ch
+        } else {
+            append res [format "#%02x" $byte]
+        }
+    }
     return $res
 }
 
@@ -3371,6 +3455,13 @@ oo::define ::pdf4tcl::pdf4tcl {
         # CleanText is a proc, not a method.
         set pdf(substBase) $::pdf4tcl::substCount
 
+        # The canvas font mapping used to come into existence in "canvas"
+        # only. setTkpfont is the callback tko::path and tkpath call for
+        # every text element, and calling it before "canvas" ended in
+        # can't read "canvasFontMapping": no such variable.
+        my variable canvasFontMapping
+        set canvasFontMapping {}
+
         my Option -file      -default "" -readonly 1
         my Option -paper     -default a4     -validatemethod CheckPaper \
                 -configuremethod SetPageOption
@@ -3773,7 +3864,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         }
         set oid [eval \my startPage [array get localopts]]
         set id xobject$oid
-        set images($id) [list $pdf(width) $pdf(height) $oid $localopts(-noimage)]
+        # The fifth entry says whether the first two are PIXELS. For a form
+        # XObject they are points, so a resolution is meaningless here.
+        set images($id) [list $pdf(width) $pdf(height) $oid \
+                $localopts(-noimage) 0]
         return $id
     }
     # Finish an XObject, this is just a wrapper for endPage available
@@ -4311,7 +4405,7 @@ oo::define ::pdf4tcl::pdf4tcl {
             my Pdfout "/Font <<\n"
             foreach fontname [array names fonts] {
                 set oid $fonts($fontname)
-                my Pdfout "/$fontname $oid 0 R\n"
+                my Pdfout "/[::pdf4tcl::PdfName $fontname] $oid 0 R\n"
             }
             my Pdfout ">>\n"
         }
@@ -5511,7 +5605,9 @@ Use -pdfa-icc to specify a profile path."
                 } elseif {$bold} {
                     append family -Bold
                 } elseif {$italic} {
-                    append family -BoldOblique
+                    # -BoldOblique stood here, so slanted text came out
+                    # bold as well. Times next to it does it right.
+                    append family -Oblique
                 }
             }
             *times* - {*nimbus roman*} {
@@ -5532,10 +5628,21 @@ Use -pdfa-icc to specify a profile path."
                 } elseif {$bold} {
                     append family -Bold
                 } elseif {$italic} {
-                    append family -BoldOblique
+                    # -BoldOblique stood here, so slanted text came out
+                    # bold as well. Times next to it does it right.
+                    append family -Oblique
                 }
             }
         }
+        # A font loaded under the name of the Tk family is used without
+        # -fontmap. Before this, an unrecognised family fell through to
+        # Helvetica above and every character beyond Latin-1 was written
+        # as "?" -- no error, only getSubstCount counted it.
+        set autoFamily [::pdf4tcl::FindFontByFamily $name $bold $italic]
+        if {$autoFamily ne ""} {
+            set family $autoFamily
+        }
+        # An explicit -fontmap entry still wins.
         array set userMappingArr $canvasFontMapping
         if {[info exists userMappingArr($name)]} {
            set family $userMappingArr($name)
@@ -5563,7 +5670,7 @@ Use -pdfa-icc to specify a profile path."
         if {[info exists fonts($fontname)]} return
         set body    "<<\n/Type /Font\n"
         append body "/Subtype /Type1\n"
-        append body "/Name /$fontname\n"
+        append body "/Name /[::pdf4tcl::PdfName $fontname]\n"
         append body "/BaseFont /ZapfDingbats\n"
         append body ">>"
         set oid [my AddObject $body]
@@ -5578,7 +5685,7 @@ Use -pdfa-icc to specify a profile path."
             throw {PDF4TCL} "no font set"
         }
         set fontname $pdf(current_font)
-        my Pdfoutn "/$fontname [Nf $pdf(font_size)]" "Tf"
+        my Pdfoutn "/[::pdf4tcl::PdfName $fontname] [Nf $pdf(font_size)]" "Tf"
         my Pdfoutcmd 0 "Tr"
         my Pdfoutcmd $pdf(font_size) "TL"
 
@@ -5618,8 +5725,8 @@ Use -pdfa-icc to specify a profile path."
                 set body    "<<\n/Type /Font\n"
                 append body "/Subtype /Type1\n"
                 append body "/Encoding /WinAnsiEncoding\n"
-                append body "/Name /$fontname\n"
-                append body "/BaseFont /$fontname\n"
+                append body "/Name /[::pdf4tcl::PdfName $fontname]\n"
+                append body "/BaseFont /[::pdf4tcl::PdfName $fontname]\n"
                 append body "/ToUnicode $uoid 0 R\n"
                 append body ">>"
            } elseif {$fonttype eq "TTF"} {
@@ -5635,7 +5742,7 @@ Use -pdfa-icc to specify a profile path."
                         $pdf(compress)]
                 set fsoid [my AddObject $body]
                 # 2. Font subset descriptor.
-                set    body "<<\n/FontName /$BaseFN\n"
+                set    body "<<\n/FontName /[::pdf4tcl::PdfName $BaseFN]\n"
                 append body "/StemV [Nf $BFA($BFN,stemV)]\n"
                 append body "/FontFile2 $fsoid 0 R\n"
                 append body "/Ascent [Nf $BFA($BFN,ascend)]\n"
@@ -5667,8 +5774,8 @@ Use -pdfa-icc to specify a profile path."
                 append body "/LastChar [expr {[llength $Widths]-1}]\n"
                 append body "/ToUnicode $uoid 0 R\n"
                 append body "/FontDescriptor $foid 0 R\n"
-                append body "/Name /$fontname\n"
-                append body "/BaseFont /$BaseFN\n"
+                append body "/Name /[::pdf4tcl::PdfName $fontname]\n"
+                append body "/BaseFont /[::pdf4tcl::PdfName $BaseFN]\n"
                 append body "/Subtype /TrueType\n"
                 append body "/Widths \[$Widths\]\n"
                 append body "/Type /Font\n"
@@ -5691,7 +5798,7 @@ Use -pdfa-icc to specify a profile path."
                     set body [MakeStream $dictv $BFA($BFN,data) $pdf(compress)]
                     set fsoid [my AddObject $body]
                     #2. Font descriptor:
-                    set    body "<<\n/FontName /$BFN\n"
+                    set    body "<<\n/FontName /[::pdf4tcl::PdfName $BFN]\n"
                     append body "/StemV [Nf $BFA($BFN,stemV)]\n"
                     append body "/FontFile $fsoid 0 R\n"
                     append body "/Ascent [Nf $BFA($BFN,ascend)]\n"
@@ -5726,8 +5833,8 @@ Use -pdfa-icc to specify a profile path."
                 append body "/LastChar [expr {[llength $Widths]-1}]\n"
                 append body "/ToUnicode $uoid 0 R\n"
                 append body "/FontDescriptor $foid 0 R\n"
-                append body "/Name /$fontname\n"
-                append body "/BaseFont /$BFN\n"
+                append body "/Name /[::pdf4tcl::PdfName $fontname]\n"
+                append body "/BaseFont /[::pdf4tcl::PdfName $BFN]\n"
                 append body "/Subtype /Type1\n"
                 append body "/Widths \[$Widths\]\n"
                 append body "/Type /Font\n"
@@ -5814,7 +5921,7 @@ Use -pdfa-icc to specify a profile path."
 
         # 2. Font descriptor
         set body "<<\n/Type /FontDescriptor\n"
-        append body "/FontName /$subsetName\n"
+        append body "/FontName /[::pdf4tcl::PdfName $subsetName]\n"
         append body "/Flags $BFA($BFN,flags)\n"
         set fbbox {}
         foreach n $BFA($BFN,bbox) {lappend fbbox [Nf $n]}
@@ -5947,7 +6054,7 @@ Use -pdfa-icc to specify a profile path."
         } else {
             append body "/Subtype /CIDFontType2\n"
         }
-        append body "/BaseFont /$subsetName\n"
+        append body "/BaseFont /[::pdf4tcl::PdfName $subsetName]\n"
         append body "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>\n"
         append body "/FontDescriptor $fdoid 0 R\n"
         if {$warray ne ""} {
@@ -5963,7 +6070,7 @@ Use -pdfa-icc to specify a profile path."
         # 6. Type0 font (top-level) - write with the pre-reserved OID
         set body "<<\n/Type /Font\n"
         append body "/Subtype /Type0\n"
-        append body "/BaseFont /$subsetName\n"
+        append body "/BaseFont /[::pdf4tcl::PdfName $subsetName]\n"
         append body "/Encoding /Identity-H\n"
         append body "/DescendantFonts \[$cidoid 0 R\]\n"
         append body "/ToUnicode $ucoid 0 R\n"
@@ -6517,7 +6624,18 @@ Use -pdfa-icc to specify a profile path."
         while {! $done} {
             set ch [string index $txt $pos]
             # test for breakable character
-            if {[regexp "\[ \t\r\n-\]" $ch]} {
+            #
+            # A hyphen breaks a line only when it joins two words:
+            # "Donau-dampfschiff" may break after the hyphen, a minus sign
+            # may not. Up to 0.9.4.59 every hyphen counted, so "Der Betrag
+            # -5 Euro" came out as "Der Betrag -" / "5 Euro" -- the sign
+            # left behind on the line above, the number on its own below.
+            # Whitespace keeps breaking wherever it stands.
+            if {[regexp "\[ \t\r\n\]" $ch]} {
+                set lastbp $pos
+            } elseif {$ch eq "-" && $pos > $start &&
+                    [string is alnum -strict [string index $txt \
+                    [expr {$pos - 1}]]]} {
                 set lastbp $pos
             }
             set w [my getCharWidth $ch 1]
@@ -7640,7 +7758,7 @@ Use -pdfa-icc to specify a profile path."
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid 0]
+        set images($id) [list $width $height $oid 0 1]
         return $id
     }
 
@@ -7778,7 +7896,7 @@ Use -pdfa-icc to specify a profile path."
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid 0]
+        set images($id) [list $width $height $oid 0 1]
         return $id
     }
 
@@ -7978,7 +8096,7 @@ Use -pdfa-icc to specify a profile path."
             if {$id eq {}} {
                 set id image$oid
             }
-            set images($id) [list $width $height $oid 0]
+            set images($id) [list $width $height $oid 0 1]
         } finally {
             close $chan
         }
@@ -8150,7 +8268,7 @@ Use -pdfa-icc to specify a profile path."
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid 0]
+        set images($id) [list $width $height $oid 0 1]
         return $id
     }
 
@@ -8207,6 +8325,9 @@ Use -pdfa-icc to specify a profile path."
     method putImage {id x y args} {
         my EndTextObj
         foreach {width height oid} $images($id) {break}
+        # Fifth entry: are width and height pixels? A form XObject carries
+        # points there, and a resolution would be nonsense.
+        set istBild [lindex $images($id) 4]
         # Where a form XObject is drawn decides the /Pg of every MCR inside
         # it. Recorded here; checked in finish.
         my TagXObjectPlaced $oid
@@ -8273,6 +8394,39 @@ Use -pdfa-icc to specify a profile path."
         set mt [MulMxM $mt [list 1 0 0 1 $x $y]]
         my Pdfoutcmd {*}$mt "cm"
         my Pdfout "/$id Do\nQ\n"
+        my CheckImageDpi $id $istBild $width $height $w $h
+    }
+
+    # Say what an image will look like on paper.
+    #
+    # The pixel count and the target size are both known here, so the
+    # resolution follows: pixels divided by inches, and an inch is 72
+    # points. Nobody else can answer this -- a validator sees a picture
+    # that is technically correct, and the reader sees it blurred.
+    #
+    # Reported, not refused, like a missing glyph: a screenshot at 96 dpi
+    # may be exactly what was wanted.
+    method CheckImageDpi {id istBild pxW pxH ptW ptH} {
+        # An entry written before the fifth field existed leaves istBild
+        # empty, and "!" on an empty string throws. Treated as "not a
+        # bitmap" rather than raising in the middle of drawing.
+        if {$istBild eq "" || !$istBild} {
+            return
+        }
+        set grenze $::pdf4tcl::imageDpiWarn
+        if {$grenze <= 0 || $ptW <= 0 || $ptH <= 0} {
+            return
+        }
+        set dpiW [expr {$pxW / ($ptW / 72.0)}]
+        set dpiH [expr {$pxH / ($ptH / 72.0)}]
+        set dpi [expr {$dpiW < $dpiH ? $dpiW : $dpiH}]
+        if {$dpi >= $grenze} {
+            return
+        }
+        lappend ::pdf4tcl::warnings [format \
+                "image %s placed at %.0f dpi (%dx%d pixels on %.1fx%.1f\
+                 points), below %g" \
+                $id $dpi $pxW $pxH $ptW $ptH $grenze]
     }
 
     # Add a raw image to the document, to be placed later
@@ -8325,7 +8479,7 @@ Use -pdfa-icc to specify a profile path."
         if {$id eq ""} {
             set id image$oid
         }
-        set images($id) [list $width $height $oid 0]
+        set images($id) [list $width $height $oid 0 1]
         return $id
     }
 
@@ -8557,7 +8711,7 @@ Use -pdfa-icc to specify a profile path."
         if {!$pdf(inPage)} { my startPage }
         set oid [my AddObject $xobject]
         set id pimg$oid
-        set images($id) [list $width $height $oid 0]
+        set images($id) [list $width $height $oid 0 1]
         return [list $oid $id]
     }
 
@@ -11180,7 +11334,12 @@ Use -pdfa-icc to specify a profile path."
 
                 set newoid [my AddObject $xobject]
                 set newid image$newoid
-                set images($newid) [list $width $height $newoid 0]
+                # Fifth entry as everywhere else: these are pixels. The
+                # canvas path draws with cm/Do rather than through
+                # putImage, so no resolution is reported here -- the scale
+                # comes from the enclosing canvas transformation, not from
+                # this call.
+                set images($newid) [list $width $height $newoid 0 1]
 
                 # Put the image on the page
                 my Pdfoutcmd $width 0 0 [expr {-$height}] $x $y "cm"
@@ -11470,6 +11629,22 @@ Use -pdfa-icc to specify a profile path."
         array unset fontinfo
         array set fontinfo [font actual $font]
         array set fontinfo [font metrics $font]
+        # Zwei Namen, und pdf4tcl fuehrt beide seit jeher: die Fontangabe,
+        # wie der Aufrufer sie gesetzt hat (das ist der -fontmap-Schluessel,
+        # CanvasGetOpts liest sie mit itemconfigure), und die Familie, die
+        # Tk daraus macht (darauf arbeitet die Weiche unten -- deshalb
+        # steht dort ein Muster wie "nimbus sans", das niemand schreibt).
+        #
+        # Fuer die Suche nach einer geladenen Schrift zaehlt der
+        # geschriebene Name zuerst: er ist der, den der Anwender vergibt.
+        # Sonst haengt das Ergebnis daran, was auf der Maschine installiert
+        # ist -- "-font {Tahoma 14}" loest dort, wo Tahoma fehlt, zu einer
+        # anderen Familie auf, und dieselbe Anwendung liefert woanders
+        # Fragezeichen.
+        set writtenFamily [lindex $font 0]
+        # Die Familie, wie Tk sie aufgeloest hat, vor der courier-
+        # Umschreibung unten gesichert.
+        set tkFamily $fontinfo(-family)
         # Any fixed font maps to courier
         if {$fontinfo(-fixed)} {
             set fontinfo(-family) courier
@@ -11485,7 +11660,9 @@ Use -pdfa-icc to specify a profile path."
                 } elseif {$bold} {
                     append family -Bold
                 } elseif {$italic} {
-                    append family -BoldOblique
+                    # -BoldOblique stood here, so slanted text came out
+                    # bold as well. Times next to it does it right.
+                    append family -Oblique
                 }
             }
             *times* - {*nimbus roman*} {
@@ -11506,11 +11683,23 @@ Use -pdfa-icc to specify a profile path."
                 } elseif {$bold} {
                     append family -Bold
                 } elseif {$italic} {
-                    append family -BoldOblique
+                    # -BoldOblique stood here, so slanted text came out
+                    # bold as well. Times next to it does it right.
+                    append family -Oblique
                 }
             }
         }
         set fontsize $fontinfo(-linespace)
+        # See setTkpfont: a font loaded under the family name is used
+        # without -fontmap. Written name first, resolved family second.
+        foreach candidate [list $writtenFamily $tkFamily] {
+            set autoFamily [::pdf4tcl::FindFontByFamily $candidate $bold $italic]
+            if {$autoFamily ne ""} {
+                set family $autoFamily
+                break
+            }
+        }
+        # An explicit -fontmap entry still wins.
         array set userMappingArr $userMapping
         if {[info exists userMappingArr($font)]} {
             set family $userMappingArr($font)

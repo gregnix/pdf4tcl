@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.59 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.60 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.59?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.60?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -888,10 +888,27 @@ since the name is the whole specification. A <b class="cmd">tko::path</b> or
 <b class="cmd">tkpath</b> item is looked up under its font FAMILY alone, because family,
 size and weight are separate options there.</p>
 <p>A CID font may be used on either, so text beyond Latin-1 works; through
-<b class="cmd">tko::path</b> that needs 0.9.4.59 or newer.
-Option <i class="arg">-textscale</i> overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If <i class="arg">-textscale</i> is larger than 1, all text items are reduced in size by that factor.</p>
+<b class="cmd">tko::path</b> that needs 0.9.4.59 or newer.</p>
+<p>Since 0.9.4.60 a mapping is not always needed. If no entry matches, a font
+loaded under the NAME OF THE FAMILY is used. For a <b class="cmd">tko::path</b> or
+<b class="cmd">tkpath</b> item that is its <b class="option">-fontfamily</b>; for a <b class="cmd">tk::canvas</b>
+item it is the family written in the font specification (<b class="const">Tahoma</b> in
+<b class="const">-font {Tahoma 14}</b>), and failing that the family Tk resolved it to.
+So this is enough:</p>
+<pre class="doctools_example">
+pdf4tcl::loadBaseTrueTypeFont Base tahoma.ttf
+pdf4tcl::createFontSpecCID Base Tahoma      ;# named like the Tk family
+$pdf canvas .p                              ;# no -fontmap needed
+</pre>
+<p>An explicit <i class="arg">-fontmap</i> entry still wins over this. The 14 standard
+fonts are not searched, so their weight and slant are chosen as before; a
+font loaded under a standard font's name does replace it. When bold or
+italic is asked for, <b class="const">&lt;family&gt;-Bold</b>, <b class="const">&lt;family&gt;-Italic</b> and
+<b class="const">&lt;family&gt;-Oblique</b> are tried before the plain family name.</p>
+<p>Option <i class="arg">-textscale</i> overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If <i class="arg">-textscale</i> is larger than 1, all text items are reduced in size by that factor.</p>
 <p>Fonts:</p>
-<p>If no font mapping is given, fonts for text items are limited to PDF's
+<p>If no font mapping is given and no font is loaded under the family name,
+fonts for text items are limited to PDF's
 builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which
 one to use to get a reasonable display on the page.</p>
 <p>An element in a font mapping must exactly match the -font option in the
@@ -1408,7 +1425,12 @@ setFont.</p>
 <dt><a name="70"><i class="arg">objectName</i> <b class="method">drawTextBox</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <i class="arg">str</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Draw the text string <i class="arg">str</i> wrapping at blanks and tabs so that it fits within the box defined
 by <i class="arg">x</i>, <i class="arg">y</i>, <i class="arg">width</i> and <i class="arg">height</i>. An embedded newline in <i class="arg">str</i> causes
-a new line in the output. If <i class="arg">str</i> is too long to fit in the specified box, it is truncated and the unused remainder is returned.</p>
+a new line in the output. If <i class="arg">str</i> is too long to fit in the specified box, it is truncated and the unused remainder is returned.
+A line may also break after a hyphen that joins two words, so
+<b class="const">Donau-dampfschiff</b> keeps the hyphen at the end of the line. Since
+0.9.4.60 a hyphen preceded by anything but a letter or digit does not
+break: <b class="const">Der Betrag -5 Euro</b> used to leave the sign behind on one
+line and put the number on the next.</p>
 <dl class="doctools_options">
       
 <dt><b class="option">-align</b> <i class="arg">left|right|center|justify</i></dt>
@@ -1787,7 +1809,14 @@ the height is selected to preserve the aspect ratio of the image.</p></dd>
 <dd><p>Set the width of the image.  Default width is one point per pixel.
 If <i class="arg">height</i> is set but not <i class="arg">width</i>, the width is selected to
 preserve the aspect ratio of the image.</p></dd>
-</dl></dd>
+</dl>
+<p>Since 0.9.4.60 an image placed below 150 dpi adds a note to
+<b class="variable">::pdf4tcl::warnings</b>: the pixel count and the target size are both
+known here, so the resolution follows. Nothing is refused -- a screenshot
+at 96 dpi may be exactly what was wanted. Set
+<b class="variable">::pdf4tcl::imageDpiWarn</b> to another threshold, or to 0 to turn it
+off. A form XObject placed with <b class="method">putImage</b> is never reported, since
+its dimensions are points rather than pixels.</p></dd>
 <dt><a name="80"><i class="arg">objectName</i> <b class="method">putRawImage</b> <i class="arg">data</i> <i class="arg">x</i> <i class="arg">y</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
 <dd><p>Put an image on the current page. Works like <b class="method">putImage</b> except that the raw image data is given directly.</p>
 <dl class="doctools_options">

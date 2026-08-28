@@ -1997,6 +1997,56 @@ space instead of the usual empty rectangle."
         lappend Fonts $fontname
     }
 
+    # Find a loaded font that carries the name of a Tk font family.
+    #
+    # The canvas export knows a font family only by its name. Without a
+    # -fontmap entry it used to guess among the 14 standard fonts, and an
+    # unrecognised family ended at Helvetica -- which has no glyph beyond
+    # Latin-1, so the text came out as "?" without an error. A font the
+    # caller loaded under exactly that family name was not considered.
+    #
+    # The 14 standard fonts are skipped here on purpose: for them the
+    # existing family switch already picks the right weight and slant, and
+    # that behaviour stays untouched.
+    #
+    # Returns the font name, or the empty string when nothing matches.
+    proc FindFontByFamily {family {bold 0} {italic 0}} {
+        variable Fonts
+        variable FontsAttrs
+
+        if {$family eq ""} {
+            return ""
+        }
+        # Most specific first, so a caller who loaded <family>-Bold gets it
+        # for bold text; the plain family name is the last resort.
+        set candidates {}
+        if {$bold && $italic} {
+            lappend candidates $family-BoldItalic $family-BoldOblique
+        } elseif {$bold} {
+            lappend candidates $family-Bold
+        } elseif {$italic} {
+            lappend candidates $family-Italic $family-Oblique
+        }
+        lappend candidates $family
+
+        foreach candidate $candidates {
+            if {$candidate in $Fonts &&
+                    $FontsAttrs($candidate,type) ne "std"} {
+                return $candidate
+            }
+            # Tk family names do not carry case reliably ("tahoma" against
+            # "Tahoma"), so an exact hit is tried first and case is ignored
+            # only afterwards.
+            foreach font $Fonts {
+                if {[string equal -nocase $font $candidate] &&
+                        $FontsAttrs($font,type) ne "std"} {
+                    return $font
+                }
+            }
+        }
+        return ""
+    }
+
     proc GetCharWidth {font ch} {
         if {$ch eq "\n"} {
             return 0.0

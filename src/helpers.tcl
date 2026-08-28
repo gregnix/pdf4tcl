@@ -40,6 +40,33 @@ proc ::pdf4tcl::MakeStream {dictval body compress} {
     return $res
 }
 
+# Write a string as a PDF name (ISO 32000-1 clause 7.3.5).
+#
+# A name carries regular characters as they are; whitespace, the
+# delimiters, the number sign itself and everything outside 0x21..0x7e
+# have to be written as a number sign followed by two hex digits.
+#
+# This matters for font resource names, which pdf4tcl takes from the
+# caller. A font loaded as "DejaVu Sans" used to be written as
+# "/DejaVu Sans 15 Tf" -- the space ends the name, the rest is garbage,
+# and the page shows nothing at all. No error was raised anywhere.
+proc ::pdf4tcl::PdfName {name} {
+    set res ""
+    # Names are byte strings, so a character above U+007F contributes its
+    # UTF-8 bytes, each escaped.
+    binary scan [encoding convertto utf-8 $name] cu* bytes
+    foreach byte $bytes {
+        set ch [format %c $byte]
+        if {$byte > 0x20 && $byte < 0x7f &&
+                $ch ni {"#" "(" ")" "<" ">" "\[" "\]" "\{" "\}" "/" "%"}} {
+            append res $ch
+        } else {
+            append res [format "#%02x" $byte]
+        }
+    }
+    return $res
+}
+
 # This procedure determines the number of open items of an outline
 # dictionary object.
 proc ::pdf4tcl::BookmarkCount {bookmarks level} {

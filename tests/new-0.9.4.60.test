@@ -1,0 +1,479 @@
+# new-0.9.4.60.test -- Fontsuche ueber den Familiennamen, PDF-Namen escapen
+#
+# Der Canvas-Export kennt eine Schrift nur unter ihrem Familiennamen. Ohne
+# -fontmap-Eintrag riet er unter den 14 Standardschriften, und eine nicht
+# erkannte Familie landete bei Helvetica -- das hat keine Glyphe jenseits
+# von Latin-1. Der Text kam als "?" heraus, ohne Fehler; nur
+# getSubstCount zaehlte mit. Eine Schrift, die der Aufrufer unter genau
+# diesem Familiennamen geladen hatte, wurde nicht in Betracht gezogen.
+#
+# Der zweite Teil faellt dabei ab: Familiennamen tragen Leerzeichen
+# ("DejaVu Sans"). Ein Leerzeichen beendet einen PDF-Namen (ISO 32000-1
+# Klausel 7.3.5), also stand im Strom "/DejaVu Sans 15 Tf" -- der Rest ist
+# Muell, die Seite bleibt LEER, und keine Stelle meldet etwas. Gemessen:
+# qpdf warnt ("unknown token while reading object"), pdftotext gibt nichts
+# zurueck, pdffonts fuehrt keine einzige Schrift.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+set ::dejavu60 ""
+foreach _k {
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    /usr/share/fonts/truetype/freefont/FreeSans.ttf
+} {
+    if {[file readable $_k]} { set ::dejavu60 $_k; break }
+}
+if {$::dejavu60 eq ""} {
+    set _f [file join $::pdf4tclTestRoot examples FreeSans.ttf]
+    if {[file readable $_f]} { set ::dejavu60 $_f }
+}
+testConstraint DejaVuSans [expr {$::dejavu60 ne ""}]
+
+# ---------------------------------------------------------------------------
+# Kursiver Canvas-Text war zusaetzlich fett
+#
+# Dieser Block steht VOR den Tests, die Schriften laden. Sobald eine
+# Schrift unter dem Namen einer aufgeloesten Tk-Familie registriert ist
+# (siehe canvasfont-4.4), nimmt der Export sie auch hier -- die Suche
+# greift dann, und im Strom steht nicht mehr Helvetica-Oblique. Das ist
+# kein Fehler, sondern genau das gewuenschte Verhalten; die Weiche laesst
+# sich danach nur nicht mehr isoliert messen.
+#
+# In der Familienweiche stand viermal -- in setTkpfont und CanvasSetFont,
+# je im Courier- und im Helvetica-Zweig:
+#
+#     } elseif {$italic} {
+#         append family -BoldOblique
+#     }
+#
+# Kursiv OHNE fett ergab damit Helvetica-BoldOblique statt
+# Helvetica-Oblique. Der Times-Zweig daneben macht es seit jeher richtig,
+# was den Tippfehler zeigt. Gemessen vor der Korrektur:
+#
+#     weight=normal slant=italic   -> Helvetica-BoldOblique
+#     {Courier 14 italic}          -> Courier-BoldOblique
+#     {Times 14 italic}            -> Times-Italic        (richtig)
+# ---------------------------------------------------------------------------
+
+# Den Ressourcennamen aus dem Strom holen -- eine Methode, die den
+# gesetzten Font zurueckgibt, hat pdf4tcl nicht.
+proc ::fontOfStream60 {out} {
+    if {[regexp {/([A-Za-z0-9-]+) [0-9.]+ Tf} $out -> name]} {
+        return $name
+    }
+    return "kein Tf"
+}
+
+proc ::tkpFont60 {weight slant {family Helvetica}} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setTkpfont 15 $family $weight $slant
+    $pdf text "x" -x 50 -y 700
+    set out [$pdf get]
+    $pdf destroy
+    return [::fontOfStream60 $out]
+}
+
+test italic-1.1 {kursiv allein ist nicht fett} -body {
+    ::tkpFont60 normal italic
+} -result {Helvetica-Oblique}
+
+test italic-1.2 {fett und kursiv bleibt beides} -body {
+    ::tkpFont60 bold italic
+} -result {Helvetica-BoldOblique}
+
+test italic-1.3 {fett allein} -body {
+    ::tkpFont60 bold normal
+} -result {Helvetica-Bold}
+
+test italic-1.4 {weder noch} -body {
+    ::tkpFont60 normal normal
+} -result {Helvetica}
+
+test italic-1.5 {oblique zaehlt wie italic} -body {
+    # setTkpfont prueft auf "ne normal", nicht auf "eq italic".
+    ::tkpFont60 normal oblique
+} -result {Helvetica-Oblique}
+
+test italic-2.1 {derselbe Fehler stand im Courier-Zweig} -body {
+    list [::tkpFont60 normal italic Courier] \
+            [::tkpFont60 bold italic Courier] \
+            [::tkpFont60 bold normal Courier]
+} -result {Courier-Oblique Courier-BoldOblique Courier-Bold}
+
+test italic-2.2 {Times war nie betroffen} -body {
+    list [::tkpFont60 normal italic Times] [::tkpFont60 bold italic Times]
+} -result {Times-Italic Times-BoldItalic}
+
+test italic-3.1 {tk::canvas: derselbe Zweig, dieselbe Korrektur} \
+        -constraints {hasTk} -setup {
+    catch {destroy .c60i}
+    canvas .c60i -width 200 -height 60
+} -cleanup {
+    destroy .c60i
+} -body {
+    set res {}
+    foreach spec {{Helvetica 14 italic} {Helvetica 14 bold italic}
+                  {Courier 14 italic} {Times 14 italic}} {
+        .c60i delete all
+        .c60i create text 10 20 -text "x" -font $spec
+        update idletasks
+        set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+        $pdf startPage
+        $pdf canvas .c60i -bbox [.c60i bbox all] -x 20 -y 20 \
+                -width 200 -height 60
+        lappend res [::fontOfStream60 [$pdf get]]
+        $pdf destroy
+    }
+    set res
+} -result {Helvetica-Oblique Helvetica-BoldOblique Courier-Oblique Times-Italic}
+
+rename ::fontOfStream60 {}
+rename ::tkpFont60 {}
+
+
+# ---------------------------------------------------------------------------
+# PdfName -- ISO 32000-1 Klausel 7.3.5
+# ---------------------------------------------------------------------------
+
+test name-1.1 {ein gewoehnlicher Name bleibt unveraendert} -body {
+    ::pdf4tcl::PdfName Helvetica-Bold
+} -result {Helvetica-Bold}
+
+test name-1.2 {das Leerzeichen, um das es geht} -body {
+    ::pdf4tcl::PdfName "DejaVu Sans"
+} -result {DejaVu#20Sans}
+
+test name-1.3 {Trennzeichen und das Nummernzeichen selbst} -body {
+    list [::pdf4tcl::PdfName "a/b"] [::pdf4tcl::PdfName "a#b"] \
+            [::pdf4tcl::PdfName "a(b)"] [::pdf4tcl::PdfName "a\[b\]"]
+} -result {a#2fb a#23b a#28b#29 a#5bb#5d}
+
+test name-1.4 {ueber ASCII hinaus: die UTF-8-Bytes, je einzeln} -body {
+    # Ein Name ist eine Bytefolge, keine Zeichenfolge.
+    ::pdf4tcl::PdfName "Ma\u00df"
+} -result {Ma#c3#9f}
+
+test name-1.5 {Tabulator und Zeilenumbruch sind ebenfalls Leerraum} -body {
+    ::pdf4tcl::PdfName "a\tb\nc"
+} -result {a#09b#0ac}
+
+# ---------------------------------------------------------------------------
+# FindFontByFamily -- reine Logik, kein Tk
+# ---------------------------------------------------------------------------
+
+test family-2.1 {unbekannte Familie: leerer String, kein Fehler} -body {
+    ::pdf4tcl::FindFontByFamily GibtsNicht
+} -result {}
+
+test family-2.2 {leerer Familienname} -body {
+    ::pdf4tcl::FindFontByFamily ""
+} -result {}
+
+test family-2.3 {die 14 Standardschriften bleiben aussen vor} -body {
+    # Fuer sie entscheidet weiterhin die Familienweiche im Export ueber
+    # Fettung und Neigung. Wuerde die Suche hier zugreifen, bekaeme
+    # fetter Text Helvetica statt Helvetica-Bold.
+    list [::pdf4tcl::FindFontByFamily Helvetica] \
+            [::pdf4tcl::FindFontByFamily Helvetica 1 0] \
+            [::pdf4tcl::FindFontByFamily Times-Roman]
+} -result {{} {} {}}
+
+test family-2.4 {eine geladene Schrift unter ihrem Familiennamen} \
+        -constraints {DejaVuSans} -setup {
+    pdf4tcl::loadBaseTrueTypeFont Fam60Base $::dejavu60
+    pdf4tcl::createFontSpecCID Fam60Base Tahoma60
+} -body {
+    ::pdf4tcl::FindFontByFamily Tahoma60
+} -result {Tahoma60}
+
+test family-2.5 {Gross- und Kleinschreibung} -constraints {DejaVuSans} -body {
+    # Tk fuehrt Familiennamen nicht zuverlaessig in einer Schreibweise.
+    ::pdf4tcl::FindFontByFamily tahoma60
+} -result {Tahoma60}
+
+test family-2.6 {fett nimmt <Familie>-Bold, wenn es die gibt} \
+        -constraints {DejaVuSans} -setup {
+    pdf4tcl::createFontSpecCID Fam60Base Tahoma60-Bold
+} -body {
+    list [::pdf4tcl::FindFontByFamily Tahoma60 1 0] \
+            [::pdf4tcl::FindFontByFamily Tahoma60 0 0]
+} -result {Tahoma60-Bold Tahoma60}
+
+test family-2.7 {kursiv ohne eigene Datei faellt auf die Familie zurueck} \
+        -constraints {DejaVuSans} -body {
+    ::pdf4tcl::FindFontByFamily Tahoma60 0 1
+} -result {Tahoma60}
+
+# ---------------------------------------------------------------------------
+# Der Strom: Ressourcenname und Tf-Operator muessen zusammenpassen
+# ---------------------------------------------------------------------------
+
+test name-3.1 {ein Leerzeichen im Fontnamen zerbricht die Seite nicht mehr} \
+        -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont Sp60Base $::dejavu60
+    pdf4tcl::createFontSpecCID Sp60Base "DejaVu Sans 60"
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 "DejaVu Sans 60"
+    $pdf text "AB" -x 50 -y 700
+    set out [$pdf get]
+    $pdf destroy
+    # Im Strom der Operator, im Ressourcen-Woerterbuch derselbe Name.
+    list [regexp {/DejaVu#20Sans#2060 12 Tf} $out] \
+            [regexp {/DejaVu#20Sans#2060 \d+ 0 R} $out] \
+            [regexp {/DejaVu Sans 60} $out]
+} -result {1 1 0}
+
+test name-3.2 {qpdf nimmt die Datei ohne Warnung an} \
+        -constraints {DejaVuSans} -body {
+    # Die Gegenprobe zu 3.1 mit fremdem Werkzeug: vor der Korrektur
+    # meldete qpdf hier "unknown token while reading object".
+    if {[auto_execok qpdf] eq ""} {
+        return "kein qpdf"
+    }
+    set f [file join [temporaryDirectory] pdfname60.pdf]
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 "DejaVu Sans 60"
+    $pdf text "AB" -x 50 -y 700
+    $pdf write -file $f
+    $pdf destroy
+    # qpdf endet mit 3, wenn es gewarnt hat -- der Rueckgabewert allein
+    # taugt also nicht, die Ausgabe schon.
+    catch {exec qpdf --check $f} res
+    file delete $f
+    expr {[string match "*unknown token*" $res] ? "Warnung: $res" : "sauber"}
+} -result {sauber}
+
+# ---------------------------------------------------------------------------
+# Der Weg, um den es rene ging: tko::path und tkpath ohne -fontmap
+#
+# setTkpfont ist der Rueckruf, den beide fuer jedes ptext-Element rufen.
+# Er laesst sich ohne Tk pruefen, weil er nur Familie, Groesse, Fettung
+# und Neigung bekommt.
+# ---------------------------------------------------------------------------
+
+test canvasfont-4.1 {ohne -fontmap wird die geladene Familie genommen} \
+        -constraints {DejaVuSans} -body {
+    # Der Fall von rene: die Schrift ist unter dem Familiennamen geladen,
+    # das Element traegt diese Familie, ein -fontmap gibt es nicht.
+    # Vorher endete das bei Helvetica, und jedes Zeichen jenseits von
+    # Latin-1 wurde zu "?" -- gemessen mit getSubstCount.
+    pdf4tcl::loadBaseTrueTypeFont Rene60Base $::dejavu60
+    pdf4tcl::createFontSpecCID Rene60Base Tahoma869
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setTkpfont 15 Tahoma869 normal normal
+    # Der Rueckruf, den tko::path und tkpath fuer jede Textzeile rufen.
+    set res [$pdf getTkpptext Tahoma869 "\u0394\u2211"]
+    $pdf text "x" -x 50 -y 700
+    set out [$pdf get]
+    set fehlt [$pdf getSubstCount]
+    $pdf destroy
+    regexp {/(\S+) 15 Tf} $out -> name
+    # Gesetzte Schrift, Glyphnummern in spitzen Klammern, keine Ersetzung.
+    list $name [regexp {<[0-9A-F]{8}>} $res] $fehlt
+} -result {Tahoma869 1 0}
+
+test canvasfont-4.2 {eine unbekannte Familie landet weiter bei Helvetica} \
+        -body {
+    # Die Suche darf nur greifen, wo wirklich etwas geladen ist.
+    # Abgefragt wird der Ressourcenname im Strom -- eine Methode, die den
+    # gesetzten Font zurueckgibt, hat pdf4tcl nicht.
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setTkpfont 15 GibtsNicht60 normal normal
+    $pdf text "x" -x 50 -y 700
+    set out [$pdf get]
+    $pdf destroy
+    regexp {/(\S+) 15 Tf} $out -> name
+    set name
+} -result {Helvetica}
+
+test canvasfont-4.3 {-fontmap gewinnt weiterhin} \
+        -constraints {hasTk DejaVuSans} -body {
+    # Wer eine Zuordnung angibt, bekommt sie -- auch wenn unter dem
+    # Familiennamen eine andere Schrift geladen ist. Geprueft ueber den
+    # oeffentlichen Weg, weil die Zuordnung nur dort ankommt.
+    pdf4tcl::loadBaseTrueTypeFont Map60Base $::dejavu60
+    pdf4tcl::createFontSpecCID Map60Base Vorrang60
+    pdf4tcl::createFontSpecCID Map60Base Andere60
+    catch {destroy .m60}
+    canvas .m60 -width 200 -height 60
+    .m60 create text 10 20 -text "AB" -font {Vorrang60 14}
+    update idletasks
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf canvas .m60 -bbox [.m60 bbox all] -x 20 -y 20 -width 200 -height 60 \
+            -fontmap [list [.m60 itemcget 1 -font] Andere60]
+    set out [$pdf get]
+    $pdf destroy
+    destroy .m60
+    list [regexp {/Andere60 } $out] [regexp {/Vorrang60 } $out]
+} -result {1 0}
+
+test canvasfont-4.3b {ohne Eintrag zaehlt der geschriebene Name} \
+        -constraints {hasTk DejaVuSans} -body {
+    # Der Fall, der von der Maschine abhinge, wenn nur die aufgeloeste
+    # Familie zaehlte: "Vorrang60" gibt es als Tk-Familie nicht, Tk loest
+    # auf irgendetwas Installiertes auf. Der geschriebene Name trifft
+    # trotzdem.
+    catch {destroy .w60}
+    canvas .w60 -width 200 -height 60
+    .w60 create text 10 20 -text "AB" -font {Vorrang60 14}
+    update idletasks
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf canvas .w60 -bbox [.w60 bbox all] -x 20 -y 20 -width 200 -height 60
+    set out [$pdf get]
+    $pdf destroy
+    destroy .w60
+    list [regexp {/Vorrang60 } $out] \
+            [expr {[font actual {Vorrang60 14} -family] eq "Vorrang60"}]
+} -result {1 0}
+
+test canvasfont-4.4 {tk::canvas: die Familie zaehlt, wenn kein Eintrag passt} \
+        -constraints {hasTk DejaVuSans} -body {
+    # Hier ist der Schluessel des -fontmap die GANZE Fontangabe. Ohne
+    # Eintrag entscheidet jetzt die von Tk aufgeloeste Familie.
+    set fam [font actual {Helvetica 14} -family]
+    pdf4tcl::loadBaseTrueTypeFont Fam60C $::dejavu60
+    pdf4tcl::createFontSpecCID Fam60C $fam
+    catch {destroy .c60}
+    canvas .c60 -width 200 -height 60
+    .c60 create text 10 20 -text "\u0394\u2211" -font {Helvetica 14}
+    update idletasks
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf canvas .c60 -bbox [.c60 bbox all] -x 20 -y 20 -width 200 -height 60
+    set out [$pdf get]
+    set fehlt [$pdf getSubstCount]
+    $pdf destroy
+    destroy .c60
+    list [regexp {<[0-9A-F]{4,}> *Tj} $out] $fehlt
+} -result {1 0}
+
+foreach f [glob -nocomplain -directory [temporaryDirectory] pdfname60*.pdf] {
+    file delete $f
+}
+
+
+# ---------------------------------------------------------------------------
+# Der Bindestrich als Umbruchstelle -- nur zwischen Woertern
+#
+# drawTextBox brach an JEDEM Strich um. "Der Betrag -5 Euro" wurde damit
+# zu "Der Betrag -" / "5 Euro": das Vorzeichen blieb oben stehen, die Zahl
+# rutschte allein nach unten. Gemessen auch bei "Temperatur -12 Grad".
+# ---------------------------------------------------------------------------
+
+proc ::zeilen60 {txt breite {groesse 12}} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont $groesse Helvetica
+    $pdf drawTextBox 50 700 $breite 200 $txt
+    set out [$pdf get]
+    $pdf destroy
+    set res {}
+    foreach l [split $out "\n"] {
+        if {[regexp {^\((.*)\) Tj$} $l -> t]} { lappend res $t }
+    }
+    return $res
+}
+
+test hyphen-5.1 {ein Vorzeichen ist keine Trennstelle} -body {
+    ::zeilen60 "Der Betrag -5 Euro" 62
+} -result {{Der Betrag} {-5 Euro}}
+
+test hyphen-5.2 {auch nicht vor einer mehrstelligen Zahl} -body {
+    ::zeilen60 "Temperatur -12 Grad" 74
+} -result {Temperatur {-12 Grad}}
+
+test hyphen-5.3 {ein zusammengesetztes Wort trennt weiterhin} -body {
+    # Der Strich bleibt am Zeilenende stehen -- ohne ihn liest sich die
+    # erste Zeile wie ein vollstaendiges Wort.
+    ::zeilen60 "Donau-dampfschiff-fahrts-gesellschaft Ende" 120
+} -result {Donau-dampfschiff- fahrts-gesellschaft Ende}
+
+test hyphen-5.4 {zwischen Ziffern ebenfalls, das ist ein Bereich} -body {
+    ::zeilen60 "Wert 3-4 oder 5" 40
+} -result {{Wert 3-} {4 oder} 5}
+
+test hyphen-5.5 {Leerraum trennt unveraendert} -body {
+    list [::zeilen60 "eins zwei drei" 40] [::zeilen60 "eins\nzwei" 200]
+} -result {{eins zwei drei} {eins zwei}}
+
+rename ::zeilen60 {}
+
+# ---------------------------------------------------------------------------
+# putImage: was das Bild auf Papier hergibt
+#
+# Pixelzahl und Zielgroesse sind beide bekannt, also auch die Aufloesung.
+# Gemeldet, nicht verweigert -- ein Bildschirmfoto mit 96 dpi kann genau
+# das Gewollte sein.
+# ---------------------------------------------------------------------------
+
+proc ::bildLauf60 {breite} {
+    set ::pdf4tcl::warnings {}
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    set id [$pdf addImage [file join $::pdf4tclTestRoot examples smile.png]]
+    $pdf putImage $id 50 500 -width $breite
+    $pdf destroy
+    return $::pdf4tcl::warnings
+}
+
+test imagedpi-6.1 {ein klein gesetztes Bild meldet nichts} -body {
+    # 100 Pixel auf 40 Punkt sind 180 dpi.
+    ::bildLauf60 40
+} -result {}
+
+test imagedpi-6.2 {ein grosses meldet sich} -body {
+    set w [::bildLauf60 500]
+    list [llength $w] [string match "*14 dpi*100x83 pixels*below 150*" \
+            [lindex $w 0]]
+} -result {1 1}
+
+test imagedpi-6.3 {der Schwellwert laesst sich abschalten} -body {
+    set alt $::pdf4tcl::imageDpiWarn
+    set ::pdf4tcl::imageDpiWarn 0
+    set w [::bildLauf60 500]
+    set ::pdf4tcl::imageDpiWarn $alt
+    set w
+} -result {}
+
+test imagedpi-6.4 {ein Form-XObject meldet nie} -body {
+    # Dort sind die ersten beiden Angaben Punkte, keine Pixel -- eine
+    # Aufloesung waere daraus nicht zu rechnen.
+    set ::pdf4tcl::warnings {}
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    set xid [$pdf startXObject -paper a5]
+    $pdf setFont 12 Helvetica
+    $pdf text "x" -x 10 -y 10
+    $pdf endXObject
+    $pdf startPage
+    $pdf putImage $xid 50 500 -width 500
+    $pdf destroy
+    set ::pdf4tcl::warnings
+} -result {}
+
+test imagedpi-6.5 {ein Eintrag ohne die fuenfte Angabe wirft nicht} -body {
+    # Bis alle Setzstellen die fuenfte Angabe trugen, blieb istBild bei
+    # einem Canvas-Bild leer -- und "!" auf einem leeren String wirft
+    # "cannot use non-numeric string" mitten im Zeichnen. Hier von aussen
+    # nachgestellt, weil CheckImageDpi nicht exportiert ist: der Eintrag
+    # wird auf vier Felder zurueckgestutzt.
+    set pdf [pdf4tcl::new %AUTO% -paper a4]
+    $pdf startPage
+    set id [$pdf addImage [file join $::pdf4tclTestRoot examples smile.png]]
+    set alt [info object namespace $pdf]
+    set ${alt}::images($id) [lrange [set ${alt}::images($id)] 0 3]
+    set ::pdf4tcl::warnings {}
+    set rc [catch {$pdf putImage $id 50 500 -width 500} fehler]
+    $pdf destroy
+    list $rc $::pdf4tcl::warnings
+} -result {0 {}}
+
+rename ::bildLauf60 {}
+
+::tcltest::cleanupTests

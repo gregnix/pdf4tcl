@@ -92,6 +92,8 @@ PDF/A is also demonstrated by `demo/demo-pdfa.tcl` and
 ```bash
 qpdf --check out.pdf                          # syntax and streams
 tclsh tools/pdfcheck-native.tcl out.pdf       # structures, fonts, metadata
+                                              #   --plain over a directory of
+                                              #   ordinary (non-PDF/A) files
 tclsh tools/layout-check.tcl out.pdf          # overlapping text, margins
 python3 tools/check-tagged.py out.pdf         # logical structure
 python3 tools/check-conformance.py out.pdf    # veraPDF, profiles from the

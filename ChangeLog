@@ -1,3 +1,91 @@
+2026-08-27 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.60
+	* src/fonts.tcl (FindFontByFamily): new. The canvas export knows a
+	font family only by name. Without a -fontmap entry it guessed among the
+	14 standard fonts and ended at Helvetica, which has no glyph beyond
+	Latin-1, so the text became question marks with no error. A font loaded
+	under that family name is now used. Measured with tko::path and a CID
+	font: getSubstCount 10 before, 0 after; the -fontmap route is byte
+	identical. The standard fonts are excluded, so their weight and slant
+	still come from the family switch.
+	* src/main.tcl (setTkpfont, CanvasSetFont): call it before the
+	-fontmap lookup, so an explicit entry still wins. For tk::canvas the
+	family written in the font specification is tried first, then the one
+	Tk resolved it to -- otherwise the result depends on which fonts are
+	installed: "-font {Tahoma 14}" resolves to another family where Tahoma
+	is missing.
+	* src/helpers.tcl (PdfName): new. A font name carrying a space was
+	written as "/DejaVu Sans 15 Tf" -- the space ends a name (ISO 32000-1
+	clause 7.3.5), so the page stayed empty and nothing reported it. qpdf
+	said "unknown token while reading object", pdftotext returned nothing,
+	pdffonts listed no font at all. Names are now escaped as #xx at all 14
+	output points: resource dictionary, Tf, /Name, /BaseFont, /FontName.
+	* src/main.tcl (constructor): canvasFontMapping is initialised here.
+	Calling setTkpfont before canvas ended in can't read
+	"canvasFontMapping": no such variable.
+	* pdf4tcl.man: the mapping is no longer always needed; which key is
+	used for which canvas.
+	* src/main.tcl (setTkpfont, CanvasSetFont): italic canvas text was
+	bold as well. The italic-only branch appended -BoldOblique instead of
+	-Oblique, four times: in both methods, in the Courier and in the
+	Helvetica branch. The Times branch beside them is right, which shows
+	the typo. Measured before: slant=italic gave Helvetica-BoldOblique,
+	{Courier 14 italic} gave Courier-BoldOblique, {Times 14 italic} gave
+	Times-Italic. setTkpfont tests "slant ne normal", so oblique took the
+	same branch.
+	* src/main.tcl (drawTextBox): a hyphen breaks a line only when it
+	joins two words. Every hyphen used to count, so "Der Betrag -5 Euro"
+	came out as "Der Betrag -" / "5 Euro" -- the sign left on one line, the
+	number on the next. Measured the same for "Temperatur -12 Grad".
+	Compounds break as before, hyphen kept at the end of the line, and a
+	range between digits ("3-4") still breaks.
+	* src/main.tcl (putImage, CheckImageDpi), src/prologue.tcl: an image
+	placed below 150 dpi is noted in ::pdf4tcl::warnings. The pixel count
+	and the target size are both known there, so the resolution follows;
+	no other tool can answer this, a validator sees a correct picture and
+	the reader sees it blurred. Measured with a 100x83 png: 40 points
+	silent (180 dpi), 500 points reported (14 dpi). Reported, never
+	refused. ::pdf4tcl::imageDpiWarn sets the threshold, 0 turns it off.
+	The images array grew a fifth entry saying whether the first two are
+	pixels -- a form XObject carries points there and is never reported.
+	All eight places that fill the array carry it, the canvas image item
+	included; that one draws with cm/Do rather than through putImage, so
+	no resolution is reported for it -- the scale comes from the enclosing
+	canvas transformation. An entry left without the fifth field made "!"
+	throw on an empty string in the middle of drawing, so CheckImageDpi
+	treats it as "not a bitmap".
+	* Makefile (example): test8.tcl, tagged.tcl and facturx.tcl run too.
+	Their PDFs were left behind at every version bump; tagged.pdf and
+	facturx-invoice.pdf are the only two examples claiming PDF/A-3a and
+	PDF/UA-1, so they are the ones worth regenerating.
+	* tools/pdfcheck-native.tcl (filterPlain): new option --plain. Over a
+	directory of ordinary PDFs two findings fire on nearly every file and
+	say nothing but "this is not PDF/A": the missing conformance claim and
+	the standard fonts. Measured on demo/out: 58 of 70 files carried
+	exactly that pair, and the one finding with content -- ZapfDingbats
+	has no ToUnicode map -- was buried among them. With --plain both are
+	dropped for files that claim nothing: 64 PASS, 6 WARN, all six the
+	ZapfDingbats one. A file that does claim PDF/A is checked unchanged,
+	where an unembedded font stays a FAIL under clause 6.3.4.
+	* demo/demo-make-cheatsheets.tcl: the canvas sheet gained a section on
+	choosing a font without -fontmap, the pdf4tcl sheet the dpi note and
+	the hyphen rule. Measured after: 0 overlaps on all four sheets.
+	* demo/README.md: why six demos carry ZapfDingbats without a ToUnicode
+	map and why that stays. A map for a symbol font would hand the reader
+	codepoints rather than text, the marks are decoration, and none of the
+	six claims a conformance where clause 6.3.6 would require one.
+	* doc/en/reference/pdf4tcl-canvas.md,
+	doc/en/reference/pdf4tcl-fonts-and-unicode.md,
+	doc/en/howtos/howto-canvas.md, demo/demo-canvas-tko.tcl, README.md,
+	demo/README.md, doc/en/README.md: the family lookup, the escaped font
+	name and the italic fix documented; the tko demo gained a third page
+	that exports the same CID font without -fontmap.
+	* tests/new-0.9.4.60.test: new, 37 tests. Counter-checked, each change
+	on its own: with FindFontByFamily disabled 7 go red, with PdfName
+	disabled 6, with the -BoldOblique lines back 4, with the old hyphen
+	rule back 2, without the dpi check 1.
+
 2026-08-26 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.59

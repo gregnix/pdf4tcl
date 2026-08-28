@@ -678,6 +678,56 @@ proc ::pdfcheck::native::runAll {file} {
 # One file, several files, or a directory. Reports a summary line at
 # the end when more than one file was looked at, so a run over a whole
 # directory says something without scrolling back.
+# --plain: a file that claims no conformance is an ordinary PDF, not a
+# suspect one. Two findings then say nothing but that, and in a directory of
+# demos they drown out everything else -- measured on demo/out, 60 of 72
+# files carried exactly this pair and nothing more:
+#
+#   claim  "the file claims nothing"
+#   fonts  "<name>: standard font, no program in the file"
+#
+# Both are dropped when the file claims nothing AND --plain is given. Any
+# other font finding stays, and in a file that DOES claim PDF/A neither is
+# dropped: there an unembedded font breaks clause 6.3.4.
+namespace eval ::pdfcheck::native {
+    variable plain 0
+}
+
+proc ::pdfcheck::native::filterPlain {befunde} {
+    variable plain
+    if {!$plain} {
+        return $befunde
+    }
+    if {![dict exists $befunde claim]} {
+        return $befunde
+    }
+    if {[dict get [dict get $befunde claim] status] ne "WARN"} {
+        # The file claims something -- then both findings mean business.
+        return $befunde
+    }
+    dict unset befunde claim
+    if {[dict exists $befunde fonts]} {
+        set r [dict get $befunde fonts]
+        if {[dict get $r status] eq "WARN"} {
+            set behalten {}
+            foreach zeile [split [dict get $r output] "\n"] {
+                if {![string match "*: standard font, no program in the file" \
+                        $zeile]} {
+                    lappend behalten $zeile
+                }
+            }
+            if {![llength $behalten]} {
+                dict unset befunde fonts
+            } else {
+                dict set befunde fonts \
+                        [result WARN [dict get $r description] \
+                        [join $behalten "\n"]]
+            }
+        }
+    }
+    return $befunde
+}
+
 proc ::pdfcheck::native::runFile {file {einzeln 1}} {
     if {$einzeln} {
         puts ""
@@ -688,7 +738,7 @@ proc ::pdfcheck::native::runFile {file {einzeln 1}} {
         puts "== [file tail $file]"
     }
     set schlimm PASS
-    dict for {name r} [runAll $file] {
+    dict for {name r} [filterPlain [runAll $file]] {
         set s [dict get $r status]
         # A single file gets every line; a batch run only what needs
         # attention -- otherwise a directory of forty files scrolls the
@@ -738,6 +788,10 @@ proc ::pdfcheck::native::usage {{kanal stdout}} {
     puts $kanal ""
     puts $kanal "  -h, --help      this text"
     puts $kanal "  -v, --version   version and exit"
+    puts $kanal "  -p, --plain     a file that claims no conformance is an"
+    puts $kanal "                  ordinary PDF: drop the claim warning and"
+    puts $kanal "                  the standard-font lines for it. Files that"
+    puts $kanal "                  do claim PDF/A are checked unchanged."
     puts $kanal ""
     puts $kanal "A directory contributes its *.pdf files. With one file every"
     puts $kanal "check is listed; with several, only what needs attention."
@@ -780,6 +834,9 @@ if {[info exists argv0] && [file tail [info script]] eq [file tail $argv0]} {
             -v - --version {
                 puts "pdfcheck-native $::pdfcheck::native::version"
                 exit 0
+            }
+            -p - --plain {
+                set ::pdfcheck::native::plain 1
             }
             default {
                 if {[string match "-*" $a]} {

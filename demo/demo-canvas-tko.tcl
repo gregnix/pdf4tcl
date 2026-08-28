@@ -118,6 +118,51 @@ if {$uniFont eq ""} {
     $pdf endPage
 }
 
+# ---------------------------------------------------------------------------
+# Seite 3: dieselbe Schrift OHNE -fontmap
+#
+# Seit 0.9.4.60 nimmt der Export eine Schrift, die unter dem Namen der
+# Familie geladen ist. Hier heisst die Familie des Elements "UniFamilie",
+# und genau so heisst die CID-Schrift -- mehr braucht es nicht.
+#
+# Vorher landete eine unbekannte Familie bei Helvetica, und jedes Zeichen
+# jenseits von Latin-1 wurde still zum Fragezeichen. Gemessen wird das mit
+# getSubstCount.
+# ---------------------------------------------------------------------------
+if {$uniFont ne ""} {
+    pdf4tcl::loadBaseTrueTypeFont UniBase2 $uniFont
+    pdf4tcl::createFontSpecCID UniBase2 UniFamilie   ;# wie die Tk-Familie
+
+    $pdf startPage
+    $pdf setFont 14 Helvetica-Bold
+    $pdf text "Ohne -fontmap: die Familie traegt den Namen" -x 0 -y 0
+    $pdf setFont 9 Helvetica
+    $pdf text "createFontSpecCID ... UniFamilie, und das Element hat\
+            -fontfamily UniFamilie" -x 0 -y 20
+
+    set vorher [$pdf getSubstCount]
+
+    tko::path .tp3 -width 460 -height 140 -background white
+    pack .tp3
+    .tp3 create text 20 40 -fontfamily UniFamilie -fontsize 15 -fill black \
+            -text "Griechisch: \u0395\u03bb\u03bb\u03ac\u03b4\u03b1"
+    .tp3 create text 20 80 -fontfamily UniFamilie -fontsize 15 -fill black \
+            -text "Mathematik: \u0394 \u2211 \u221e \u03c6"
+    update
+
+    $pdf canvas .tp3 -bbox [.tp3 bbox all] -x 0 -y 45 \
+            -width 460 -height 140
+    destroy .tp3
+
+    $pdf setFont 9 Helvetica
+    $pdf text "Ersetzungen auf dieser Seite:\
+            [expr {[$pdf getSubstCount] - $vorher}]   (0 = die Suche hat\
+            gegriffen)" -x 0 -y 210
+    $pdf text "Eine ausdrueckliche -fontmap-Angabe gewinnt weiterhin gegen\
+            diese Suche." -x 0 -y 225
+    $pdf endPage
+}
+
 $pdf write -file $outfile
 $pdf destroy
 
