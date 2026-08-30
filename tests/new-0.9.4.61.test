@@ -1,0 +1,175 @@
+# new-0.9.4.61.test -- weiches Trennzeichen, XObject-Groesse
+#
+# U+00AD ist ein Trennvorschlag, kein Zeichen. Sichtbar wird es NUR,
+# wenn die Zeile dort umbricht -- dann als Bindestrich. Bis 0.9.4.60
+# wurde es gedruckt, wo immer es stand, und brach nicht um:
+# "Silben\u00ADtrennung" ergab ein Wort mit einem Strich mitten drin.
+
+source [file join [file dirname [info script]] init.tcl]
+
+# Die gesetzten Zeilen aus dem Strom.
+proc shLines {out} {
+    set res {}
+    foreach l [split $out "\n"] {
+        if {[regexp {^\((.*)\) Tj$} $l -> t]} { lappend res $t }
+    }
+    return $res
+}
+
+proc shNew {} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 10 Helvetica
+    return $pdf
+}
+
+test softhyphen-1.1 {ohne Umbruch ist es unsichtbar} -body {
+    # Der Kasten ist breit genug -- also darf im PDF kein Strich stehen.
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 200 100 "Silben\u00ADtrennung ist eine Sache."
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result {{Silbentrennung ist eine Sache.}}
+
+test softhyphen-1.2 {mit Umbruch wird ein Bindestrich daraus} -body {
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 60 100 "Silben\u00ADtrennung"
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result {Silben- trennung}
+
+test softhyphen-1.3 {die uebrigen Trennstellen verschwinden spurlos} -body {
+    # Umbrochen wird an einer Stelle; die anderen zwei duerfen keine
+    # Spur hinterlassen.
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 70 100 "Un\u00ADglaub\u00ADlich\u00ADkeit"
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result {Unglaublich- keit}
+
+test softhyphen-1.4 {die Zeile bleibt im Kasten} -body {
+    # Der Strich kommt beim Umbruch DAZU. Wird er nicht eingerechnet,
+    # ragt die Zeile um genau seine Breite ueber den Kasten hinaus.
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 60 100 "Silben\u00ADtrennung"
+    set out [$pdf get]
+    set breit 0
+    foreach z [shLines $out] {
+        set w [$pdf getStringWidth $z]
+        if {$w > $breit} { set breit $w }
+    }
+    $pdf destroy
+    expr {$breit <= 60}
+} -result 1
+
+test softhyphen-1.5 {es zaehlt nicht zur Breite, solange nicht getrennt wird} \
+        -body {
+    # Sonst wuerde ein Text mit vielen Trennvorschlaegen frueher
+    # umbrechen als derselbe Text ohne.
+    set pdf [shNew]
+    set mit  [$pdf getStringWidth "Sil\u00ADben"]
+    set ohne [$pdf getStringWidth "Silben"]
+    $pdf drawTextBox 50 100 200 100 "Sil\u00ADben" -linesvar a
+    $pdf drawTextBox 50 200 200 100 "Silben" -linesvar b
+    $pdf destroy
+    # Beide passen in eine Zeile, und der Text ist derselbe.
+    list $a $b
+} -result {1 1}
+
+test softhyphen-1.6 {ein harter Bindestrich bleibt sichtbar} -body {
+    # Die Regel von 0.9.4.60 gilt unveraendert: ein Strich zwischen zwei
+    # Zeichen trennt und BLEIBT stehen.
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 60 100 "Donau-dampfschiff"
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result {Donau- dampfschiff}
+
+test softhyphen-1.7 {ein Vorzeichen trennt weiterhin nicht} -body {
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 62 100 "Der Betrag -5 Euro"
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result {{Der Betrag -5} Euro}
+
+test softhyphen-1.8 {auch im Trockenlauf} -body {
+    # -dryrun zeichnet nicht, muss aber dieselbe Zeilenzahl liefern --
+    # sonst rechnet ein Aufrufer mit einer anderen Hoehe, als er bekommt.
+    set pdf [shNew]
+    $pdf drawTextBox 50 100 60 100 "Silben\u00ADtrennung" -linesvar echt
+    $pdf drawTextBox 50 300 60 100 "Silben\u00ADtrennung" -linesvar trocken \
+            -dryrun 1
+    $pdf destroy
+    list $echt $trocken
+} -result {2 2}
+
+
+test softhyphen-2.1 {getStringWidth zaehlt das weiche Trennzeichen nicht mit} \
+        -body {
+    # Die zweite Wahrheit, die .61 zunaechst geschaffen hat:
+    # drawTextBox druckt U+00AD nur am Umbruch, getStringWidth zaehlte es
+    # immer. Gemessen bei Helvetica 10: 33,35 gegen 27,79 -- zwanzig
+    # Prozent zu breit fuer Text, der genau so nie gezeichnet wird.
+    #
+    # Wer selbst umbricht und dafuer getStringWidth benutzt (pdf4tcllib
+    # und pdf4tclwidget tun das), bekam die Breite eines Strichs
+    # berechnet, den niemand sieht.
+    set pdf [shNew]
+    set ohne [$pdf getStringWidth "Silben"]
+    set mit  [$pdf getStringWidth "Sil\u00ADben"]
+    $pdf destroy
+    expr {abs($mit - $ohne) < 0.001}
+} -result 1
+
+test softhyphen-2.2 {ein harter Bindestrich zaehlt weiterhin} -body {
+    # Sonst waere die Korrektur ueber das Ziel hinausgeschossen: ein
+    # gedruckter Strich hat eine Breite.
+    set pdf [shNew]
+    set mit  [$pdf getStringWidth "Donau-dampf"]
+    set ohne [$pdf getStringWidth "Donaudampf"]
+    $pdf destroy
+    expr {$mit > $ohne}
+} -result 1
+
+test softhyphen-2.3 {mehrere Trennvorschlaege aendern nichts} -body {
+    set pdf [shNew]
+    set a [$pdf getStringWidth "Unglaublichkeit"]
+    set b [$pdf getStringWidth "Un\u00ADglaub\u00ADlich\u00ADkeit"]
+    $pdf destroy
+    expr {abs($a - $b) < 0.001}
+} -result 1
+
+
+test softhyphen-2.4 {auch "text" druckt das weiche Trennzeichen nicht} -body {
+    # Die dritte Wahrheit derselben Sitzung: drawTextBox liess es weg,
+    # getStringWidth zaehlte es (2.1), und "text" druckte es. "text"
+    # bricht ueberhaupt nicht -- es gibt also keine Stelle, an der das
+    # Zeichen sichtbar werden duerfte.
+    #
+    # Gefunden hat es die pdf4tclwidget-Demo, deren Layout ueber "text"
+    # zeichnet: im PDF stand "Silben<AD>trennung" mit sichtbarem Strich.
+    set pdf [shNew]
+    $pdf text "Sil\u00ADben" -x 50 -y 60
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result Silben
+
+test softhyphen-2.5 {ein harter Bindestrich bleibt auch in "text"} -body {
+    # Wer den Strich drucken will, nimmt U+002D.
+    set pdf [shNew]
+    $pdf text "Sil-ben" -x 50 -y 60
+    set out [$pdf get]
+    $pdf destroy
+    shLines $out
+} -result Sil-ben
+
+rename shLines {}
+rename shNew {}
+
+cleanupTests

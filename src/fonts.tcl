@@ -2010,6 +2010,75 @@ space instead of the usual empty rectangle."
     # that behaviour stays untouched.
     #
     # Returns the font name, or the empty string when nothing matches.
+    # Base14FromFamily -- welche der 14 Standardschriften meint dieser
+    # Familienname?
+    #
+    # Diese Regel stand bis 0.9.4.60 ZWEIMAL im Code: in setTkpfont
+    # (geschaltet auf $name) und in CanvasSetFont (geschaltet auf
+    # $fontinfo(-family)). Je 37 Zeilen, und ohne Einrueckung verglichen
+    # unterschieden sie sich in genau einer: dem Ausdruck, auf den
+    # geschaltet wurde. Der Rest war Kopie. Zwei Kopien einer Regel, die
+    # niemand gegeneinander prueft, driften -- und zwar still, weil beide
+    # ihre eigenen Tests bestehen.
+    #
+    # Rueckgabe ist der Name einer Standardschrift oder der LEERE STRING,
+    # wenn kein Muster passt. Das ist der Unterschied zur alten Weiche:
+    # die hatte Helvetica als default-Zweig und konnte deshalb nicht
+    # sagen, ob sie etwas erkannt oder nur aufgegeben hatte. Genau das
+    # braucht der Aufrufer, der zwei Kandidaten nacheinander versucht.
+    #
+    # tests/fontmap.test misst, welche Namen erkannt werden.
+    proc Base14FromFamily {family bold italic} {
+        switch -glob [string tolower $family] {
+            *courier* - *fixed* {
+                set name Courier
+                if {$bold && $italic} {
+                    append name -BoldOblique
+                } elseif {$bold} {
+                    append name -Bold
+                } elseif {$italic} {
+                    append name -Oblique
+                }
+                return $name
+            }
+            *times* - {*nimbus roman*} - {*tex gyre termes*} -
+            {*liberation serif*} - {*dejavu serif*} - {*freeserif*} {
+                if {$bold && $italic} { return Times-BoldItalic }
+                if {$bold}            { return Times-Bold }
+                if {$italic}          { return Times-Italic }
+                return Times-Roman
+            }
+            *helvetica* - *arial* - {*nimbus sans*} - {*tex gyre heros*} -
+            {*liberation sans*} - {*dejavu sans*} - {*freesans*} {
+                set name Helvetica
+                if {$bold && $italic} {
+                    append name -BoldOblique
+                } elseif {$bold} {
+                    append name -Bold
+                } elseif {$italic} {
+                    append name -Oblique
+                }
+                return $name
+            }
+        }
+        return ""
+    }
+
+    # Was die alte Weiche im default-Zweig tat: alles Unbekannte ist
+    # Helvetica. Eigene Prozedur, damit der Rueckfall an einer Stelle
+    # steht und nicht neben jedem Aufruf noch einmal.
+    proc Base14Fallback {bold italic} {
+        set name Helvetica
+        if {$bold && $italic} {
+            append name -BoldOblique
+        } elseif {$bold} {
+            append name -Bold
+        } elseif {$italic} {
+            append name -Oblique
+        }
+        return $name
+    }
+
     proc FindFontByFamily {family {bold 0} {italic 0}} {
         variable Fonts
         variable FontsAttrs

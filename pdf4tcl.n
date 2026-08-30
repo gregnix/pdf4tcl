@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.60 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.61 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.60?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.61?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -1256,9 +1256,24 @@ Option \fI-textscale\fR overrides the automatic downsizing made for tk::canvas t
 Fonts:
 .sp
 If no font mapping is given and no font is loaded under the family name,
-fonts for text items are limited to PDF's
-builtins, i\&.e\&. Helvetica, Times and Courier\&. A guess is made to chose which
-one to use to get a reasonable display on the page\&.
+fonts for text items are limited to PDF's builtins, i\&.e\&. Helvetica, Times
+and Courier\&. Which one is used is decided by matching the family name
+against a list of patterns: \fB*courier*\fR and \fB*fixed*\fR give
+Courier, \fB*times*\fR and its usual substitutes (\fB*nimbus roman*\fR,
+\fB*tex gyre termes*\fR, \fB*liberation serif*\fR,
+\fB*dejavu serif*\fR, \fB*freeserif*\fR) give Times, and
+\fB*helvetica*\fR, \fB*arial*\fR and their substitutes
+(\fB*nimbus sans*\fR, \fB*tex gyre heros*\fR,
+\fB*liberation sans*\fR, \fB*dejavu sans*\fR, \fB*freesans*\fR)
+give Helvetica\&. Anything else becomes Helvetica as well\&.
+.sp
+Since 0\&.9\&.4\&.61 this uses the same order as the family lookup above: the
+name written in the font specification first, the family Tk resolved it to
+second\&. Before that only the resolved family was matched, so the result
+depended on which fonts are installed -- \fB-font {Times 14 italic}\fR
+gave Times-Italic where Tk resolves \fBTimes\fR to \fBNimbus Roman\fR
+and Helvetica-Oblique where it resolves to \fBTeX Gyre Termes\fR\&. A
+font Tk reports as fixed stays Courier regardless of the written name\&.
 .sp
 An element in a font mapping must exactly match the -font option in the
 text item\&. The corresponding mapping value is a PDF font family, e\&.g\&. one
@@ -1920,6 +1935,16 @@ A line may also break after a hyphen that joins two words, so
 0\&.9\&.4\&.60 a hyphen preceded by anything but a letter or digit does not
 break: \fBDer Betrag -5 Euro\fR used to leave the sign behind on one
 line and put the number on the next\&.
+Since 0\&.9\&.4\&.61 a soft hyphen (\fB­\fR, U+00AD) marks a place where
+the line MAY break\&. It is a suggestion, not a character: it is printed
+only where the break actually happens, and then as a hyphen\&. Everywhere
+else it leaves no trace and adds nothing to the width, so a text full of
+suggestions wraps exactly like the same text without them\&. Up to 0\&.9\&.4\&.60
+it was printed wherever it stood and did not break, so
+\fBSilben­trennung\fR came out as one word with a stray hyphen in
+the middle\&.
+The hyphen added at a break is counted against the box, so the line does
+not stick out by its width\&.
 .RS
 .TP
 \fB-align\fR \fIleft|right|center|justify\fR

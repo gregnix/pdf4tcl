@@ -1,0 +1,307 @@
+# consistency.test -- procedures that must agree with each other
+#
+# WHY THIS FILE EXISTS
+#
+# On 2026-08-29 one character, U+00AD, was handled three different ways
+# inside this library within a single day:
+#
+#     drawTextBox      left it out            (0.9.4.61, morning)
+#     getStringWidth   counted it             (found by review)
+#     text             printed it             (found by a demo)
+#
+# Each of the three was correct on its own and had passing tests. What
+# nobody tested was that they agree with EACH OTHER.
+#
+# That is the gap this file fills. It does not check values -- the other
+# test files do that. It checks pairs of procedures that make statements
+# about the same thing, and it does so with data that has historically
+# gone wrong: soft hyphens, hard hyphens, kerning pairs, ligatures.
+#
+# The idea generalises: whenever two procedures answer the same question
+# by different routes, one of them will drift, and the drift will be
+# silent because both keep passing their own tests.
+#
+# WHAT THIS FILE DOES NOT CATCH, and must not be expected to
+#
+# Measured by putting each defect back and running both files:
+#
+#     defect put back                    consistency   the rule tests
+#     getStringWidth counts U+00AD         2 red            -
+#     text prints U+00AD                   2 red            -
+#     drawTextBox stops breaking             -            2 red
+#     the break hyphen is not reserved       -            1 red
+#
+# A missing PROPERTY is invisible here: if drawTextBox stops breaking at
+# the soft hyphen, then text and drawTextBox agree again -- wrongly, but
+# consistently. That is what new-0.9.4.61.test is for.
+#
+# So the two kinds are not redundant and neither replaces the other. This
+# file asks "do they say the same thing", the rule tests ask "do they say
+# the right thing".
+
+source [file join [file dirname [info script]] init.tcl]
+
+# Eine geladene TrueType, falls vorhanden -- der zweite Codeweg.
+set ::konTtfFont ""
+testConstraint ttf 0
+foreach kand {/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+              /usr/share/fonts/truetype/freefont/FreeSans.ttf} {
+    if {[file readable $kand]} {
+        if {![catch {::pdf4tcl::loadBaseTrueTypeFont KonBase $kand}]} {
+            catch {::pdf4tcl::createFontSpecCID KonBase KonSans}
+            set ::konTtfFont KonSans
+            testConstraint ttf 1
+        }
+        break
+    }
+}
+
+# ---------------------------------------------------------------------------
+# The material. Every string here has a reason.
+# ---------------------------------------------------------------------------
+
+set ::konsistenzTexte {
+    "Silben"
+    "Sil\u00ADben"
+    "Un\u00ADglaub\u00ADlich\u00ADkeit"
+    "Donau-dampf"
+    "Der Betrag -5 Euro"
+    "AVAV"
+    "fi ffi fl"
+    "Umlaute: \u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df"
+    "Euro 100\u20ac"
+    ""
+    " "
+}
+
+proc konNeu {{font Helvetica} {size 10}} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0 -orient 1]
+    $pdf startPage
+    $pdf setFont $size $font
+    return $pdf
+}
+
+# Which strings does a document actually put on the page?
+proc konGezeichnet {pdf} {
+    set res {}
+    foreach l [split [$pdf get] "\n"] {
+        if {[regexp {^\((.*)\) Tj$} $l -> t]} { lappend res $t }
+    }
+    return $res
+}
+
+# ---------------------------------------------------------------------------
+# Pair 1: getStringWidth against what "text" draws
+#
+# The width of a string must be the width of what appears on the page. If
+# a procedure removes a character before drawing -- as text does with the
+# soft hyphen -- then the measurement has to know.
+# ---------------------------------------------------------------------------
+
+test consistency-1.1 {getStringWidth measures what text draws} -body {
+    set fehler {}
+    foreach txt $::konsistenzTexte {
+        if {[string trim $txt] eq ""} continue
+        set mess [konNeu]
+        set breite [$mess getStringWidth $txt]
+
+        set zeichen [konNeu]
+        $zeichen text $txt -x 0 -y 20
+        set gezeichnet [lindex [konGezeichnet $zeichen] 0]
+        $zeichen destroy
+
+        # The width of the drawn string, measured again.
+        set breiteGezeichnet [$mess getStringWidth $gezeichnet]
+        $mess destroy
+
+        if {abs($breite - $breiteGezeichnet) > 0.001} {
+            lappend fehler [format "%s: measured %.2f, drawn %.2f" \
+                    [string map [list \u00AD <AD>] $txt] \
+                    $breite $breiteGezeichnet]
+        }
+    }
+    set fehler
+} -result {}
+
+# ---------------------------------------------------------------------------
+# Pair 2: text against drawTextBox
+#
+# A box wide enough to hold the string must produce exactly what text
+# produces. They are two routes to the same page.
+# ---------------------------------------------------------------------------
+
+test consistency-2.1 {a wide box draws what text draws} -body {
+    set fehler {}
+    foreach txt $::konsistenzTexte {
+        if {[string trim $txt] eq ""} continue
+        set a [konNeu]
+        $a text $txt -x 0 -y 20
+        set viaText [konGezeichnet $a]
+        $a destroy
+
+        set b [konNeu]
+        $b drawTextBox 0 20 400 40 $txt
+        set viaBox [konGezeichnet $b]
+        $b destroy
+
+        if {$viaText ne $viaBox} {
+            lappend fehler [format "%s: text %s, box %s" \
+                    [string map [list \u00AD <AD>] $txt] $viaText $viaBox]
+        }
+    }
+    set fehler
+} -result {}
+
+# ---------------------------------------------------------------------------
+# Pair 3: -dryrun against the real run
+#
+# A dry run exists so a caller can ask "how tall will this be" before
+# committing. If it disagrees with the real one, the caller reserves the
+# wrong space -- and finds out on paper.
+# ---------------------------------------------------------------------------
+
+test consistency-3.1 {dryrun and the real run count the same lines} -body {
+    set fehler {}
+    foreach txt $::konsistenzTexte {
+        if {[string trim $txt] eq ""} continue
+        foreach breite {40 60 120 400} {
+            set a [konNeu]
+            $a drawTextBox 0 20 $breite 200 $txt -linesvar echt
+            $a destroy
+
+            set b [konNeu]
+            $b drawTextBox 0 20 $breite 200 $txt -linesvar trocken -dryrun 1
+            $b destroy
+
+            if {$echt != $trocken} {
+                lappend fehler [format "%s at %d: real %d, dry %d" \
+                        [string map [list \u00AD <AD>] $txt] \
+                        $breite $echt $trocken]
+            }
+        }
+    }
+    set fehler
+} -result {}
+
+test consistency-3.2 {a dry run draws nothing} -body {
+    # Otherwise "measure first, then decide" would leave marks on a page
+    # the caller decided against.
+    set pdf [konNeu]
+    $pdf drawTextBox 0 20 100 200 "Etwas Text der umbrochen wird" -dryrun 1
+    set gezeichnet [konGezeichnet $pdf]
+    $pdf destroy
+    llength $gezeichnet
+} -result 0
+
+# ---------------------------------------------------------------------------
+# Pair 4: the sum of the parts
+#
+# Whatever a box does with a string, the pieces it drew must together be
+# the string again -- apart from the hyphens it added at breaks and the
+# soft hyphens it removed. If a character disappears elsewhere, that is a
+# loss nobody reported.
+# ---------------------------------------------------------------------------
+
+test consistency-4.1 {nothing disappears while wrapping} -body {
+    set fehler {}
+    foreach txt {"Silben trennung ist eine Sache"
+                 "Sil\u00ADben\u00ADtrennung ist eine Sache"
+                 "Donau-dampfschiff faehrt"} {
+        foreach breite {50 80 150 400} {
+            set pdf [konNeu]
+            $pdf drawTextBox 0 20 $breite 300 $txt
+            set teile [konGezeichnet $pdf]
+            $pdf destroy
+
+            # Put the pieces back together: a hyphen at the end of a line
+            # was added by the break, a space between lines was consumed
+            # by it.
+            set wieder ""
+            foreach t $teile {
+                if {[string index $t end] eq "-"} {
+                    append wieder [string range $t 0 end-1]
+                } else {
+                    append wieder $t " "
+                }
+            }
+            set wieder [string trim $wieder]
+            set original [string map [list \u00AD "" "-" ""] $txt]
+            set zurueck  [string map [list "-" ""] $wieder]
+            # Compare without spaces: where the break fell is not the
+            # question here, only whether anything went missing.
+            set a [string map {" " ""} $original]
+            set b [string map {" " ""} $zurueck]
+            if {$a ne $b} {
+                lappend fehler [format "%s at %d: %s vs %s" \
+                        [string map [list \u00AD <AD>] $txt] $breite $a $b]
+            }
+        }
+    }
+    set fehler
+} -result {}
+
+# ---------------------------------------------------------------------------
+# Pair 5: getStringWidth against the sum of its parts
+#
+# A string measured whole and measured in two halves must come out the
+# same, or kerning and ligatures are counted twice -- or not at all.
+# ---------------------------------------------------------------------------
+
+test consistency-5.1 {measuring in halves is not measuring twice} -body {
+    # This is deliberately loose: kerning between the two halves is lost
+    # when they are measured apart, so the halves may come out slightly
+    # WIDER. What must not happen is the opposite, or a large gap.
+    set fehler {}
+    set pdf [konNeu]
+    foreach txt {"Silben" "AVAV" "Donaudampfschiff"} {
+        set ganz [$pdf getStringWidth $txt]
+        set mitte [expr {[string length $txt] / 2}]
+        set teile [expr {[$pdf getStringWidth [string range $txt 0 $mitte-1]]
+                       + [$pdf getStringWidth [string range $txt $mitte end]]}]
+        if {$teile < $ganz - 0.001} {
+            lappend fehler [format "%s: whole %.2f, halves %.2f -- halves\
+                    cannot be narrower" $txt $ganz $teile]
+        }
+        if {$teile > $ganz + 2.0} {
+            lappend fehler [format "%s: whole %.2f, halves %.2f -- more than\
+                    2pt apart" $txt $ganz $teile]
+        }
+    }
+    $pdf destroy
+    set fehler
+} -result {}
+
+# ---------------------------------------------------------------------------
+# Pair 6: the same question, asked of two fonts
+#
+# Not a pair of procedures but a pair of paths: the standard 14 and a
+# loaded TrueType go through different code. A rule that holds for one
+# and not the other is a rule that will be forgotten.
+# ---------------------------------------------------------------------------
+
+test consistency-6.1 {the soft hyphen rule holds for a TrueType font too} \
+        -constraints {ttf} -body {
+    set fehler {}
+    foreach {fontName} [list Helvetica $::konTtfFont] {
+        set pdf [konNeu $fontName]
+        set ohne [$pdf getStringWidth "Silben"]
+        set mit  [$pdf getStringWidth "Sil\u00ADben"]
+        $pdf text "Sil\u00ADben" -x 0 -y 20
+        set gezeichnet [lindex [konGezeichnet $pdf] 0]
+        $pdf destroy
+        if {abs($mit - $ohne) > 0.001} {
+            lappend fehler "$fontName: width differs"
+        }
+        # With a CID font the drawn string is hex, not literal -- then
+        # only the width statement can be checked.
+        if {$gezeichnet ne "" && [string first "\u00AD" $gezeichnet] >= 0} {
+            lappend fehler "$fontName: the soft hyphen was drawn"
+        }
+    }
+    set fehler
+} -result {}
+
+rename konNeu {}
+rename konGezeichnet {}
+
+cleanupTests

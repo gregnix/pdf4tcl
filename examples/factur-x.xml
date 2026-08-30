@@ -29,12 +29,12 @@
       <ram:BuyerReference>04011000-1234512345-06</ram:BuyerReference>
       <ram:SellerTradeParty>
         <ram:Name>Muster GmbH</ram:Name>
-        <ram:PostalTradeAddress><ram:PostcodeCode>48691</ram:PostcodeCode><ram:LineOne>Musterstrasse 1</ram:LineOne><ram:CityName>Vreden</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
+        <ram:PostalTradeAddress><ram:PostcodeCode>12345</ram:PostcodeCode><ram:LineOne>Musterstrasse 1</ram:LineOne><ram:CityName>Musterstadt</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
         <ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">DE123456789</ram:ID></ram:SpecifiedTaxRegistration>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
         <ram:Name>Beispiel AG</ram:Name>
-        <ram:PostalTradeAddress><ram:PostcodeCode>10115</ram:PostcodeCode><ram:LineOne>Beispielweg 2</ram:LineOne><ram:CityName>Berlin</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
+        <ram:PostalTradeAddress><ram:PostcodeCode>12345</ram:PostcodeCode><ram:LineOne>Beispielweg 2</ram:LineOne><ram:CityName>Beispielstadt</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
       </ram:BuyerTradeParty>
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery/>

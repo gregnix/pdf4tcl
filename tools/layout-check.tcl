@@ -20,35 +20,81 @@
 # Needs pdftotext (poppler-utils). Without it the script says so and exits 0 --
 # a missing tool is not a finding.
 #
-# What a finding means has to be read, not obeyed. Two of the shipped
-# examples report one:
+# What a finding means has to be read, not obeyed -- but "read" is not the
+# same as "wave through". Two of the shipped examples reported one for
+# months, and only one of the two explanations held up when it was
+# finally checked (0.9.4.61):
 #
-#   howto-xobject.pdf     places the same XObject on several pages, so the
-#                         same words land in the same spot. That is what the
-#                         howto demonstrates.
-#   howto-paper-sizes.pdf writes at -x 0 with the document's own margin, so
-#                         the word sits inside the text area but within 36pt
-#                         of the sheet edge.
+#   howto-xobject.pdf     WAS A REAL DEFECT. The note here used to say the
+#                         XObject is placed on several pages so the words
+#                         land in the same spot -- but it is placed once per
+#                         page. The XObject was created with -paper a4 and
+#                         put at y=40, so a full-page box lay over nearly
+#                         the whole sheet and its paragraph landed on the
+#                         page's own. Ten overlaps, and the PDF really did
+#                         show text on top of text. The XObject is now the
+#                         size of its content.
+#   howto-paper-sizes.pdf is correct output. The margin is an ASSUMPTION of
+#                         this tool (-margin, default 36pt), not a property
+#                         of the file: a PDF does not say what margin its
+#                         author wanted. That document is set with
+#                         -margin 30 and writes at -x 0, so the word sits
+#                         inside its own text area. Pass -margin 30 rather
+#                         than change the file.
 #
-# Both are correct output. The check finds where text ENDS UP, and whether
-# that is wrong depends on what the page is for.
+# The lesson is the first one, not the second: an unexamined explanation
+# next to a finding is worse than no explanation, because it stops anyone
+# from looking again.
 #
-# Three kinds of page report findings that are not defects, measured over
-# demo/out where 25 of 50 files did:
+# All 25 findings in demo/out were gone through, one file at a time
+# (0.9.4.61). None was a defect, and the reason is almost always the same
+# one:
 #
-#   dense character tables   pdftotext gives every character its own box and
-#                            neighbouring boxes touch. unicode-tabelle-
-#                            FreeSerif.pdf reports 2309 overlaps and is fine.
+#   BOXES ARE FONT BOXES, NOT INK. pdftotext reports ascent plus descent
+#   -- for the fonts used here about 1.7 times the point size. An 18 pt
+#   heading is reported as a 30.5 pt tall box. Two lines therefore
+#   "overlap" whenever their baselines are closer than that, even with
+#   perfectly ordinary leading, and a heading "sits in the top margin"
+#   when its baseline is 24 pt from the edge.
+#
+#   Measured on demo-pdfa-gs-2b.pdf: an 18 pt heading and a 10 pt line
+#   12 pt apart -- ten reported overlaps. Moving them 15 pt apart still
+#   reports ten: the boxes cannot separate below 24 pt. The page is fine.
+#   That was diagnosed as tight typography first and the demo changed;
+#   the measurement said otherwise and the change was taken back.
+#
+# The four classes, all measured:
+#
+#   font box vs ink          the one above. Sixteen of the 25 report only
+#                            margin hits from a heading whose box reaches
+#                            2 pt from the edge while its baseline is 24
+#                            pt in.
+#   dense character tables   every character its own box, neighbouring
+#                            boxes touch. unicode-tabelle-FreeSerif.pdf
+#                            reports 2309 overlaps and is fine.
 #   reference cards          laid out with small margins on purpose. The
-#                            three cheat sheets report 76 to 89 each.
-#   transformed text         a rotated word has an axis-aligned bounding box
-#                            much larger than the glyphs. demo-transform.tcl
-#                            uses 23 transformations and reports 12.
+#                            four cheat sheets report 51 to 89 each.
+#   transformed text         a rotated word has an axis-aligned box much
+#                            larger than the glyphs. demo-transform
+#                            reports 12, demo-all-output one -- rotated
+#                            sample text under a heading.
+#
+# What this means for the tool: it cannot separate box from ink, so on
+# pages with mixed type sizes it will report. That is a limit, not a bug,
+# and it is why demo/out stays out of "make layoutcheck".
 #
 # So this is a check for pages of ordinary running text, and it is worth
 # running where that is what they are. "make layoutcheck" covers doc/en/out
 # for that reason and leaves demo/out alone: a check that cries wolf half
 # the time gets ignored, and then it catches nothing at all.
+#
+# The difference from tools/geometry-check.tcl in pdf4tcllib is worth
+# knowing. There the six "known false alarms" turned out to hide two real
+# defects once transformations were followed. Here the 25 were gone
+# through the same way and really are artefacts -- but that is a
+# measurement, not an assumption, and if the demos change it has to be
+# made again.
+
 
 package require Tcl 8.6-
 

@@ -1,3 +1,106 @@
+2026-08-29 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.61
+	* src/main.tcl (drawTextBox, text, getStringWidth): the soft hyphen
+	(U+00AD) is a suggestion, not a character. Printed only where the line
+	actually breaks, and then as a hyphen; everywhere else no trace and no
+	width, so a text full of suggestions wraps exactly like the same text
+	without them. The hyphen added at a break is counted against the box
+	while a soft break is pending. Up to 0.9.4.60 it was printed wherever
+	it stood and did not break -- "Silben<AD>trennung" came out as one
+	word with a stray hyphen. Left out of .60 on purpose because it
+	changes existing output. The rule from .60 is unchanged: a hard hyphen
+	between two characters breaks and stays, a sign before a number does
+	not.
+	The same character needed THREE attempts in one session, and that is
+	the lesson: drawTextBox left it out (morning), getStringWidth counted
+	it (found by review), "text" printed it (found by a pdf4tclwidget
+	demo reading its own output). Each was right on its own and had
+	passing tests. Nobody tested that they agree with each other.
+	Measured for getStringWidth, Helvetica 10: "Sil<AD>ben" 33.35 against
+	"Silben" 27.79 -- twenty per cent too wide for text never drawn that
+	way, and pdf4tcllib and pdf4tclwidget both wrap using that number.
+	"text" does not wrap at all, so there is no place where the character
+	could legitimately become visible; whoever wants a dash uses U+002D.
+	softhyphen-1.5 computed both widths and then compared only line
+	counts, so the inequality was invisible.
+	* tests/new-0.9.4.61.test: 13 tests, softhyphen-1.1 to 1.8 and 2.1
+	to 2.5.
+	Counter-check with the soft break disabled: softhyphen-1.2 and 1.3
+	fail.
+	* doc/en/howtos/howto-xobject.tcl: the XObject was created with
+	-paper a4 and placed at y=40, so a full-page box lay over nearly the
+	whole sheet and its paragraph landed on the page's own text.
+	layout-check reported ten overlaps, and the PDF really did show text
+	on top of text. The box is now the size of its content
+	(-paper {300p 30p}). The howto's point -- structure inside an XObject
+	placed exactly once -- is unchanged.
+	* tools/layout-check.tcl: the note beside those two long-standing
+	findings was wrong about the first one. It claimed the XObject is
+	placed on several pages; it is placed once per page. Corrected, and
+	the second finding is recorded as what it is: the margin is an
+	assumption of the tool (-margin, default 36pt), not a property of the
+	file, and howto-paper-sizes is set with -margin 30. An unexamined
+	explanation next to a finding is worse than no explanation, because
+	it stops anyone from looking again.
+	* tests/consistency.test: procedures that must agree with each other.
+	Three different treatments of U+00AD lived in this library on one
+	day -- drawTextBox left it out, getStringWidth counted it, text
+	printed it. Each was right on its own and had passing tests. Nobody
+	tested that they agree with EACH OTHER, and that is what this file
+	does: getStringWidth against what text draws, text against
+	drawTextBox in a wide box, -dryrun against the real run, the pieces
+	of a wrapped text against the original, a string measured whole
+	against measured in halves, and the same rules on a loaded TrueType.
+	Verified by putting each defect back: the width defect and the
+	printing defect each turn two of these red, while a MISSING property
+	-- drawTextBox no longer breaking -- turns none of them red and two
+	of new-0.9.4.61 instead. The two kinds do not replace each other:
+	this one asks whether they say the same thing, the rule tests ask
+	whether they say the right thing. Noted in the file header.
+	* tools/layout-check.tcl: all 25 findings in demo/out gone through,
+	one file at a time. None is a defect. The note listed three classes
+	of harmless finding; there are four, and the fourth explains most of
+	them: pdftotext reports FONT boxes, ascent plus descent, about 1.7
+	times the point size for these fonts. An 18 pt heading is a 30.5 pt
+	tall box, so two lines "overlap" whenever their baselines are closer
+	than that -- with perfectly ordinary leading -- and a heading "sits
+	in the top margin" when its baseline is 24 pt from the edge. Sixteen
+	of the 25 are that alone.
+	Measured on demo-pdfa-gs-2b.pdf: 18 pt heading and 10 pt line 12 pt
+	apart, ten reported overlaps. Diagnosed as tight typography, the demo
+	was changed to 15 pt -- and still reported ten, because the boxes
+	cannot separate below 24 pt. The change was taken back: it fixed
+	nothing and would have looked like it had.
+	The tool cannot separate box from ink. That is a limit, not a bug,
+	and it is why demo/out stays out of "make layoutcheck".
+	* src/fonts.tcl (Base14FromFamily, Base14Fallback): new. The rule
+	"which of the 14 standard fonts does this family name mean" stood in
+	src/main.tcl twice -- in setTkpfont and in CanvasSetFont, 37 lines
+	each, differing in exactly one: the expression switched on.
+	Base14FromFamily returns the empty string when nothing matches, where
+	the old switch fell through to Helvetica; that is what lets a caller
+	tell "recognised" from "gave up". Base14Fallback is the old default
+	branch. Pattern list widened to the free faces: TeX Gyre, Liberation,
+	DejaVu, Free.
+	* src/main.tcl (CanvasSetFont): the written family name is tried
+	first, the resolved one second -- the precedence the FindFontByFamily
+	loop below already had. Without it the result depended on the machine:
+	{Times 14 italic} gave Times-Italic where Tk resolves to Nimbus Roman
+	and Helvetica-Oblique where it resolves to TeX Gyre Termes, which is
+	why italic-3.1 failed on a plain Ubuntu 24.04. A fixed font stays
+	Courier. Measured over the twelve standard names, PDF name -> Tk
+	family -> back through a canvas: four did not come back before, twelve
+	of twelve do now.
+	* tests/fontmap.test: 12 tests -- the table, the two callers against
+	each other, the precedence, and the two slant vocabularies. Reasoning
+	and the round trip in the file header.
+	The first counter-check did NOT bite: taking the precedence back out
+	left everything green, because the widened pattern list alone covers
+	this machine. fm-3.2 and fm-3.3 were added to separate the two.
+	* pdf4tcl.man: the soft hyphen documented. getImageSize already said
+	PIXELS with a worked example -- checked, not changed.
+
 2026-08-27 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.60

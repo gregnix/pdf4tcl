@@ -29,7 +29,7 @@ proc briefkopf {pdf} {
     $pdf text "ACME Corporation" -x 10 -y 20
     $pdf setFillColor 0 0 0
     $pdf setFont 8 Helvetica
-    $pdf text "Beispielweg 1 - 48691 Vreden" -x 10 -y 44
+    $pdf text "Beispielweg 1 - 12345 Musterstadt" -x 10 -y 44
     # Genug Inhalt, dass sich das Wiederholen bemerkbar macht.
     foreach y {56 66 76 86} {
         $pdf line 0 $y 495 $y
@@ -115,17 +115,23 @@ $pdf tagText P "The frame around this is an artifact." -x 10 -y 80
 # valid PDF -- just not PDF/UA (veraPDF rule 7.20-2).
 # ---------------------------------------------------------------------------
 
-set gezaehlt [$pdf startXObject -paper a4 -margin 40 -orient 1]
+# Der Kasten ist so gross wie sein Inhalt, nicht so gross wie die Seite.
+#
+# Vorher stand hier "-paper a4": ein XObject in Seitengroesse, mit
+# putImage bei y=40 gesetzt. Es lag damit ueber fast dem ganzen Blatt,
+# und sein Absatz landete auf dem Absatz der Seite. layout-check meldete
+# zehn Ueberlappungen -- zu Recht, im PDF stand der Text uebereinander.
+set gezaehlt [$pdf startXObject -paper {300p 30p} -margin 0 -orient 1]
 $pdf tagBegin P
 $pdf setFont 11 Body
-$pdf text "This paragraph lives inside an XObject." -x 10 -y 15
+$pdf text "This paragraph lives inside an XObject." -x 2 -y 15
 $pdf tagEnd
 $pdf endXObject
 
 $pdf startPage
-$pdf putImage $gezaehlt 0 40      ;# genau EINMAL -- mehr waere nicht UA
+$pdf putImage $gezaehlt 50 60     ;# genau EINMAL -- mehr waere nicht UA
 $pdf setFont 11 Body
-$pdf tagText P "The paragraph above came from an XObject." -x 10 -y 100
+$pdf tagText P "The paragraph above came from an XObject." -x 10 -y 120
 
 set out [pdf4tcl::doc::outfile howto-xobject.pdf]
 $pdf write -file $out

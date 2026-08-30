@@ -2192,43 +2192,14 @@ Use -pdfa-icc to specify a profile path."
     method setTkpfont {size name weight slant} {
         my variable canvasFontMapping
         set bold [expr {$weight eq "bold"}]
+        # ACHTUNG: hier gilt das tkpath-Vokabular, normal/italic -- nicht
+        # das von Tk, roman/italic. Wer "roman" hereinreicht, bekommt
+        # stillschweigend Kursivschrift. tests/fontmap.test fm-4.1.
         set italic [expr {$slant ne "normal"}]
-        switch -glob [string tolower $name] {
-            *courier* - *fixed* {
-                set family Courier
-                if {$bold && $italic} {
-                    append family -BoldOblique
-                } elseif {$bold} {
-                    append family -Bold
-                } elseif {$italic} {
-                    # -BoldOblique stood here, so slanted text came out
-                    # bold as well. Times next to it does it right.
-                    append family -Oblique
-                }
-            }
-            *times* - {*nimbus roman*} {
-                if {$bold && $italic} {
-                    set family Times-BoldItalic
-                } elseif {$bold} {
-                    set family Times-Bold
-                } elseif {$italic} {
-                    set family Times-Italic
-                } else {
-                    set family Times-Roman
-                }
-            }
-            *helvetica* - *arial* - {*nimbus sans*} - default {
-                set family Helvetica
-                if {$bold && $italic} {
-                    append family -BoldOblique
-                } elseif {$bold} {
-                    append family -Bold
-                } elseif {$italic} {
-                    # -BoldOblique stood here, so slanted text came out
-                    # bold as well. Times next to it does it right.
-                    append family -Oblique
-                }
-            }
+        # Eine Weiche, zwei Aufrufer -- siehe Base14FromFamily.
+        set family [::pdf4tcl::Base14FromFamily $name $bold $italic]
+        if {$family eq ""} {
+            set family [::pdf4tcl::Base14Fallback $bold $italic]
         }
         # A font loaded under the name of the Tk family is used without
         # -fontmap. Before this, an unrecognised family fell through to
@@ -2764,6 +2735,23 @@ Use -pdfa-icc to specify a profile path."
         # ShapedWidth counts in 1/1000 em; the font size is applied at the
         # end. Multiplying it in here as well once gave "AVAV" a width of
         # -44.86 pt.
+        # Weiche Trennzeichen zaehlen nicht mit.
+        #
+        # Seit 0.9.4.61 ist U+00AD ein Trennvorschlag: drawTextBox druckt
+        # es nur, wo die Zeile bricht, sonst gar nicht. getStringWidth
+        # zaehlte es trotzdem als Bindestrich -- gemessen "Sil<AD>ben"
+        # 33,35 gegen "Silben" 27,79, also zwanzig Prozent zu breit fuer
+        # Text, der genau so nie gezeichnet wird.
+        #
+        # Das waren zwei Wahrheiten in derselben Bibliothek: wer selbst
+        # umbricht und dafuer getStringWidth benutzt -- pdf4tcllib und
+        # pdf4tclwidget tun das -- bekam die Breite eines Strichs
+        # berechnet, den niemand sieht.
+        #
+        # Die Breite des Strichs AM Umbruch rechnet drawTextBox selbst
+        # dazu; hier geht es um die Zeile ohne Umbruch.
+        set txt [string map [list \u00AD ""] $txt]
+
         set kerning [expr {$pdf(kerning) ne "0"}]
         set sw [ShapedWidth $txt $font $pdf(ligatures) $kerning \
                 [expr {$pdf(kerning) eq "all"}]]
@@ -2984,6 +2972,22 @@ Use -pdfa-icc to specify a profile path."
     # Returns the width of the drawn string.
     method text {str args} {
         if {!$pdf(inPage)} { my startPage }
+
+        # Weiche Trennzeichen werden nie gedruckt.
+        #
+        # U+00AD ist seit 0.9.4.61 ein Trennvorschlag: drawTextBox zeigt
+        # es nur, wo die Zeile bricht. "text" bricht ueberhaupt nicht --
+        # also gibt es hier keine Stelle, an der es sichtbar werden
+        # duerfte.
+        #
+        # Bis hierher war es die dritte Wahrheit derselben Sitzung:
+        # drawTextBox liess es weg, getStringWidth zaehlte es (seit heute
+        # nicht mehr), und "text" druckte es. Gefunden hat es die
+        # pdf4tclwidget-Demo, deren Layout ueber "text" zeichnet -- im
+        # PDF stand "Silben<AD>trennung" mit sichtbarem Strich.
+        #
+        # Wer den Strich wirklich drucken will, nimmt "-" (U+002D).
+        set str [string map [list \u00AD ""] $str]
         set align "left"
         set angle 0
         set xangle 0
@@ -3217,6 +3221,22 @@ Use -pdfa-icc to specify a profile path."
         set lastbp 0
         set done false
 
+        # Weiches Trennzeichen (U+00AD).
+        #
+        # Es ist ein Trennvorschlag, kein Zeichen: sichtbar wird es NUR,
+        # wenn die Zeile dort umbricht -- dann als Bindestrich. Bis
+        # 0.9.4.60 wurde es gedruckt, wo immer es stand, und brach nicht
+        # um; "Silben\u00ADtrennung" ergab ein Wort mit einem Strich
+        # mitten drin, der dort nicht hingehoerte.
+        #
+        # softw ist die Breite des Strichs, der beim Umbruch dazukommt.
+        # Solange eine weiche Trennstelle in Reichweite liegt, wird sie
+        # von der verfuegbaren Breite abgezogen -- sonst raegte die Zeile
+        # nach dem Umbruch um genau diesen Strich ueber den Kasten.
+        set softHyphen \u00AD
+        set softw [my getCharWidth "-" 1]
+        set lastbpSoft 0
+
         while {! $done} {
             set ch [string index $txt $pos]
             # test for breakable character
@@ -3229,13 +3249,25 @@ Use -pdfa-icc to specify a profile path."
             # Whitespace keeps breaking wherever it stands.
             if {[regexp "\[ \t\r\n\]" $ch]} {
                 set lastbp $pos
+                set lastbpSoft 0
             } elseif {$ch eq "-" && $pos > $start &&
                     [string is alnum -strict [string index $txt \
                     [expr {$pos - 1}]]]} {
                 set lastbp $pos
+                set lastbpSoft 0
+            } elseif {$ch eq $softHyphen} {
+                set lastbp $pos
+                set lastbpSoft 1
             }
-            set w [my getCharWidth $ch 1]
-            if {($cwidth+$w)>$width || $pos>=$len || $ch=="\n"} {
+            if {$ch eq $softHyphen} {
+                # Traegt selbst nichts zur Breite bei -- es wird ja nur
+                # gedruckt, wenn hier umgebrochen wird.
+                set w 0
+            } else {
+                set w [my getCharWidth $ch 1]
+            }
+            set reserve [expr {$lastbpSoft ? $softw : 0}]
+            if {($cwidth+$w+$reserve)>$width || $pos>=$len || $ch=="\n"} {
                 if {$pos>=$len} {
                     set done true
                 } else {
@@ -3251,6 +3283,13 @@ Use -pdfa-icc to specify a profile path."
                     }
                 }
                 set sent [string trim [string range $txt $start $pos]]
+                # Bricht die Zeile an einer weichen Trennstelle, kommt
+                # der Strich dazu; alle uebrigen weichen Trennzeichen der
+                # Zeile verschwinden spurlos.
+                set brichtWeich [expr {!$done &&
+                        [string index $txt $pos] eq $softHyphen}]
+                set sent [string map [list $softHyphen ""] $sent]
+                if {$brichtWeich} { append sent "-" }
                 switch -- $align {
                     "justify" {
                         # count number of spaces
@@ -3295,6 +3334,7 @@ Use -pdfa-icc to specify a profile path."
                 incr start
                 set cwidth 0
                 set lastbp $start
+                set lastbpSoft 0
 
                 # Will another line fit?
                 if {($ystart - ($y + $bboxb)) > $height} {
@@ -8248,42 +8288,36 @@ Use -pdfa-icc to specify a profile path."
         set bold [expr {$fontinfo(-weight) eq "bold"}]
         set italic [expr {$fontinfo(-slant) eq "italic"}]
 
-        switch -glob [string tolower $fontinfo(-family)] {
-            *courier* - *fixed* {
-                set family Courier
-                if {$bold && $italic} {
-                    append family -BoldOblique
-                } elseif {$bold} {
-                    append family -Bold
-                } elseif {$italic} {
-                    # -BoldOblique stood here, so slanted text came out
-                    # bold as well. Times next to it does it right.
-                    append family -Oblique
-                }
+        # Dieselbe Weiche wie in setTkpfont, und derselbe Vorrang wie in
+        # der FindFontByFamily-Schleife weiter unten: der GESCHRIEBENE
+        # Name zuerst, die aufgeloeste Familie danach.
+        #
+        # Bis 0.9.4.60 fragte diese Stelle nur die aufgeloeste Familie,
+        # obwohl drei Zeilen darueber steht, warum der geschriebene Name
+        # zuerst zaehlt. Die Folge war, dass das Ergebnis daran hing, was
+        # auf der Maschine installiert ist: "-font {Times 14 italic}"
+        # ergab Times-Italic, wo Tk zu "Nimbus Roman" aufloest, und
+        # Helvetica-Oblique, wo es zu "TeX Gyre Termes" aufloest. Gemessen
+        # 2026-08-29 auf Ubuntu 24.04 ohne urw-base35: vier von zwoelf
+        # Standardnamen kamen im Rundlauf nicht zurueck, und die
+        # Helvetica-Faelle stimmten nur, weil der default-Zweig zufaellig
+        # Helvetica war.
+        #
+        # $fontinfo(-family) ist oben auf "courier" umgeschrieben worden,
+        # wenn die Schrift fest ist -- eine feste Schrift bleibt deshalb
+        # Courier, auch wenn der geschriebene Name etwas anderes sagt.
+        set family ""
+        if {$fontinfo(-fixed)} {
+            set family [::pdf4tcl::Base14FromFamily $fontinfo(-family) \
+                    $bold $italic]
+        } else {
+            foreach kandidat [list $writtenFamily $tkFamily] {
+                set family [::pdf4tcl::Base14FromFamily $kandidat $bold $italic]
+                if {$family ne ""} break
             }
-            *times* - {*nimbus roman*} {
-                if {$bold && $italic} {
-                    set family Times-BoldItalic
-                } elseif {$bold} {
-                    set family Times-Bold
-                } elseif {$italic} {
-                    set family Times-Italic
-                } else {
-                    set family Times-Roman
-                }
-            }
-            *helvetica* - *arial* - {*nimbus sans*} - default {
-                set family Helvetica
-                if {$bold && $italic} {
-                    append family -BoldOblique
-                } elseif {$bold} {
-                    append family -Bold
-                } elseif {$italic} {
-                    # -BoldOblique stood here, so slanted text came out
-                    # bold as well. Times next to it does it right.
-                    append family -Oblique
-                }
-            }
+        }
+        if {$family eq ""} {
+            set family [::pdf4tcl::Base14Fallback $bold $italic]
         }
         set fontsize $fontinfo(-linespace)
         # See setTkpfont: a font loaded under the family name is used

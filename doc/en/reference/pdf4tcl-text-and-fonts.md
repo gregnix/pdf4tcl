@@ -68,6 +68,12 @@ set width [$pdf getStringWidth "Sample text"]
 The text width depends on the currently active font and size. It is needed
 for manual centering, tables, and layout calculations.
 
+A soft hyphen (U+00AD) does not count towards the width — see *Where a
+Line May Break* below. Measured with Helvetica 10, `Sil<AD>ben` and
+`Silben` are both 27.79 pt. Anyone wrapping text themselves and
+measuring with `getStringWidth` would otherwise be given the width of a
+hyphen nobody sees.
+
 ### Line Height and Spacing
 
 ```tcl
@@ -263,6 +269,36 @@ $pdf drawTextBox 50 100 200 300 $text -align justify
 $pdf drawTextBox 50 100 200 300 $text -linesvar numLines
 puts "Number of lines: $numLines"
 ```
+
+### Where a Line May Break
+
+A **soft hyphen**, U+00AD, is a suggestion, not a character. Since
+0.9.4.61 `drawTextBox` prints it only where the line actually breaks,
+and then as a hyphen; everywhere else it leaves no trace and adds
+nothing to the width. A text full of suggestions therefore wraps exactly
+like the same text without them.
+
+```tcl
+set wort "Silben\u00ADtrennung"
+$pdf drawTextBox 50 100 200 300 $wort
+```
+
+The hyphen added at a break is counted against the box while a soft
+break is pending, so the line does not stick out by its width.
+
+Up to 0.9.4.60 the character was printed wherever it stood and did not
+break: `Silben<AD>trennung` came out as one word with a stray hyphen in
+the middle.
+
+**The same rule holds in three places, and that is the point.**
+`getStringWidth` does not count it, and `text` does not print it —
+`text` does not wrap at all, so there is no position at which the
+character could legitimately become visible. Whoever wants a dash writes
+U+002D. `tests/consistency.test` checks that the three agree.
+
+A **hard hyphen** between two characters still breaks and stays, and a
+sign before a number does not break — that rule is from 0.9.4.60 and is
+unchanged.
 
 ### Dry Run
 

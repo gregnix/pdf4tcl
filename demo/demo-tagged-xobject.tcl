@@ -82,7 +82,7 @@ $pdf tagBegin P
 $pdf setFont 10 DemoFont
 $pdf text "Muster GmbH" -x 10 -y 22
 $pdf text "Musterstrasse 1" -x 10 -y 44
-$pdf text "48691 Vreden" -x 10 -y 66
+$pdf text "12345 Musterstadt" -x 10 -y 66
 $pdf tagEnd
 # Der Rahmen sagt nichts -- Dekoration gehoert als Artefakt markiert, auch
 # im XObject.

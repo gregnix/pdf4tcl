@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.60 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.61 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.60?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.61?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -908,9 +908,23 @@ italic is asked for, <b class="const">&lt;family&gt;-Bold</b>, <b class="const">
 <p>Option <i class="arg">-textscale</i> overrides the automatic downsizing made for tk::canvas text items that are deemed too large. If <i class="arg">-textscale</i> is larger than 1, all text items are reduced in size by that factor.</p>
 <p>Fonts:</p>
 <p>If no font mapping is given and no font is loaded under the family name,
-fonts for text items are limited to PDF's
-builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which
-one to use to get a reasonable display on the page.</p>
+fonts for text items are limited to PDF's builtins, i.e. Helvetica, Times
+and Courier. Which one is used is decided by matching the family name
+against a list of patterns: <b class="const">*courier*</b> and <b class="const">*fixed*</b> give
+Courier, <b class="const">*times*</b> and its usual substitutes (<b class="const">*nimbus roman*</b>,
+<b class="const">*tex gyre termes*</b>, <b class="const">*liberation serif*</b>,
+<b class="const">*dejavu serif*</b>, <b class="const">*freeserif*</b>) give Times, and
+<b class="const">*helvetica*</b>, <b class="const">*arial*</b> and their substitutes
+(<b class="const">*nimbus sans*</b>, <b class="const">*tex gyre heros*</b>,
+<b class="const">*liberation sans*</b>, <b class="const">*dejavu sans*</b>, <b class="const">*freesans*</b>)
+give Helvetica. Anything else becomes Helvetica as well.</p>
+<p>Since 0.9.4.61 this uses the same order as the family lookup above: the
+name written in the font specification first, the family Tk resolved it to
+second. Before that only the resolved family was matched, so the result
+depended on which fonts are installed -- <b class="const">-font {Times 14 italic}</b>
+gave Times-Italic where Tk resolves <b class="const">Times</b> to <b class="const">Nimbus Roman</b>
+and Helvetica-Oblique where it resolves to <b class="const">TeX Gyre Termes</b>. A
+font Tk reports as fixed stays Courier regardless of the written name.</p>
 <p>An element in a font mapping must exactly match the -font option in the
 text item. The corresponding mapping value is a PDF font family, e.g. one
 created by <b class="cmd">pdf4tcl::createFont</b>, possibly followed by a size.
@@ -1430,7 +1444,17 @@ A line may also break after a hyphen that joins two words, so
 <b class="const">Donau-dampfschiff</b> keeps the hyphen at the end of the line. Since
 0.9.4.60 a hyphen preceded by anything but a letter or digit does not
 break: <b class="const">Der Betrag -5 Euro</b> used to leave the sign behind on one
-line and put the number on the next.</p>
+line and put the number on the next.
+Since 0.9.4.61 a soft hyphen (<b class="const">&shy;</b>, U+00AD) marks a place where
+the line MAY break. It is a suggestion, not a character: it is printed
+only where the break actually happens, and then as a hyphen. Everywhere
+else it leaves no trace and adds nothing to the width, so a text full of
+suggestions wraps exactly like the same text without them. Up to 0.9.4.60
+it was printed wherever it stood and did not break, so
+<b class="const">Silben&shy;trennung</b> came out as one word with a stray hyphen in
+the middle.
+The hyphen added at a break is counted against the box, so the line does
+not stick out by its width.</p>
 <dl class="doctools_options">
       
 <dt><b class="option">-align</b> <i class="arg">left|right|center|justify</i></dt>

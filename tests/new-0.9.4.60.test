@@ -105,6 +105,24 @@ test italic-2.2 {Times war nie betroffen} -body {
     list [::tkpFont60 normal italic Times] [::tkpFont60 bold italic Times]
 } -result {Times-Italic Times-BoldItalic}
 
+# Dieser Test hing bis 0.9.4.60 an den installierten Schriften.
+#
+# Der letzte Fall, {Times 14 italic}, ging ueber `font actual`, und
+# CanvasSetFont schaltete auf die Familie, die Tk daraus macht -- nicht
+# auf den Namen, den der Aufrufer geschrieben hat. Gemessen am
+# 2026-08-29:
+#
+#     mit urw-base35        Times -> Nimbus Roman      Muster trifft, gruen
+#     Ubuntu 24.04 nackt    Times -> TeX Gyre Termes   kein Muster, ROT
+#
+# Seit 0.9.4.61 versucht CanvasSetFont den GESCHRIEBENEN Namen zuerst und
+# die aufgeloeste Familie danach -- denselben Vorrang, den die
+# FindFontByFamily-Schleife darunter schon hatte. Damit ist der Test
+# unabhaengig davon, was installiert ist.
+#
+# Der Befund dahinter steht in tests/fontmap.test: fm-3.1 stellt dieselbe
+# Frage als Vertraeglichkeitspaar, fm-2.1 haelt die beiden Aufrufer der
+# gemeinsamen Weiche gegeneinander.
 test italic-3.1 {tk::canvas: derselbe Zweig, dieselbe Korrektur} \
         -constraints {hasTk} -setup {
     catch {destroy .c60i}

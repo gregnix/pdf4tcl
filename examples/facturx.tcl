@@ -34,15 +34,15 @@ set inv(buyerRef)  "04011000-1234512345-06"   ;# Leitweg-ID (B2G)
 
 set seller(name)   "Muster GmbH"
 set seller(street) "Musterstrasse 1"
-set seller(zip)    "48691"
-set seller(city)   "Vreden"
+set seller(zip)    "12345"
+set seller(city)   "Musterstadt"
 set seller(country) "DE"
 set seller(vatid)  "DE123456789"
 
 set buyer(name)    "Beispiel AG"
 set buyer(street)  "Beispielweg 2"
-set buyer(zip)     "10115"
-set buyer(city)    "Berlin"
+set buyer(zip)     "12345"
+set buyer(city)    "Beispielstadt"
 set buyer(country) "DE"
 
 # one line item; amounts kept consistent across line and header totals

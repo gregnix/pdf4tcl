@@ -2,5 +2,5 @@
 #
 # VON HAND PFLEGEN. bump.tcl liest diese Datei und laesst sie stehen --
 # welche Nummer als naechste kommt, entscheidet der Autor.
-set NEXT_VERSION 0.9.4.61
-set NEXT_MSG "canvas font selection"
+set NEXT_VERSION 0.9.4.62
+set NEXT_MSG "next"

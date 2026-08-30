@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.60]
+[manpage_begin pdf4tcl n 0.9.4.61]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.60]]
+[require pdf4tcl [opt 0.9.4.61]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -793,9 +793,24 @@ Option [arg "-textscale"] overrides the automatic downsizing made for tk::canvas
 Fonts:
 [para]
 If no font mapping is given and no font is loaded under the family name,
-fonts for text items are limited to PDF's
-builtins, i.e. Helvetica, Times and Courier. A guess is made to chose which
-one to use to get a reasonable display on the page.
+fonts for text items are limited to PDF's builtins, i.e. Helvetica, Times
+and Courier. Which one is used is decided by matching the family name
+against a list of patterns: [const *courier*] and [const *fixed*] give
+Courier, [const *times*] and its usual substitutes ([const {*nimbus roman*}],
+[const {*tex gyre termes*}], [const {*liberation serif*}],
+[const {*dejavu serif*}], [const *freeserif*]) give Times, and
+[const *helvetica*], [const *arial*] and their substitutes
+([const {*nimbus sans*}], [const {*tex gyre heros*}],
+[const {*liberation sans*}], [const {*dejavu sans*}], [const *freesans*])
+give Helvetica. Anything else becomes Helvetica as well.
+[para]
+Since 0.9.4.61 this uses the same order as the family lookup above: the
+name written in the font specification first, the family Tk resolved it to
+second. Before that only the resolved family was matched, so the result
+depended on which fonts are installed -- [const {-font {Times 14 italic}}]
+gave Times-Italic where Tk resolves [const Times] to [const {Nimbus Roman}]
+and Helvetica-Oblique where it resolves to [const {TeX Gyre Termes}]. A
+font Tk reports as fixed stays Courier regardless of the written name.
 [para]
 An element in a font mapping must exactly match the -font option in the
 text item. The corresponding mapping value is a PDF font family, e.g. one
@@ -1455,6 +1470,18 @@ A line may also break after a hyphen that joins two words, so
 0.9.4.60 a hyphen preceded by anything but a letter or digit does not
 break: [const {Der Betrag -5 Euro}] used to leave the sign behind on one
 line and put the number on the next.
+
+Since 0.9.4.61 a soft hyphen ([const \u00AD], U+00AD) marks a place where
+the line MAY break. It is a suggestion, not a character: it is printed
+only where the break actually happens, and then as a hyphen. Everywhere
+else it leaves no trace and adds nothing to the width, so a text full of
+suggestions wraps exactly like the same text without them. Up to 0.9.4.60
+it was printed wherever it stood and did not break, so
+[const Silben\u00ADtrennung] came out as one word with a stray hyphen in
+the middle.
+
+The hyphen added at a break is counted against the box, so the line does
+not stick out by its width.
    [list_begin options]
       [opt_def -align "[arg left|right|center|justify]"]
          Specifies the justification. If not given, the text is left justified.

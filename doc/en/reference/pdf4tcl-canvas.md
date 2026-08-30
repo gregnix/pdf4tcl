@@ -99,8 +99,8 @@ family Tk resolved it to. The written name comes first on purpose: whether
 Tk resolves `Tahoma` to Tahoma depends on what is installed, so a lookup on
 the resolved name alone would give a different result on another machine.
 
-The 14 standard fonts are not searched, so their weight and slant are still
-chosen by the guess below. When bold or italic is asked for,
+The 14 standard fonts are not searched here, so their weight and slant are
+still chosen by the pattern match below. When bold or italic is asked for,
 `<family>-Bold`, `<family>-Italic` and `<family>-Oblique` are tried before
 the plain family name.
 
@@ -111,8 +111,35 @@ or `Nimbus Sans` carry one. Before 0.9.4.60 such a name produced a file
 whose page stayed empty, with no error anywhere.
 
 Without a mapping *and* without a font of that name, text items are limited
-to the PDF built-ins: Helvetica, Times and Courier. pdf4tcl guesses which
-one comes closest to the Tk font.
+to the PDF built-ins: Helvetica, Times and Courier. pdf4tcl decides which
+one comes closest by matching the family name against a list of patterns.
+
+Since 0.9.4.61 this uses the same order as the lookup above -- the written
+name first, the resolved family second. Before that it asked the resolved
+family only, so `-font {Times 14 italic}` gave `Times-Italic` on a machine
+with `urw-base35` installed, where Tk resolves `Times` to `Nimbus Roman`,
+and `Helvetica-Oblique` on a plain Ubuntu, where it resolves to `TeX Gyre
+Termes`. The same script, two different files.
+
+Recognised are the PostScript names and their common substitutes:
+
+| built-in | patterns |
+|---|---|
+| `Courier` | `*courier*`, `*fixed*`, and any font Tk reports as fixed |
+| `Times` | `*times*`, `*nimbus roman*`, `*tex gyre termes*`, `*liberation serif*`, `*dejavu serif*`, `*freeserif*` |
+| `Helvetica` | `*helvetica*`, `*arial*`, `*nimbus sans*`, `*tex gyre heros*`, `*liberation sans*`, `*dejavu sans*`, `*freesans*` |
+
+Anything else becomes Helvetica. That fallback is deliberate and unchanged,
+but it is now distinguishable from a match: a family that is *recognised* as
+Helvetica and one that merely *ends up* there are two different things, and
+only the first survives a change of machine. Before 0.9.4.61 the pattern
+list held only the first two or three entries of each row, so on a
+distribution shipping TeX Gyre or Liberation nothing matched at all -- of
+the twelve standard names exactly one, Courier, was really recognised, and
+the Helvetica ones came out right only because the fallback happened to be
+Helvetica.
+
+A fixed font stays Courier regardless of the written name.
 
 Where that is not good enough -- and it will not be for anything with an
 embedded or non-Latin font -- pass a mapping from Tk font names to PDF font
@@ -162,8 +189,8 @@ widget uses took the 8-bit path unconditionally before that.
 
 ### Weight and slant of a standard font
 
-For the built-ins the guess picks the variant: bold gives `-Bold`, italic
-gives `-Oblique` (`-Italic` for Times), both give `-BoldOblique`. Up to
+For the built-ins the pattern match picks the variant: bold gives `-Bold`,
+italic gives `-Oblique` (`-Italic` for Times), both give `-BoldOblique`. Up to
 0.9.4.59 italic alone gave `-BoldOblique` as well, so slanted canvas text
 came out bold; fixed in 0.9.4.60. On a `tko::path` or `tkpath` item any
 `-fontslant` other than `normal` counts as slanted, `oblique` included.

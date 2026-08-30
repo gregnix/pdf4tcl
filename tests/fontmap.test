@@ -1,0 +1,354 @@
+# fontmap.test -- the family switch, and the two copies of it
+#
+# WHY THIS FILE EXISTS
+#
+# One rule -- "which base-14 font does this family name mean" -- lives in
+# this library TWICE, and is read from a third place in pdf4tclwidget.
+#
+#     setTkpfont      line ~5600   switch on $name
+#     CanvasSetFont   line ~11724  switch on $fontinfo(-family)
+#     pdf4tclwidget   tkFont get   the same rule, inverted
+#
+# The two switches here are 37 lines each and differ in EXACTLY ONE line:
+# the expression they switch on. Everything else is a copy. Two copies of
+# a rule that nobody compares is the pattern consistency.test was written
+# for, one library layer lower.
+#
+# WHAT IS MACHINE-DEPENDENT HERE, and why it decides the shape of this file
+#
+# CanvasSetFont does not see the name the caller wrote. It sees what Tk
+# made of it, through `font actual`, and that depends on the fonts
+# installed on the machine. Measured on 2026-08-29:
+#
+#     sandbox (Ubuntu 24.04)   Times -> TeX Gyre Termes   not in the patterns
+#     a machine with urw-base35 Times -> Nimbus Roman      IS in the patterns
+#
+# So a test that asserts the OUTCOME of a canvas round trip asserts which
+# fonts are installed. It would be red on one machine and green on the
+# next without anyone touching the code. No test in this file does that.
+#
+# Instead, three things that hold everywhere:
+#
+#   1. the table    -- feed setTkpfont the name directly, no font actual
+#   2. the pair     -- CanvasSetFont must equal setTkpfont on the SAME
+#                      (resolved) family. Both sides see whatever the
+#                      machine resolved to, so the comparison is stable.
+#                      Green today: they are copies. Red when one drifts.
+#   3. the gap      -- CanvasSetFont against setTkpfont on the WRITTEN
+#                      name. Red today; that is italic-3.1 in
+#                      new-0.9.4.60.test, stated as a consistency
+#                      question instead of a single case. knownbug.
+#
+# and, at the end, the round trip printed WITHOUT a verdict, so a reader
+# on any machine can see what that machine does.
+
+source [file join [file dirname [info script]] init.tcl]
+
+# ---------------------------------------------------------------------------
+# Hilfsmittel
+# ---------------------------------------------------------------------------
+
+# Der Schriftname aus dem Inhaltsstrom. Gleiche Bauart wie fontOfStream60
+# in new-0.9.4.60.test -- hier eigener Name, damit beide Dateien einzeln
+# laufen koennen.
+proc ::fmStreamFont {out} {
+    if {[regexp {/([A-Za-z0-9-]+) [0-9.]+ Tf} $out -> name]} {
+        return $name
+    }
+    return "kein Tf"
+}
+
+# setTkpfont bekommt den Namen unveraendert -- kein `font actual`
+# dazwischen. Das ist der Weg, auf dem die Weiche selbst messbar ist.
+#
+# ACHTUNG bei slant: diese Methode gehoert zu tkpath und prueft
+# `$slant ne "normal"`. tkpath sagt normal/italic, Tk sagt roman/italic.
+# Wer Tk-Vokabular hineinreicht, bekommt still Kursivschrift -- "roman"
+# ist ungleich "normal". Siehe fm-4.1.
+proc ::fmTkp {name {weight normal} {slant normal}} {
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setTkpfont 12 $name $weight $slant
+    $pdf text "x" -x 20 -y 20
+    set r [::fmStreamFont [$pdf get]]
+    $pdf destroy
+    return $r
+}
+
+# Derselbe Weg ueber ein Canvas, also MIT `font actual`.
+proc ::fmCanvas {w spec} {
+    $w delete all
+    $w create text 10 20 -text "x" -font $spec
+    update idletasks
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf canvas $w -bbox [$w bbox all] -x 20 -y 20 -width 200 -height 60
+    set r [::fmStreamFont [$pdf get]]
+    $pdf destroy
+    return $r
+}
+
+# Tk sagt roman/italic und normal/bold; setTkpfont will normal/italic.
+proc ::fmSlantForTkp {slant} {
+    return [expr {$slant eq "italic" || $slant eq "oblique" ? "italic" : "normal"}]
+}
+
+# ---------------------------------------------------------------------------
+# 1. Die Tabelle -- welche Namen kennt die Weiche
+#
+# Maschinenunabhaengig, weil setTkpfont den Namen unveraendert nimmt.
+# Diese Liste ist der Ist-Zustand, gemessen am 2026-08-29. Sie schreibt
+# fest, WELCHE Muster erkannt werden -- und macht damit sichtbar, welche
+# nicht: die drei Familien unten, die auf Helvetica fallen, sind keine
+# serifenlosen Schriften. Es gibt fuer sie nur kein Muster.
+# ---------------------------------------------------------------------------
+
+test fm-1.1 {die Weiche kennt Times und Nimbus Roman} -body {
+    list [::fmTkp Times] [::fmTkp {Nimbus Roman}]
+} -result {Times-Roman Times-Roman}
+
+test fm-1.2 {Stil kommt am Times-Namen an} -body {
+    list [::fmTkp Times bold normal] [::fmTkp Times normal italic] \
+         [::fmTkp Times bold italic]
+} -result {Times-Bold Times-Italic Times-BoldItalic}
+
+test fm-1.3 {Courier laeuft ueber das eigene Muster} -body {
+    list [::fmTkp Courier] [::fmTkp Courier normal italic] \
+         [::fmTkp Courier bold italic]
+} -result {Courier Courier-Oblique Courier-BoldOblique}
+
+test fm-1.4 {Helvetica und Arial} -body {
+    list [::fmTkp Helvetica] [::fmTkp Arial] [::fmTkp {Nimbus Sans}]
+} -result {Helvetica Helvetica Helvetica}
+
+# Diese drei fielen bis 0.9.4.60 auf Helvetica, weil kein Muster sie
+# deckte -- Serifenfamilien, die als serifenlos gezeichnet wurden. Der
+# Test stand hier mit `Helvetica Helvetica Helvetica` als ausdruecklichem
+# Ist-Zustand und der Bemerkung, er werde rot, sobald ein Muster
+# dazukommt. Genau das ist beim Vereinheitlichen passiert; hier steht
+# jetzt das Ergebnis.
+test fm-1.5 {die Serifenfamilien der freien Distributionen} -body {
+    list [::fmTkp {TeX Gyre Termes}] [::fmTkp {Liberation Serif}] \
+         [::fmTkp {DejaVu Serif}] [::fmTkp FreeSerif]
+} -result {Times-Roman Times-Roman Times-Roman Times-Roman}
+
+test fm-1.6 {und die serifenlosen dazu} -body {
+    list [::fmTkp {TeX Gyre Heros}] [::fmTkp {Liberation Sans}] \
+         [::fmTkp {DejaVu Sans}] [::fmTkp FreeSans]
+} -result {Helvetica Helvetica Helvetica Helvetica}
+
+# Der Rueckfall ist immer noch da und muss es bleiben: Base14FromFamily
+# gibt "" zurueck, wenn nichts passt, und erst der Aufrufer macht daraus
+# Helvetica. Ohne diesen Test waere nicht unterscheidbar, ob eine
+# Familie ERKANNT wurde oder nur aufgegeben.
+test fm-1.7 {wirklich unbekannte Familien fallen auf Helvetica} -body {
+    list [::fmTkp GibtEsNichtXYZ] [::fmTkp Tahoma] \
+         [::fmTkp GibtEsNichtXYZ normal italic]
+} -result {Helvetica Helvetica Helvetica-Oblique}
+
+# ---------------------------------------------------------------------------
+# 2. Das Paar -- die beiden Kopien der Weiche gegeneinander
+#
+# CanvasSetFont bekommt die aufgeloeste Familie. Genau die geben wir auch
+# setTkpfont. Beide Seiten sehen dasselbe, egal was installiert ist --
+# deshalb ist dieser Vergleich maschinenunabhaengig, obwohl der Wert
+# selbst es nicht ist.
+#
+# Heute gruen: es sind zwei Kopien. Rot wird er, sobald eine driftet, und
+# das ist der Grund fuer diesen Abschnitt.
+# ---------------------------------------------------------------------------
+
+test fm-2.1 {beide Kopien der Weiche sagen dasselbe} -constraints {hasTk} -setup {
+    catch {destroy .fm21}
+    canvas .fm21 -width 200 -height 60
+} -body {
+    set fehler {}
+    foreach spec {{Helvetica 14} {Helvetica 14 bold} {Helvetica 14 italic}
+                  {Helvetica 14 bold italic}
+                  {Times 14} {Times 14 bold} {Times 14 italic}
+                  {Times 14 bold italic}
+                  {Courier 14} {Courier 14 italic}
+                  {{DejaVu Sans} 14} {{Liberation Serif} 14}} {
+        array set fa [font actual $spec]
+        set ueberCanvas [::fmCanvas .fm21 $spec]
+        set ueberTkp [::fmTkp $fa(-family) $fa(-weight) \
+                              [::fmSlantForTkp $fa(-slant)]]
+        # Eine feste Schrift schreibt CanvasSetFont vor der Weiche auf
+        # courier um; setTkpfont sieht diesen Schritt nicht. Der Fall ist
+        # in fm-1.3 abgedeckt und hier nicht vergleichbar.
+        if {$fa(-family) eq "Courier" || [font metrics $spec -fixed]} continue
+        if {$ueberCanvas ne $ueberTkp} {
+            lappend fehler "$spec: canvas=$ueberCanvas tkp=$ueberTkp\
+                    (aufgeloest: $fa(-family))"
+        }
+        array unset fa
+    }
+    set fehler
+} -cleanup {
+    destroy .fm21
+} -result {}
+
+# ---------------------------------------------------------------------------
+# 3. Die Luecke -- geschriebener Name gegen aufgeloeste Familie
+#
+# Drei Zeilen ueber der Weiche in CanvasSetFont steht, dass fuer die Suche
+# nach einer GELADENEN Schrift der geschriebene Name zuerst zaehlt: sonst
+# haengt das Ergebnis daran, was auf der Maschine installiert ist. Die
+# FindFontByFamily-Schleife darunter macht das auch, ueber
+# [list $writtenFamily $tkFamily].
+#
+# Die Base-14-Weiche darueber macht es nicht. Sie fragt nur die
+# aufgeloeste Familie. Dieselbe Ueberlegung, zwei Stellen, eine folgt ihr
+# nicht -- und das ist der Grund, warum italic-3.1 in
+# new-0.9.4.60.test hier rot ist und auf einer Maschine mit urw-base35
+# gruen.
+#
+# SEIT 0.9.4.61 GRUEN. CanvasSetFont versucht jetzt [list $writtenFamily
+# $tkFamily] -- denselben Vorrang, den die FindFontByFamily-Schleife
+# darunter schon hatte. Das Constraint knownbug ist deshalb weg; faellt
+# dieser Test wieder aus, ist der Vorrang verlorengegangen.
+# ---------------------------------------------------------------------------
+
+# fm-3.2 ist der Test, der den VORRANG allein misst -- und er musste
+# nachgeliefert werden.
+#
+# Die Gegenprobe zu fm-3.1 griff naemlich NICHT: nimmt man
+# [list $writtenFamily $tkFamily] wieder auf [list $tkFamily] zurueck,
+# bleibt in dieser Sandbox alles gruen. Der Grund ist, dass an 0.9.4.61
+# ZWEI Dinge gleichzeitig geaendert wurden -- die Musterliste wurde um
+# die freien Familien erweitert UND der geschriebene Name bekam den
+# Vorrang. Auf dieser Maschine deckt schon die erste Aenderung alles zu:
+# "TeX Gyre Termes" wird jetzt erkannt, also reicht die aufgeloeste
+# Familie.
+#
+# Eine Gegenprobe, die nicht greift, ist selbst ungeprueft. Deshalb hier
+# ein Fall, den nur der Vorrang loesen kann: ein Name, der das Muster
+# trifft und den es nicht gibt. Tk loest ihn auf die Vorgabeschrift auf
+# (hier DejaVu Sans), die Weiche wuerde daraus Helvetica machen -- der
+# geschriebene Name sagt Times.
+test fm-3.2 {nur der geschriebene Name kann diesen Fall entscheiden} \
+        -constraints {hasTk} -setup {
+    catch {destroy .fm32}
+    canvas .fm32 -width 200 -height 60
+} -body {
+    set spec {TimesGibtEsNichtXYZ 14}
+    set aufgeloest [dict get [font actual $spec] -family]
+    # Wenn die Vorgabeschrift dieser Maschine selbst nach Times aussieht,
+    # unterscheidet der Fall nichts mehr. Dann ist das Ergebnis ohnehin
+    # Times, und der Test sagt nichts Falsches -- er sagt nur nichts.
+    if {[string match -nocase *times* $aufgeloest] ||
+        [string match -nocase {*nimbus roman*} $aufgeloest]} {
+        return Times-Roman
+    }
+    ::fmCanvas .fm32 $spec
+} -cleanup {
+    destroy .fm32
+} -result Times-Roman
+
+test fm-3.3 {dasselbe fuer Courier, wo die feste Schrift nicht greift} \
+        -constraints {hasTk} -setup {
+    catch {destroy .fm33}
+    canvas .fm33 -width 200 -height 60
+} -body {
+    # Der Name trifft *courier*, die aufgeloeste Schrift ist NICHT fest --
+    # der -fixed-Zweig hilft hier also nicht, nur der geschriebene Name.
+    set spec {CourierGibtEsNichtXYZ 14}
+    if {[font metrics $spec -fixed]} { return Courier }
+    ::fmCanvas .fm33 $spec
+} -cleanup {
+    destroy .fm33
+} -result Courier
+
+test fm-3.1 {der geschriebene Name kommt an der Weiche an} \
+        -constraints {hasTk} -setup {
+    catch {destroy .fm31}
+    canvas .fm31 -width 200 -height 60
+} -body {
+    set fehler {}
+    foreach spec {{Times 14} {Times 14 bold} {Times 14 italic}
+                  {Times 14 bold italic}} {
+        set ueberCanvas [::fmCanvas .fm31 $spec]
+        set ueberName [::fmTkp [lindex $spec 0] \
+                {*}[expr {[lsearch $spec bold] >= 0 ? {bold} : {normal}}] \
+                {*}[expr {[lsearch $spec italic] >= 0 ? {italic} : {normal}}]]
+        if {$ueberCanvas ne $ueberName} {
+            lappend fehler "$spec: canvas=$ueberCanvas geschrieben=$ueberName"
+        }
+    }
+    set fehler
+} -cleanup {
+    destroy .fm31
+} -result {}
+
+# ---------------------------------------------------------------------------
+# 4. Zwei Vokabeln fuer slant
+#
+# setTkpfont gehoert zu tkpath und prueft `$slant ne "normal"`. tkpath
+# sagt normal/italic, Tk sagt roman/italic. Wer den Tk-Wert
+# durchreicht -- naheliegend, weil `font actual` ihn genau so liefert --
+# bekommt Kursivschrift ohne jede Meldung.
+#
+# Der Test schreibt das fest, damit die Falle benannt ist. Er behauptet
+# nicht, dass es falsch waere: fuer tkpath ist normal richtig.
+# ---------------------------------------------------------------------------
+
+test fm-4.1 {Tk-Vokabular an setTkpfont ergibt still kursiv} -body {
+    list [::fmTkp Times normal normal] [::fmTkp Times normal roman]
+} -result {Times-Roman Times-Italic}
+
+# ---------------------------------------------------------------------------
+# Der Rundlauf, ohne Urteil
+#
+# PDF-Name -> Tk-Familie (wie pdf4tclwidget sie waehlt) -> zurueck ueber
+# ein Canvas. Kein Test: das Ergebnis haengt an den installierten
+# Schriften.
+#
+# VOR 0.9.4.61, in dieser Sandbox: vier von zwoelf kamen nicht zurueck
+# (die vier Times-Namen), und die vier Helvetica-Namen kamen nur deshalb
+# richtig zurueck, weil der default-Zweig Helvetica war -- "TeX Gyre
+# Heros" traf `*helvetica*` genauso wenig wie Termes `*times*` traf. Von
+# zwoelf Namen wurde EINER wirklich erkannt: Courier, und auch der nur,
+# weil -fixed die Familie vorher umschreibt.
+#
+# NACH 0.9.4.61, dieselbe Maschine: zwoelf von zwoelf, und diesmal
+# erkannt statt geraten.
+#
+# Trotzdem kein Test: auf einer Maschine mit Schriften, deren Namen kein
+# Muster treffen, faellt der Rundlauf wieder auseinander. Was die Weiche
+# ERKENNT, misst fm-1.x -- ohne font actual und damit ohne die Maschine.
+#
+# Sichtbar mit FONTMAP_REPORT=1, sonst still.
+# ---------------------------------------------------------------------------
+
+if {[::tcltest::testConstraint hasTk] && [info exists ::env(FONTMAP_REPORT)]} {
+    catch {destroy .fmr}
+    canvas .fmr -width 200 -height 60
+    # Dieselbe Tabelle wie pdf4tclwidget::tkFont, hier fest, damit die
+    # Datei nicht von einem anderen Paket abhaengt.
+    puts "\n--- Rundlauf PDF-Name -> Tk-Familie -> PDF-Name ---"
+    foreach {n fam} {
+        Helvetica Helvetica  Helvetica-Bold Helvetica  Helvetica-Oblique Helvetica
+        Helvetica-BoldOblique Helvetica
+        Times-Roman Times  Times-Bold Times  Times-Italic Times
+        Times-BoldItalic Times
+        Courier Courier  Courier-Bold Courier  Courier-Oblique Courier
+        Courier-BoldOblique Courier
+    } {
+        set w [expr {[string match *Bold* $n] ? "bold" : "normal"}]
+        set s [expr {([string match *Italic* $n] || [string match *Oblique* $n])
+                     ? "italic" : "roman"}]
+        set spec [list $fam 14 $w $s]
+        set zurueck [::fmCanvas .fmr $spec]
+        puts [format "  %-22s %-10s %-22s %s%s" $n $fam \
+                [dict get [font actual $spec] -family] $zurueck \
+                [expr {$zurueck eq $n ? "" : "   <-- anders"}]]
+    }
+    destroy .fmr
+}
+
+rename ::fmStreamFont {}
+rename ::fmTkp {}
+rename ::fmCanvas {}
+rename ::fmSlantForTkp {}
+
+cleanupTests
