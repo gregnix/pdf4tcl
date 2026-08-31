@@ -1,3 +1,16 @@
+2026-08-31 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.62
+	* src/main.tcl (gsave, grestore): both close an open text object
+	before writing q and Q. ISO 32000-1 section 8.2 allows only text
+	operators between BT and ET, so the streams came out as
+	"BT ... q ... ET Q" -- every viewer but Adobe Reader rendered such a
+	page, Adobe showed a blank one without any message. Found through
+	pdf4tcllib::labels::render with -clip 1.
+	* tests/nesting.test: new. Checks the operator nesting in the content
+	streams -- no q or Q between BT and ET, BT/ET balanced and never
+	nested. Against the unfixed source four of the nine tests fail.
+
 2026-08-29 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.61

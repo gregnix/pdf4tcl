@@ -4079,6 +4079,14 @@ Use -pdfa-icc to specify a profile path."
 
     # Save graphic context
     method gsave {} {
+        # q is a graphics operator; ISO 32000-1 section 8.2 allows only text
+        # operators between BT and ET. Writing it inside a text object gave
+        # "BT ... q ... ET Q", which every viewer but Adobe Reader renders --
+        # Adobe shows a blank page with no message at all, and pdfinfo
+        # reports a healthy file. Every other drawing method closes the text
+        # object, either itself like clip and rectangle or through DrawLine;
+        # these two did not.
+        my EndTextObj
         my Pdfoutcmd "q"
         # Keep track of the state in the PDF object that is stored in paralell
         foreach item $pdf(stateToGSave) {
@@ -4088,6 +4096,7 @@ Use -pdfa-icc to specify a profile path."
 
     # Restore graphic context
     method grestore {} {
+        my EndTextObj
         my Pdfoutcmd "Q"
         foreach item $pdf(stateToGSave) {
             if {[info exists pdf(saved,$item)]} {
