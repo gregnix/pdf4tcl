@@ -2,7 +2,9 @@
 # run-all-demos.tcl -- alle pdf4tcl Demos ausfuehren
 #
 # Fuehrt alle Demo-Skripte aus und sammelt Ergebnisse.
-# Demos die Tk benoetigen werden uebersprungen wenn kein DISPLAY gesetzt ist.
+# Demos die Tk benoetigen werden uebersprungen, wenn sich kein Fenster
+# oeffnen laesst -- unter X11 heisst das "kein DISPLAY", auf Windows und
+# macOS nichts.
 #
 # Usage:
 #   tclsh run-all-demos.tcl              -- Ausgabe nach demo/out/
@@ -55,7 +57,25 @@ set runAll [expr {[lsearch -exact $argv --alle] >= 0}]
 # Tk verfuegbar?
 # ---------------------------------------------------------------------------
 
-set hasTk [expr {[info exists env(DISPLAY)] && $env(DISPLAY) ne ""}]
+# DISPLAY ist ein X11-Begriff. Auf Windows und macOS gibt es kein DISPLAY
+# und Tk laeuft trotzdem -- der Test meldete dort "Tk verfuegbar: nein" und
+# uebersprang jede Tk-Demo. Gemeldet am 05.09.2026 aus einem Windows-Lauf.
+#
+# Die Frage ist nicht, ob eine Umgebungsvariable gesetzt ist, sondern ob
+# sich ein Fenster oeffnen laesst. Auf X11 bleibt DISPLAY die Antwort, sonst
+# entscheidet die Plattform.
+switch -- $tcl_platform(platform) {
+    windows { set hasTk 1 }
+    default {
+        if {$tcl_platform(os) eq "Darwin"} {
+            # Aqua braucht kein DISPLAY; ein gesetztes DISPLAY hiesse dort
+            # nur, dass zusaetzlich X11 da ist.
+            set hasTk 1
+        } else {
+            set hasTk [expr {[info exists env(DISPLAY)] && $env(DISPLAY) ne ""}]
+        }
+    }
+}
 
 # ---------------------------------------------------------------------------
 # Zeitgrenze je Demo
@@ -66,15 +86,41 @@ set hasTk [expr {[info exists env(DISPLAY)] && $env(DISPLAY) ne ""}]
 # auf einer Maschine mit Anzeige. Ohne DISPLAY wird dieselbe Demo
 # uebersprungen, der Lauf ist gruen, und niemand sieht es.
 #
-# timeout(1) stammt aus den coreutils und fehlt auf Windows. Wo es fehlt,
-# laeuft es wie bisher -- eine Zeitgrenze in reinem Tcl braeuchte
-# nichtblockierende Kanaele und eine eigene Event-Schleife, was fuer einen
-# Demo-Runner zu viel Apparat ist.
-
+# timeout(1) stammt aus den coreutils. Wo es fehlt, laeuft es wie bisher --
+# eine Zeitgrenze in reinem Tcl braeuchte nichtblockierende Kanaele und eine
+# eigene Event-Schleife, was fuer einen Demo-Runner zu viel Apparat ist.
+#
+# ABER: "vorhanden" heisst nicht "dasselbe Programm". Windows bringt ein
+# eigenes TIMEOUT.EXE mit, das WARTET statt zu begrenzen -- "timeout 120
+# tclsh demo.tcl" ist dort ein Syntaxfehler:
+#
+#   FEHLER: Ungueltige Syntax. Die Standardoption darf nicht mehr als
+#   1 Mal verwendet werden.
+#
+# Gemeldet am 05.09.2026 von einem Windows-Lauf: 31 von 31 Demos
+# "fehlgeschlagen", keine einzige davon wegen der Demo. auto_execok fand
+# ein Programm dieses Namens, und das wurde als Beleg dafuer genommen, dass
+# es das richtige ist.
+#
+# Also nachfragen statt annehmen: coreutils-timeout kennt "--version" und
+# nennt sich darin. Alles andere zaehlt nicht.
 set demoTimeout 120
 set timeoutCmd {}
 if {[llength [auto_execok timeout]] > 0} {
-    set timeoutCmd [list timeout $demoTimeout]
+    if {![catch {exec timeout --version} probe]
+            && [string match -nocase "*coreutils*" $probe]} {
+        set timeoutCmd [list timeout $demoTimeout]
+    }
+}
+if {![llength $timeoutCmd]} {
+    puts "Zeitgrenze: keine (kein coreutils-timeout gefunden)"
+}
+
+# 77: die Demo hat eine Voraussetzung vermisst und sich selbst
+# abgemeldet -- kein Fehler. Dieselbe Zahl benutzt autoconf dafuer.
+proc Uebersprungen {} {
+    return [expr {[lindex $::errorCode 0] eq "CHILDSTATUS"
+                  && [lindex $::errorCode 2] == 77}]
 }
 
 # timeout(1) beendet mit 124, wenn die Grenze zuschlug.
@@ -151,11 +197,11 @@ set DEMOS {
     {demo-otf.tcl                0  --out      "OpenType-Fonts"
         "benoetigt OTF-Fonts im System (Loma o.ae.)"}
     {demo-canvas-0.9.4.24.tcl    1  none       "Canvas-Export"
-        "benoetigt Tk"}
+        ""}
     {demo-canvas-tkpath.tcl      1  none       "Canvas-Export mit tkpath"
-        "benoetigt Tk und tkpath"}
+        "@paket tkpath"}
     {demo-canvas-tko.tcl         1  none       "Canvas-Export mit tko::path"
-        "benoetigt Tk und tko"}
+        "@paket tko"}
 }
 
 # ---------------------------------------------------------------------------
@@ -176,7 +222,9 @@ set n_fail 0
 set failed {}
 
 puts "Ausgabe: $outdir"
-puts "Tk verfuegbar: [expr {$hasTk ? {ja} : {nein (DISPLAY nicht gesetzt)}}]"
+# Den Grund nennen, aber nur den, der hier gilt: "DISPLAY nicht gesetzt"
+# waere auf Windows eine falsche Auskunft.
+puts "Tk verfuegbar: [expr {$hasTk ? {ja} : {nein (kein DISPLAY)}}]"
 puts "\n[string repeat - 60]"
 
 # Waechter gegen die stille Luecke: DEMOS ist eine feste Liste, und eine
@@ -205,6 +253,22 @@ foreach demo $DEMOS {
         skip "$script -- Datei nicht gefunden"
         incr n_skip
         continue
+    }
+
+    # Ein Grund der Form "@paket X" ist keine Entscheidung, sondern eine
+    # Frage: ist das Paket da? Vorher stand hier fuer die Canvas-Demos
+    # ein fester Grund "benoetigt Tk" -- sie wurden uebersprungen, AUCH
+    # wenn Tk laengst geladen werden konnte. Gemeldet aus einem
+    # Windows-Lauf 05.09.2026: "Tk verfuegbar: ja" und drei Zeilen
+    # weiter "SKIP -- benoetigt Tk".
+    if {[string match "@paket *" $grund]} {
+        set paket [lindex $grund 1]
+        if {[catch {package require $paket}]} {
+            skip "$script -- Paket \"$paket\" nicht vorhanden"
+            incr n_skip
+            continue
+        }
+        set grund ""
     }
 
     # Bewusst ausgelassen?
@@ -237,6 +301,23 @@ foreach demo $DEMOS {
 
     set cmd [list {*}$timeoutCmd [info nameofexecutable] $scriptpath {*}$extraargs]
     if {[catch {exec {*}$cmd 2>@stdout} result]} {
+        if {[Uebersprungen]} {
+            # Ein fehlendes Fremdteil ist kein Fehler der Demo.
+            #
+            # demo-kerning-ligatures braucht Carlito, demo-pdfa-gs
+            # braucht Ghostscript. Beide melden das sauber und enden mit
+            # 1 -- der Lauf zaehlte sie als FEHLER, und damit war er auf
+            # keiner Maschine ohne diese Teile jemals gruen. Ein Lauf,
+            # der nie gruen wird, wird nicht mehr gelesen; dann faellt
+            # ein echter Fehler daneben nicht mehr auf.
+            #
+            # 77 ist die Zahl, die autoconf dafuer benutzt. Sie sagt:
+            # "nicht ausgefuehrt, Voraussetzung fehlt".
+            puts "SKIP (Voraussetzung fehlt)"
+            if {$result ne ""} { puts "         [lindex [split $result \n] 0]" }
+            incr n_skip
+            continue
+        }
         if {[TimedOut]} {
             puts "ZEITGRENZE (${demoTimeout}s)"
             puts "         Laeuft die Demo in eine Event-Loop? Ein Skript, das"

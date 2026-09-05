@@ -1,0 +1,168 @@
+# pdfcheck.test -- tools/pdfcheck-native.tcl
+#
+# Der Pruefer hatte bisher keine Testdatei. Aufgefallen ist das an einer
+# Zeile, die ihn nicht bemaengelte, sondern ABBRACH:
+#
+#   list element in quotes followed by ")" instead of space
+#       while executing "lindex $line end"
+#
+# Ein Inhaltsstrom ist keine Tcl-Liste. Ein Werkzeug, das an einer Datei
+# stirbt statt sie zu bewerten, meldet so wenig wie eines, das sie falsch
+# bewertet -- und schlimmer: es nimmt die uebrigen Dateien des Laufs mit.
+
+package require tcltest 2.5
+namespace import ::tcltest::*
+
+set here [file dirname [file normalize [info script]]]
+source [file join $here init.tcl]
+
+set ::checker [file join [file dirname $here] tools pdfcheck-native.tcl]
+testConstraint checker [file exists $::checker]
+
+set ::tmpdir [file join [temporaryDirectory] pdfcheck-[pid]]
+file mkdir $::tmpdir
+
+# Den Pruefer aufrufen wie ein Benutzer: als Skript, ueber die
+# Kommandozeile. Nicht die Prozedur darunter -- die Fehlermeldung oben
+# kam aus einem Lauf, nicht aus einem Aufruf von innen.
+proc pruefe {datei} {
+    set rc [catch {exec [info nameofexecutable] $::checker --plain $datei} out]
+    return [list $rc $out]
+}
+
+test pdfcheck-1.1 {eine gewoehnliche Datei wird bewertet} -constraints checker -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "schlicht" -x 20 -y 30
+    $p write -file [file join $::tmpdir schlicht.pdf]
+    $p destroy
+    lassign [pruefe [file join $::tmpdir schlicht.pdf]] rc out
+    list $rc [string match "*OVERALL*" $out]
+} -result {0 1}
+
+test pdfcheck-1.2 {Anfuehrungszeichen im Text brechen den Pruefer nicht} -constraints checker -body {
+    # Der gemeldete Fall. Eine Zeichenkette mit " oder ( im Inhalt
+    # erzeugt eine Stromzeile, die als Tcl-Liste nicht lesbar ist.
+    # Gemessen an demo/out/canvas-cheat-sheet.pdf; hier nachgestellt.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text {Anfuehrung " und Klammer ( zu} -x 20 -y 30
+    $p text "geschweift \{ offen" -x 20 -y 50
+    $p write -file [file join $::tmpdir quote.pdf]
+    $p destroy
+    lassign [pruefe [file join $::tmpdir quote.pdf]] rc out
+    # Kein Abbruch, und ein Ergebnis steht da.
+    list $rc [string match "*OVERALL*" $out] \
+            [string match "*element in quotes*" $out]
+} -result {0 1 0}
+
+test pdfcheck-1.3 {ein verbotener Operator im Textobjekt wird gefunden} -constraints checker -body {
+    # Gegenprobe zu 1.2: der Pruefer soll nicht einfach alles
+    # durchwinken. sh gehoert nicht zwischen BT und ET (ISO 32000-1
+    # Figur 9), und genau das muss er melden.
+    # Der Strom von Hand, ohne Bibliothek: die schliesst das Textobjekt
+    # seit .63 selbst, und ein Test, der den Fehlerfall nicht mehr
+    # herstellen kann, prueft den Pruefer nicht.
+    set inhalt "BT\n/F1 12 Tf\n1 0 0 1 50 700 Tm\n(x) Tj\n/Shd1 sh\nET\n"
+    set f [file join $::tmpdir sh.pdf]
+    set fh [open $f wb]
+    puts -nonewline $fh "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    puts -nonewline $fh "2 0 obj\n<< /Type /Pages /Kids \[3 0 R\] /Count 1 >>\nendobj\n"
+    puts -nonewline $fh "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox \[0 0 595 842\]\
+            /Contents 4 0 R >>\nendobj\n"
+    puts -nonewline $fh "4 0 obj\n<< /Length [string length $inhalt] >>\nstream\n$inhalt\nendstream\nendobj\n"
+    puts -nonewline $fh "trailer\n<< /Root 1 0 R /Size 5 >>\n%%EOF\n"
+    close $fh
+    lassign [pruefe $f] rc out
+    string match "*graphics operators inside a text object*" $out
+} -result 1
+
+# ---------------------------------------------------------------------------
+# Ein Strom ist kein zeilenorientiertes Format
+# ---------------------------------------------------------------------------
+
+proc streamPdf {inhalt datei} {
+    # Eine Mindestdatei mit einem Inhaltsstrom, den wir selbst schreiben.
+    # qpdf richtet die xref danach ein.
+    set roh [file join $::tmpdir roh-[file tail $datei]]
+    set fh [open $roh wb]
+    puts -nonewline $fh "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    puts -nonewline $fh "2 0 obj\n<< /Type /Pages /Kids \[3 0 R\] /Count 1 >>\nendobj\n"
+    puts -nonewline $fh "3 0 obj\n<< /Type /Page /Parent 2 0 R\
+            /MediaBox \[0 0 595 842\] /Contents 4 0 R >>\nendobj\n"
+    puts -nonewline $fh "4 0 obj\n<< /Length [string length $inhalt] >>\
+            \nstream\n$inhalt\nendstream\nendobj\n"
+    puts -nonewline $fh "trailer\n<< /Root 1 0 R /Size 5 >>\n%%EOF\n"
+    close $fh
+    # qpdf meldet die fehlende xref, richtet sie ein und endet mit
+    # Rueckgabewert 3 ("operation succeeded with warnings").
+    #
+    # "2>@1" statt "-ignorestderr": letzteres unterdrueckt nur den
+    # FEHLER, die Meldung geht trotzdem an stderr des Aufrufers -- und
+    # tcltest zaehlt eine Testdatei, die nach stderr schreibt, als
+    # "Test file error". Gemeldet aus einem Windows-Lauf am 05.09.2026;
+    # unter Linux fiel es nicht auf, weil dort niemand hinsah.
+    #
+    # Was zaehlt, ist das Ergebnis: liegt die Datei da?
+    catch {exec qpdf $roh $datei 2>@1}
+    file delete $roh
+    if {![file exists $datei] || [file size $datei] == 0} {
+        error "streamPdf: qpdf hat $datei nicht geschrieben"
+    }
+    return $datei
+}
+testConstraint haveQpdf2 [expr {![catch {exec qpdf --version}]}]
+
+test pdfcheck-2.1 {BT am Zeilenende ist kein Fehler} -constraints {checker haveQpdf2} -body {
+    # Der gemeldete Fall: demo-pdfa-gs-1b.pdf und -2b.pdf fielen mit
+    # "BT and ET are not balanced", waehrend die pdf4tcl-Quelle daneben
+    # sauber war. Ghostscript schreibt mehrere Operatoren je Zeile;
+    # der Pruefer verglich ganze Zeilen mit "BT" und "ET", sah das BT am
+    # Zeilenende nicht und das ET allein schon -- Tiefe negativ.
+    set f [streamPdf "q 0 0 595 842 re W n BT\n/F1 12 Tf 50 700 Td (Hallo) Tj\nET\nQ" \
+            [file join $::tmpdir gs.pdf]]
+    lassign [pruefe $f] rc out
+    list $rc [string match "*not balanced*" $out]
+} -result {0 0}
+
+test pdfcheck-2.2 {ein echter Verstoss wird auch kompakt gefunden} -constraints {checker haveQpdf2} -body {
+    # Und das ist die andere Haelfte: zeilenweise haette der Pruefer
+    # diesen Strom ueberhaupt nicht lesen koennen. Der alte fand hier
+    # NICHTS.
+    set f [streamPdf "BT /F1 12 Tf 50 700 Td (x) Tj q 1 0 0 1 0 0 cm Q /Sh1 sh ET" \
+            [file join $::tmpdir boese.pdf]]
+    lassign [pruefe $f] rc out
+    list [string match "*graphics operators inside a text object*" $out] \
+            [string match "*sh 1x*" $out] [string match "*q 1x*" $out]
+} -result {1 1 1}
+
+test pdfcheck-2.3 {BT und ET in einer Zeichenkette zaehlen nicht} -constraints {checker haveQpdf2} -body {
+    # Sonst liest man Inhalt als Befehl.
+    set f [streamPdf "BT /F1 12 Tf 50 700 Td (hier steht ET und BT drin) Tj ET" \
+            [file join $::tmpdir str.pdf]]
+    lassign [pruefe $f] rc out
+    list $rc [string match "*not balanced*" $out]
+} -result {0 0}
+
+test pdfcheck-2.4 {ein verwaistes EMC wird gefunden} -constraints {checker haveQpdf2} -body {
+    # BDC/BMC und EMC muessen paarweise sein (ISO 32000-1 14.6). Das sah
+    # bisher niemand -- auch dieser Pruefer nicht.
+    set f [streamPdf "BT /F1 12 Tf 50 700 Td (x) Tj ET\nEMC" \
+            [file join $::tmpdir emc.pdf]]
+    lassign [pruefe $f] rc out
+    string match "*BDC/BMC and EMC are not balanced*" $out
+} -result 1
+
+test pdfcheck-2.5 {ausgeglichenes Marked Content stoert nicht} -constraints {checker haveQpdf2} -body {
+    # Gegenprobe: die neue Pruefung darf nicht jeden Strom mit Ebenen
+    # anmeckern.
+    set f [streamPdf "/OC /Lyr1 BDC\nBT /F1 12 Tf 50 700 Td (x) Tj ET\nEMC" \
+            [file join $::tmpdir mc.pdf]]
+    lassign [pruefe $f] rc out
+    list $rc [string match "*not balanced*" $out]
+} -result {0 0}
+
+file delete -force $::tmpdir
+cleanupTests

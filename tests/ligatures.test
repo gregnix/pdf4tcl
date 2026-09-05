@@ -275,13 +275,39 @@ foreach k {
 }
 testConstraint haveKernLig [expr {$::kernLigFont ne ""}]
 
-test ligatures-5.0 {die Suche hat etwas gefunden} -body {
-    # DER GUARD. Ein uebersprungener Test meldet gruen und misst nichts;
-    # dieser hier faellt, wenn die Suche nichts findet -- dann ist
-    # entweder keine passende Schrift installiert oder die Suche kaputt.
-    #
-    # Ohne ihn waere ligatures-5.1 stumm uebersprungen, und niemand
-    # wuesste, dass die Sache weiterhin ungetestet ist.
+# Lag ueberhaupt eine der Kandidatenschriften vor?
+#
+# Das trennt zwei Faelle, die der Guard unten vorher in einen Topf warf:
+#   Schrift fehlt      -> nichts zu messen, kein Fehler
+#   Schrift da, aber   -> die Suche findet keine Ligatur mit Kerning:
+#   nichts gefunden       DAS ist ein Befund
+#
+# Vorher fiel 5.0 auf jeder Maschine ohne Carlito bei JEDEM Lauf. Ein
+# Test, der immer rot ist, wird nicht mehr gelesen -- und dann verdeckt
+# er genau den Fall, fuer den er gebaut wurde. Gemeldet aus einem
+# Windows-Lauf 05.09.2026.
+set ::kernLigDateiDa 0
+foreach k {
+    /usr/share/fonts/truetype/crosextra/Carlito-Regular.ttf
+    /usr/share/fonts/truetype/crosextra/Caladea-BoldItalic.ttf
+} {
+    if {[file readable $k]} { set ::kernLigDateiDa 1 ; break }
+}
+testConstraint haveKernLigDatei $::kernLigDateiDa
+if {!$::kernLigDateiDa} {
+    puts "[file tail [info script]]: keine Schrift mit Ligatur UND Kerning\
+            im System (Carlito, Caladea)."
+    puts "  ligatures-5.0 und 5.1 werden uebersprungen -- die Sache ist\
+            hier UNGETESTET."
+}
+
+test ligatures-5.0 {die Suche hat etwas gefunden} \
+        -constraints haveKernLigDatei -body {
+    # DER GUARD, jetzt praezise: er laeuft nur, wenn eine der
+    # Kandidatenschriften WIRKLICH da ist. Faellt er dann, ist die Suche
+    # kaputt -- und das ist ein Befund. Fehlt die Schrift, sagt die
+    # Meldung oben laut, dass hier nichts gemessen wurde; still gruen
+    # ist es damit trotzdem nicht.
     expr {$::kernLigFont ne "" && [string length $::kernLigText] >= 3}
 } -result 1
 

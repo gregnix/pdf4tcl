@@ -62,6 +62,23 @@ pdf4tcl::exportForms "filled.pdf" "filled.fdf"
 `fillForms` writes values and returns how many fields it filled.
 `exportForms` writes FDF or XFDF.
 
+**`fillForms` writes the value, it does not draw it.** It sets `/V` and
+turns on `/NeedAppearances`; the existing appearance stream stays as it
+is. A viewer that honours the flag shows the new value -- Acrobat and the
+common browsers do. A print path that renders the appearance shows the
+**old** one.
+
+Measured: a field created with `-init "Alt"` and then filled with
+`"Meier"` carries `/V (Meier)` while its `/AP` still draws `Alt`.
+`pdftotext` reads the value and reports `Meier`; on paper it would say
+`Alt`.
+
+`addForm` builds the streams as it goes, so a document produced in one
+pass is unaffected. **Where it must not go wrong, produce the document
+with its values instead of filling it afterwards.** Filling is for forms
+that come from elsewhere and cannot be regenerated -- and there the result
+belongs in the viewer that will print it, before the paper does.
+
 A text field takes a string; a check box or radio button takes the state
 name **with the slash**, as it appears in the file:
 

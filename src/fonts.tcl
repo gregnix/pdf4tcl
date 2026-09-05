@@ -1140,6 +1140,30 @@ space instead of the usual empty rectangle."
         return [expr {((0xD800 + ($uchar >> 10)) << 16) + (0xDC00 + ($uchar & 0x3FF))}]
     }
 
+    # Die fuenf Bytes, die cp1252 nicht belegt. EINE Liste, EIN Vergleich --
+    # sie wurde vorher an drei Stellen verschieden behandelt.
+    #
+    # WARUM U+FFFD und nicht weglassen: die Norm verlangt keines von
+    # beidem, und viele Erzeuger lassen undefinierte Bytes einfach aus
+    # der ToUnicode-CMap heraus. Hier steht FFFD, weil die CMap dann
+    # LUECKENLOS ist: jedes Byte hat einen Eintrag, und wer sie liest,
+    # sieht den Unterschied zwischen "nicht darstellbar" und "vergessen".
+    # Kopiert man solchen Text heraus, kommt das Ersetzungszeichen statt
+    # eines stillen Lochs. Das war die Absicht des vorhandenen Codes --
+    # sie stand im Kommentar und griff nur nicht (der Vergleich war eine
+    # Zeichenkette). In .63 ist sie wirksam; wer sie aendern will, aendert
+    # eine Entscheidung, keine Nebenwirkung.
+    #
+    # Zahlen, keine 0x-Literale: [expr {$i in $liste}] vergleicht als
+    # ZEICHENKETTE. "129 in {0x81 ...}" ist FALSCH, obwohl 129 == 0x81.
+    # Der frühere Waechter hat deshalb nie gegriffen, und dieselbe Quelle
+    # lieferte unter 8.6 <0081> und unter 9.0 <FFFD>. Gemessen 2026-09-03.
+    variable Cp1252UndefinedBytes {129 141 143 144 157}
+    proc Cp1252Undefined {byte} {
+        variable Cp1252UndefinedBytes
+        return [expr {[lsearch -exact -integer $Cp1252UndefinedBytes $byte] >= 0}]
+    }
+
     # Creates a ToUnicode CMap for WinAnsiEncoding (Standard Type1 fonts).
     # Maps all 256 cp1252 byte values to their Unicode codepoints.
     # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) map to U+FFFD.
@@ -1148,10 +1172,9 @@ space instead of the usual empty rectangle."
         # Build cp1252 -> Unicode table byte-by-byte (Tcl 8.6 + 9.0 safe)
         # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) -> 0xFFFD
         # in beiden Versionen -- Tcl 8.6 gibt sonst C1-Controls (U+0081 etc.)
-        set undefinedCp1252 {0x81 0x8D 0x8F 0x90 0x9D}
         set subset {}
         for {set i 0} {$i < 256} {incr i} {
-            if {$i in $undefinedCp1252} {
+            if {[Cp1252Undefined $i]} {
                 lappend subset 0xFFFD
             } elseif {[catch {
                 set ch [encoding convertfrom cp1252 [binary format cu $i]]
@@ -1697,11 +1720,19 @@ space instead of the usual empty rectangle."
         variable Fonts
 
         set subset [list]
+        set isCp1252 [expr {$enc_name eq "cp1252"}]
         for {set f 0} {$f < 256} {incr f} {
             # Convert byte-by-byte: Tcl 9.0 is strict and rejects
             # undefined bytes (e.g. 0x81 in cp1252) when converting
             # a full 256-byte block at once.
-            if {[catch {
+            #
+            # Der catch allein reicht nicht: unter 8.6 wirft dieselbe
+            # Umwandlung KEINEN Fehler, sondern liefert den C1-Control
+            # U+0081. Ohne den Waechter davor stand hier je nach
+            # Interpreter 129 oder 0.
+            if {$isCp1252 && [Cp1252Undefined $f]} {
+                lappend subset 0  ;# undefined byte -> .notdef
+            } elseif {[catch {
                 set unichar [encoding convertfrom $enc_name [binary format cu $f]]
                 lappend subset [scan $unichar %c]
             }]} {
@@ -1788,9 +1819,14 @@ space instead of the usual empty rectangle."
         # Byte-for-byte conversion with catch for Tcl 9.0 strict UTF-8 mode.
         # CP1252 bytes 0x81 0x8D 0x8F 0x90 0x9D are undefined -- they raise
         # an error in Tcl 9.0; map them to 0 (.notdef) instead.
+        # Der Waechter steht VOR der Umwandlung, nicht nur der catch danach:
+        # 8.6 wirft hier keinen Fehler, sondern liefert U+0081 usw. Sonst
+        # haengt /Differences am Interpreter.
         set bset [list]
         for {set f 0} {$f < 256} {incr f} {
-            if {[catch {
+            if {[Cp1252Undefined $f]} {
+                lappend bset 0
+            } elseif {[catch {
                 set unichar [encoding convertfrom cp1252 [binary format cu $f]]
                 lappend bset [scan $unichar %c]
             }]} {

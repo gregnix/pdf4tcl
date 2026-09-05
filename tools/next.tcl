@@ -2,5 +2,9 @@
 #
 # VON HAND PFLEGEN. bump.tcl liest diese Datei und laesst sie stehen --
 # welche Nummer als naechste kommt, entscheidet der Autor.
-set NEXT_VERSION 0.9.4.62
-set NEXT_MSG "gsave and grestore close an open text object -- q and Q between BT and ET made Adobe Reader show a blank page while every other viewer rendered it; tests/nesting.test checks the operator nesting in the content streams"
+#
+# NEXT_MSG ist absichtlich leer: was .64 wird, ist noch nicht entschieden.
+# Aus der Aktualliste stuenden bereit: /AP in fillForms, CID-CFF-Subset,
+# ToUnicode zwei CIDs, PDF/A-4.
+set NEXT_VERSION 0.9.4.64
+set NEXT_MSG ""

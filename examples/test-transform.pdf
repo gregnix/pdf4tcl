@@ -328,7 +328,7 @@ endbfchar
 <7E> <007E>
 <7F> <007F>
 <80> <20AC>
-<81> <0081>
+<81> <FFFD>
 <82> <201A>
 <83> <0192>
 <84> <201E>
@@ -340,10 +340,10 @@ endbfchar
 <8A> <0160>
 <8B> <2039>
 <8C> <0152>
-<8D> <008D>
+<8D> <FFFD>
 <8E> <017D>
-<8F> <008F>
-<90> <0090>
+<8F> <FFFD>
+<90> <FFFD>
 <91> <2018>
 <92> <2019>
 <93> <201C>
@@ -356,7 +356,7 @@ endbfchar
 <9A> <0161>
 <9B> <203A>
 <9C> <0153>
-<9D> <009D>
+<9D> <FFFD>
 <9E> <017E>
 <9F> <0178>
 <A0> <00A0>
@@ -625,7 +625,7 @@ endbfchar
 <7E> <007E>
 <7F> <007F>
 <80> <20AC>
-<81> <0081>
+<81> <FFFD>
 <82> <201A>
 <83> <0192>
 <84> <201E>
@@ -637,10 +637,10 @@ endbfchar
 <8A> <0160>
 <8B> <2039>
 <8C> <0152>
-<8D> <008D>
+<8D> <FFFD>
 <8E> <017D>
-<8F> <008F>
-<90> <0090>
+<8F> <FFFD>
+<90> <FFFD>
 <91> <2018>
 <92> <2019>
 <93> <201C>
@@ -653,7 +653,7 @@ endbfchar
 <9A> <0161>
 <9B> <203A>
 <9C> <0153>
-<9D> <009D>
+<9D> <FFFD>
 <9E> <017E>
 <9F> <0178>
 <A0> <00A0>
@@ -999,7 +999,7 @@ stream
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:xmp="http://ns.adobe.com/xap/1.0/"
    xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
-   <pdf:Producer>gregnix pdf4tcl 0.9.4.62</pdf:Producer>
+   <pdf:Producer>gregnix pdf4tcl 0.9.4.63</pdf:Producer>
   </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>
@@ -1028,7 +1028,7 @@ trailer
 <<
 /Size 15
 /Root 1 0 R
-/ID [<CA2E2F40711CBC17CA2E01A8711C92FF> <CA2E2F40711CBC17CA2E01A8711C92FF>]
+/ID [<0B020C7B05BC72260B02229305BC5CCE> <0B020C7B05BC72260B02229305BC5CCE>]
 >>
 
 startxref

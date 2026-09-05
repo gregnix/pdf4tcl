@@ -12,6 +12,7 @@ namespace eval pdf4tcl {
     variable Ff_EDIT        262144     ;# Bit 19: Edit (Ch)
     variable Ff_SORT        524288     ;# Bit 20: Sort (Ch)
     variable Ff_MULTISELECT 2097152    ;# Bit 22: MultiSelect (Ch)
+    variable Ff_COMB       16777216    ;# Bit 25: Comb (Tx, needs /MaxLen)
 
     # rgb2Cmyk and cmyk2Rgb moved to src/color.tcl.
 }

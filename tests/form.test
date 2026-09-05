@@ -73,12 +73,16 @@ test form-3.3 {addForm method, checkbutton} -body {
 test form-4.1 {getForms command} -body {
     mytest -file {addForm text 0 0 10 10 -id MyPrecious} {}
     pdf4tcl::getForms testdebug.pdf
-} -cleanup {file delete testdebug.pdf} -result [list MyPrecious [list type /Tx value {} flags 0]]
+    # Die Rueckgabe ist in 0.9.4.63 um maxlen und comb gewachsen. Ein
+    # Test, der das ganze dict festnagelt, meldet jede Erweiterung --
+    # hier zu Recht: die Rueckgabe ist Teil der zugesagten Schnittstelle
+    # und steht so in der manpage.
+} -cleanup {file delete testdebug.pdf} -result [list MyPrecious [list type /Tx value {} flags 0 maxlen {} comb 0]]
 
 test form-4.2 {getForms command} -body {
     mytest -file {addForm checkbutton 0 0 10 10 -id TheSuperForm} {}
     pdf4tcl::getForms testdebug.pdf
-} -cleanup {file delete testdebug.pdf} -result [list TheSuperForm [list type /Btn default /Off value /Off flags 0]]
+} -cleanup {file delete testdebug.pdf} -result [list TheSuperForm [list type /Btn default /Off value /Off flags 0 maxlen {} comb 0]]
 
 # ---------------------------------------------------------------------------
 # One /AP per widget dictionary (0.9.4.43)
@@ -137,5 +141,344 @@ test form-ap-1.3 {a field with a value still has an /AP at all} -body {
     $p destroy
     expr {[apCount $data] > 0}
 } -result 1
+
+# ---------------------------------------------------------------------------
+# 0.9.4.63: dieselbe Diagnose wie ueberall, wenn keine Schrift gesetzt ist
+# ---------------------------------------------------------------------------
+
+test form-font-1.1 {addForm ohne setFont meldet "no font set"} -body {
+    # Vorher brach der Aufruf mit einer INTERNEN Meldung ab:
+    #   can't read "FontsAttrs(,specialencoding)": no such element in array
+    # getStringWidth und drawTextBox sagen an derselben Stelle
+    # "no font set" -- addForm jetzt auch.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage
+    catch {$p addForm text 50 700 100 20 -id f1 -init "Wert"} e
+    $p destroy
+    set e
+} -result {no font set}
+
+test form-font-1.2 {ohne Wert braucht ein Feld keine Schrift} -body {
+    # Gegenprobe zur Sperre, und sie hat die erste Fassung korrigiert:
+    # ich hatte die Pruefung an den Kopf von addForm gesetzt. Damit
+    # fielen sieben Tests der Suite -- addform-tooltip, addform-tabindex,
+    # tabsr-1.1, embedfile-6.2 --, die absichtlich Felder ohne Schrift
+    # anlegen. Ein Feld ohne Wert baut keinen Strom und braucht keine.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage
+    set rc [catch {$p addForm text 50 700 100 20 -id f2} e]
+    $p destroy
+    set rc
+} -result 0
+
+test form-font-1.3 {mit Schrift laeuft es weiter durch} -body {
+    # Gegenprobe zur Sperre: sie darf nicht mehr verbieten als gemeint.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id f3 -init "Wert"
+    set data [$p get]
+    $p destroy
+    regexp {/T \(f3\)} $data
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 0.9.4.63: auch ein LEERES Feld bekommt ein /AP
+# ---------------------------------------------------------------------------
+
+test form-ap-empty-1.1 {ein Feld ohne Wert hat ein Aussehen-Dictionary} -body {
+    # Vorher entstand keins. Das ist der Normalfall fuer ein Formular,
+    # das spaeter gefuellt wird -- und genau dort erbt ein fillForms
+    # nichts, was es aktualisieren koennte.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id leer
+    set data [$p get]
+    $p destroy
+    regexp {/AP << /N [0-9]+ 0 R >>} $data
+} -result 1
+
+test form-ap-empty-1.2 {der Strom ist leer, nicht irgendetwas} -body {
+    # Laenge 0, so wie PDF/A es hier schon immer geschrieben hat --
+    # ISO 19005 6.3.3 verlangt das Dictionary, nicht seinen Inhalt.
+    # Ein "/Tx BMC EMC" waere ein zweiter, neuer Fall gewesen.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id leer
+    set data [$p get]
+    $p destroy
+    set idx [string first "/Subtype /Form" $data]
+    regexp {/Length ([0-9]+)} [string range $data $idx [expr {$idx+200}]] -> len
+    set len
+} -result 0
+
+test form-ap-empty-1.3 {ein Feld MIT Wert zeichnet weiterhin} -body {
+    # Gegenprobe: der leere Strom darf den gefuellten nicht verdraengen.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id voll -init "Wert"
+    set data [$p get]
+    $p destroy
+    regexp {\(Wert\) Tj} $data
+} -result 1
+
+test form-ap-empty-1.4 {ein leeres Feld braucht keine Schrift} -body {
+    # Die Schriftpruefung aus form-font-1.1 darf hier NICHT greifen: der
+    # leere Strom zeichnet nichts. Die Schrift des Feldes steht in /DA.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage
+    set rc [catch {$p addForm text 50 700 100 20 -id leer} e]
+    $p destroy
+    set rc
+} -result 0
+
+test form-font-1.5 {alle acht Feldtypen melden dasselbe} -body {
+    # Der Waechter stand zuerst NUR in _BuildTextAP, und die Doku
+    # behauptete danach, addForm melde "no font set". Gemessen, indem
+    # alle acht Typen ohne setFont durchprobiert wurden: combobox,
+    # listbox, pushbutton und signature lieferten weiter die interne
+    # Array-Meldung. Vier Bauer, vier Stellen.
+    set ergebnis {}
+    foreach {t extra} {text {} password {} checkbutton {} \
+            radiobutton {-group g -value v} combobox {-options {a b}} \
+            listbox {-options {a b}} pushbutton {-caption OK} signature {}} {
+        set p [::pdf4tcl::new %AUTO%]
+        $p startPage
+        set rc [catch {$p addForm $t 50 700 100 20 -id f {*}$extra} e]
+        $p destroy
+        if {$rc && $e ne "no font set"} { lappend ergebnis $t:$e }
+    }
+    set ergebnis
+} -result {}
+
+test form-font-1.6 {wer keinen Strom baut, braucht keine Schrift} -body {
+    # Gegenprobe: die vier Typen ohne Appearance duerfen NICHT sperren.
+    # text und password bauen erst mit -init, checkbutton und
+    # radiobutton zeichnen mit Vektoren.
+    set laufen {}
+    foreach {t extra} {text {} password {} checkbutton {} \
+            radiobutton {-group g -value v}} {
+        set p [::pdf4tcl::new %AUTO%]
+        $p startPage
+        if {![catch {$p addForm $t 50 700 100 20 -id f {*}$extra}]} {
+            lappend laufen $t
+        }
+        $p destroy
+    }
+    set laufen
+} -result {text password checkbutton radiobutton}
+
+# ---------------------------------------------------------------------------
+# 0.9.4.63: /MaxLen, Comb und -format date/time
+# ---------------------------------------------------------------------------
+
+test form-maxlen-1.1 {-maxlen schreibt /MaxLen} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id kfz -maxlen 8
+    set data [$p get] ; $p destroy
+    regexp {/MaxLen 8} $data
+} -result 1
+
+test form-maxlen-1.2 {-comb setzt Bit 25 und braucht /MaxLen} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id kfz -maxlen 8 -comb 1
+    set data [$p get] ; $p destroy
+    # Bit 25 = 16777216 (ISO 32000-1 12.7.4.3, Tabelle 228)
+    regexp {/Ff (\d+)} $data -> ff
+    expr {$ff & 16777216 ? 1 : 0}
+} -result 1
+
+test form-maxlen-1.3 {Comb ohne MaxLen wird gemeldet} -body {
+    # Die Norm teilt die Feldbreite durch /MaxLen. Ohne Teiler gibt es
+    # keine Kaestchen -- ein Comb-Flag allein taete still nichts.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    catch {$p addForm text 50 700 100 20 -id x -comb 1} e
+    $p destroy
+    string match "*-comb needs -maxlen*" $e
+} -result 1
+
+test form-maxlen-1.4 {Comb und multiline schliessen sich aus} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    catch {$p addForm text 50 700 100 20 -id x -maxlen 5 -comb 1 -multiline 1} e
+    $p destroy
+    string match "*exclude each other*" $e
+} -result 1
+
+test form-maxlen-1.5 {MaxLen nur bei Textfeldern} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    catch {$p addForm combobox 50 700 100 20 -id x -options {a b} -maxlen 5} e
+    $p destroy
+    string match "*only valid for text and password*" $e
+} -result 1
+
+test form-maxlen-1.6 {jedes Zeichen sitzt mittig in seiner Zelle} -body {
+    # Der Appearance-Strom setzt je Zeichen eine eigene Textmatrix. Die
+    # Abstaende muessen der Zellbreite entsprechen -- 200/8 = 25 pt --
+    # und nicht der Zeichenbreite.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 200 20 -id kfz -maxlen 8 -comb 1 -init "ABCDEFGH"
+    set data [$p get] ; $p destroy
+    set xs {}
+    foreach {all x} [regexp -all -inline {1 0 0 1 ([0-9.]+) 1.1 Tm} $data] {
+        lappend xs $x
+    }
+    # Acht Zeichen, und der Schritt ist die Zellbreite.
+    set schritt [expr {[lindex $xs 1] - [lindex $xs 0]}]
+    list [llength $xs] [expr {abs($schritt - 25.0) < 0.5}]
+} -result {8 1}
+
+test form-maxlen-1.7 {ohne Comb bleibt es eine Zeile} -body {
+    # Gegenprobe: die Zellenrechnung darf nur den Comb-Fall treffen.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 200 20 -id normal -init "ABCDEFGH"
+    set data [$p get] ; $p destroy
+    list [regexp {\(ABCDEFGH\) Tj} $data] \
+            [llength [regexp -all -inline {1 0 0 1 [0-9.]+ 1.1 Tm} $data]]
+} -result {1 0}
+
+test form-format-1.1 {-format date, Vorgabe deutsch} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id d -format date
+    set data [$p get] ; $p destroy
+    list [regexp {AFDate_FormatEx} $data] [regexp {dd\.mm\.yyyy} $data]
+} -result {1 1}
+
+test form-format-1.2 {benannte Muster und eigene} -body {
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id a -format {date format iso}
+    $p addForm text 50 660 100 20 -id b -format {date format {dd mmm yyyy}}
+    $p addForm text 50 620 100 20 -id c -format {time}
+    set data [$p get] ; $p destroy
+    list [regexp {yyyy-mm-dd} $data] [regexp {dd mmm yyyy} $data] \
+            [regexp {AFTime_FormatEx} $data]
+} -result {1 1 1}
+
+test form-format-1.3 {das Zahlenformat bleibt, wie es war} -body {
+    # Gegenprobe: date und time duerfen den vorhandenen Weg nicht stoeren.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id n -format {number decimals 2 sep german}
+    set data [$p get] ; $p destroy
+    regexp {AFNumber_Format\\\(2, 2, 0, 0} $data
+} -result 1
+
+test form-format-1.4 {eine unbekannte Art wird gemeldet} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    catch {$p addForm text 50 700 100 20 -id x -format {waehrung}} e
+    $p destroy
+    string match "*must be number, date or time*" $e
+} -result 1
+
+test form-format-1.5 {ein unbekannter Schluessel wird gemeldet} -body {
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    catch {$p addForm text 50 700 100 20 -id x -format {date muster iso}} e
+    $p destroy
+    string match "*unknown key*" $e
+} -result 1
+
+test form-getforms-1.1 {getForms meldet maxlen und comb} -body {
+    # Was addForm schreiben kann, muss getForms lesen koennen. Beides kam
+    # in .63 dazu, und beim Zuruecklesen fiel es zuerst unter den Tisch.
+    set f [file join [temporaryDirectory] gf-[pid].pdf]
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 200 20 -id kfz -maxlen 8 -comb 1 -init "ABCDEFGH"
+    $p addForm text 50 660 200 20 -id name -init "Muster"
+    $p addForm text 50 620 200 20 -id kurz -maxlen 5
+    $p write -file $f
+    $p destroy
+    set g [::pdf4tcl::getForms $f]
+    file delete $f
+    list [dict get $g kfz maxlen] [dict get $g kfz comb] \
+         [dict get $g name maxlen] [dict get $g name comb] \
+         [dict get $g kurz maxlen] [dict get $g kurz comb]
+} -result {8 1 {} 0 5 0}
+
+tcltest::testConstraint haveQpdf [expr {![catch {exec qpdf --version}]}]
+
+test form-getforms-1.2 {Comb-Bit ohne MaxLen ist kein Kammfeld} -constraints haveQpdf -body {
+    # Die Auskunft soll sagen, was die Datei BEWIRKT, nicht was in ihr
+    # steht. Ohne Teiler gibt es keine Zellen (ISO 32000-1 12.7.4.3).
+    # addForm laesst das gar nicht zu -- eine fremde Datei kann es
+    # trotzdem enthalten.
+    #
+    # Darum eine ECHTE Datei und /MaxLen herausgeschnitten, statt eine
+    # von Hand zu bauen: der erste Versuch scheiterte an der fehlenden
+    # xref ("no startxref at the end"). qpdf baut sie hinterher neu.
+    set f  [file join [temporaryDirectory] gf2-[pid].pdf]
+    set f2 [file join [temporaryDirectory] gf3-[pid].pdf]
+    set f3 [file join [temporaryDirectory] gf4-[pid].pdf]
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p startPage ; $p setFont 10 Helvetica
+    $p addForm text 50 700 200 20 -id x -maxlen 8 -comb 1
+    $p write -file $f
+    $p destroy
+    exec qpdf --qdf --object-streams=disable $f $f2
+    set fh [open $f2 rb] ; set d [read $fh] ; close $fh
+    # Gleiche Laenge, damit nichts verrutscht -- qpdf richtet die xref
+    # danach ohnehin neu ein.
+    set d [string map {"/MaxLen 8" "/Xaxlen 8"} $d]
+    set fh [open $f2 wb] ; puts -nonewline $fh $d ; close $fh
+    exec qpdf $f2 $f3
+    set g [::pdf4tcl::getForms $f3]
+    file delete $f $f2 $f3
+    list [expr {[dict get $g x flags] & 16777216 ? 1 : 0}] \
+            [dict get $g x comb] [dict get $g x maxlen]
+} -result {1 0 {}}
+
+test form-maxlen-1.8 {die Ausrichtung waehlt die Zellen} -body {
+    # Vorher begann der Text immer bei Zelle 0, und -align war eine
+    # Option, die es gibt und die nichts tut: /Q stand in der Datei und
+    # wirkte nicht. Drei Zeichen in acht Zellen, 200 pt breit -- also
+    # 25 pt je Zelle.
+    set erste {}
+    foreach a {left center right} {
+        set p [::pdf4tcl::new %AUTO% -compress 0]
+        $p startPage ; $p setFont 10 Helvetica
+        $p addForm text 50 700 200 20 -id f -maxlen 8 -comb 1 \
+                -align $a -init "ABC"
+        set data [$p get] ; $p destroy
+        regexp {1 0 0 1 ([0-9.]+) 1.1 Tm} $data -> x
+        lappend erste $x
+    }
+    lassign $erste l c r
+    # links Zelle 0, mittig Zelle 2 ((8-3)/2), rechts Zelle 5 (8-3).
+    list [expr {abs($c - $l - 50.0) < 0.5}] [expr {abs($r - $l - 125.0) < 0.5}]
+} -result {1 1}
+
+test form-maxlen-1.9 {ein zu langer -init wird gemeldet} -body {
+    # Gemessen: acht Zeichen bei -maxlen 4 liefen durch, der Comb-Strom
+    # zeichnete vier, die anderen verschwanden still -- und /V trug
+    # trotzdem alle acht. Die Datei haette etwas enthalten, das niemand
+    # sieht und niemand tippen koennte.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    catch {$p addForm text 50 700 200 20 -id f -maxlen 4 -init "ABCDEFGH"} e
+    $p destroy
+    set e
+} -result {-init is longer than -maxlen (8 > 4)}
+
+test form-maxlen-1.10 {gleich lang ist erlaubt} -body {
+    # Gegenprobe zur Grenze: sie darf nicht eins zu frueh greifen.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage ; $p setFont 10 Helvetica
+    set rc [catch {$p addForm text 50 700 200 20 -id f -maxlen 8 -init "ABCDEFGH"}]
+    $p destroy
+    set rc
+} -result 0
 
 ::tcltest::cleanupTests

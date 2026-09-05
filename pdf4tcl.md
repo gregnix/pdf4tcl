@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.62?**
+package require **pdf4tcl ?0****.9****.4****.63?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -254,7 +254,9 @@ package require **pdf4tcl ?0****.9****.4****.62?**
 
 *objectName* **addEmbeddedFile** *filename* ?*options*?
 
-*objectName* **addLayer** *name* ?**-visible bool**?
+*objectName* **addLayer** *name* ?**-visible bool**? ?**-print bool**? ?**-export bool**? ?**-zoom {min max}**? ?**-locked bool**? ?**-group name**?
+
+*objectName* **layers**
 
 *objectName* **beginLayer** *layerId*
 
@@ -414,8 +416,14 @@ mypdf destroy
 **default**
 : Default value, if any.
 
+**maxlen**
+: Value of **/MaxLen**, or empty if the field has none (0.9.4.63).
+
+**comb**
+: 1 for a comb field -- flag bit 25 *and* a **/MaxLen** (0.9.4.63). A file may carry the bit without the length; the norm divides the field width by **/MaxLen**, so without it there are no cells and this reports 0. The answer says what the file does, not what stands in it.
+
 **::pdf4tcl::getForms infile**
-: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields:
+: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields: *The returned dictionary gained two keys in 0**.9**.4**.63**.* Code that compares the whole dict against a literal will notice; code that reads individual keys will not.
 
 **::pdf4tcl::fillForms infile outfile values**
 : Fill the form fields of an existing PDF and write it out again (0.9.4.50+). Returns the number of fields filled. *values* is a dictionary of field id to value. A text field takes a string; a check box or radio button takes the state name as it appears in the file, with the slash (**/Yes**, **/Off**). **getForms** reports the current state under **default**. A field named in *values* but not present in the file raises an error rather than being ignored: a form that comes out empty with no explanation is worse than a refused call. Fields present but not named keep their value.
@@ -424,7 +432,9 @@ mypdf destroy
 pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
 ```
 
-The value is written, not drawn. **/NeedAppearances** is set, which tells the viewer to render it; a viewer that ignores the flag shows the field as it was, with the value present but invisible. Acrobat and the common browsers honour it.
+*The value is written, not drawn**.* **/NeedAppearances** is set, which tells the viewer to render it, and Acrobat and the common browsers honour that. A viewer or print path that does not shows the field's *old* appearance stream -- which is not the same as showing nothing. Measured: a field created with **-init Alt** and then filled with **Meier** carries **/V (Meier)** while its **/AP** still draws **Alt**. **pdftotext** reads the value and reports **Meier**; a printer that renders the appearance puts **Alt** on the paper, and nobody sees the difference before the sheet is out.
+
+**addForm** does build appearance streams, so a document produced in one go is unaffected. The gap is in filling a document that already exists. If it must not go wrong, produce the document with the values in place instead of filling it afterwards -- and where the file comes from elsewhere and cannot be regenerated, check the result in the viewer that will print it.
 
 **-format fdf|xfdf**
 : Output format. **fdf** (default): Forms Data Format (ISO 32000 SS12.7.7), a compact text format supported by most PDF viewers. **xfdf**: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
@@ -500,7 +510,13 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 : Attach raw JavaScript actions to a *text* field. *spec* is a list of *event*/*code* pairs, where *event* is one of **calculate** (**/C**), **format** (**/F**), **validate** (**/V**) or **keystroke** (**/K**) and *code* is the JavaScript body. Useful for calculations that the built-in **AFSimple_Calculate** cannot express, e.g. **event****.value = this****.getField("net")****.value * 1****.19;**. Shares one **/AA** with **-calculate** / **-format**; each event may be defined only once (a clash raises an error). A **calculate** action adds the field to the AcroForm **/CO** order and sets **/NeedAppearances true**. Requires a JavaScript-capable viewer; only valid for *text* fields.
 
 **-format spec**
-: Format a numeric *text* field via the viewer's built-in **AFNumber_Format** / **AFNumber_Keystroke** (**/AA /F** and **/AA /K**). *spec* is **number** optionally followed by key/value pairs: **decimals** *n* (default 2), **sep** (thousands/decimal style: **0**/**us**, **1**/**plain**, **2**/**german**, **3**/**comma**; default 0), **currency** *string* (e.g. ** **\**u20AC**; non-ASCII is emitted as a JavaScript escape), **prepend** *boolean* (currency before the number; default false) and **negred** *boolean* (show negatives in red). Can be combined with **-calculate** (both share one **/AA**). Requires a JavaScript-capable viewer; only valid for *text* fields.
+: Format a numeric *text* field via the viewer's built-in **AFNumber_Format** / **AFNumber_Keystroke** (**/AA /F** and **/AA /K**). *spec* is **number** optionally followed by key/value pairs: **decimals** *n* (default 2), **sep** (thousands/decimal style: **0**/**us**, **1**/**plain**, **2**/**german**, **3**/**comma**; default 0), **currency** *string* (e.g. ** **\**u20AC**; non-ASCII is emitted as a JavaScript escape), **prepend** *boolean* (currency before the number; default false) and **negred** *boolean* (show negatives in red). Can be combined with **-calculate** (both share one **/AA**). Requires a JavaScript-capable viewer; only valid for *text* fields. *spec* may also be **date** or **time**, which use **AFDate_FormatEx** / **AFTime_FormatEx** and take an optional **format** *pattern*. Named patterns save guessing whether the month is **m**, **mm** or **MM**: **german** and **de** give **dd****.mm****.yyyy** (the default for **date**), **iso** gives **yyyy-mm-dd**, **us** gives **mm/dd/yyyy**, **short** gives **dd****.mm****.yy**; for **time** there are **24** (**HH:MM**, the default), **24s** and **12**. Any other value is passed through unchanged, so **-format {date format {dd mmm yyyy}}** works too.
+
+**-maxlen n**
+: Maximum number of characters (**/MaxLen**, ISO 32000-1 12.7.4.3). Only valid for *text* and *password* fields.
+
+**-comb boolean**
+: Comb field: the width is divided into **-maxlen** cells and one character is centred in each. This is what a preprinted form with a box per character wants -- a registration number, a customs or UN number. **-comb** requires **-maxlen**, because the norm divides the field width by it and without a divisor there are no cells; it also excludes **-multiline**. Both are reported rather than silently ignored. Only valid for *text* fields. **-align** applies here too: with fewer characters than cells it decides *which* cells they sit in -- left fills from the first, **center** centres the block, **right** fills to the last. An **-init** longer than **-maxlen** is refused. The viewer would not accept those characters either, so the file would carry a value nobody can see and nobody could type.
 
 **-on xobjectId**
 : Custom appearance XObject for the checked state. Created with **startXObject**.
@@ -943,7 +959,7 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 : Return width in points instead of current unit.
 
 **objectName setFont size ?fontname?**
-: This method sets the font used by text drawing routines. If *fontname* is not provided, the previously set *fontname* is kept.
+: This method sets the font used by text drawing routines. If *fontname* is not provided, the previously set *fontname* is kept. *[arg size] is in the document unit, not in points**.* In a document created with **-unit mm**, **setFont 10** means ten millimetres, which is 28.35 pt -- everywhere else a font size is a point size, so this surprises. For a point size in a millimetre document, convert: **$pdf setFont [expr {10 * 25****.4 / 72****.0}]**.
 
 **objectName getStringWidth str ?options?**
 : This method returns the width of *str* in the current unit. Options (0.9.4.23+):
@@ -1456,10 +1472,10 @@ Colors can be expressed in various formats. First, as a three element list of va
 : Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.
 
 **objectName gsave**
-: Save graphic/text context. (I.e. insert a raw PDF "q" command). This saves the settings of at least these calls: **clip**, **setBgColor**, **setFillColor**, **setStrokeColor**, **setAlpha**, **setLineStyle**, **setLineWidth**, **setLineDash**, **setFont**, and **setLineSpacing**. Each call to **gsave** should be followed by a later call to **grestore** in the same page.
+: Save graphic/text context. (I.e. insert a raw PDF "q" command). An open text object is closed first: **q** and **Q** are special graphics state operators and are not permitted between **BT** and **ET** (ISO 32000-1 8.2). Since 0.9.4.62. This saves the settings of at least these calls: **clip**, **setBgColor**, **setFillColor**, **setStrokeColor**, **setAlpha**, **setLineStyle**, **setLineWidth**, **setLineDash**, **setFont**, and **setLineSpacing**. Each call to **gsave** should be followed by a later call to **grestore** in the same page.
 
 **objectName grestore**
-: Restore graphic/text context. (I.e. insert a raw PDF "Q" command). Restores all saved state including the raw-coordinate mode set by **translate**, **rotate**, **scale**, or **transform**. After **grestore**, drawing commands return to user-coordinate mode (orient + margin active).
+: Restore graphic/text context. (I.e. insert a raw PDF "Q" command). As with **gsave**, an open text object is closed first. Since 0.9.4.62. Restores all saved state including the raw-coordinate mode set by **translate**, **rotate**, **scale**, or **transform**. After **grestore**, drawing commands return to user-coordinate mode (orient + margin active).
 
 **objectName transform a b c d e f**
 : Apply a PDF transformation matrix (**cm** operator) to the current graphics state. Use with **gsave**/**grestore**. After this call, drawing commands (**line**, **rectangle** etc.) work in raw-coordinate mode: y points upward, no margin, no orient flip. Text commands (**text**) use absolute **Tm** positioning and are *not* affected by transformation matrices.
@@ -1489,14 +1505,17 @@ $pdf grestore
 **objectName addEmbeddedFile filename ?options?**
 : Embed a file in the PDF. When **-pdfa 3b** is active the FileSpec OID is automatically added to the document-level **/AF** array in the Catalog (ISO 19005-3 SS6.2.11.4). Options: **-contents**, **-mimetype**, **-description**, **-afrelationship** (Alternative|Data|Source|Supplement|Unspecified). *Note:* Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).
 
-**objectName addLayer name ?-visible bool?**
-: Add an Optional Content Group (OCG / layer) to the document. Returns a layer ID for use with **beginLayer**. *name* is the visible label shown in the viewer's layer panel. **-visible** controls default visibility (1 = shown, 0 = hidden, default: 1). Use cases: debug grids (**-visible 0**), letterhead variants, watermarks (**-visible 0**). *Note:* **addLayer** must be called before **finish**. All layers are shared across all pages of the document.
+**objectName addLayer name ?-visible bool? ?-print bool? ?-export bool? ?-zoom {min max}? ?-locked bool? ?-group name?**
+: Add an Optional Content Group (OCG / layer) to the document. Returns a layer ID for use with **beginLayer**. *name* is the visible label shown in the viewer's layer panel. **-visible** controls default visibility (1 = shown, 0 = hidden, default: 1). Use cases: debug grids (**-visible 0**), letterhead variants, watermarks (**-visible 0**). **-print** controls whether the layer reaches the printer (1 = printed, 0 = screen only, default: 1). With **-print 0** the OCG carries a **/Usage** dictionary with **/Print << /PrintState /OFF >>** (ISO 32000-1 8.11.4.4, table 102), and the **/AS** array is written into the default configuration -- a viewer applies **/Usage** only through **/AS**. The use case is overprinting a preprinted sheet: a scan of the form belongs on the screen so the user can see where the boxes are, and it must not reach the paper, because the preprint is already there. **-export** sets the state used when the document is saved to a format without optional content, a raster image for instance. **-zoom** takes a magnification range *min max*; either may be empty for unbounded. **-locked** tells the viewer not to let the user toggle the layer. **-group** puts layers into a radio group: of all layers sharing a group name, at most one is visible at a time -- letterhead or language variants. All of these end up in the OCG's **/Usage** dictionary or the default configuration (**/Locked**, **/RBGroups**), and each category named in **/AS** lists only the layers that carry the matching **/Usage** entry. *When this works, and when it does not**.* ISO 32000-1 8.11.4.4 is explicit: usage application dictionaries -- the **/AS** array that makes **/Usage** take effect -- shall only be used by *interactive* conforming readers, and shall not be used by applications that use PDF as final form output. **/PrintState** likewise says the group is set to that state *when the document is printed from a conforming reader*. So: printing out of a viewer honours **-print 0**. Sending the file straight to a RIP or a print pipeline that treats PDF as final form output does not -- and that is conforming behaviour, not a bug in the consumer. Where it must not go wrong -- overprinting a preprinted sheet, for instance -- do not put the artwork into the file at all. A layer is the right tool for a form the user fills and prints from a reader, not for a production print path. *Note:* **addLayer** must be called before **finish**. All layers are shared across all pages of the document.
+
+**objectName layers**
+: Returns the layers of this document as a list of dicts with the keys **oid**, **name**, **visible**, **print**, **export**, **zoom**, **locked** and **group** -- the same shape **addLayer** stored. Without it a caller only ever had the id it was handed and no way back to the name.
 
 **objectName beginLayer layerId**
 : Open an Optional Content Group block. All drawing commands until **endLayer** belong to this layer. *layerId* is the OID returned by **addLayer**. Inserts a **BDC** operator into the content stream.
 
 **objectName endLayer**
-: Close the current Optional Content Group block. Inserts an **EMC** operator into the content stream.
+: **BDC** and **EMC** must pair up and nest (ISO 32000-1 14.6). **endLayer** without a matching **beginLayer** raises an error, and **endPage** refuses a page that still has a layer open. Neither was checked before 0.9.4.63, and no checker saw the result. Close the current Optional Content Group block. Inserts an **EMC** operator into the content stream.
 
 ```tcl
 set lGrid [$pdf addLayer "Debug-Raster" -visible 0]
@@ -1507,6 +1526,11 @@ $pdf beginLayer $lGrid
 $pdf endLayer
 $pdf beginLayer $lKopf
   $pdf text "Musterfirma GmbH" -x 40 -y 28
+$pdf endLayer
+# Screen only: visible in the viewer, not sent to the printer.
+set lScan [$pdf addLayer "Vordruck (Ansicht)" -print 0]
+$pdf beginLayer $lScan
+  $pdf putImage $img 0 0 -width 210 -height 297
 $pdf endLayer
 ```
 

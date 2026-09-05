@@ -285,7 +285,14 @@ oo::define ::pdf4tcl::pdf4tcl {
             # Anything else: ask Tk. Catch both a bad color and Tk not
             # being present or having no display.
             if {[catch {winfo rgb . $color} tkcolor]} {
-                throw {PDF4TCL} "unknown color: $color"
+                # Die Meldung nannte nur den Wert. Wer "-bgcolor 1"
+                # schreibt, liest dann "unknown color: 1" und weiss
+                # nicht, was stattdessen dastehen soll. Vorbild sind die
+                # Formularoptionen: "-options is required for combobox"
+                # sagt die Erwartung, nicht nur den Fehler.
+                throw {PDF4TCL} "unknown color: \"$color\" -- expected a\
+                        name like \"red\", \"#rrggbb\", or three numbers\
+                        between 0 and 1"
             }
             foreach {red green blue} $tkcolor break
             set red   [expr {($red   & 0xFF00) / 65280.0}]

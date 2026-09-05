@@ -38,6 +38,39 @@ if {$::ttf ne ""} {
     pdf4tcl::loadBaseTrueTypeFont BaseKern $::ttf
     pdf4tcl::createFontSpecCID BaseKern KernUni
 }
+
+proc glyphOf {basefont char} {
+    scan $char %c n
+    if {![dict exists $::pdf4tcl::BFA($basefont,charToGlyph) $n]} { return "" }
+    return [dict get $::pdf4tcl::BFA($basefont,charToGlyph) $n]
+}
+
+# Traegt DIESE Schrift ein Kernpaar fuer A/V?
+#
+# "haveTtf" sagte bisher nur: eine TrueType-Datei wurde gefunden. Die
+# Tests darunter erwarten aber DejaVu-Verhalten -- ein negatives Paar
+# fuer A und V. Auf einer Maschine ohne DejaVu greift der Suchpfad zur
+# mitgelieferten FreeSans, und die hat zwar ueber hundert Kernpaare,
+# aber keines fuer A/V: kerning-1.1 blieb gruen, waehrend 1.2, 1.4, 2.1,
+# 3.1, 3.2 und 4.3 fielen. Gemeldet aus einem Windows-Lauf 05.09.2026.
+#
+# Die Bedingung heisst darum jetzt, was sie prueft. Und sie sagt es
+# LAUT, statt still zu ueberspringen -- ein Ueberspringen ohne Grund im
+# Protokoll ist ein gruener Lauf, der nichts gemessen hat.
+set ::hasAV 0
+if {$::ttf ne ""} {
+    set ga [glyphOf BaseKern A]
+    set gv [glyphOf BaseKern V]
+    if {$ga ne "" && $gv ne ""} {
+        set ::hasAV [expr {[::pdf4tcl::GetKernPair BaseKern $ga $gv] != 0}]
+    }
+    if {!$::hasAV} {
+        puts "[file tail [info script]]: [file tail $::ttf] hat kein\
+                Kernpaar fuer A/V -- die AV-Tests werden uebersprungen."
+        puts "  Mit DejaVuSans.ttf im System laufen sie mit."
+    }
+}
+testConstraint haveKernAV $::hasAV
 if {$::ttfNoKern ne ""} {
     pdf4tcl::loadBaseTrueTypeFont BaseNoKern $::ttfNoKern
     pdf4tcl::createFontSpecCID BaseNoKern NoKernUni
@@ -56,7 +89,7 @@ test kerning-1.1 {die kern-Tabelle wird gelesen} -constraints haveTtf -body {
     expr {[dict size $::pdf4tcl::BFA(BaseKern,kernPairs)] > 100}
 } -result 1
 
-test kerning-1.2 {AV steht enger, nicht weiter} -constraints haveTtf -body {
+test kerning-1.2 {AV steht enger, nicht weiter} -constraints haveKernAV -body {
     # The sign is what matters here: a positive value would pull the
     # pair apart.
     expr {[::pdf4tcl::GetKernPair BaseKern [glyph BaseKern A] \
@@ -68,7 +101,7 @@ test kerning-1.3 {ein Paar ohne Eintrag ergibt 0} -constraints haveTtf -body {
     ::pdf4tcl::GetKernPair BaseKern [glyph BaseKern I] [glyph BaseKern I]
 } -result 0
 
-test kerning-1.4 {die Werte sind auf 1/1000 em umgerechnet} -constraints haveTtf -body {
+test kerning-1.4 {die Werte sind auf 1/1000 em umgerechnet} -constraints haveKernAV -body {
     # Not in font units: DejaVu counts 2048 per em, so an unscaled value
     # would be about twice this.
     set v [expr {abs([::pdf4tcl::GetKernPair BaseKern [glyph BaseKern A] \
@@ -80,7 +113,7 @@ test kerning-1.4 {die Werte sind auf 1/1000 em umgerechnet} -constraints haveTtf
 # kerning-2.x  Measuring
 # ---------------------------------------------------------------------------
 
-test kerning-2.1 {ein gekerntes Wort misst schmaler} -constraints haveTtf -setup {
+test kerning-2.1 {ein gekerntes Wort misst schmaler} -constraints haveKernAV -setup {
     set pdf [pdf4tcl::new %AUTO% -paper a4]
     $pdf startPage
     $pdf setFont 24 KernUni
@@ -133,7 +166,7 @@ test kerning-2.4 {eine Schrift ohne kern-Tabelle veraendert nichts} -constraints
 # kerning-3.x  Drawing
 # ---------------------------------------------------------------------------
 
-test kerning-3.1 {ein TJ-Array steht im Inhalt} -constraints haveTtf -setup {
+test kerning-3.1 {ein TJ-Array steht im Inhalt} -constraints haveKernAV -setup {
     set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
     $pdf startPage
     $pdf setFont 24 KernUni
@@ -143,7 +176,7 @@ test kerning-3.1 {ein TJ-Array steht im Inhalt} -constraints haveTtf -setup {
     expr {[regexp {\] TJ} $data]}
 } -cleanup {$pdf destroy} -result 1
 
-test kerning-3.2 {die Zahlen im Array sind positiv} -constraints haveTtf -setup {
+test kerning-3.2 {die Zahlen im Array sind positiv} -constraints haveKernAV -setup {
     set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
     $pdf startPage
     $pdf setFont 24 KernUni
@@ -151,7 +184,16 @@ test kerning-3.2 {die Zahlen im Array sind positiv} -constraints haveTtf -setup 
     # In a TJ array a POSITIVE number moves the pen back, i.e. tighter.
     $pdf text AV -x 50 -y 100
     set data [$pdf get]
-    regexp {\[<[0-9A-F]+> ([-0-9.]+) <} $data -> zahl
+    # Erst pruefen, DANN lesen: greift der Ausdruck nicht, bleibt
+    # "zahl" ungesetzt, und der Test bricht mit
+    #   can't read "zahl": no such variable
+    # ab, statt sauber zu fallen. Ein Test, der ERRORT statt zu fallen,
+    # verdeckt seinen eigenen Befund -- man sieht einen Tcl-Fehler und
+    # sucht im Testcode, nicht in der Sache. Gemeldet aus einem
+    # Windows-Lauf 05.09.2026, wo die Schrift kein Kerning mitbringt.
+    if {![regexp {\[<[0-9A-F]+> ([-0-9.]+) <} $data -> zahl]} {
+        return "kein TJ-Array im Inhalt -- traegt die Schrift Kerning?"
+    }
     expr {$zahl > 0}
 } -cleanup {$pdf destroy} -result 1
 
@@ -240,7 +282,7 @@ test kerning-5.3 {Kerning ist voreingestellt an} -setup {
 } -cleanup {$pdf destroy} -result 1
 
 test kerning-4.3 {die Summe im TJ-Array entspricht der Breitendifferenz} \
-        -constraints haveTtf -setup {
+        -constraints haveKernAV -setup {
     set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
     $pdf startPage
     $pdf setFont 24 KernUni
@@ -266,7 +308,9 @@ test kerning-4.3 {die Summe im TJ-Array entspricht der Breitendifferenz} \
 
     $pdf text AVAV -x 50 -y 100
     set data [$pdf get]
-    regexp {\[(.*?)\] TJ} $data -> array
+    if {![regexp {\[(.*?)\] TJ} $data -> array]} {
+        return "kein TJ-Array im Inhalt -- traegt die Schrift Kerning?"
+    }
     set summe 0.0
     foreach stueck $array {
         if {[string is double -strict $stueck]} {
@@ -332,7 +376,9 @@ test kerning-6.4 {auch ueber GPOS stimmen Messen und Zeichnen ueberein} \
     $pdf setKerning 1
     $pdf text AVAV -x 50 -y 100
     set data [$pdf get]
-    regexp {\[(.*?)\] TJ} $data -> array
+    if {![regexp {\[(.*?)\] TJ} $data -> array]} {
+        return "kein TJ-Array im Inhalt -- traegt die Schrift Kerning?"
+    }
     set summe 0.0
     foreach stueck $array {
         if {[string is double -strict $stueck]} { set summe [expr {$summe + $stueck}] }

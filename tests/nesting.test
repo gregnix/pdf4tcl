@@ -56,6 +56,55 @@ proc graphicsInsideText {data} {
     return $count
 }
 
+# Which operators are NOT permitted inside a text object?
+#
+# ISO 32000-1 figure 9 and table 31: inside a text object only general
+# graphics state, colour, text state, text-showing, text-positioning and
+# marked-content operators are allowed. Everything below belongs to a
+# different graphics object and has no business between BT and ET:
+#
+#   q Q cm          graphics state stack and matrix
+#   m l c v y h re  path construction
+#   S s f F f* B B* b b* n   path painting
+#   sh              shading
+#   Do              XObject
+#   BI ID EI        inline image
+#
+# NOT in this list, on purpose: "gs". It sets parameters from an ExtGState
+# dictionary and belongs to the general graphics state category, which
+# figure 9 permits inside a text object. setAlpha and setBlendMode closing
+# the text object first is therefore hygiene, not a repair -- unlike the
+# gradients, whose "sh" really is out of place. Whoever finds a viewer that
+# stumbles over "gs" between BT and ET should move it into the list and say
+# where it was measured.
+set ::forbiddenInText {
+    q Q cm
+    m l c v y h re
+    S s f F f* B B* b b* n
+    sh Do BI ID EI
+}
+
+# Every forbidden operator inside a text object, as a list.
+#
+# The old check counted q and Q alone. Against exactly that the four gs/sh
+# methods measured 0 and looked green while the streams were wrong --
+# a predicate that only knows one occurrence, not the class.
+proc nonTextInsideText {data} {
+    set found {}
+    foreach text [contentStreams $data] {
+        set inText 0
+        foreach line [split $text \n] {
+            set line [string trim $line]
+            if {$line eq "BT"} { set inText 1 ; continue }
+            if {$line eq "ET"} { set inText 0 ; continue }
+            if {!$inText || $line eq ""} continue
+            set op [lindex $line end]
+            if {$op in $::forbiddenInText} { lappend found $op }
+        }
+    }
+    return $found
+}
+
 # Are BT and ET balanced and never nested?
 proc textObjectsBalanced {data} {
     foreach text [contentStreams $data] {
@@ -230,5 +279,60 @@ test nesting-3.2 {the balance check recognises nesting and leftovers} -body {
             [textObjectsBalanced "stream\n$stray\nendstream"] \
             [textObjectsBalanced "stream\n$ok\nendstream"]
 } -result {0 0 0 1}
+
+# -----------------------------------------------------------------------
+# Every drawing method after text -- the class, not the one occurrence
+# -----------------------------------------------------------------------
+
+test nesting-2.4 {a gradient after text does not leave sh inside BT} -body {
+    # Measured against v0.9.4.62: "Tm Tj sh" -- the sh sat in the text
+    # object. sh is a shading operator and belongs to no text object.
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "vor dem Verlauf" -x 40 -y 60
+    $p linearGradient 40 100 200 140 blue red
+    set data [$p get]
+    $p destroy
+    nonTextInsideText $data
+} -result {}
+
+test nesting-2.5 {a radial gradient too} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "vor dem Verlauf" -x 40 -y 60
+    $p radialGradient 120 120 0 120 120 60 blue red
+    set data [$p get]
+    $p destroy
+    nonTextInsideText $data
+} -result {}
+
+test nesting-2.6 {an empty canvas text item closes its text object} -constraints hasTk -body {
+    # CanvasSetFont opens BT and returned early when the item was empty,
+    # without closing it. The next item then wrote its own q/Q, colour,
+    # line width and rectangle into the text object.
+    # Measured against v0.9.4.62: Q q RG w re S Q Q -- eight operators.
+    destroy .nestc
+    canvas .nestc -width 200 -height 100
+    .nestc create text 20 20 -text "" -anchor nw
+    .nestc create rectangle 40 40 120 80 -outline black
+    set p [::pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p startPage
+    $p canvas .nestc -x 20 -y 20 -width 200 -height 100
+    set data [$p get]
+    $p destroy
+    destroy .nestc
+    list [nonTextInsideText $data] [textObjectsBalanced $data]
+} -result {{} 1}
+
+test nesting-3.3 {the wider check recognises what the q/Q check missed} -body {
+    # The counter-proof for the predicate itself. A stream with sh and with
+    # a rectangle between BT and ET must be reported -- the old
+    # graphicsInsideText returns 0 for exactly this input.
+    set bad "BT\n/F1 12 Tf\n(x) Tj\n/Shd1 sh\n40 40 100 20 re\nS\nET\n"
+    list [graphicsInsideText "stream\n$bad\nendstream"] \
+            [nonTextInsideText "stream\n$bad\nendstream"]
+} -result {0 {sh re S}}
 
 cleanupTests

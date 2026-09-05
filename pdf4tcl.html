@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.62 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.63 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.62?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.63?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -301,11 +301,12 @@
 <li><a href="#120"><i class="arg">objectName</i> <b class="method">getPageSize</b></a></li>
 <li><a href="#121"><i class="arg">objectName</i> <b class="method">getSubstCount</b></a></li>
 <li><a href="#122"><i class="arg">objectName</i> <b class="method">addEmbeddedFile</b> <i class="arg">filename</i> <span class="opt">?<i class="arg">options</i>?</span></a></li>
-<li><a href="#123"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></li>
-<li><a href="#124"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></li>
-<li><a href="#125"><i class="arg">objectName</i> <b class="method">endLayer</b></a></li>
-<li><a href="#126"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
-<li><a href="#127"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
+<li><a href="#123"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span> <span class="opt">?<b class="option">-print bool</b>?</span> <span class="opt">?<b class="option">-export bool</b>?</span> <span class="opt">?<b class="option">-zoom {min max}</b>?</span> <span class="opt">?<b class="option">-locked bool</b>?</span> <span class="opt">?<b class="option">-group name</b>?</span></a></li>
+<li><a href="#124"><i class="arg">objectName</i> <b class="method">layers</b></a></li>
+<li><a href="#125"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></li>
+<li><a href="#126"><i class="arg">objectName</i> <b class="method">endLayer</b></a></li>
+<li><a href="#127"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
+<li><a href="#128"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></li>
 </ul>
 </div>
 </div>
@@ -551,7 +552,18 @@ value (<b class="const">/Yes</b>, <b class="const">/Off</b>) is left as it is.</
 <dd><p>Value of form flags field.</p></dd>
 <dt><b class="option">default</b></dt>
 <dd><p>Default value, if any.</p></dd>
-</dl></dd>
+<dt><b class="option">maxlen</b></dt>
+<dd><p>Value of <b class="const">/MaxLen</b>, or empty if the field has none
+(0.9.4.63).</p></dd>
+<dt><b class="option">comb</b></dt>
+<dd><p>1 for a comb field -- flag bit 25 <em>and</em> a <b class="const">/MaxLen</b>
+(0.9.4.63). A file may carry the bit without the length; the norm divides the
+field width by <b class="const">/MaxLen</b>, so without it there are no cells and this
+reports 0. The answer says what the file does, not what stands in it.</p></dd>
+</dl>
+<p><em>The returned dictionary gained two keys in 0.9.4.63.</em> Code that
+compares the whole dict against a literal will notice; code that reads
+individual keys will not.</p></dd>
 <dt><a name="17"><b class="cmd">::pdf4tcl::fillForms</b> <i class="arg">infile</i> <i class="arg">outfile</i> <i class="arg">values</i></a></dt>
 <dd><p>Fill the form fields of an existing PDF and write it out again (0.9.4.50+).
 Returns the number of fields filled.
@@ -566,10 +578,21 @@ value.</p>
 <pre class="doctools_example">
 pdf4tcl::fillForms empty.pdf filled.pdf {name &quot;Meier&quot; agreed /Yes}
 </pre>
-<p>The value is written, not drawn. <b class="const">/NeedAppearances</b> is set, which
-tells the viewer to render it; a viewer that ignores the flag shows the
-field as it was, with the value present but invisible. Acrobat and the
-common browsers honour it.</p></dd>
+<p><em>The value is written, not drawn.</em> <b class="const">/NeedAppearances</b> is set,
+which tells the viewer to render it, and Acrobat and the common browsers
+honour that. A viewer or print path that does not shows the field's
+<em>old</em> appearance stream -- which is not the same as showing nothing.
+Measured: a field created with <b class="option">-init Alt</b> and then filled with
+<b class="const">Meier</b> carries <b class="const">/V (Meier)</b> while its <b class="const">/AP</b> still
+draws <b class="const">Alt</b>. <b class="cmd">pdftotext</b> reads the value and reports
+<b class="const">Meier</b>; a printer that renders the appearance puts <b class="const">Alt</b> on
+the paper, and nobody sees the difference before the sheet is out.</p>
+<p><b class="method">addForm</b> does build appearance streams, so a document produced in
+one go is unaffected. The gap is in filling a document that already
+exists. If it must not go wrong, produce the document with the values in
+place instead of filling it afterwards -- and where the file comes from
+elsewhere and cannot be regenerated, check the result in the viewer that
+will print it.</p></dd>
 <dt><a name="18"><b class="cmd">::pdf4tcl::exportForms</b> <i class="arg">infile</i> <i class="arg">outfile</i> <span class="opt">?<i class="arg">options</i>?</span></a></dt>
 <dd><p>Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+).
 Returns the number of exported fields.</p>
@@ -792,7 +815,34 @@ style: <b class="const">0</b>/<b class="const">us</b>, <b class="const">1</b>/<b
 <i class="arg">boolean</i> (currency before the number; default false) and <b class="const">negred</b>
 <i class="arg">boolean</i> (show negatives in red). Can be combined with <b class="option">-calculate</b>
 (both share one <b class="const">/AA</b>). Requires a JavaScript-capable viewer; only valid
-for <i class="arg">text</i> fields.</p></dd>
+for <i class="arg">text</i> fields.</p>
+<p><i class="arg">spec</i> may also be <b class="const">date</b> or <b class="const">time</b>, which use
+<b class="const">AFDate_FormatEx</b> / <b class="const">AFTime_FormatEx</b> and take an optional
+<b class="const">format</b> <i class="arg">pattern</i>. Named patterns save guessing whether the
+month is <b class="const">m</b>, <b class="const">mm</b> or <b class="const">MM</b>:
+<b class="const">german</b> and <b class="const">de</b> give <b class="const">dd.mm.yyyy</b> (the default for
+<b class="const">date</b>), <b class="const">iso</b> gives <b class="const">yyyy-mm-dd</b>, <b class="const">us</b> gives
+<b class="const">mm/dd/yyyy</b>, <b class="const">short</b> gives <b class="const">dd.mm.yy</b>; for
+<b class="const">time</b> there are <b class="const">24</b> (<b class="const">HH:MM</b>, the default),
+<b class="const">24s</b> and <b class="const">12</b>. Any other value is passed through unchanged,
+so <b class="const">-format {date format {dd mmm yyyy}}</b> works too.</p></dd>
+<dt><b class="option">-maxlen</b> <i class="arg">n</i></dt>
+<dd><p>Maximum number of characters (<b class="const">/MaxLen</b>, ISO 32000-1 12.7.4.3).
+Only valid for <i class="arg">text</i> and <i class="arg">password</i> fields.</p></dd>
+<dt><b class="option">-comb</b> <i class="arg">boolean</i></dt>
+<dd><p>Comb field: the width is divided into <b class="option">-maxlen</b> cells and one
+character is centred in each. This is what a preprinted form with a box
+per character wants -- a registration number, a customs or UN number.</p>
+<p><b class="option">-comb</b> requires <b class="option">-maxlen</b>, because the norm divides the
+field width by it and without a divisor there are no cells; it also
+excludes <b class="option">-multiline</b>. Both are reported rather than silently
+ignored. Only valid for <i class="arg">text</i> fields.</p>
+<p><b class="option">-align</b> applies here too: with fewer characters than cells it
+decides <em>which</em> cells they sit in -- left fills from the first,
+<b class="const">center</b> centres the block, <b class="const">right</b> fills to the last.</p>
+<p>An <b class="option">-init</b> longer than <b class="option">-maxlen</b> is refused. The viewer
+would not accept those characters either, so the file would carry a value
+nobody can see and nobody could type.</p></dd>
 </dl></dd>
 <dt><em>Checkbutton options</em></dt>
 <dd><dl class="doctools_options">
@@ -1307,7 +1357,12 @@ $pdfobject pageLabel 20 -style A -prefix &quot;App-&quot;
 <dl class="doctools_definitions">
 <dt><a name="52"><i class="arg">objectName</i> <b class="method">setFont</b> <i class="arg">size</i> <span class="opt">?<i class="arg">fontname</i>?</span></a></dt>
 <dd><p>This method sets the font used by text drawing routines. If <i class="arg">fontname</i>
-is not provided, the previously set <i class="arg">fontname</i> is kept.</p></dd>
+is not provided, the previously set <i class="arg">fontname</i> is kept.</p>
+<p><em>[arg size] is in the document unit, not in points.</em> In a document
+created with <b class="option">-unit mm</b>, <b class="cmd">setFont 10</b> means ten
+millimetres, which is 28.35 pt -- everywhere else a font size is a point
+size, so this surprises. For a point size in a millimetre document,
+convert: <b class="cmd">$pdf setFont [expr {10 * 25.4 / 72.0}]</b>.</p></dd>
 <dt><a name="53"><i class="arg">objectName</i> <b class="method">getStringWidth</b> <i class="arg">str</i> <span class="opt">?<i class="arg">options</i>?</span></a></dt>
 <dd><p>This method returns the width of <i class="arg">str</i> in the current unit.
 Options (0.9.4.23+):</p>
@@ -2081,10 +2136,14 @@ with radius <i class="arg">r2</i>. <i class="arg">color1</i> applies to the firs
 <dd><p>Create a clip region. To cancel a clip region you must restore a graphic context that was saved before.</p></dd>
 <dt><a name="114"><i class="arg">objectName</i> <b class="method">gsave</b></a></dt>
 <dd><p>Save graphic/text context. (I.e. insert a raw PDF &quot;q&quot; command).
+An open text object is closed first: <b class="const">q</b> and <b class="const">Q</b> are special
+graphics state operators and are not permitted between <b class="const">BT</b> and
+<b class="const">ET</b> (ISO 32000-1 8.2). Since 0.9.4.62.
 This saves the settings of at least these calls: <b class="method">clip</b>, <b class="method">setBgColor</b>, <b class="method">setFillColor</b>, <b class="method">setStrokeColor</b>, <b class="method">setAlpha</b>, <b class="method">setLineStyle</b>, <b class="method">setLineWidth</b>, <b class="method">setLineDash</b>, <b class="method">setFont</b>, and <b class="method">setLineSpacing</b>.
    Each call to <b class="method">gsave</b> should be followed by a later call to <b class="method">grestore</b> in the same page.</p></dd>
 <dt><a name="115"><i class="arg">objectName</i> <b class="method">grestore</b></a></dt>
 <dd><p>Restore graphic/text context. (I.e. insert a raw PDF &quot;Q&quot; command).
+As with <b class="method">gsave</b>, an open text object is closed first. Since 0.9.4.62.
 Restores all saved state including the raw-coordinate mode set by
 <b class="method">translate</b>, <b class="method">rotate</b>, <b class="method">scale</b>, or <b class="method">transform</b>.
 After <b class="method">grestore</b>, drawing commands return to user-coordinate mode
@@ -2150,22 +2209,65 @@ added to the document-level <b class="const">/AF</b> array in the Catalog
 <p>Options: <b class="option">-contents</b>, <b class="option">-mimetype</b>, <b class="option">-description</b>,
 <b class="option">-afrelationship</b> (Alternative|Data|Source|Supplement|Unspecified).</p>
 <p><em>Note:</em> Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).</p></dd>
-<dt><a name="123"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span></a></dt>
+<dt><a name="123"><i class="arg">objectName</i> <b class="method">addLayer</b> <i class="arg">name</i> <span class="opt">?<b class="option">-visible bool</b>?</span> <span class="opt">?<b class="option">-print bool</b>?</span> <span class="opt">?<b class="option">-export bool</b>?</span> <span class="opt">?<b class="option">-zoom {min max}</b>?</span> <span class="opt">?<b class="option">-locked bool</b>?</span> <span class="opt">?<b class="option">-group name</b>?</span></a></dt>
 <dd><p>Add an Optional Content Group (OCG / layer) to the document.
 Returns a layer ID for use with <b class="method">beginLayer</b>.</p>
 <p><i class="arg">name</i> is the visible label shown in the viewer's layer panel.
 <b class="option">-visible</b> controls default visibility (1 = shown, 0 = hidden, default: 1).
 Use cases: debug grids (<b class="option">-visible 0</b>), letterhead variants,
 watermarks (<b class="option">-visible 0</b>).</p>
+<p><b class="option">-print</b> controls whether the layer reaches the printer
+(1 = printed, 0 = screen only, default: 1). With <b class="option">-print 0</b> the
+OCG carries a <b class="const">/Usage</b> dictionary with
+<b class="const">/Print &lt;&lt; /PrintState /OFF &gt;&gt;</b> (ISO 32000-1 8.11.4.4, table 102),
+and the <b class="const">/AS</b> array is written into the default configuration -- a
+viewer applies <b class="const">/Usage</b> only through <b class="const">/AS</b>.</p>
+<p>The use case is overprinting a preprinted sheet: a scan of the form
+belongs on the screen so the user can see where the boxes are, and it
+must not reach the paper, because the preprint is already there.</p>
+<p><b class="option">-export</b> sets the state used when the document is saved to a
+format without optional content, a raster image for instance.
+<b class="option">-zoom</b> takes a magnification range <i class="arg">min max</i>; either may be
+empty for unbounded. <b class="option">-locked</b> tells the viewer not to let the
+user toggle the layer. <b class="option">-group</b> puts layers into a radio group:
+of all layers sharing a group name, at most one is visible at a time --
+letterhead or language variants.</p>
+<p>All of these end up in the OCG's <b class="const">/Usage</b> dictionary or the default
+configuration (<b class="const">/Locked</b>, <b class="const">/RBGroups</b>), and each category
+named in <b class="const">/AS</b> lists only the layers that carry the matching
+<b class="const">/Usage</b> entry.</p>
+<p><em>When this works, and when it does not.</em> ISO 32000-1 8.11.4.4 is
+explicit: usage application dictionaries -- the <b class="const">/AS</b> array that
+makes <b class="const">/Usage</b> take effect -- shall only be used by <em>interactive</em>
+conforming readers, and shall not be used by applications that use PDF as
+final form output. <b class="const">/PrintState</b> likewise says the group is set to
+that state <em>when the document is printed from a conforming reader</em>.</p>
+<p>So: printing out of a viewer honours <b class="option">-print 0</b>. Sending the file
+straight to a RIP or a print pipeline that treats PDF as final form output
+does not -- and that is conforming behaviour, not a bug in the consumer.</p>
+<p>Where it must not go wrong -- overprinting a preprinted sheet, for
+instance -- do not put the artwork into the file at all. A layer is the
+right tool for a form the user fills and prints from a reader, not for a
+production print path.</p>
 <p><em>Note:</em> <b class="method">addLayer</b> must be called before <b class="method">finish</b>.
 All layers are shared across all pages of the document.</p></dd>
-<dt><a name="124"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></dt>
+<dt><a name="124"><i class="arg">objectName</i> <b class="method">layers</b></a></dt>
+<dd><p>Returns the layers of this document as a list of dicts with the keys
+<b class="const">oid</b>, <b class="const">name</b>, <b class="const">visible</b>, <b class="const">print</b>, <b class="const">export</b>,
+<b class="const">zoom</b>, <b class="const">locked</b> and <b class="const">group</b> -- the same shape
+<b class="method">addLayer</b> stored. Without it a caller only ever had the id it was
+handed and no way back to the name.</p></dd>
+<dt><a name="125"><i class="arg">objectName</i> <b class="method">beginLayer</b> <i class="arg">layerId</i></a></dt>
 <dd><p>Open an Optional Content Group block. All drawing commands until
 <b class="method">endLayer</b> belong to this layer.
 <i class="arg">layerId</i> is the OID returned by <b class="method">addLayer</b>.
 Inserts a <b class="cmd">BDC</b> operator into the content stream.</p></dd>
-<dt><a name="125"><i class="arg">objectName</i> <b class="method">endLayer</b></a></dt>
-<dd><p>Close the current Optional Content Group block.
+<dt><a name="126"><i class="arg">objectName</i> <b class="method">endLayer</b></a></dt>
+<dd><p><b class="const">BDC</b> and <b class="const">EMC</b> must pair up and nest (ISO 32000-1 14.6).
+<b class="method">endLayer</b> without a matching <b class="method">beginLayer</b> raises an error,
+and <b class="method">endPage</b> refuses a page that still has a layer open. Neither
+was checked before 0.9.4.63, and no checker saw the result.
+   Close the current Optional Content Group block.
 Inserts an <b class="cmd">EMC</b> operator into the content stream.</p>
 <pre class="doctools_example">
 set lGrid [$pdf addLayer &quot;Debug-Raster&quot; -visible 0]
@@ -2177,11 +2279,16 @@ $pdf endLayer
 $pdf beginLayer $lKopf
   $pdf text &quot;Musterfirma GmbH&quot; -x 40 -y 28
 $pdf endLayer
+# Screen only: visible in the viewer, not sent to the printer.
+set lScan [$pdf addLayer &quot;Vordruck (Ansicht)&quot; -print 0]
+$pdf beginLayer $lScan
+  $pdf putImage $img 0 0 -width 210 -height 297
+$pdf endLayer
 </pre>
 </dd>
-<dt><a name="126"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
+<dt><a name="127"><i class="arg">objectName</i> <b class="method">_WriteXrefTable</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
 <dd></dd>
-<dt><a name="127"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
+<dt><a name="128"><i class="arg">objectName</i> <b class="method">_WriteXrefStream</b> <i class="arg">idHash</i> <i class="arg">encdict_oid</i> <i class="arg">metadata_oid</i></a></dt>
 <dd><p>Internal methods for writing the cross-reference section.
 <b class="method">_WriteXrefTable</b> writes the classic text-based xref table and trailer dict.
 <b class="method">_WriteXrefStream</b> writes a binary XRef stream object (PDF 1.5+,

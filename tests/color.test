@@ -70,8 +70,11 @@ test color-6.1 {tk colors} -constraints Tk -body {
 
 test color-6.2 {tk colors} -constraints Tk -body {
     package require Tk
+    # Die Meldung nennt seit .63 auch die Erwartung. Geprueft wird der
+    # Kopf, nicht der ganze Satz -- ein Test, der den Wortlaut einer
+    # Hilfestellung festnagelt, verbietet ihre Verbesserung.
     mytest {setFillColor fnurga} {}
-} -returnCodes 1 -result "unknown color: fnurga"
+} -returnCodes 1 -match glob -result "unknown color: *fnurga*"
 
 # -----------------------------------------------------------------------
 # Range checking (0.9.4.39)
@@ -212,5 +215,33 @@ test color-gradient-1.3 {a CMYK list works in a gradient} -body {
     $p destroy
     set res
 } -result 0
+
+# ---------------------------------------------------------------------------
+# 0.9.4.63: die Fehlermeldung nennt die Erwartung, nicht nur den Wert
+# ---------------------------------------------------------------------------
+
+test color-msg-1.1 {unbekannte Farbe sagt, was stattdessen dasteht} -body {
+    # Vorher: "unknown color: 1". Wer -bgcolor 1 schreibt, weiss danach
+    # nicht, was erwartet wird. Vorbild sind die Formularoptionen:
+    # "-options is required for combobox" nennt die Erwartung.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage
+    catch {$p setFillColor 1} e
+    $p destroy
+    list [string match "*unknown color*" $e] [string match "*expected*" $e] \
+            [string match "*#rrggbb*" $e]
+} -result {1 1 1}
+
+test color-msg-1.2 {gueltige Farben bleiben gueltig} -body {
+    # Gegenprobe: die bessere Meldung darf nichts ablehnen, was ging.
+    set p [::pdf4tcl::new %AUTO%]
+    $p startPage
+    set fehler {}
+    foreach f {red #ff0000 {1 0 0}} {
+        if {[catch {$p setFillColor {*}$f} e]} { lappend fehler $f }
+    }
+    $p destroy
+    set fehler
+} -result {}
 
 cleanupTests

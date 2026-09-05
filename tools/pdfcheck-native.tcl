@@ -662,6 +662,214 @@ proc ::pdfcheck::native::checkFonts {file} {
 # runner
 # ---------------------------------------------------------------------
 
+# ---------------------------------------------------------------------
+# textOps -- graphics objects between BT and ET
+# ---------------------------------------------------------------------
+#
+# ISO 32000-1 figure 9: inside a text object only general graphics state,
+# colour, text state, text-showing, text-positioning and marked-content
+# operators are allowed. Everything else belongs to another graphics object.
+#
+# This class is invisible to every other tool in the chain. Poppler, MuPDF
+# and pdftotext render the page, veraPDF passes it -- measured: a file with
+# "sh" and one with "gs" between BT and ET produce exactly the same veraPDF
+# report as a clean one. Adobe Reader shows a blank page without a message.
+#
+# "gs" is NOT on the list below. It sets ExtGState parameters and belongs to
+# the general graphics state category, which figure 9 permits inside a text
+# object. Whoever finds a viewer that stumbles over it adds it here and
+# writes down where it was measured.
+#
+# Limit, deliberately: one line, one operator. pdf4tcl writes page streams
+# that way, so this is exact for them. An appearance stream that packs
+# "BT ... 0 g ... Tj ET" onto one line is not examined -- the last token is
+# then EMC and a g in between stays invisible. It under-reports, it never
+# reports a fault that is not there.
+namespace eval ::pdfcheck::native {
+    variable forbiddenInText {
+        q Q cm
+        m l c v y h re
+        S s f F f* B B* b b* n
+        sh Do BI ID EI
+    }
+}
+
+# Content streams of a PDF as decoded strings.
+proc ::pdfcheck::native::contentStreams {data} {
+    set streams {}
+    set pos 0
+    while {1} {
+        set i [string first "stream" $data $pos]
+        if {$i < 0} break
+        set j [string first "endstream" $data $i]
+        if {$j < 0} break
+        set body [string range $data [expr {$i + 6}] [expr {$j - 1}]]
+        set body [string trimleft $body "\r\n"]
+        if {[catch {zlib decompress $body} text]} {
+            set text $body
+        }
+        lappend streams $text
+        set pos [expr {$j + 9}]
+    }
+    return $streams
+}
+
+# Einen Inhaltsstrom in Operatoren zerlegen.
+#
+# ZEILENWEISE geht das NICHT. Ein Strom ist kein zeilenorientiertes
+# Format; wo die Umbrueche stehen, entscheidet der Erzeuger. pdf4tcl
+# schreibt einen Operator je Zeile, Ghostscript nicht:
+#
+#   q 0 0 595 842 re W n BT
+#   /F1 12 Tf 50 700 Td (Hallo) Tj
+#   ET
+#
+# Der alte Pruefer verglich ganze Zeilen mit "BT" und "ET". Das "BT" am
+# Zeilenende sah er nicht, das "ET" allein schon -- die Tiefe wurde
+# negativ, und er meldete "BT and ET are not balanced" fuer eine voellig
+# gueltige Datei. Gemessen an demo/out/demo-pdfa-gs-1b.pdf und -2b.pdf;
+# die pdf4tcl-Quelle daneben war sauber, weil sie zeilenweise schreibt.
+#
+# Was beim Zerlegen uebersprungen werden muss, sonst liest man Inhalt als
+# Befehl:
+#   (...)   Zeichenketten, mit \ und geschachtelten Klammern
+#   <...>   Hex-Zeichenketten, aber nicht << und >>
+#   %...    Kommentare bis Zeilenende
+#   ID..EI  Inline-Bilder -- dazwischen steht BINAERES, das jedes
+#           Bytemuster enthalten darf, auch "ET"
+proc ::pdfcheck::native::tokenize {text} {
+    set ops {}
+    set n [string length $text]
+    set i 0
+    set tok ""
+    while {$i < $n} {
+        set c [string index $text $i]
+        switch -- $c {
+            "(" {
+                if {$tok ne ""} { lappend ops $tok ; set tok "" }
+                set tiefe 1
+                incr i
+                while {$i < $n && $tiefe > 0} {
+                    set d [string index $text $i]
+                    if {$d eq "\\"} { incr i 2 ; continue }
+                    if {$d eq "("} { incr tiefe }
+                    if {$d eq ")"} { incr tiefe -1 }
+                    incr i
+                }
+                continue
+            }
+            "%" {
+                if {$tok ne ""} { lappend ops $tok ; set tok "" }
+                while {$i < $n && [string index $text $i] ni "\n \r"} { incr i }
+                continue
+            }
+            "<" {
+                if {$tok ne ""} { lappend ops $tok ; set tok "" }
+                if {[string index $text $i+1] eq "<"} { incr i 2 ; continue }
+                incr i
+                while {$i < $n && [string index $text $i] ne ">"} { incr i }
+                incr i
+                continue
+            }
+            ">" - "\[" - "\]" - "{" - "}" {
+                if {$tok ne ""} { lappend ops $tok ; set tok "" }
+                incr i
+                continue
+            }
+        }
+        if {[string is space $c]} {
+            if {$tok ne ""} { lappend ops $tok ; set tok "" }
+            incr i
+            continue
+        }
+        append tok $c
+        incr i
+        # Inline-Bild: ab "ID" ist alles bis "EI" Nutzlast.
+        if {$tok eq "ID" && [llength $ops] && [lindex $ops end] ne "/"} {
+            lappend ops ID
+            set tok ""
+            set ende [string first "EI" $text $i]
+            if {$ende < 0} { break }
+            set i [expr {$ende + 2}]
+            lappend ops EI
+        }
+    }
+    if {$tok ne ""} { lappend ops $tok }
+    return $ops
+}
+
+proc ::pdfcheck::native::checkTextOps {file} {
+    variable forbiddenInText
+    set data [slurp $file]
+
+    set gefunden {}
+    set unbalanciert 0
+    set mcTiefe 0
+    set mcUnbalanciert 0
+    foreach text [contentStreams $data] {
+        set inText 0
+        set tiefe 0
+        set mc 0
+        foreach op [tokenize $text] {
+            # Operanden ueberspringen: Namen, Zahlen und alles, was kein
+            # reiner Buchstabenbefehl ist. "Tj" ist ein Operator,
+            # "/F1" und "50" sind es nicht.
+            if {$op eq "BT"} {
+                set inText 1
+                incr tiefe
+                if {$tiefe > 1} { set unbalanciert 1 }
+                continue
+            }
+            if {$op eq "ET"} {
+                set inText 0
+                incr tiefe -1
+                if {$tiefe < 0} { set unbalanciert 1 }
+                continue
+            }
+            # Marked Content zaehlen, solange der Zerleger ohnehin
+            # laeuft. BDC/BMC und EMC muessen paarweise und geschachtelt
+            # sein (ISO 32000-1 14.6) -- ein verwaistes EMC oder ein
+            # offenes BDC am Seitenende sah bisher NIEMAND, auch dieser
+            # Pruefer nicht. pdf4tcl weist es seit 0.9.4.63 beim Aufruf
+            # zurueck; fuer fremde Dateien braucht es die Pruefung hier.
+            if {$op in {BDC BMC}} { incr mc ; continue }
+            if {$op eq "EMC"} {
+                incr mc -1
+                if {$mc < 0} { set mcUnbalanciert 1 }
+                continue
+            }
+            if {!$inText} continue
+            if {$op in $forbiddenInText} {
+                dict incr gefunden $op
+            }
+        }
+        if {$tiefe != 0} { set unbalanciert 1 }
+        if {$mc != 0} { set mcUnbalanciert 1 }
+    }
+
+    set befund {}
+    if {[dict size $gefunden]} {
+        set teile {}
+        foreach op [lsort [dict keys $gefunden]] {
+            lappend teile "$op [dict get $gefunden $op]x"
+        }
+        lappend befund "graphics operators inside a text object:\
+                [join $teile {, }]"
+    }
+    if {$unbalanciert} {
+        lappend befund "BT and ET are not balanced or are nested"
+    }
+    if {$mcUnbalanciert} {
+        lappend befund "BDC/BMC and EMC are not balanced (ISO 32000-1 14.6)"
+    }
+
+    if {[llength $befund]} {
+        return [result FAIL "text objects" [join $befund "\n"]]
+    }
+    return [result PASS "text objects" \
+            "no graphics object between BT and ET; BT/ET and BDC/EMC balanced"]
+}
+
 proc ::pdfcheck::native::runAll {file} {
     return [dict create \
         claim         [checkClaim $file] \
@@ -672,7 +880,8 @@ proc ::pdfcheck::native::runAll {file} {
         catalogVer    [checkCatalogVersion $file] \
         encryptLength [checkEncryptLength $file] \
         clearText     [checkClearText $file] \
-        fonts         [checkFonts $file]]
+        fonts         [checkFonts $file] \
+        textOps       [checkTextOps $file]]
 }
 
 # One file, several files, or a directory. Reports a summary line at

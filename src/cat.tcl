@@ -2253,6 +2253,24 @@ proc pdf4tcl::getForms {pdfFile} {
             } else {
                 dict set result $id flags 0
             }
+            # Was addForm schreiben kann, muss getForms auch lesen
+            # koennen. /MaxLen und die Kaestchen kamen in 0.9.4.63 dazu,
+            # und beim Zuruecklesen fielen sie unter den Tisch: wer ein
+            # Formular liest, um es nachzubauen, verlor die Kaestchen und
+            # merkte es erst am fertigen Nachbau.
+            if {[dict exists $d /MaxLen]} {
+                dict set result $id maxlen [dict get $d /MaxLen]
+            } else {
+                dict set result $id maxlen {}
+            }
+            # Comb ist Bit 25 und gilt nur zusammen mit /MaxLen -- ohne
+            # Teiler gibt es keine Zellen (ISO 32000-1 12.7.4.3). Ein
+            # gesetztes Bit ohne /MaxLen ist darum KEIN Kammfeld, und
+            # hier steht 0, nicht 1: die Auskunft soll sagen, was die
+            # Datei bewirkt, nicht was in ihr steht.
+            set ff [dict get $result $id flags]
+            dict set result $id comb [expr {
+                ($ff & $::pdf4tcl::Ff_COMB) && [dict exists $d /MaxLen] ? 1 : 0}]
         }
     }
     return $result

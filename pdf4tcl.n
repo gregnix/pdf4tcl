@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.62 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.63 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.62?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.63?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -524,7 +524,9 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.62?\fR
 .sp
 \fIobjectName\fR \fBaddEmbeddedFile\fR \fIfilename\fR ?\fIoptions\fR?
 .sp
-\fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR?
+\fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR? ?\fB-print bool\fR? ?\fB-export bool\fR? ?\fB-zoom {min max}\fR? ?\fB-locked bool\fR? ?\fB-group name\fR?
+.sp
+\fIobjectName\fR \fBlayers\fR
 .sp
 \fIobjectName\fR \fBbeginLayer\fR \fIlayerId\fR
 .sp
@@ -821,7 +823,21 @@ Value of form flags field\&.
 .TP
 \fBdefault\fR
 Default value, if any\&.
+.TP
+\fBmaxlen\fR
+Value of \fB/MaxLen\fR, or empty if the field has none
+(0\&.9\&.4\&.63)\&.
+.TP
+\fBcomb\fR
+1 for a comb field -- flag bit 25 \fIand\fR a \fB/MaxLen\fR
+(0\&.9\&.4\&.63)\&. A file may carry the bit without the length; the norm divides the
+field width by \fB/MaxLen\fR, so without it there are no cells and this
+reports 0\&. The answer says what the file does, not what stands in it\&.
 .RE
+.sp
+\fIThe returned dictionary gained two keys in 0\&.9\&.4\&.63\&.\fR Code that
+compares the whole dict against a literal will notice; code that reads
+individual keys will not\&.
 .TP
 \fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR
 Fill the form fields of an existing PDF and write it out again (0\&.9\&.4\&.50+)\&.
@@ -841,10 +857,22 @@ pdf4tcl::fillForms empty\&.pdf filled\&.pdf {name "Meier" agreed /Yes}
 
 .CE
 .sp
-The value is written, not drawn\&. \fB/NeedAppearances\fR is set, which
-tells the viewer to render it; a viewer that ignores the flag shows the
-field as it was, with the value present but invisible\&. Acrobat and the
-common browsers honour it\&.
+\fIThe value is written, not drawn\&.\fR \fB/NeedAppearances\fR is set,
+which tells the viewer to render it, and Acrobat and the common browsers
+honour that\&. A viewer or print path that does not shows the field's
+\fIold\fR appearance stream -- which is not the same as showing nothing\&.
+Measured: a field created with \fB-init Alt\fR and then filled with
+\fBMeier\fR carries \fB/V (Meier)\fR while its \fB/AP\fR still
+draws \fBAlt\fR\&. \fBpdftotext\fR reads the value and reports
+\fBMeier\fR; a printer that renders the appearance puts \fBAlt\fR on
+the paper, and nobody sees the difference before the sheet is out\&.
+.sp
+\fBaddForm\fR does build appearance streams, so a document produced in
+one go is unaffected\&. The gap is in filling a document that already
+exists\&. If it must not go wrong, produce the document with the values in
+place instead of filling it afterwards -- and where the file comes from
+elsewhere and cannot be regenerated, check the result in the viewer that
+will print it\&.
 .TP
 \fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
 Export form field data from a filled PDF as FDF or XFDF (0\&.9\&.4\&.23+)\&.
@@ -1110,6 +1138,39 @@ style: \fB0\fR/\fBus\fR, \fB1\fR/\fBplain\fR, \fB2\fR/\fBgerman\fR,
 \fIboolean\fR (show negatives in red)\&. Can be combined with \fB-calculate\fR
 (both share one \fB/AA\fR)\&. Requires a JavaScript-capable viewer; only valid
 for \fItext\fR fields\&.
+.sp
+\fIspec\fR may also be \fBdate\fR or \fBtime\fR, which use
+\fBAFDate_FormatEx\fR / \fBAFTime_FormatEx\fR and take an optional
+\fBformat\fR \fIpattern\fR\&. Named patterns save guessing whether the
+month is \fBm\fR, \fBmm\fR or \fBMM\fR:
+\fBgerman\fR and \fBde\fR give \fBdd\&.mm\&.yyyy\fR (the default for
+\fBdate\fR), \fBiso\fR gives \fByyyy-mm-dd\fR, \fBus\fR gives
+\fBmm/dd/yyyy\fR, \fBshort\fR gives \fBdd\&.mm\&.yy\fR; for
+\fBtime\fR there are \fB24\fR (\fBHH:MM\fR, the default),
+\fB24s\fR and \fB12\fR\&. Any other value is passed through unchanged,
+so \fB-format {date format {dd mmm yyyy}}\fR works too\&.
+.TP
+\fB-maxlen\fR \fIn\fR
+Maximum number of characters (\fB/MaxLen\fR, ISO 32000-1 12\&.7\&.4\&.3)\&.
+Only valid for \fItext\fR and \fIpassword\fR fields\&.
+.TP
+\fB-comb\fR \fIboolean\fR
+Comb field: the width is divided into \fB-maxlen\fR cells and one
+character is centred in each\&. This is what a preprinted form with a box
+per character wants -- a registration number, a customs or UN number\&.
+.sp
+\fB-comb\fR requires \fB-maxlen\fR, because the norm divides the
+field width by it and without a divisor there are no cells; it also
+excludes \fB-multiline\fR\&. Both are reported rather than silently
+ignored\&. Only valid for \fItext\fR fields\&.
+.sp
+\fB-align\fR applies here too: with fewer characters than cells it
+decides \fIwhich\fR cells they sit in -- left fills from the first,
+\fBcenter\fR centres the block, \fBright\fR fills to the last\&.
+.sp
+An \fB-init\fR longer than \fB-maxlen\fR is refused\&. The viewer
+would not accept those characters either, so the file would carry a value
+nobody can see and nobody could type\&.
 .RE
 .TP
 \fICheckbutton options\fR
@@ -1772,6 +1833,12 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 \fIobjectName\fR \fBsetFont\fR \fIsize\fR ?\fIfontname\fR?
 This method sets the font used by text drawing routines\&. If \fIfontname\fR
 is not provided, the previously set \fIfontname\fR is kept\&.
+.sp
+\fI[arg size] is in the document unit, not in points\&.\fR In a document
+created with \fB-unit mm\fR, \fBsetFont 10\fR means ten
+millimetres, which is 28\&.35 pt -- everywhere else a font size is a point
+size, so this surprises\&. For a point size in a millimetre document,
+convert: \fB$pdf setFont [expr {10 * 25\&.4 / 72\&.0}]\fR\&.
 .TP
 \fIobjectName\fR \fBgetStringWidth\fR \fIstr\fR ?\fIoptions\fR?
 This method returns the width of \fIstr\fR in the current unit\&.
@@ -2699,11 +2766,15 @@ Create a clip region\&. To cancel a clip region you must restore a graphic conte
 .TP
 \fIobjectName\fR \fBgsave\fR
 Save graphic/text context\&. (I\&.e\&. insert a raw PDF "q" command)\&.
+An open text object is closed first: \fBq\fR and \fBQ\fR are special
+graphics state operators and are not permitted between \fBBT\fR and
+\fBET\fR (ISO 32000-1 8\&.2)\&. Since 0\&.9\&.4\&.62\&.
 This saves the settings of at least these calls: \fBclip\fR, \fBsetBgColor\fR, \fBsetFillColor\fR, \fBsetStrokeColor\fR, \fBsetAlpha\fR, \fBsetLineStyle\fR, \fBsetLineWidth\fR, \fBsetLineDash\fR, \fBsetFont\fR, and \fBsetLineSpacing\fR\&.
 Each call to \fBgsave\fR should be followed by a later call to \fBgrestore\fR in the same page\&.
 .TP
 \fIobjectName\fR \fBgrestore\fR
 Restore graphic/text context\&. (I\&.e\&. insert a raw PDF "Q" command)\&.
+As with \fBgsave\fR, an open text object is closed first\&. Since 0\&.9\&.4\&.62\&.
 Restores all saved state including the raw-coordinate mode set by
 \fBtranslate\fR, \fBrotate\fR, \fBscale\fR, or \fBtransform\fR\&.
 After \fBgrestore\fR, drawing commands return to user-coordinate mode
@@ -2785,7 +2856,7 @@ Options: \fB-contents\fR, \fB-mimetype\fR, \fB-description\fR,
 .sp
 \fINote:\fR Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6\&.1\&.7)\&.
 .TP
-\fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR?
+\fIobjectName\fR \fBaddLayer\fR \fIname\fR ?\fB-visible bool\fR? ?\fB-print bool\fR? ?\fB-export bool\fR? ?\fB-zoom {min max}\fR? ?\fB-locked bool\fR? ?\fB-group name\fR?
 Add an Optional Content Group (OCG / layer) to the document\&.
 Returns a layer ID for use with \fBbeginLayer\fR\&.
 .sp
@@ -2794,8 +2865,55 @@ Returns a layer ID for use with \fBbeginLayer\fR\&.
 Use cases: debug grids (\fB-visible 0\fR), letterhead variants,
 watermarks (\fB-visible 0\fR)\&.
 .sp
+\fB-print\fR controls whether the layer reaches the printer
+(1 = printed, 0 = screen only, default: 1)\&. With \fB-print 0\fR the
+OCG carries a \fB/Usage\fR dictionary with
+\fB/Print << /PrintState /OFF >>\fR (ISO 32000-1 8\&.11\&.4\&.4, table 102),
+and the \fB/AS\fR array is written into the default configuration -- a
+viewer applies \fB/Usage\fR only through \fB/AS\fR\&.
+.sp
+The use case is overprinting a preprinted sheet: a scan of the form
+belongs on the screen so the user can see where the boxes are, and it
+must not reach the paper, because the preprint is already there\&.
+.sp
+\fB-export\fR sets the state used when the document is saved to a
+format without optional content, a raster image for instance\&.
+\fB-zoom\fR takes a magnification range \fImin max\fR; either may be
+empty for unbounded\&. \fB-locked\fR tells the viewer not to let the
+user toggle the layer\&. \fB-group\fR puts layers into a radio group:
+of all layers sharing a group name, at most one is visible at a time --
+letterhead or language variants\&.
+.sp
+All of these end up in the OCG's \fB/Usage\fR dictionary or the default
+configuration (\fB/Locked\fR, \fB/RBGroups\fR), and each category
+named in \fB/AS\fR lists only the layers that carry the matching
+\fB/Usage\fR entry\&.
+.sp
+\fIWhen this works, and when it does not\&.\fR ISO 32000-1 8\&.11\&.4\&.4 is
+explicit: usage application dictionaries -- the \fB/AS\fR array that
+makes \fB/Usage\fR take effect -- shall only be used by \fIinteractive\fR
+conforming readers, and shall not be used by applications that use PDF as
+final form output\&. \fB/PrintState\fR likewise says the group is set to
+that state \fIwhen the document is printed from a conforming reader\fR\&.
+.sp
+So: printing out of a viewer honours \fB-print 0\fR\&. Sending the file
+straight to a RIP or a print pipeline that treats PDF as final form output
+does not -- and that is conforming behaviour, not a bug in the consumer\&.
+.sp
+Where it must not go wrong -- overprinting a preprinted sheet, for
+instance -- do not put the artwork into the file at all\&. A layer is the
+right tool for a form the user fills and prints from a reader, not for a
+production print path\&.
+.sp
 \fINote:\fR \fBaddLayer\fR must be called before \fBfinish\fR\&.
 All layers are shared across all pages of the document\&.
+.TP
+\fIobjectName\fR \fBlayers\fR
+Returns the layers of this document as a list of dicts with the keys
+\fBoid\fR, \fBname\fR, \fBvisible\fR, \fBprint\fR, \fBexport\fR,
+\fBzoom\fR, \fBlocked\fR and \fBgroup\fR -- the same shape
+\fBaddLayer\fR stored\&. Without it a caller only ever had the id it was
+handed and no way back to the name\&.
 .TP
 \fIobjectName\fR \fBbeginLayer\fR \fIlayerId\fR
 Open an Optional Content Group block\&. All drawing commands until
@@ -2804,6 +2922,10 @@ Open an Optional Content Group block\&. All drawing commands until
 Inserts a \fBBDC\fR operator into the content stream\&.
 .TP
 \fIobjectName\fR \fBendLayer\fR
+\fBBDC\fR and \fBEMC\fR must pair up and nest (ISO 32000-1 14\&.6)\&.
+\fBendLayer\fR without a matching \fBbeginLayer\fR raises an error,
+and \fBendPage\fR refuses a page that still has a layer open\&. Neither
+was checked before 0\&.9\&.4\&.63, and no checker saw the result\&.
 Close the current Optional Content Group block\&.
 Inserts an \fBEMC\fR operator into the content stream\&.
 .CS
@@ -2819,6 +2941,12 @@ $pdf endLayer
 
 $pdf beginLayer $lKopf
   $pdf text "Musterfirma GmbH" -x 40 -y 28
+$pdf endLayer
+
+# Screen only: visible in the viewer, not sent to the printer\&.
+set lScan [$pdf addLayer "Vordruck (Ansicht)" -print 0]
+$pdf beginLayer $lScan
+  $pdf putImage $img 0 0 -width 210 -height 297
 $pdf endLayer
 
 .CE

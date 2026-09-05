@@ -1,5 +1,119 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.63 -- same output on 8.6 and 9.0, layers that stay off the paper
+
+### Nothing to change in your code
+
+Everything below alters what pdf4tcl **writes** or what it reports, not
+how it is called. New options only.
+
+### Output changes
+
+**CP1252.** The five bytes CP1252 leaves undefined (`0x81 0x8D 0x8F 0x90
+0x9D`) now map to `U+FFFD` under Tcl 8.6 as well; before, 8.6 wrote
+`U+0081`. Files written under 8.6 differ from older ones at exactly those
+five positions, in the ToUnicode CMap and in `/Differences`. Under Tcl 9
+nothing changes.
+
+**Empty text fields carry an appearance stream.** A text field created
+without `-init` used to get no `/AP` at all outside PDF/A. It now gets an
+empty one (length 0, as the PDF/A path has always written), so a later
+`fillForms` has something to overwrite. Every empty field costs one more
+object.
+
+**`/AS` appears without PDF/A.** As soon as one layer carries a `/Usage`
+entry, the default configuration gets an `/AS` array -- without it no
+viewer applies `/Usage`. Each category names only the layers that have
+the matching entry.
+
+### Two error messages changed
+
+```
+before   can't read "FontsAttrs(,specialencoding)": no such element in array
+now      no font set
+
+before   unknown color: 1
+now      unknown color: "1" -- expected a name like "red", "#rrggbb", ...
+```
+
+`addForm` demands a font only where one is really needed. `text`,
+`password`, `checkbutton` and `radiobutton` still work before `setFont`;
+`combobox`, `listbox`, `pushbutton` and `signature` do not.
+
+A test that pins the exact wording of the colour error will fail. In this
+tree `color-6.2` was such a test; it now matches the head of the message.
+
+### getForms returns two more keys
+
+`maxlen` and `comb`. Code that reads individual keys is unaffected; code
+that compares the whole dict against a literal will fail.
+
+### New options
+
+```tcl
+$pdf addLayer "Vordruck" -print 0        ;# on screen, not on paper
+$pdf addLayer "Detail"   -zoom {2.0 {}}  ;# only above 2x
+$pdf addLayer "Kopf DE"  -group kopf     ;# at most one of the group
+$pdf layers                              ;# what is there
+$pdf addForm text 20 20 200 20 -id kfz -maxlen 8 -comb 1
+$pdf addForm text 20 60 100 20 -id datum -format date
+$pdf addForm text 20 90 100 20 -id feld  -layer $l
+```
+
+`-print 0` writes `/Usage << /Print << /PrintState /OFF >> >>`. **Where
+this works is defined, not unknown:** ISO 32000-1 8.11.4.4 says usage
+application dictionaries shall only be used by *interactive* conforming
+readers, and not by applications that use PDF as final form output.
+Printing out of a viewer honours it; a RIP does not, and that is
+conforming. Where it must not go wrong, keep the artwork out of the file.
+
+`-comb` divides the field width into `-maxlen` cells and centres one
+character in each. It requires `-maxlen`, excludes `-multiline`, and
+honours `-align`. `-layer` on `addForm` writes `/OC` into the annotation
+dictionary -- an annotation lives outside the content stream, so
+`beginLayer` cannot reach it.
+
+### beginLayer and endLayer are counted
+
+`endLayer` without `beginLayer` raises an error where it used to write a
+stray `EMC`, and `endPage` refuses a page with a layer still open
+(ISO 32000-1 14.6). Code that relied on the old silence will now fail
+loudly.
+
+### fillForms still writes the value, not the appearance
+
+Unchanged, but now stated plainly in the manual: `fillForms` sets `/V`
+and turns on `/NeedAppearances`; the existing appearance stream stays.
+A viewer honouring the flag shows the new value, a print path rendering
+the appearance shows the **old** one -- not nothing, the previous value.
+Where it must not go wrong, produce the document with its values instead
+of filling it afterwards.
+
+## 0.9.4.62 -- gsave and grestore close an open text object
+
+`text` leaves the text object open on purpose so several calls share one
+`BT`. `gsave` and `grestore` wrote their `q` and `Q` straight into it,
+producing `BT ... q ... ET Q`. Adobe Reader showed a **blank page without
+a message**; Poppler, MuPDF and pdftotext drew the invalid stream anyway.
+
+Nothing to change in your code. If you compare generated files, the `q`
+and `Q` now sit outside `BT`/`ET`, and an `ET` may appear where there was
+none.
+
+Found through `pdf4tcllib::labels::render` with `-clip 1`.
+`tests/nesting.test` checks the class, not one string.
+
+## 0.9.4.61 -- the soft hyphen is a suggestion, not a character
+
+`text`, `drawTextBox` and `getStringWidth` disagreed about `U+00AD`: one
+drew it, one measured it, one dropped it. All three now treat it as a
+break suggestion. Measured: `getStringWidth` for Helvetica 10 returns
+27.79 for `Sil\u00ADben` and for `Silben` -- the same number.
+
+**What this means for you:** a string containing soft hyphens comes out
+narrower than before, and the glyph no longer appears in the output.
+`tests/consistency.test` holds the three against each other.
+
 ## 0.9.4.48 -- catPdf names the merged document, and says what it cannot read
 
 ### The merged document can be given a title

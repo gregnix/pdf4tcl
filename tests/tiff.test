@@ -33,8 +33,12 @@ proc JpegReference {file} {
 
 
 test tiff-1.1 {tif} -constraints Tiff2 -body {
-    set chan [file temp file1 _tmp_.tif]
-    set chan2 [file temp outfile _tmp_.pdf]
+    # "file temp" war unter 8.6 eine eindeutige Abkuerzung -- dort gab es
+    # nur "tempfile". Tcl 9 hat "tempdir" daneben gestellt, damit ist sie
+    # mehrdeutig und der Test faellt aus, bevor er etwas misst.
+    # Gemessen 2026-09-03 auf 9.0.4. Ausgeschrieben gilt sie fuer beide.
+    set chan [file tempfile file1 _tmp_.tif]
+    set chan2 [file tempfile outfile _tmp_.pdf]
     set infile $examples/smile.png
     try {
         exec pngtopam $infile | pamdepth 2 \

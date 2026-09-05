@@ -275,8 +275,17 @@ test xobj-4.2 {ein Artefakt im XObject zaehlt weiterhin nicht} -body {
     return $n
 } -result 0
 
+# Aufraeumen mit catch: auf Windows haelt ein noch offener Kanal die
+# Datei gesperrt, und "file delete" bricht mit "permission denied" ab --
+# und zwar die ganze TESTDATEI, nach dem letzten Test. Gemeldet aus einem
+# Windows-Lauf 05.09.2026 ("Test file error: error deleting xobj2.pdf").
+#
+# Eine liegengebliebene Datei im Temp-Verzeichnis ist harmlos; ein
+# abgebrochener Lauf ist es nicht. Wer die Ursache sucht: irgendwo bleibt
+# ein Kanal offen -- unter Unix faellt das nicht auf, weil dort auch eine
+# offene Datei geloescht werden darf.
 foreach f [glob -nocomplain -directory [temporaryDirectory] xobj*.pdf] {
-    file delete $f
+    catch {file delete $f}
 }
 
 ::tcltest::cleanupTests

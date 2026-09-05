@@ -1,3 +1,84 @@
+2026-09-03 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.63
+
+	* src/fonts.tcl (Cp1252Undefined): the five bytes CP1252 leaves
+	undefined map to U+FFFD under 8.6 as well. The guard compared as a
+	string, so it never fired; createFont and MakeEncDiff carried the
+	same split. Files written under 8.6 change at those five positions.
+
+	* src/main.tcl: setAlpha, setBlendMode, linearGradient and
+	radialGradient close an open text object before gs/sh; an empty
+	canvas text item likewise. sh is not permitted inside a text object,
+	gs is (ISO 32000-1 figure 9) -- setAlpha closes for tidiness, not
+	because the stream would be invalid.
+
+	* src/main.tcl (addLayer): new options -print, -export, -zoom,
+	-locked and -group. They write /Usage (ISO 32000-1 8.11.4.4 table
+	102), /Locked and /RBGroups; /AS carries one entry per category and
+	names in each only the layers with the matching /Usage entry.
+	-print 0 is honoured by interactive readers, not by applications
+	using PDF as final form output -- that is what 8.11.4.4 says.
+	* src/main.tcl (layers): new. Returns the layer records, so a caller
+	can get from an id back to the name and the settings.
+	* src/main.tcl (beginLayer, endLayer, endPage): BDC and EMC are
+	counted. endLayer without beginLayer and a page left open are
+	refused (ISO 32000-1 14.6).
+
+	* src/main.tcl (addForm): new options -maxlen, -comb and -layer.
+	-comb lays the appearance out in cells, one character centred per
+	cell, and honours -align; it requires -maxlen and excludes
+	-multiline. -layer writes /OC into the annotation dictionary, which
+	is the only way to put a form field into a layer.
+	* src/main.tcl (addForm): -format also takes date and time, with
+	named patterns (german, iso, us, short, 24, 24s, 12).
+	* src/main.tcl (_BuildTextAP): a field without a value gets an empty
+	appearance stream instead of none, so a later fillForms has
+	something to overwrite.
+	* src/main.tcl (addForm): "no font set" instead of an internal array
+	error, in all four appearance builders and in the /Opt encoding.
+	An -init longer than -maxlen is refused.
+	* src/cat.tcl (getForms): reports maxlen and comb. comb is 1 only
+	with flag bit 25 AND a /MaxLen. The returned dictionary gained two
+	keys.
+	* src/color.tcl: the unknown-colour error names the expectation, not
+	only the value.
+
+	* tools/pdfcheck-native.tcl: tokenises the content stream instead of
+	matching whole lines -- a stream is not a line-oriented format, and
+	the line-based check both raised false alarms on Ghostscript output
+	and found nothing in compact streams. Checks BDC/EMC balance too.
+	* tools/pdfcheck-native.tcl (checkTextOps): new check for graphics
+	operators between BT and ET, over finished files.
+
+	* tests/pdfcheck.test: new -- the checker had no test file.
+	* tests/nesting.test: checks all operators from figure 9, not only
+	q/Q. tests/new-0.9.4.21.test, form.test and color.test cover the
+	new options.
+	* tests/canvas.test, cidfont.test, errors.test, examples.test,
+	kerning.test, ligatures.test, new-0.9.4.46.test, tounicode.test:
+	made portable. They used Unix-only options, diff(1), an invented
+	return code, and constraints that did not say what they checked; a
+	Windows run failed on all of that. Two tests were called canvas-9.1.
+	* tests/examples.test: .tclver is only written when every example
+	really was regenerated.
+	* tests/tiff.test: "file tempfile" instead of the prefix "file
+	temp", which stopped being unambiguous when Tcl 9 added tempdir.
+
+	* demo/demo-layers.tcl: fourth page for -print 0, reading its own
+	output back. demo/demo-forms.tcl: comb cells and date fields.
+	* demo/run-all-demos.tcl: asks timeout(1) what it is and probes for
+	Tk and packages instead of assuming. Windows ships a different
+	TIMEOUT.EXE, and DISPLAY is an X11 notion. A missing prerequisite
+	exits 77 and counts as skipped, not as a failure.
+
+	* pdf4tcl.man, UPGRADING.md, doc/en/howtos/howto-forms.md: the new
+	options; that setFont takes the document unit, not points; that
+	gsave/grestore close a text object; and what fillForms does not do
+	-- it writes /V and leaves the old /AP, so a print path can show the
+	previous value.
+
+
 2026-08-31 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.62

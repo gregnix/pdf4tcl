@@ -92,7 +92,9 @@ if {$gs_bin eq ""} {
     puts stderr "Fehler: Ghostscript nicht gefunden."
     puts stderr "  Debian/Ubuntu: apt install ghostscript"
     puts stderr "  Download:      https://ghostscript.com"
-    exit 1
+    # 77 = "Voraussetzung fehlt", nicht "kaputt". Siehe
+    # run-all-demos.tcl; dieselbe Zahl benutzt autoconf dafuer.
+    exit 77
 }
 puts "Ghostscript: [auto_execok $gs_bin]"
 

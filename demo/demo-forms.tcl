@@ -113,6 +113,48 @@ $p setFont 10 Helvetica
 $p addForm pushbutton 175 360 90 20 \
     -id "f_reset" -caption "Zuruecksetzen" -action reset
 
+# --- Kaestchen je Zeichen und ein Datumsfeld (0.9.4.63) ---
+#
+# Der Fall, um den es geht: ein Vordruck hat fuer das Kennzeichen ein
+# Kaestchen je Zeichen. Ohne -comb schreibt das Feld eine Zeichenkette
+# quer darueber; mit -comb sitzt jedes Zeichen in seinem Fach.
+#
+# Die Kaestchen hier sind gezeichnet, damit man es sieht -- auf einem
+# echten Vordruck stehen sie schon auf dem Papier.
+$p setFont 10 Helvetica
+$p text "Kennzeichen:" -x 72 -y 405
+set kx 160 ; set ky 393 ; set kw 160 ; set kh 18 ; set kn 8
+for {set i 0} {$i <= $kn} {incr i} {
+    $p line [expr {$kx + $i * double($kw)/$kn}] $ky \
+            [expr {$kx + $i * double($kw)/$kn}] [expr {$ky + $kh}]
+}
+$p line $kx $ky [expr {$kx + $kw}] $ky
+$p line $kx [expr {$ky + $kh}] [expr {$kx + $kw}] [expr {$ky + $kh}]
+$p setFont 11 Helvetica
+$p addForm text $kx $ky $kw $kh -id "f_kennzeichen" \
+        -maxlen $kn -comb 1 -init "BORXY123"
+
+# Die Beschriftung steht UEBER dem Vergleichsfeld, nicht daneben: der
+# Satz ist laenger als der Platz links davon und lag sonst quer im Feld.
+$p setFont 10 Helvetica
+$p text "Zum Vergleich, dasselbe ohne -comb:" -x 72 -y 432
+$p setFont 11 Helvetica
+$p addForm text $kx 440 $kw $kh -id "f_ohne_comb" -init "BORXY123"
+
+$p setFont 10 Helvetica
+$p text "Datum:" -x 72 -y 485
+$p setFont 10 Helvetica
+$p addForm text 160 473 110 16 -id "f_datum" -format date -init "04.09.2026"
+$p setFont 8 Helvetica
+$p text "-format date, Muster dd.mm.yyyy" -x 285 -y 485
+
+$p setFont 10 Helvetica
+$p text "Lieferdatum (ISO):" -x 72 -y 512
+$p setFont 10 Helvetica
+$p addForm text 160 500 110 16 -id "f_liefer" -format {date format iso}
+$p setFont 8 Helvetica
+$p text "-format {date format iso}" -x 285 -y 512
+
 $p endPage
 $p write -file $outfile
 $p destroy
@@ -173,6 +215,18 @@ if {$textfeld ne ""} {
     puts "  jedes Feldes, das man nicht angefasst hat, bei jedem"
     puts "  Durchgang."
 }
+
+# Was getForms von den neuen Angaben zurueckliest (0.9.4.63).
+puts ""
+puts "Kaestchen und Formate, zurueckgelesen:"
+dict for {id f} [pdf4tcl::getForms $outfile] {
+    if {[dict get $f maxlen] eq "" && ![dict get $f comb]} continue
+    puts [format "  %-16s maxlen=%-4s comb=%s" $id \
+            [dict get $f maxlen] [dict get $f comb]]
+}
+puts "  Was addForm schreiben kann, liest getForms auch zurueck --"
+puts "  sonst verliert ein Nachbau die Kaestchen und merkt es erst"
+puts "  am fertigen Formular."
 
 # Ein Feld, das es nicht gibt, wird gemeldet statt uebergangen.
 if {[catch {pdf4tcl::fillForms $outfile /tmp/verworfen.pdf {gibtsnicht x}} e]} {

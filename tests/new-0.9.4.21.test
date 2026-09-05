@@ -137,6 +137,233 @@ test new-0.9.4.21-2.8 {mehrere Layer: alle im OCG-Array} -body {
     regexp {/OCGs \[.*0 R.*0 R.*0 R.*\]} $data
 } -result 1
 
+# ---------------------------------------------------------------------------
+# 0.9.4.63: -print 0 -- sichtbar, aber nicht gedruckt
+# ---------------------------------------------------------------------------
+#
+# Der Anlass ist der Vorlagendruck: der Scan eines Vordrucks gehoert auf
+# den Bildschirm und NICHT aufs Papier, weil der Vordruck schon darauf
+# liegt. ISO 32000-1 8.11.4.4, Tabelle 102.
+
+test new-0.9.4.21-3.1 {-print 0 erzeugt ein /Usage-Dictionary} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Nur Ansicht" -print 0
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    # Auf den INHALT pruefen, nicht auf die Zeilenaufteilung: seit das
+    # /Usage mehrere Eintraege tragen kann (Print, View, Export, Zoom),
+    # steht es mehrzeilig. Der alte Ausdruck verlangte alles in einer
+    # Zeile und fiel an der Umformatierung -- dieselbe Falle wie ein
+    # Test, der den Wortlaut einer Fehlermeldung festschreibt.
+    list [regexp {/Usage <<} $data] [regexp {/PrintState /OFF} $data]
+} -result {1 1}
+
+test new-0.9.4.21-3.2 {ohne -print bleibt das OCG schlank} -body {
+    # Gegenprobe: die Vorgabe darf NICHT still ein /Usage anhaengen,
+    # sonst prueft 3.1 nur, dass ueberhaupt etwas dasteht.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Gewoehnlich"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Usage} $data
+} -result 0
+
+test new-0.9.4.21-3.3 {/AS nennt beim Drucken nur die druckbaren Ebenen} -body {
+    # Ohne /AS wendet kein Betrachter /Usage an -- das ist der Teil, an
+    # dem die Sache still wirkungslos bliebe.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set gedruckt [$p addLayer "Briefkopf"]
+    $p addLayer "Nur Ansicht" -print 0
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Event /Print /Category \[/Print\] /OCGs \[([^\]]*)\]} $data -> liste
+    # Genau eine Referenz, und es ist die der druckbaren Ebene.
+    list [llength $liste] [expr {[lindex $liste 0] eq $gedruckt}]
+} -result {3 1}
+
+test new-0.9.4.21-3.7 {/AS nennt im /View-Eintrag nur Ebenen mit /Usage} -body {
+    # Zuerst standen dort ALLE Ebenen, auch solche ohne /Usage. Was ein
+    # Betrachter mit einem /AS-Eintrag anfaengt, der auf eine Ebene ohne
+    # /Usage zeigt, muesste man wissen -- so gibt es nichts zu wissen.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set gedruckt [$p addLayer "Briefkopf"]
+    set nurAnsicht [$p addLayer "Nur Ansicht" -print 0]
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Event /Print[^\n]*/OCGs \[([^\]]*)\]} $data -> druck
+    regexp {/Event /View[^\n]*/OCGs \[([^\]]*)\]} $data -> sicht
+    # Druck: nur die druckbare. Ansicht: nur die mit /Usage.
+    list [expr {[lindex $druck 0] eq $gedruckt}] [llength $druck] \
+         [expr {[lindex $sicht 0] eq $nurAnsicht}] [llength $sicht]
+} -result {1 3 1 3}
+
+test new-0.9.4.21-3.4 {ohne nicht-druckende Ebene kein /AS} -body {
+    # /AS war bisher an PDF/A-2 und -3 gebunden. Es darf nicht auf
+    # einmal ueberall auftauchen.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Gewoehnlich"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/AS} $data
+} -result 0
+
+test new-0.9.4.21-3.5 {der Inhalt liegt wirklich in der Ebene} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set l [$p addLayer "Nur Ansicht" -print 0]
+    $p startPage
+    $p beginLayer $l
+    $p setFont 12 Helvetica
+    $p text "nur Ansicht" -x 20 -y 30
+    $p endLayer
+    $p text "wird gedruckt" -x 20 -y 60
+    $p endPage
+    set data [$p get]; $p destroy
+    # BDC vor dem einen Text, EMC davor, und der zweite steht ausserhalb.
+    set strom [string range $data [string first "/OC /Lyr" $data] end]
+    set emc [string first "EMC" $strom]
+    set drin  [string first "nur Ansicht" $strom]
+    set raus  [string first "wird gedruckt" $strom]
+    list [expr {$drin > 0 && $drin < $emc}] [expr {$raus > $emc}]
+} -result {1 1}
+
+test new-0.9.4.21-3.6 {eine unbekannte Option wird gemeldet} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    catch {$p addLayer "X" -druckbar 0} e
+    $p destroy
+    string match "*unknown option -druckbar*" $e
+} -result 1
+
+# ---------------------------------------------------------------------------
+# 0.9.4.63: Klammern, Gruppen, Usage, Annotationen, Abfrage
+# ---------------------------------------------------------------------------
+
+test new-0.9.4.21-4.1 {endLayer ohne beginLayer wird gemeldet} -body {
+    # Gemessen vorher: BDC=0 EMC=1 -- ein verwaistes EMC im Strom, und
+    # kein Pruefer sah es, pdfcheck-native eingeschlossen.
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    $p startPage
+    catch {$p endLayer} e
+    $p destroy
+    set e
+} -result {endLayer without beginLayer}
+
+test new-0.9.4.21-4.2 {eine offene Ebene beendet keine Seite} -body {
+    # Und andersherum: BDC=1 EMC=0, die Seite endete mit offenem
+    # Marked Content. ISO 32000-1 14.6 verlangt Paare.
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    set l [$p addLayer A]
+    $p startPage
+    $p beginLayer $l
+    catch {$p endPage} e
+    $p destroy
+    string match "*layer(s) still open*" $e
+} -result 1
+
+test new-0.9.4.21-4.3 {ausgeglichene Klammern stoeren nicht} -body {
+    # Gegenprobe zur Sperre, auch verschachtelt -- Marked Content darf
+    # schachteln.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set a [$p addLayer A] ; set b [$p addLayer B]
+    $p startPage
+    $p beginLayer $a ; $p beginLayer $b ; $p endLayer ; $p endLayer
+    $p endPage
+    set data [$p get] ; $p destroy
+    list [regexp -all {BDC} $data] [regexp -all {EMC} $data]
+} -result {2 2}
+
+test new-0.9.4.21-4.4 {-group macht eine RBGroup} -body {
+    # Von den Ebenen einer Gruppe ist hoechstens eine sichtbar: der Fall
+    # "Briefkopf-Varianten", den die Demo auf Seite 2 zeigt.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "DE" -group kopf
+    $p addLayer "EN" -group kopf -visible 0
+    $p addLayer "Ohne Gruppe"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/RBGroups \[ \[([^\]]*)\] \]} $data -> refs
+    llength $refs
+} -result 6
+
+test new-0.9.4.21-4.5 {-zoom und -export landen im /Usage} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Detail" -zoom {2.0 {}}
+    $p addLayer "Raster" -export 0
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    list [regexp {/Zoom << /min 2 >>} $data] \
+         [regexp {/Export << /ExportState /OFF >>} $data]
+} -result {1 1}
+
+test new-0.9.4.21-4.6 {/AS nennt je Kategorie nur die passenden Ebenen} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Gedruckt"
+    $p addLayer "Schirm" -print 0
+    $p addLayer "Detail" -zoom {2.0 {}}
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    set gefunden {}
+    foreach k {Print View Zoom Export} {
+        if {[regexp "/Event /$k " $data]} { lappend gefunden $k }
+    }
+    set gefunden
+} -result {Print View Zoom}
+
+test new-0.9.4.21-4.7 {-locked landet in der Konfiguration} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $p addLayer "Fest" -locked 1
+    $p addLayer "Frei"
+    $p startPage; $p endPage
+    set data [$p get]; $p destroy
+    regexp {/Locked \[([^\]]*)\]} $data -> refs
+    llength $refs
+} -result 3
+
+test new-0.9.4.21-4.8 {ein Formularfeld laesst sich in eine Ebene legen} -body {
+    # Eine Annotation liegt AUSSERHALB des Inhaltsstroms; beginLayer
+    # erreicht sie nicht. Ohne /OC im Annotationswoerterbuch
+    # (ISO 32000-1 12.5.2) geht es gar nicht.
+    set p [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    set l [$p addLayer "Hilfsfelder" -print 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 700 100 20 -id mit -layer $l
+    $p addForm text 50 660 100 20 -id ohne
+    $p endPage
+    set data [$p get]; $p destroy
+    # Genau eine Annotation traegt /OC.
+    llength [regexp -all -inline {/OC [0-9]+ 0 R} $data]
+} -result 1
+
+test new-0.9.4.21-4.9 {eine unbekannte Ebene wird gemeldet} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    $p startPage
+    $p setFont 10 Helvetica
+    catch {$p addForm text 50 700 100 20 -id x -layer 4711} e
+    $p destroy
+    string match "*no such layer*" $e
+} -result 1
+
+test new-0.9.4.21-4.10 {layers gibt Auskunft} -body {
+    # Vorher hatte ein Aufrufer nur die ID, die er selbst bekommen hat,
+    # und keinen Weg zurueck zum Namen.
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    set a [$p addLayer "Erste" -print 0]
+    $p addLayer "Zweite" -zoom {1.5 4.0}
+    set l [$p layers]
+    $p destroy
+    list [llength $l] [dict get [lindex $l 0] name] \
+            [dict get [lindex $l 0] print] \
+            [dict get [lindex $l 1] zoom] \
+            [expr {[dict get [lindex $l 0] oid] eq $a}]
+} -result {2 Erste 0 {1.5 4.0} 1}
+
+test new-0.9.4.21-4.11 {-zoom will zwei Werte} -body {
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    catch {$p addLayer X -zoom 2.0} e
+    $p destroy
+    string match "*needs {min max}*" $e
+} -result 1
+
 
 # ---------------------------------------------------------------------------
 # Cleanup

@@ -31,7 +31,7 @@ Output goes to `demo/out/`. The directory is rebuilt, not added to.
 | [`demo-gradients.tcl`](demo-gradients.tcl) | Verlaeufe und Blendmodi |
 | [`demo-interlaced-png.tcl`](demo-interlaced-png.tcl) | Interlaced PNG (Adam7, 0.9.4.28) |
 | [`demo-kerning-ligatures.tcl`](demo-kerning-ligatures.tcl) | Kerning und Ligaturen |
-| [`demo-layers.tcl`](demo-layers.tcl) | Layer / OCG (0.9.4.21) |
+| [`demo-layers.tcl`](demo-layers.tcl) | Layer / OCG (0.9.4.21); Seite 4: `-print 0`, sichtbar aber nicht gedruckt (0.9.4.63) |
 | [`demo-make-cheatsheets.tcl`](demo-make-cheatsheets.tcl) | Cheat Sheets (vier Blaetter nach `out/`) |
 | [`demo-otf.tcl`](demo-otf.tcl) | OpenType-Fonts |
 | [`demo-paper-sizes.tcl`](demo-paper-sizes.tcl) | Papierformate |

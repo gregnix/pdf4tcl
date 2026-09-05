@@ -22,14 +22,23 @@ testConstraint DejaVuSans [expr {$dejavuPath ne ""}]
 # -----------------------------------------------------------------------
 # Constraint: a plain outline TTF for bitmap-detection tests
 # -----------------------------------------------------------------------
+# Die MITGELIEFERTE Schrift zuletzt in der Liste, aber in der Liste:
+# ohne sie stand $freeSans auf einer Maschine ohne Linux-Fontpfade leer,
+# und cidfont-10.1 rief "loadBaseTrueTypeFont ... {}" -- der Test fiel
+# also, weil keine Schrift da war, und meldete das als Fehler der
+# Bitmap-Erkennung. Gemeldet aus einem Windows-Lauf 05.09.2026.
 set freeSans ""
-foreach candidate {
-    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
-    /usr/share/fonts/truetype/freefont/FreeSans.ttf
-    /usr/share/fonts/TTF/DejaVuSans.ttf
-} {
+foreach candidate [list \
+    /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf \
+    /usr/share/fonts/truetype/freefont/FreeSans.ttf \
+    /usr/share/fonts/TTF/DejaVuSans.ttf \
+    [file join [file dirname [file normalize [info script]]] .. examples FreeSans.ttf] \
+] {
     if {[file exists $candidate]} { set freeSans $candidate; break }
 }
+# Und ein Netz darunter: fehlt trotzdem jede, wird uebersprungen statt
+# ein Fehlen als Fehler zu melden.
+testConstraint haveOutlineTtf [expr {$freeSans ne ""}]
 
 # -----------------------------------------------------------------------
 # Constraint: NotoColorEmoji (CBDT bitmap font) available
@@ -491,7 +500,7 @@ test cidfont-9.2 {metadata: title with en-dash does not throw} -body {
 # ---------------------------------------------------------------------------
 # cidfont-10.x  CBDT/CBLC color bitmap font detection
 # ---------------------------------------------------------------------------
-test cidfont-10.1 {loadBaseTrueTypeFont: outline TTF loads without error} -body {
+test cidfont-10.1 {loadBaseTrueTypeFont: outline TTF loads without error} -constraints haveOutlineTtf -body {
     set rc [catch {pdf4tcl::loadBaseTrueTypeFont __cbdt_ok__ $::freeSans}]
     set rc
 } -result 0

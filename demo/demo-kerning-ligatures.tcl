@@ -45,7 +45,13 @@ if {$fontPath eq "" || ![file exists $fontPath]} {
     puts stderr "Fehler: keine geeignete Schrift gefunden."
     puts stderr "Aufruf: tclsh demo-kerning-ligatures.tcl /pfad/zur/schrift.ttf"
     puts stderr "Debian/Ubuntu: apt install fonts-crosextra-carlito"
-    exit 1
+    # 77 statt 1: eine fehlende Schrift ist keine Stoerung dieser Demo,
+    # sondern ein Grund, sie nicht auszufuehren. run-all-demos.tcl liest
+    # die Zahl und zaehlt sie als "uebersprungen" -- sonst ist der Lauf
+    # auf keiner Maschine ohne Carlito jemals gruen, und ein echter
+    # Fehler daneben faellt nicht mehr auf. Dieselbe Zahl benutzt
+    # autoconf dafuer.
+    exit 77
 }
 puts "Lade Font: $fontPath"
 

@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.62]
+[manpage_begin pdf4tcl n 0.9.4.63]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.62]]
+[require pdf4tcl [opt 0.9.4.63]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -320,7 +320,17 @@ so reading a form and writing it back does not accumulate escaping. A name
 value ([const /Yes], [const /Off]) is left as it is.
 [opt_def flags] Value of form flags field.
 [opt_def default] Default value, if any.
+[opt_def maxlen] Value of [const /MaxLen], or empty if the field has none
+(0.9.4.63).
+[opt_def comb] 1 for a comb field -- flag bit 25 [emph and] a [const /MaxLen]
+(0.9.4.63). A file may carry the bit without the length; the norm divides the
+field width by [const /MaxLen], so without it there are no cells and this
+reports 0. The answer says what the file does, not what stands in it.
 [list_end]
+[para]
+[emph {The returned dictionary gained two keys in 0.9.4.63.}] Code that
+compares the whole dict against a literal will notice; code that reads
+individual keys will not.
 
 [call [cmd ::pdf4tcl::fillForms] [arg "infile"] [arg "outfile"] [arg "values"]]
 
@@ -342,10 +352,22 @@ pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
 }]
 
 [para]
-The value is written, not drawn. [const /NeedAppearances] is set, which
-tells the viewer to render it; a viewer that ignores the flag shows the
-field as it was, with the value present but invisible. Acrobat and the
-common browsers honour it.
+[emph {The value is written, not drawn.}] [const /NeedAppearances] is set,
+which tells the viewer to render it, and Acrobat and the common browsers
+honour that. A viewer or print path that does not shows the field's
+[emph old] appearance stream -- which is not the same as showing nothing.
+Measured: a field created with [option {-init Alt}] and then filled with
+[const Meier] carries [const {/V (Meier)}] while its [const /AP] still
+draws [const Alt]. [cmd pdftotext] reads the value and reports
+[const Meier]; a printer that renders the appearance puts [const Alt] on
+the paper, and nobody sees the difference before the sheet is out.
+[para]
+[method addForm] does build appearance streams, so a document produced in
+one go is unaffected. The gap is in filling a document that already
+exists. If it must not go wrong, produce the document with the values in
+place instead of filling it afterwards -- and where the file comes from
+elsewhere and cannot be regenerated, check the result in the viewer that
+will print it.
 
 [call [cmd ::pdf4tcl::exportForms] [arg "infile"] [arg "outfile"] [opt [arg "options"]]]
 
@@ -644,6 +666,39 @@ style: [const 0]/[const us], [const 1]/[const plain], [const 2]/[const german],
 [arg boolean] (show negatives in red). Can be combined with [option -calculate]
 (both share one [const /AA]). Requires a JavaScript-capable viewer; only valid
 for [arg text] fields.
+[para]
+[arg spec] may also be [const date] or [const time], which use
+[const AFDate_FormatEx] / [const AFTime_FormatEx] and take an optional
+[const format] [arg pattern]. Named patterns save guessing whether the
+month is [const m], [const mm] or [const MM]:
+[const german] and [const de] give [const dd.mm.yyyy] (the default for
+[const date]), [const iso] gives [const yyyy-mm-dd], [const us] gives
+[const mm/dd/yyyy], [const short] gives [const dd.mm.yy]; for
+[const time] there are [const 24] ([const HH:MM], the default),
+[const 24s] and [const 12]. Any other value is passed through unchanged,
+so [const {-format {date format {dd mmm yyyy}}}] works too.
+
+[opt_def -maxlen [arg n]]
+Maximum number of characters ([const /MaxLen], ISO 32000-1 12.7.4.3).
+Only valid for [arg text] and [arg password] fields.
+
+[opt_def -comb [arg boolean]]
+Comb field: the width is divided into [option -maxlen] cells and one
+character is centred in each. This is what a preprinted form with a box
+per character wants -- a registration number, a customs or UN number.
+[para]
+[option -comb] requires [option -maxlen], because the norm divides the
+field width by it and without a divisor there are no cells; it also
+excludes [option -multiline]. Both are reported rather than silently
+ignored. Only valid for [arg text] fields.
+[para]
+[option -align] applies here too: with fewer characters than cells it
+decides [emph which] cells they sit in -- left fills from the first,
+[const center] centres the block, [const right] fills to the last.
+[para]
+An [option -init] longer than [option -maxlen] is refused. The viewer
+would not accept those characters either, so the file would carry a value
+nobody can see and nobody could type.
 [list_end]
 
 [def "[emph {Checkbutton options}]"]
@@ -1301,6 +1356,12 @@ $pdfobject pageLabel 20 -style A -prefix "App-"
 
 This method sets the font used by text drawing routines. If [arg "fontname"]
 is not provided, the previously set [arg "fontname"] is kept.
+[para]
+[emph {[arg size] is in the document unit, not in points.}] In a document
+created with [option {-unit mm}], [cmd {setFont 10}] means ten
+millimetres, which is 28.35 pt -- everywhere else a font size is a point
+size, so this surprises. For a point size in a millimetre document,
+convert: [cmd {$pdf setFont [expr {10 * 25.4 / 72.0}]}].
 
 [call [arg objectName] [method getStringWidth] [arg "str"] [opt [arg options]]]
 
@@ -2228,11 +2289,15 @@ Uses PDF ShadingType 3 + FunctionType 2.
 
 [call [arg objectName] [method gsave]]
    Save graphic/text context. (I.e. insert a raw PDF "q" command).
+An open text object is closed first: [const q] and [const Q] are special
+graphics state operators and are not permitted between [const BT] and
+[const ET] (ISO 32000-1 8.2). Since 0.9.4.62.
 This saves the settings of at least these calls: [method clip], [method setBgColor], [method setFillColor], [method setStrokeColor], [method setAlpha], [method setLineStyle], [method setLineWidth], [method setLineDash], [method setFont], and [method setLineSpacing].
    Each call to [method gsave] should be followed by a later call to [method grestore] in the same page.
 
 [call [arg objectName] [method grestore]]
    Restore graphic/text context. (I.e. insert a raw PDF "Q" command).
+As with [method gsave], an open text object is closed first. Since 0.9.4.62.
 Restores all saved state including the raw-coordinate mode set by
 [method translate], [method rotate], [method scale], or [method transform].
 After [method grestore], drawing commands return to user-coordinate mode
@@ -2313,7 +2378,7 @@ Options: [option -contents], [option -mimetype], [option -description],
 [para]
 [emph Note:] Embedded files are forbidden in PDF/A-1 (ISO 19005-1 SS6.1.7).
 
-[call [arg objectName] [method addLayer] [arg name] [opt [option {-visible bool}]]]
+[call [arg objectName] [method addLayer] [arg name] [opt [option {-visible bool}]] [opt [option {-print bool}]] [opt [option {-export bool}]] [opt [option {-zoom {min max}}]] [opt [option {-locked bool}]] [opt [option {-group name}]]]
    Add an Optional Content Group (OCG / layer) to the document.
 Returns a layer ID for use with [method beginLayer].
 [para]
@@ -2322,8 +2387,55 @@ Returns a layer ID for use with [method beginLayer].
 Use cases: debug grids ([option {-visible 0}]), letterhead variants,
 watermarks ([option {-visible 0}]).
 [para]
+[option -print] controls whether the layer reaches the printer
+(1 = printed, 0 = screen only, default: 1). With [option {-print 0}] the
+OCG carries a [const /Usage] dictionary with
+[const {/Print << /PrintState /OFF >>}] (ISO 32000-1 8.11.4.4, table 102),
+and the [const /AS] array is written into the default configuration -- a
+viewer applies [const /Usage] only through [const /AS].
+[para]
+The use case is overprinting a preprinted sheet: a scan of the form
+belongs on the screen so the user can see where the boxes are, and it
+must not reach the paper, because the preprint is already there.
+[para]
+[option -export] sets the state used when the document is saved to a
+format without optional content, a raster image for instance.
+[option -zoom] takes a magnification range [arg {min max}]; either may be
+empty for unbounded. [option -locked] tells the viewer not to let the
+user toggle the layer. [option -group] puts layers into a radio group:
+of all layers sharing a group name, at most one is visible at a time --
+letterhead or language variants.
+[para]
+All of these end up in the OCG's [const /Usage] dictionary or the default
+configuration ([const /Locked], [const /RBGroups]), and each category
+named in [const /AS] lists only the layers that carry the matching
+[const /Usage] entry.
+[para]
+[emph {When this works, and when it does not.}] ISO 32000-1 8.11.4.4 is
+explicit: usage application dictionaries -- the [const /AS] array that
+makes [const /Usage] take effect -- shall only be used by [emph interactive]
+conforming readers, and shall not be used by applications that use PDF as
+final form output. [const /PrintState] likewise says the group is set to
+that state [emph {when the document is printed from a conforming reader}].
+[para]
+So: printing out of a viewer honours [option {-print 0}]. Sending the file
+straight to a RIP or a print pipeline that treats PDF as final form output
+does not -- and that is conforming behaviour, not a bug in the consumer.
+[para]
+Where it must not go wrong -- overprinting a preprinted sheet, for
+instance -- do not put the artwork into the file at all. A layer is the
+right tool for a form the user fills and prints from a reader, not for a
+production print path.
+[para]
 [emph Note:] [method addLayer] must be called before [method finish].
 All layers are shared across all pages of the document.
+
+[call [arg objectName] [method layers]]
+   Returns the layers of this document as a list of dicts with the keys
+[const oid], [const name], [const visible], [const print], [const export],
+[const zoom], [const locked] and [const group] -- the same shape
+[method addLayer] stored. Without it a caller only ever had the id it was
+handed and no way back to the name.
 
 [call [arg objectName] [method beginLayer] [arg layerId]]
    Open an Optional Content Group block. All drawing commands until
@@ -2332,6 +2444,10 @@ All layers are shared across all pages of the document.
 Inserts a [cmd BDC] operator into the content stream.
 
 [call [arg objectName] [method endLayer]]
+   [const BDC] and [const EMC] must pair up and nest (ISO 32000-1 14.6).
+[method endLayer] without a matching [method beginLayer] raises an error,
+and [method endPage] refuses a page that still has a layer open. Neither
+was checked before 0.9.4.63, and no checker saw the result.
    Close the current Optional Content Group block.
 Inserts an [cmd EMC] operator into the content stream.
 
@@ -2346,6 +2462,12 @@ $pdf endLayer
 
 $pdf beginLayer $lKopf
   $pdf text "Musterfirma GmbH" -x 40 -y 28
+$pdf endLayer
+
+# Screen only: visible in the viewer, not sent to the printer.
+set lScan [$pdf addLayer "Vordruck (Ansicht)" -print 0]
+$pdf beginLayer $lScan
+  $pdf putImage $img 0 0 -width 210 -height 297
 $pdf endLayer
 }]
 

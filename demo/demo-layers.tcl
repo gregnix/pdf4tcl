@@ -5,6 +5,7 @@
 #   Page 1 -- Debug grid (hidden) + content
 #   Page 2 -- Letterhead variants (with/without header)
 #   Page 3 -- Layer overview table + PDF structure
+#   Page 4 -- Screen only: a layer that is visible but not printed
 #
 # Usage: tclsh demo-layers.tcl [outputdir]
 
@@ -89,6 +90,10 @@ set lGrid    [$pdf addLayer "Debug-Raster"   -visible 0]
 set lHeader  [$pdf addLayer "Briefkopf"      -visible 1]
 set lContent [$pdf addLayer "Inhalt"         -visible 1]
 set lWmark   [$pdf addLayer "Wasserzeichen"  -visible 0]
+# Sichtbar, aber nicht gedruckt (0.9.4.63). Fuer den Fall, dass ein
+# Vordruck schon auf dem Papier liegt und die Datei nur die Eintragungen
+# beisteuern soll.
+set lVordruck [$pdf addLayer "Vordruck (nur Ansicht)" -print 0]
 
 # ---------------------------------------------------------------------------
 # Page 1 -- Debug grid + content
@@ -270,6 +275,7 @@ foreach {name std usage alt} {
     "Briefkopf"      "sichtbar"   "Logo, Adresse, Trennlinie"         1
     "Inhalt"         "sichtbar"   "Laufender Text und Grafik"         0
     "Wasserzeichen"  "versteckt"  "ENTWURF-Stempel fuer Proofs"       1
+    "Vordruck"       "nur Schirm" "-print 0: sichtbar, nicht gedruckt" 0
 } {
     if {$alt} {
         $pdf setFillColor 0.94 0.94 0.94
@@ -289,6 +295,86 @@ foreach {name std usage alt} {
 $pdf endLayer
 $pdf endPage
 
+# ---------------------------------------------------------------------------
+# Page 4 -- sichtbar, aber nicht gedruckt
+# ---------------------------------------------------------------------------
+
+$pdf startPage
+set y [heading $pdf "Seite 4 -- Ebene, die nicht gedruckt wird" 40]
+set y [body $pdf "Der Vordruck liegt schon im Drucker. Auf dem Bildschirm soll er" $y]
+set y [body $pdf "zu sehen sein, damit man erkennt, wo die Kaesten liegen -- auf dem" $y]
+set y [body $pdf "Papier darf er nicht noch einmal erscheinen." $y]
+incr y 6
+set y [codebox $pdf {
+    {set l [$pdf addLayer "Vordruck (nur Ansicht)" -print 0]}
+    {$pdf beginLayer $l}
+    {  $pdf putImage $scan 0 0 -width 210 -height 297}
+    {$pdf endLayer}
+} $y]
+
+set y [body $pdf "Das OCG traegt dann /Usage << /Print << /PrintState /OFF >> >>," $y]
+set y [body $pdf "und /AS steht in der Standardkonfiguration -- ohne /AS wendet" $y]
+set y [body $pdf "kein Betrachter /Usage an (ISO 32000-1 8.11.4.4)." $y]
+incr y 10
+
+# --- der Vordruck: gezeichnet, aber nur fuer den Bildschirm ---
+$pdf beginLayer $lVordruck
+$pdf setStrokeColor 0.55 0.65 0.80
+$pdf setLineWidth 0.8
+$pdf rectangle 50 [expr {$y + 10}] 495 120
+foreach {lx ly lw lh beschriftung} {
+    50  10  247 40 "1 Absender"
+    297 10  248 40 "16 Frachtfuehrer"
+    50  50  247 40 "2 Empfaenger"
+    297 50  248 40 "17 Nachfolgende"
+    50  90  495 40 "13 Anweisungen"
+} {
+    $pdf rectangle [expr {$lx}] [expr {$y + 10 + $ly}] $lw $lh
+    $pdf setFillColor 0.45 0.55 0.70
+    $pdf setFont 7 Helvetica
+    $pdf text $beschriftung -x [expr {$lx + 4}] -y [expr {$y + 10 + $ly + 9}]
+    $pdf setFillColor 0 0 0
+}
+$pdf setStrokeColor 0 0 0
+$pdf endLayer
+
+# --- die Eintragungen: die kommen aufs Papier ---
+$pdf setFont 10 Helvetica
+# Die Eintragungen sitzen UNTER der Kastenbeschriftung, nicht darauf --
+# derselbe Abstand, den ein echter Vordruck verlangt.
+$pdf text "Spedition Muster GmbH"   -x 56  -y [expr {$y + 46}]
+$pdf text "Transporte Mustermann"   -x 303 -y [expr {$y + 46}]
+$pdf text "Warenhaus Beispiel N.V." -x 56  -y [expr {$y + 86}]
+$pdf text "Anlieferung nur nach Avis" -x 56 -y [expr {$y + 126}]
+
+set y [expr {$y + 145}]
+set y [body $pdf "Blau: die Ebene -- am Bildschirm da, beim Druck aus einem" $y]
+set y [body $pdf "Betrachter weg. Schwarz: die Eintragungen, die aufs Papier gehoeren." $y]
+incr y 6
+set y [body $pdf "Grenze: Usage-Application-Dictionaries duerfen laut 8.11.4.4 NUR" $y]
+set y [body $pdf "von interaktiven Betrachtern benutzt werden, nicht von Anwendungen," $y]
+set y [body $pdf "die PDF als Endform verarbeiten. Aus Acrobat gedruckt: Ebene weg." $y]
+set y [body $pdf "Datei an einen RIP gegeben: Ebene kommt mit -- und das ist" $y]
+set y [body $pdf "normgerecht. Wo es nicht schiefgehen darf, gehoert das Bild" $y]
+set y [body $pdf "gar nicht erst in die Datei." $y]
+
+$pdf endPage
+
 $pdf write -file $outfile
 $pdf destroy
 puts "Written: $outfile ([file size $outfile] bytes)"
+
+# --- Was in der Datei steht, nachgesehen statt behauptet ---
+set fh [open $outfile rb] ; set data [read $fh] ; close $fh
+puts ""
+puts "Ebene \"nur Ansicht\" -- nachgesehen in der Datei:"
+puts "  /Usage /PrintState /OFF : [expr {[regexp {/PrintState /OFF} $data] ? {ja} : {NEIN}}]"
+regexp {/Event /Print[^\n]*/OCGs \[([^\]]*)\]} $data -> druck
+regexp {/Event /View[^\n]*/OCGs \[([^\]]*)\]} $data -> sicht
+puts "  /AS Print  nennt [expr {[llength $druck]/3}] Ebene(n) -- die druckbaren"
+puts "  /AS View   nennt [expr {[llength $sicht]/3}] Ebene(n) -- die mit /Usage"
+puts ""
+puts "Selber pruefen: Datei in einem Betrachter oeffnen -- der blaue"
+puts "Vordruck auf Seite 4 ist da. Aus demselben Betrachter auf Papier"
+puts "drucken -- er darf nicht mitkommen. Kommt er mit, befolgt der"
+puts "Betrachter /PrintState nicht; dann bleibt nur, das Bild wegzulassen."

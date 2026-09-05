@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.62
+package provide pdf4tcl 0.9.4.63
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -1301,6 +1301,30 @@ space instead of the usual empty rectangle."
         return [expr {((0xD800 + ($uchar >> 10)) << 16) + (0xDC00 + ($uchar & 0x3FF))}]
     }
 
+    # Die fuenf Bytes, die cp1252 nicht belegt. EINE Liste, EIN Vergleich --
+    # sie wurde vorher an drei Stellen verschieden behandelt.
+    #
+    # WARUM U+FFFD und nicht weglassen: die Norm verlangt keines von
+    # beidem, und viele Erzeuger lassen undefinierte Bytes einfach aus
+    # der ToUnicode-CMap heraus. Hier steht FFFD, weil die CMap dann
+    # LUECKENLOS ist: jedes Byte hat einen Eintrag, und wer sie liest,
+    # sieht den Unterschied zwischen "nicht darstellbar" und "vergessen".
+    # Kopiert man solchen Text heraus, kommt das Ersetzungszeichen statt
+    # eines stillen Lochs. Das war die Absicht des vorhandenen Codes --
+    # sie stand im Kommentar und griff nur nicht (der Vergleich war eine
+    # Zeichenkette). In .63 ist sie wirksam; wer sie aendern will, aendert
+    # eine Entscheidung, keine Nebenwirkung.
+    #
+    # Zahlen, keine 0x-Literale: [expr {$i in $liste}] vergleicht als
+    # ZEICHENKETTE. "129 in {0x81 ...}" ist FALSCH, obwohl 129 == 0x81.
+    # Der frühere Waechter hat deshalb nie gegriffen, und dieselbe Quelle
+    # lieferte unter 8.6 <0081> und unter 9.0 <FFFD>. Gemessen 2026-09-03.
+    variable Cp1252UndefinedBytes {129 141 143 144 157}
+    proc Cp1252Undefined {byte} {
+        variable Cp1252UndefinedBytes
+        return [expr {[lsearch -exact -integer $Cp1252UndefinedBytes $byte] >= 0}]
+    }
+
     # Creates a ToUnicode CMap for WinAnsiEncoding (Standard Type1 fonts).
     # Maps all 256 cp1252 byte values to their Unicode codepoints.
     # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) map to U+FFFD.
@@ -1309,10 +1333,9 @@ space instead of the usual empty rectangle."
         # Build cp1252 -> Unicode table byte-by-byte (Tcl 8.6 + 9.0 safe)
         # Undefined cp1252 bytes (0x81 0x8D 0x8F 0x90 0x9D) -> 0xFFFD
         # in beiden Versionen -- Tcl 8.6 gibt sonst C1-Controls (U+0081 etc.)
-        set undefinedCp1252 {0x81 0x8D 0x8F 0x90 0x9D}
         set subset {}
         for {set i 0} {$i < 256} {incr i} {
-            if {$i in $undefinedCp1252} {
+            if {[Cp1252Undefined $i]} {
                 lappend subset 0xFFFD
             } elseif {[catch {
                 set ch [encoding convertfrom cp1252 [binary format cu $i]]
@@ -1858,11 +1881,19 @@ space instead of the usual empty rectangle."
         variable Fonts
 
         set subset [list]
+        set isCp1252 [expr {$enc_name eq "cp1252"}]
         for {set f 0} {$f < 256} {incr f} {
             # Convert byte-by-byte: Tcl 9.0 is strict and rejects
             # undefined bytes (e.g. 0x81 in cp1252) when converting
             # a full 256-byte block at once.
-            if {[catch {
+            #
+            # Der catch allein reicht nicht: unter 8.6 wirft dieselbe
+            # Umwandlung KEINEN Fehler, sondern liefert den C1-Control
+            # U+0081. Ohne den Waechter davor stand hier je nach
+            # Interpreter 129 oder 0.
+            if {$isCp1252 && [Cp1252Undefined $f]} {
+                lappend subset 0  ;# undefined byte -> .notdef
+            } elseif {[catch {
                 set unichar [encoding convertfrom $enc_name [binary format cu $f]]
                 lappend subset [scan $unichar %c]
             }]} {
@@ -1949,9 +1980,14 @@ space instead of the usual empty rectangle."
         # Byte-for-byte conversion with catch for Tcl 9.0 strict UTF-8 mode.
         # CP1252 bytes 0x81 0x8D 0x8F 0x90 0x9D are undefined -- they raise
         # an error in Tcl 9.0; map them to 0 (.notdef) instead.
+        # Der Waechter steht VOR der Umwandlung, nicht nur der catch danach:
+        # 8.6 wirft hier keinen Fehler, sondern liefert U+0081 usw. Sonst
+        # haengt /Differences am Interpreter.
         set bset [list]
         for {set f 0} {$f < 256} {incr f} {
-            if {[catch {
+            if {[Cp1252Undefined $f]} {
+                lappend bset 0
+            } elseif {[catch {
                 set unichar [encoding convertfrom cp1252 [binary format cu $f]]
                 lappend bset [scan $unichar %c]
             }]} {
@@ -2335,6 +2371,7 @@ namespace eval pdf4tcl {
     variable Ff_EDIT        262144     ;# Bit 19: Edit (Ch)
     variable Ff_SORT        524288     ;# Bit 20: Sort (Ch)
     variable Ff_MULTISELECT 2097152    ;# Bit 22: MultiSelect (Ch)
+    variable Ff_COMB       16777216    ;# Bit 25: Comb (Tx, needs /MaxLen)
 
     # rgb2Cmyk and cmyk2Rgb moved to src/color.tcl.
 }
@@ -3621,7 +3658,8 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(embfiles) {}    ;# list of {basename fsid} pairs
         set pdf(af_oids)  {}    ;# FileSpec OIDs for PDF/A-3 /AF array
         set pdf(facturx)  {}    ;# Factur-X/ZUGFeRD XMP metadata (dict; empty = off)
-        set pdf(layers)   {}    ;# list of {oid name visible}
+        set pdf(layers)   {}    ;# list of dicts, see addLayer
+        set pdf(layerdepth) 0   ;# offene beginLayer, gegen unbalanciertes EMC
         set pdf(compress) $options(-compress)
         set pdf(finished) false
         set pdf(inPage) false
@@ -4097,6 +4135,15 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Finish a page
     method endPage {} {
+        # Eine Seite, die mit offenem BDC endet, ist ungueltiger
+        # Inhalt -- und sichtbar wird es erst, wenn jemand den Strom
+        # liest. Hier faellt es auf der Stelle auf.
+        if {$pdf(layerdepth) > 0} {
+            set n $pdf(layerdepth)
+            set pdf(layerdepth) 0
+            throw {PDF4TCL} "endPage with $n layer(s) still open --\
+                    call endLayer before ending the page"
+        }
         if {! $pdf(inPage)} {
             return
         }
@@ -4417,15 +4464,40 @@ oo::define ::pdf4tcl::pdf4tcl {
             set on_list  {}
             set off_list {}
             set ocg_refs {}
+            set locked_refs {}
+            set rbgroups [dict create]
+            # Je Kategorie eine eigene Liste. Ein /AS-Eintrag sagt, WELCHE
+            # Usage-Angabe herangezogen werden soll -- eine Ebene dort zu
+            # nennen, die die Angabe gar nicht hat, ueberlaesst ihre
+            # Bedeutung dem Betrachter.
+            set cat [dict create Print {} View {} Export {} Zoom {}]
             foreach layer $pdf(layers) {
-                lassign $layer oid name visible
-                lappend ocg_refs "$oid 0 R"
-                if {$visible} {
-                    lappend on_list "$oid 0 R"
+                set oid     [dict get $layer {oid}]
+                set visible [dict get $layer {visible}]
+                set ref "$oid 0 R"
+                lappend ocg_refs $ref
+                if {[dict get $layer {print}]} {
+                    dict lappend cat Print $ref
                 } else {
-                    lappend off_list "$oid 0 R"
+                    # Nur Ebenen MIT /Usage gehoeren in die /AS-Eintraege.
+                    dict lappend cat View $ref
+                }
+                if {[dict get $layer {export}] ne ""} { dict lappend cat Export $ref }
+                if {[llength [dict get $layer {zoom}]]} { dict lappend cat Zoom $ref }
+                if {[dict get $layer {locked}]} { lappend locked_refs $ref }
+                set grp [dict get $layer {group}]
+                if {$grp ne ""} { dict lappend rbgroups $grp $ref }
+                if {$visible} {
+                    lappend on_list $ref
+                } else {
+                    lappend off_list $ref
                 }
             }
+            # Eine Ebene hat etwas zu sagen, sobald sie NICHT nur gedruckt
+            # wird: dann steht ein /Usage im OCG, und /AS muss es abholen.
+            set nodruck [expr {[llength [dict get $cat View]] > 0
+                    || [llength [dict get $cat Export]] > 0
+                    || [llength [dict get $cat Zoom]] > 0}]
             my Pdfout "/OCProperties <<\n"
             my Pdfout "/OCGs \[[join $ocg_refs { }]\]\n"
             my Pdfout "/D <<\n"
@@ -4436,13 +4508,34 @@ oo::define ::pdf4tcl::pdf4tcl {
             if {[llength $off_list] > 0} {
                 my Pdfout "/OFF \[[join $off_list { }]\]\n"
             }
+            if {[llength $locked_refs] > 0} {
+                my Pdfout "/Locked \[[join $locked_refs { }]\]\n"
+            }
+            if {[dict size $rbgroups] > 0} {
+                # Von den Ebenen einer Gruppe ist hoechstens eine sichtbar
+                # -- der Fall "Briefkopf-Varianten". Die Gruppennamen
+                # stehen nicht in der Datei, nur die Zusammengehoerigkeit.
+                my Pdfout "/RBGroups \["
+                dict for {g refs} $rbgroups {
+                    my Pdfout " \[[join $refs { }]\]"
+                }
+                my Pdfout " \]\n"
+            }
             # PDF/A-2b requires /AS array in /D dict (ISO 19005-2 SS6.2.10)
-            # Defines layer state for Print and View events.
-            if {[string match "2*" $options(-pdfa)] || \
+            if {$nodruck || [string match "2*" $options(-pdfa)] || \
                 [string match "3*" $options(-pdfa)]} {
                 my Pdfout "/AS \[\n"
-                my Pdfout "  << /Event /Print /Category \[/Print\] /OCGs \[[join $ocg_refs { }]\] >>\n"
-                my Pdfout "  << /Event /View  /Category \[/View\]  /OCGs \[[join $ocg_refs { }]\] >>\n"
+                foreach k {Print View Export Zoom} {
+                    set refs [dict get $cat $k]
+                    if {$k eq "View" && [string match "2*" $options(-pdfa)]} {
+                        # PDF/A verlangt den View-Eintrag, auch wenn keine
+                        # Ebene eine View-Angabe traegt.
+                        if {![llength $refs]} { set refs $ocg_refs }
+                    }
+                    if {![llength $refs]} continue
+                    my Pdfout "  << /Event /$k /Category \[/$k\]\
+                            /OCGs \[[join $refs { }]\] >>\n"
+                }
                 my Pdfout "\]\n"
             }
             my Pdfout ">>\n>>\n"
@@ -4534,8 +4627,7 @@ oo::define ::pdf4tcl::pdf4tcl {
         if {[llength $pdf(layers)] > 0} {
             my Pdfout "/Properties <<\n"
             foreach layer $pdf(layers) {
-                lassign $layer oid name visible
-                my Pdfout "/Lyr$oid $oid 0 R\n"
+                my Pdfout "/Lyr[dict get $layer {oid}] [dict get $layer {oid}] 0 R\n"
             }
             my Pdfout ">>\n"
         }
@@ -4746,12 +4838,47 @@ Use -pdfa-icc to specify a profile path."
 
         # OCG objects (Optional Content Groups / Layers)
         foreach layer $pdf(layers) {
-            lassign $layer oid name visible
+            set oid      [dict get $layer {oid}]
+            set name     [dict get $layer {name}]
+            set printing [dict get $layer {print}]
+            set export   [dict get $layer {export}]
+            set zoom     [dict get $layer {zoom}]
+
+            # /Usage aus dem, was gesetzt ist -- nicht aus einer festen
+            # Liste. Eine Ebene ohne Angaben bekommt gar kein /Usage,
+            # damit das Dictionary nicht als leere Huelle dasteht.
+            set usage {}
+            if {!$printing} {
+                append usage "      /Print << /PrintState /OFF >>\n"
+                append usage "      /View  << /ViewState /ON >>\n"
+            }
+            if {$export ne ""} {
+                append usage "      /Export << /ExportState\
+                        [expr {$export ? {/ON} : {/OFF}}] >>\n"
+            }
+            if {[llength $zoom]} {
+                lassign $zoom zmin zmax
+                set z ""
+                if {$zmin ne ""} { append z " /min [Nf $zmin]" }
+                if {$zmax ne ""} { append z " /max [Nf $zmax]" }
+                append usage "      /Zoom <<$z >>\n"
+            }
+
             # Wie beim Namensbaum oben: der Ebenenname ist eine
             # gewoehnliche Zeichenkette und gehoert verschluesselt.
             set body "$oid 0 obj\n"
-            append body "<< /Type /OCG /Name [QuoteString $name] >>\n"
+            if {$usage eq ""} {
+                append body "<< /Type /OCG /Name [QuoteString $name] >>\n"
+            } else {
+                append body "<< /Type /OCG /Name [QuoteString $name]\n"
+                append body "   /Usage <<\n$usage   >> >>\n"
+            }
             append body "endobj\n\n"
+            # Der Ebenenname ist eine gewoehnliche Zeichenkette und
+            # gehoert verschluesselt. Beim Umbau auf das dict-Format ist
+            # dieser Schritt zuerst herausgefallen -- encrypt-20.4 fand
+            # "Meine Ebene" im Klartext an Position 4867. Ein Test, der
+            # nach dem Klartext sucht, statt nur zu zaehlen.
             if {$pdf(encrypt)} {
                 set body [my EncryptStringsInBody $oid $body]
             }
@@ -7260,6 +7387,24 @@ Use -pdfa-icc to specify a profile path."
         }
 
         set gsName $alphaStates($cacheKey)
+        # gs is a GENERAL graphics state operator, and figure 9 lists
+        # "General graphics state" among the operators a text object
+        # allows -- so gs between BT and ET is legal, unlike q, Q and cm
+        # (special graphics state) or sh (shading object), which may
+        # appear only at page description level.
+        #
+        # This closes the text object anyway. Two reasons, and neither is
+        # "it would otherwise be invalid":
+        #   - The alpha applies to what follows, which is drawing, not
+        #     text. Ending the text object keeps the two apart.
+        #   - It is what every other drawing method here does, so the
+        #     stream stays uniform and nesting.test needs no exception.
+        #
+        # The earlier note said gs was "the same class as q". That was
+        # wrong: the blank page in Adobe Reader came from q/Q inside the
+        # text object (fixed in .62), not from gs. Corrected in .63
+        # against ISO 32000-1 figure 9.
+        my EndTextObj
         my Pdfout "/$gsName gs\n"
 
         set pdf(fillAlpha)   $newFill
@@ -7297,6 +7442,7 @@ Use -pdfa-icc to specify a profile path."
             set extgs($gsName) $oid
             set alphaStates($cacheKey) $gsName
         }
+        my EndTextObj
         my Pdfout "/$alphaStates($cacheKey) gs\n"
         set pdf(blendMode) $mode
         # Upgrade PDF version to 1.4 minimum (BlendModes require 1.4+)
@@ -7351,6 +7497,7 @@ Use -pdfa-icc to specify a profile path."
 
         set id "Shd[incr pdf(shadingCount)]"
         set grads($id) [list 0 0 $shdOid]
+        my EndTextObj
         my Pdfout "/$id sh\n"
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
     }
@@ -7398,12 +7545,14 @@ Use -pdfa-icc to specify a profile path."
 
         set id "Shd[incr pdf(shadingCount)]"
         set grads($id) [list 0 0 $shdOid]
+        my EndTextObj
         my Pdfout "/$id sh\n"
         if {$pdf(version) < 1.3} { set pdf(version) 1.3 }
     }
 
     # Draw a rectangle, internal version
     method DrawRect {x y w h stroke filled} {
+        my EndTextObj
         my Pdfoutcmd $x $y $w $h "re"
         if {$filled && $stroke} {
             my Pdfoutcmd "B"
@@ -7416,6 +7565,7 @@ Use -pdfa-icc to specify a profile path."
 
     # Draw a polygon, internal version
     method DrawPoly {stroke filled args} {
+        my EndTextObj
         set start 1
         foreach {x y} $args {
             if {$start} {
@@ -7582,33 +7732,92 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Add an Optional Content Group (layer) to the document.
-    # Returns a layer ID for use with beginLayer/endLayer.
-    # -name string   Visible name in viewer (required positional arg)
-    # -visible bool  Initial visibility (default: 1)
+    # Returns a layer ID for use with beginLayer/endLayer and -layer.
+    #
+    #   name           visible label in the viewer's layer panel
+    #   -visible bool  initial visibility (default 1)
+    #   -print bool    goes to the printer (default 1)
+    #   -export bool   state when saved to a format without optional
+    #                  content, a raster image for instance
+    #   -zoom {min max}  magnification range in which the layer is on;
+    #                  empty for either end means unbounded
+    #   -locked bool   the viewer must not let the user toggle it
+    #   -group name    radio group: of all layers sharing a name at most
+    #                  one is visible at a time
+    #
+    # -print 0 is the case a form filler needs: the scan of a preprinted
+    # sheet belongs on the screen so the user sees where the boxes are,
+    # and it must NOT reach the paper, because the preprint is already
+    # there. ISO 32000-1 8.11.4.4 table 102 defines /Usage, and the /AS
+    # array in the default configuration is what makes a viewer apply it.
+    #
+    # The record is a dict, not a positional list. It started as
+    # {oid name visible} and grew twice; every further entry would have
+    # been another position that older code reads as something else.
     method addLayer {name args} {
-        set visible 1
+        # Die Schluessel stehen geklammert, weil nagelfar sonst warnt:
+        # ein blankes "name" neben der Variablen $name sieht aus wie ein
+        # vergessenes Dollarzeichen. Die Warnung hat recht -- an anderer
+        # Stelle waere es eines.
+        set rec [dict create {oid} "" {name} $name {visible} 1 {print} 1 \
+                {export} "" {zoom} {} {locked} 0 {group} ""]
         foreach {opt val} $args {
             switch -- $opt {
-                -visible { set visible [expr {$val ? 1 : 0}] }
+                -visible { dict set rec visible [expr {$val ? 1 : 0}] }
+                -print   { dict set rec print   [expr {$val ? 1 : 0}] }
+                -export  { dict set rec export  [expr {$val ? 1 : 0}] }
+                -locked  { dict set rec locked  [expr {$val ? 1 : 0}] }
+                -group   { dict set rec group   $val }
+                -zoom    {
+                    if {[llength $val] != 2} {
+                        throw {PDF4TCL ARGS} "addLayer: -zoom needs\
+                                {min max}, either may be empty"
+                    }
+                    dict set rec zoom $val
+                }
                 default  { throw {PDF4TCL ARGS} "addLayer: unknown option $opt" }
             }
         }
-        set oid [my GetOid 1]
-        lappend pdf(layers) [list $oid $name $visible]
-        return $oid
+        # "dict set rec oid $oid" laesst nagelfar warnen: der Schluessel
+        # heisst wie die Variable. Ueber lset ist der Schluessel eindeutig
+        # eine Zeichenkette.
+        set neueOid [my GetOid 1]
+        dict set rec {oid} $neueOid
+        lappend pdf(layers) $rec
+        return $neueOid
+    }
+
+    # What layers does this document have? Returns a list of dicts, the
+    # same shape addLayer stored -- so a caller can look without knowing
+    # the internals. Without this an application only ever had the ID it
+    # was handed, and no way back to the name.
+    method layers {} {
+        if {![info exists pdf(layers)]} { return {} }
+        return $pdf(layers)
     }
 
     # Begin an optional content group (layer) block.
     # All drawing commands until endLayer belong to this layer.
-    # layerId is the OID returned by addLayer.
     method beginLayer {layerId} {
         my EndTextObj
+        incr pdf(layerdepth)
         my Pdfout "/OC /Lyr$layerId BDC\n"
     }
 
     # End an optional content group block.
+    #
+    # BDC and EMC must pair up and nest (ISO 32000-1 14.6). Nothing
+    # counted them: a forgotten endLayer left the marked content open,
+    # and an endLayer without beginLayer wrote a stray EMC. Measured on
+    # 2026-09-04 -- BDC=1 EMC=0 and BDC=0 EMC=1 -- and no checker saw it,
+    # pdfcheck-native included. Same class as q between BT and ET: every
+    # viewer draws it anyway.
     method endLayer {} {
+        if {$pdf(layerdepth) <= 0} {
+            throw {PDF4TCL} "endLayer without beginLayer"
+        }
         my EndTextObj
+        incr pdf(layerdepth) -1
         my Pdfout "EMC\n"
     }
 
@@ -9790,9 +9999,41 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Build text/password appearance: returns onid or ""
-    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"}} {
+    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"} {combLen 0}} {
         if {$initValue eq ""} {
-            return ""
+            # Ein LEERES Feld bekommt einen leeren Appearance-Stream.
+            #
+            # Vorher entstand gar keiner. Das ist der Normalfall fuer ein
+            # Formular, das spaeter gefuellt wird -- und genau dort erbt
+            # ein fillForms nichts, was es aktualisieren koennte: ohne
+            # /AP gibt es keinen Strom, den man ueberschreiben kann.
+            #
+            # Der Strom ist leer, also braucht er auch keine Schrift;
+            # die Pruefung darunter greift erst, wenn wirklich Text
+            # gezeichnet wird. Die Schrift des Feldes steht ohnehin in
+            # /DA, wo ein Betrachter sie beim Fuellen holt.
+            # Der Strom bleibt LEER, Laenge 0 -- genau der, den PDF/A
+            # hier schon immer geschrieben hat (ISO 19005 6.3.3 verlangt
+            # das Dictionary, nicht seinen Inhalt). Ein "/Tx BMC EMC"
+            # waere ein zweiter, neuer Fall; encrypt-empty-1.1 misst die
+            # Laenge und haette ihn sofort gemeldet.
+            set obj [my _FormXObjHeader $width $height]
+            set body [MakeStream $obj "" $pdf(compress)]
+            return [my AddObject $body]
+        }
+        # Erst HIER wird eine Schrift gebraucht. Ohne sie brach der Bau
+        # weiter unten mit einer internen Meldung ab --
+        #   can't read "FontsAttrs(,specialencoding)": no such element
+        # -- und nur, wenn ein Wert im Spiel war; ohne -init lief
+        # derselbe addForm-Aufruf durch, weil kein Strom entstand.
+        #
+        # Die Pruefung gehoert an diese Stelle und NICHT an den Kopf von
+        # addForm: ein Feld ohne Wert braucht keine Schrift, und sieben
+        # Tests der Suite legen genau solche Felder an. Gemessen -- eine
+        # Sperre am Kopf faerbt addform-tooltip, addform-tabindex,
+        # tabsr-1.1 und embedfile-6.2 rot.
+        if {$pdf(current_font) eq ""} {
+            throw {PDF4TCL} "no font set"
         }
         if {$isPassword} {
             set dispText [string repeat "\u2022" [string length $initValue]]
@@ -9814,8 +10055,43 @@ Use -pdfa-icc to specify a profile path."
         set obj [my _FormXObjHeader $width $height]
         set stream "/Tx BMC BT "
         append stream "/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor "
-        append stream "[Nf $tx] 1.1 Td "
-        append stream "[PdfText $dispText $pdf(current_font)] Tj "
+        if {$combLen > 0} {
+            # Comb: die Feldbreite wird durch /MaxLen geteilt, und jedes
+            # Zeichen sitzt MITTIG in seiner Zelle (ISO 32000-1 12.7.4.3,
+            # Tabelle 228, Bit 25). Ein Kennzeichen oder eine UN-Nummer
+            # steht so ueber den vorgedruckten Kaestchen und nicht
+            # daneben.
+            #
+            # Je Zeichen eine eigene Positionierung: Td ist relativ zum
+            # Zeilenanfang, also wird die Position jedes Mal neu vom
+            # Ursprung aus gesetzt (Tm), sonst summieren sich die
+            # Schrittweiten.
+            # Die Ausrichtung gilt auch hier: bei weniger Zeichen als
+            # Zellen entscheidet sie, in WELCHEN Zellen sie stehen.
+            # Vorher begann der Text immer bei Zelle 0, und -align war
+            # eine Option, die es gibt und die nichts tut -- /Q stand in
+            # der Datei und wirkte nicht.
+            set zelle [expr {double($width) / $combLen}]
+            set frei [expr {$combLen - [string length $dispText]}]
+            if {$frei < 0} { set frei 0 }
+            switch -- $quadding {
+                1       { set i [expr {$frei / 2}] }
+                2       { set i $frei }
+                default { set i 0 }
+            }
+            foreach ch [split $dispText ""] {
+                if {$i >= $combLen} break
+                set cw [my getStringWidth $ch -font $pdf(current_font) \
+                        -size $pdf(font_size) -internal 1]
+                set cx [expr {$i * $zelle + ($zelle - $cw) / 2.0}]
+                append stream "1 0 0 1 [Nf $cx] 1.1 Tm "
+                append stream "[PdfText $ch $pdf(current_font)] Tj "
+                incr i
+            }
+        } else {
+            append stream "[Nf $tx] 1.1 Td "
+            append stream "[PdfText $dispText $pdf(current_font)] Tj "
+        }
         append stream "ET EMC"
         set body [MakeStream $obj $stream $pdf(compress)]
         return [my AddObject $body]
@@ -9823,6 +10099,13 @@ Use -pdfa-icc to specify a profile path."
 
     # Build combobox/listbox appearance: returns choiceApId
     method _BuildChoiceAP {width height ftype initValue optionsList} {
+        # Wie in _BuildTextAP: ohne Schrift kein Strom. Die Pruefung stand
+        # zuerst NUR dort, und die Doku behauptete danach, addForm melde
+        # "no font set" -- combobox, listbox und pushbutton lieferten
+        # weiter die interne Array-Meldung. Gemessen am 04.09.
+        if {$pdf(current_font) eq ""} {
+            throw {PDF4TCL} "no font set"
+        }
         set obj [my _FormXObjHeader $width $height]
         set stream "/Tx BMC "
         if {$ftype eq "combobox"} {
@@ -9906,6 +10189,13 @@ Use -pdfa-icc to specify a profile path."
 
     # Build pushbutton appearance: returns onid
     method _BuildPushbuttonAP {width height caption} {
+        # Wie in _BuildTextAP: ohne Schrift kein Strom. Die Pruefung stand
+        # zuerst NUR dort, und die Doku behauptete danach, addForm melde
+        # "no font set" -- combobox, listbox und pushbutton lieferten
+        # weiter die interne Array-Meldung. Gemessen am 04.09.
+        if {$pdf(current_font) eq ""} {
+            throw {PDF4TCL} "no font set"
+        }
         set obj [my _FormXObjHeader $width $height]
         # Button background and border
         set stream "0.85 0.85 0.85 rg 0 0 [Nf $width] [Nf $height] re f "
@@ -9927,6 +10217,12 @@ Use -pdfa-icc to specify a profile path."
 
     # Build signature appearance: returns onid
     method _BuildSignatureAP {width height label} {
+        # Wie in _BuildTextAP, _BuildChoiceAP und _BuildPushbuttonAP.
+        # Vier Bauer, vier Stellen -- gefunden, indem alle acht Feldtypen
+        # ohne setFont durchprobiert wurden, nicht durch Nachdenken.
+        if {$pdf(current_font) eq ""} {
+            throw {PDF4TCL} "no font set"
+        }
         set obj [my _FormXObjHeader $width $height]
         # Light gray fill + border
         set stream "0.95 0.95 0.95 rg 0 0 [Nf $width] [Nf $height] re f "
@@ -10006,6 +10302,9 @@ Use -pdfa-icc to specify a profile path."
         set onObj ""
         set offObj ""
         set idStr ""
+        set layerOid ""
+        set maxlen ""
+        set comb 0
         set multiline 0
         set optionsList {}
         set editable 0
@@ -10110,6 +10409,37 @@ Use -pdfa-icc to specify a profile path."
                 }
                 -tooltip {
                     set tooltip $value
+                }
+                -maxlen {
+                    if {![string is integer -strict $value] || $value < 1} {
+                        throw {PDF4TCL} "-maxlen must be a positive integer"
+                    }
+                    set maxlen $value
+                }
+                -comb {
+                    # Comb ohne /MaxLen ist bedeutungslos: die Norm
+                    # teilt die Feldbreite durch MaxLen, und ohne Teiler
+                    # gibt es keine Kaestchen. ISO 32000-1 12.7.4.3,
+                    # Tabelle 228, Bit 25 -- dort steht die Bedingung
+                    # ausdruecklich. Melden statt still nichts tun.
+                    set comb [expr {$value ? 1 : 0}]
+                }
+                -layer {
+                    # Eine Annotation liegt AUSSERHALB des Inhaltsstroms;
+                    # BDC/EMC erreichen sie nicht. Ohne /OC im
+                    # Annotationswoerterbuch (ISO 32000-1 12.5.2) laesst
+                    # sich ein Formularfeld darum ueberhaupt nicht in
+                    # eine Ebene legen -- gemessen: beginLayer um addForm
+                    # herum wickelt nichts ein.
+                    set gefunden 0
+                    foreach l $pdf(layers) {
+                        if {[dict get $l {oid}] eq $value} { set gefunden 1 }
+                    }
+                    if {!$gefunden} {
+                        throw {PDF4TCL} "-layer: no such layer \"$value\" --\
+                                use the id addLayer returned"
+                    }
+                    set layerOid $value
                 }
                 -tabindex {
                     if {![string is integer -strict $value] || $value < 0} {
@@ -10318,9 +10648,67 @@ Use -pdfa-icc to specify a profile path."
             if {$ftype ne "text"} {
                 throw {PDF4TCL} "-format is only valid for text fields"
             }
-            if {[lindex $formatSpec 0] ne "number"} {
-                throw {PDF4TCL} "-format: only 'number' is currently supported"
+            set fmtKind [lindex $formatSpec 0]
+            if {$fmtKind ni {number date time}} {
+                throw {PDF4TCL} "-format must be number, date or time,\
+                        not \"$fmtKind\""
             }
+        }
+
+        # --- date and time -------------------------------------------------
+        #
+        # AFDate_Format und AFTime_Format nehmen im Betrachter eine
+        # Musterzeichenkette, kein Zahlenkuerzel -- anders als
+        # AFNumber_Format. Die gaengigen Muster stehen als Namen zur
+        # Verfuegung, damit niemand raten muss, ob der Monat "m", "mm"
+        # oder "MM" heisst.
+        #
+        # Ein Frachtbrief besteht zur Haelfte aus Datumsangaben; das war
+        # der Anlass. Bis 0.9.4.63 meldete -format hier
+        # "only 'number' is currently supported".
+        if {$formatSpec ne "" && [lindex $formatSpec 0] in {date time}} {
+            set fmtKind [lindex $formatSpec 0]
+            set muster ""
+            foreach {k v} [lrange $formatSpec 1 end] {
+                switch -- $k {
+                    format - pattern { set muster $v }
+                    default {
+                        throw {PDF4TCL} "-format $fmtKind: unknown key\
+                                \"$k\" (format)"
+                    }
+                }
+            }
+            if {$muster eq ""} {
+                set muster [expr {$fmtKind eq "date" ? "german" : "24"}]
+            }
+            # Namen statt Muster, wo es sich lohnt. Wer ein eigenes
+            # Muster gibt, bekommt es unveraendert -- die Namen sind eine
+            # Abkuerzung, keine Schranke.
+            set benannt [dict create \
+                    german    "dd.mm.yyyy" \
+                    de        "dd.mm.yyyy" \
+                    iso       "yyyy-mm-dd" \
+                    us        "mm/dd/yyyy" \
+                    short     "dd.mm.yy" \
+                    24        "HH:MM" \
+                    24s       "HH:MM:ss" \
+                    12        "h:MM tt"]
+            if {[dict exists $benannt $muster]} {
+                set muster [dict get $benannt $muster]
+            }
+            if {[string match "*\[\"\\\\]*" $muster]} {
+                throw {PDF4TCL} "-format $fmtKind: pattern contains an\
+                        invalid character"
+            }
+            set af [expr {$fmtKind eq "date" ? "AFDate" : "AFTime"}]
+            lappend aaParts "/F << /S /JavaScript /JS\
+                    [QuoteString "${af}_FormatEx(\"$muster\");"] >>"
+            lappend aaParts "/K << /S /JavaScript /JS\
+                    [QuoteString "${af}_KeystrokeEx(\"$muster\");"] >>"
+            set pdf(needAppearances) 1
+        }
+
+        if {$formatSpec ne "" && [lindex $formatSpec 0] eq "number"} {
             set fmtDec 2
             set fmtSep 0
             set fmtCur ""
@@ -10414,7 +10802,8 @@ Use -pdfa-icc to specify a profile path."
             lassign [my _BuildCheckboxAP $width $height $onObj $offObj] onid offid
         } elseif {$ftype in {text password}} {
             set onid [my _BuildTextAP $width $height $initValue \
-                    [expr {$ftype eq "password"}] $quadding $daColor]
+                    [expr {$ftype eq "password"}] $quadding $daColor \
+                    [expr {$comb ? $maxlen : 0}]]
         } elseif {$ftype eq "listbox"} {
             set choiceApId [my _BuildChoiceAP $width $height $ftype \
                     $initValue $optionsList]
@@ -10432,8 +10821,37 @@ Use -pdfa-icc to specify a profile path."
         }
 
         # Create annotation
+        if {$comb} {
+            if {$ftype ni {text}} {
+                throw {PDF4TCL} "-comb is only valid for text fields"
+            }
+            if {$maxlen eq ""} {
+                throw {PDF4TCL} "-comb needs -maxlen -- the field width is\
+                        divided by it, and without a divisor there are no\
+                        cells (ISO 32000-1 12.7.4.3)"
+            }
+            if {$multiline} {
+                throw {PDF4TCL} "-comb and -multiline exclude each other"
+            }
+        }
+        if {$maxlen ne "" && $ftype ni {text password}} {
+            throw {PDF4TCL} "-maxlen is only valid for text and password fields"
+        }
+        if {$maxlen ne "" && [string length $initValue] > $maxlen} {
+            # Gemessen: ein -init mit acht Zeichen bei -maxlen 4 lief
+            # durch, und der Comb-Strom zeichnete vier davon -- die
+            # anderen vier verschwanden still. Ein Betrachter nimmt sie
+            # ebenfalls nicht an, der Wert im /V aber schon: die Datei
+            # traegt dann etwas, das niemand sieht und niemand tippen
+            # koennte.
+            throw {PDF4TCL} "-init is longer than -maxlen\
+                    ([string length $initValue] > $maxlen)"
+        }
         set andict "<<\n"
         append andict "  /Subtype /Widget\n"
+        if {$layerOid ne ""} {
+            append andict "  /OC $layerOid 0 R\n"
+        }
         # Page reference
         append andict "  /P $pdf(pageobjid) 0 R\n"
         # Placement
@@ -10457,8 +10875,14 @@ Use -pdfa-icc to specify a profile path."
             if {$required} {
                 set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
             }
+            if {$comb} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_COMB}]
+            }
             if {$ff != 0} {
                 append andict "  /Ff $ff\n"
+            }
+            if {$maxlen ne ""} {
+                append andict "  /MaxLen $maxlen\n"
             }
             # Appearance
             append andict "  /DA (/$pdf(current_font) [Nf $pdf(font_size)] Tf $daColor)\n"
@@ -10524,10 +10948,26 @@ Use -pdfa-icc to specify a profile path."
             if {$required} {
                 set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
             }
+            if {$comb} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_COMB}]
+            }
             if {$ff != 0} {
                 append andict "  /Ff $ff\n"
             }
-            # Options array
+            if {$maxlen ne ""} {
+                append andict "  /MaxLen $maxlen\n"
+            }
+            # Options array.
+            #
+            # Auch das braucht eine Schrift: die Eintraege werden mit ihr
+            # kodiert. Bei combobox entsteht KEIN Appearance-Stream (der
+            # Betrachter zeichnet selbst), deshalb greift der Waechter in
+            # _BuildChoiceAP hier nicht -- gemessen: combobox meldete
+            # weiter die interne Array-Meldung, waehrend listbox schon
+            # "no font set" sagte. Dieselbe Ursache, zwei Ausgaenge.
+            if {[llength $optionsList] && $pdf(current_font) eq ""} {
+                throw {PDF4TCL} "no font set"
+            }
             append andict "  /Opt \["
             foreach opt $optionsList {
                 append andict "[PdfText $opt $pdf(current_font)] "
@@ -10647,8 +11087,14 @@ Use -pdfa-icc to specify a profile path."
             if {$required} {
                 set ff [expr {$ff | $::pdf4tcl::Ff_REQUIRED}]
             }
+            if {$comb} {
+                set ff [expr {$ff | $::pdf4tcl::Ff_COMB}]
+            }
             if {$ff != 0} {
                 append andict "  /Ff $ff\n"
+            }
+            if {$maxlen ne ""} {
+                append andict "  /MaxLen $maxlen\n"
             }
             # State
             if {$initValue} {
@@ -10884,7 +11330,10 @@ Use -pdfa-icc to specify a profile path."
                 my CanvasDoItem $path $id [$path coords $id] opts
             }
 
-            # Restore graphics state after the item
+            # Restore graphics state after the item. Close a text object
+            # first: an empty canvas text item used to return still inside
+            # BT, so this Q sat between BT and ET.
+            my EndTextObj
             my Pdfoutcmd "Q"
         }
         # Restore graphics state after the canvas
@@ -11259,7 +11708,12 @@ Use -pdfa-icc to specify a profile path."
                 }
                 if {$cwidest == 0} {
                     # The text does not produce any size, which probably
-                    # mean it is empty.
+                    # mean it is empty. CanvasSetFont has already opened a
+                    # text object; leaving it open put the following item's
+                    # q/Q, w, re inside BT. Measured: empty string then a
+                    # rectangle, eight graphics operators between BT and ET.
+                    my EndTextObj
+                    my PopFont
                     return
                 }
                 set xscale [expr {$widest / $cwidest}]
@@ -11653,6 +12107,7 @@ Use -pdfa-icc to specify a profile path."
     # Setup the graphics state from standard options
     method CanvasStdOpts {optsName} {
         upvar 1 $optsName opts
+        my EndTextObj
 
         # Stipple for fill color
         set fillstippleid ""
@@ -12153,7 +12608,14 @@ oo::define ::pdf4tcl::pdf4tcl {
             # Anything else: ask Tk. Catch both a bad color and Tk not
             # being present or having no display.
             if {[catch {winfo rgb . $color} tkcolor]} {
-                throw {PDF4TCL} "unknown color: $color"
+                # Die Meldung nannte nur den Wert. Wer "-bgcolor 1"
+                # schreibt, liest dann "unknown color: 1" und weiss
+                # nicht, was stattdessen dastehen soll. Vorbild sind die
+                # Formularoptionen: "-options is required for combobox"
+                # sagt die Erwartung, nicht nur den Fehler.
+                throw {PDF4TCL} "unknown color: \"$color\" -- expected a\
+                        name like \"red\", \"#rrggbb\", or three numbers\
+                        between 0 and 1"
             }
             foreach {red green blue} $tkcolor break
             set red   [expr {($red   & 0xFF00) / 65280.0}]
@@ -16665,6 +17127,24 @@ proc pdf4tcl::getForms {pdfFile} {
             } else {
                 dict set result $id flags 0
             }
+            # Was addForm schreiben kann, muss getForms auch lesen
+            # koennen. /MaxLen und die Kaestchen kamen in 0.9.4.63 dazu,
+            # und beim Zuruecklesen fielen sie unter den Tisch: wer ein
+            # Formular liest, um es nachzubauen, verlor die Kaestchen und
+            # merkte es erst am fertigen Nachbau.
+            if {[dict exists $d /MaxLen]} {
+                dict set result $id maxlen [dict get $d /MaxLen]
+            } else {
+                dict set result $id maxlen {}
+            }
+            # Comb ist Bit 25 und gilt nur zusammen mit /MaxLen -- ohne
+            # Teiler gibt es keine Zellen (ISO 32000-1 12.7.4.3). Ein
+            # gesetztes Bit ohne /MaxLen ist darum KEIN Kammfeld, und
+            # hier steht 0, nicht 1: die Auskunft soll sagen, was die
+            # Datei bewirkt, nicht was in ihr steht.
+            set ff [dict get $result $id flags]
+            dict set result $id comb [expr {
+                ($ff & $::pdf4tcl::Ff_COMB) && [dict exists $d /MaxLen] ? 1 : 0}]
         }
     }
     return $result

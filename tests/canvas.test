@@ -367,7 +367,11 @@ test canvas-8.3 {dash} -body {
     }
 } -cleanup {destroy .c} -result 1
 
-test canvas-9.1 {angled text} -body {
+# Hiess canvas-9.1 -- denselben Namen traegt der erste Test der
+# getTkpptext-Gruppe weiter unten. tcltest fuehrt beide aus, aber im
+# Bericht steht nur der Name, und man sieht nicht, welcher fiel. Dieser
+# hier gehoert inhaltlich zu den Canvas-Elementen, also 8.4.
+test canvas-8.4 {angled text} -body {
     # test angled text on canvas
     canvas .c -width 400 -height 400
     # mark anchor position with a cross, for debug
@@ -376,18 +380,30 @@ test canvas-9.1 {angled text} -body {
     for {set angle 0} {$angle <= 80} {incr angle 20} {
         .c create text {100 200} -anchor w -text "String $angle." -angle $angle -underline 6
     }
+    # Die DREHUNG festhalten, nicht die Metrik.
+    #
+    # Vorher standen hier alle Koordinaten als feste Zahlen. Die kommen
+    # aber aus der Schrift: Ankerhoehe aus dem Ascent, Unterstrichlaenge
+    # aus der Zeichenbreite. Auf einer anderen Maschine misst dieselbe
+    # "Helvetica 14" anders -- gemeldet aus einem Windows-Lauf
+    # 05.09.2026 mit 203.076 statt 203.942 und 130.16 statt 136.568.
+    #
+    # Der Test war also gruen, wo er die Metrik der Testmaschine
+    # wiedererkannte, und rot sonst -- geprueft hat er dabei etwas
+    # anderes, als sein Name sagt. Was hier zaehlt, ist die Drehmatrix
+    # (cos, sin, -sin, cos), und die ist von der Schrift unabhaengig.
     mytest {canvas .c -fontmap {TkDefaultFont {Helvetica 14}}} {
         q * q * Q q * Q
-        q * 1 0 0 -1 100 203.942 Tm (String 0.) Tj ET
-        136.568 204.942 m 140.46 204.942 l S Q
-        q * 0.94 -0.342 -0.342 -0.94 101.348 203.704 Tm (String 20.) Tj ET
-        136.053 192.137 m 139.71 190.806 l S Q
-        q * 0.766 -0.643 -0.643 -0.766 102.534 203.02 Tm (String 40.) Tj ET
-        131.189 180.28 m 134.171 177.779 l S Q
-        q * 0.5 -0.866 -0.866 -0.5 103.414 201.971 Tm (String 60.) Tj ET
-        122.564 170.802 m 124.51 167.432 l S Q
-        q * 0.174 -0.985 -0.985 -0.174 103.882 200.685 Tm (String 80.) Tj ET
-        111.217 164.846 m 111.893 161.013 l S Q
+        q * 1 0 0 -1 100 * Tm (String 0.) Tj ET
+        * m * l S Q
+        q * 0.94 -0.342 -0.342 -0.94 * Tm (String 20.) Tj ET
+        * m * l S Q
+        q * 0.766 -0.643 -0.643 -0.766 * Tm (String 40.) Tj ET
+        * m * l S Q
+        q * 0.5 -0.866 -0.866 -0.5 * Tm (String 60.) Tj ET
+        * m * l S Q
+        q * 0.174 -0.985 -0.985 -0.174 * Tm (String 80.) Tj ET
+        * m * l S Q
         Q
     }
 } -cleanup {destroy .c} -result 1
