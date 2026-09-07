@@ -1,3 +1,53 @@
+2026-09-06 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.65
+	* getForms reports /TU and /Opt; fillForms validates choice values
+
+	* src/cat.tcl (getForms): new keys "description" (the field's /TU) and
+	"options" (a choice field's permitted values, as {export label}
+	pairs). Empty but present for other field types.
+	* src/cat.tcl (FormReadOpt): new. Reads both forms of /Opt -- labels
+	only, and export/label pairs (ISO 32000-1 12.7.4.4). Counts brackets;
+	a pattern stops at the first inner one.
+	* src/cat.tcl (fillForms): a choice field takes only what is in /Opt.
+	Export value and label are both accepted, and so is the empty string --
+	it means "nothing selected", and a round trip reading every field and
+	writing it back must not fail on it. Until .64 any value was written
+	and a success reported.
+	* tests/form.test: form-opt-1.1 to 1.3, with
+	tests/fixtures/form-opt-paare.pdf for the pair form.
+
+2026-09-06 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.64
+	* Appearance streams for stamp and line annotations
+
+	* src/main.tcl (addAnnotStamp, addAnnotLine): both write an appearance
+	stream now; without one a stamp has nothing to draw from
+	(ISO 32000-1 12.5.6.12) and stays invisible in PDFium, hence in Chrome
+	and Edge. Arrow heads for OpenArrow, ClosedArrow, ROpenArrow,
+	RClosedArrow, Circle and Square; any other ending stays a plain line.
+	* src/main.tcl (_AnnotAP, _BuildStampAP, _BuildLineAP): new.
+	* src/main.tcl (SetupZaDbFont): ToUnicode map for the two ZapfDingbats
+	characters pdf4tcl uses, (4) to U+2714 and (l) to U+25CF.
+	* src/cat.tcl (FormFieldTree): new. getForms and fillForms go through
+	the field tree instead of the widget's /T. Finds a field with several
+	widgets (12.7.4.1) and composes nested names (12.7.3.2).
+	* src/cat.tcl (getForms): new key "widgets".
+	* src/cat.tcl (fillForms): rebuilds the appearance stream along with
+	/V, one per widget from its own /Rect. Honours /Q, draws comb fields
+	in cells when /MaxLen is present, wraps multi-line fields. No stream
+	for password fields (clear text) or choice fields (own box).
+	* src/cat.tcl (fillForms): refuses a dynamic XFA form --
+	/NeedsRendering at the catalogue, /XFA in the form dictionary, also
+	behind an indirect /AcroForm. Hybrid XFA is filled as before.
+	* src/helpers.tcl (FormWrapLines): new. One line-breaking routine for
+	addForm and fillForms.
+	* demo/demo-forms-tk.tcl: "fillForms round trip" and "Show /AP
+	streams".
+	* tests: form.test and form-ext.test extended, with hand-built
+	fixtures for cases pdf4tcl cannot produce itself.
+
 2026-09-03 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.63

@@ -73,16 +73,24 @@ test form-3.3 {addForm method, checkbutton} -body {
 test form-4.1 {getForms command} -body {
     mytest -file {addForm text 0 0 10 10 -id MyPrecious} {}
     pdf4tcl::getForms testdebug.pdf
-    # Die Rueckgabe ist in 0.9.4.63 um maxlen und comb gewachsen. Ein
-    # Test, der das ganze dict festnagelt, meldet jede Erweiterung --
-    # hier zu Recht: die Rueckgabe ist Teil der zugesagten Schnittstelle
-    # und steht so in der manpage.
-} -cleanup {file delete testdebug.pdf} -result [list MyPrecious [list type /Tx value {} flags 0 maxlen {} comb 0]]
+    # Die Rueckgabe ist in 0.9.4.63 um maxlen und comb gewachsen, in
+    # 0.9.4.64 um widgets, in 0.9.4.65 um description und options. Ein Test, der das ganze dict festnagelt,
+    # meldet jede Erweiterung -- hier zu Recht: die Rueckgabe ist Teil
+    # der zugesagten Schnittstelle und steht so in der manpage.
+    #
+    # "widgets" ist die sichtbare Haelfte des Durchschlagsatzes: ohne
+    # den Schluessel sagt getForms ueber ein Feld mit mehreren Widgets
+    # gar nichts. Die Reihenfolge im dict aendert sich mit, weil
+    # "default" jetzt erst nach den Widgets bekannt ist -- ein dict
+    # vergleicht als Liste, darum steht es hier hinten.
+} -cleanup {file delete testdebug.pdf} -result [list MyPrecious [list type /Tx value {} flags 0 maxlen {} comb 0 \
+        widgets 1 description {} options {}]]
 
 test form-4.2 {getForms command} -body {
     mytest -file {addForm checkbutton 0 0 10 10 -id TheSuperForm} {}
     pdf4tcl::getForms testdebug.pdf
-} -cleanup {file delete testdebug.pdf} -result [list TheSuperForm [list type /Btn default /Off value /Off flags 0 maxlen {} comb 0]]
+} -cleanup {file delete testdebug.pdf} -result [list TheSuperForm [list type /Btn value /Off flags 0 maxlen {} \
+        comb 0 default /Off widgets 1 description {} options {}]]
 
 # ---------------------------------------------------------------------------
 # One /AP per widget dictionary (0.9.4.43)
@@ -410,6 +418,19 @@ test form-getforms-1.1 {getForms meldet maxlen und comb} -body {
 
 tcltest::testConstraint haveQpdf [expr {![catch {exec qpdf --version}]}]
 
+# Ein Formular mit /Opt in der PAAR-Form -- pdf4tcl kann sie nicht
+# erzeugen, fremde Formulare tragen sie. Von Hand gebaut.
+set ::optPaare [file join [file dirname [file normalize [info script]]] \
+        fixtures form-opt-paare.pdf]
+tcltest::testConstraint haveOptPaare [file readable $::optPaare]
+
+# Ein Formular mit Comb-Bit, aber OHNE /MaxLen -- so etwas kommt in
+# fremden Dateien vor, und pdf4tcl erzeugt es nicht: addForm verlangt
+# -maxlen zusammen mit -comb. Von Hand gebaut.
+set ::combNoMax [file join [file dirname [file normalize [info script]]] \
+        fixtures form-comb-nomaxlen.pdf]
+tcltest::testConstraint haveCombNoMax [file readable $::combNoMax]
+
 test form-getforms-1.2 {Comb-Bit ohne MaxLen ist kein Kammfeld} -constraints haveQpdf -body {
     # Die Auskunft soll sagen, was die Datei BEWIRKT, nicht was in ihr
     # steht. Ohne Teiler gibt es keine Zellen (ISO 32000-1 12.7.4.3).
@@ -480,5 +501,443 @@ test form-maxlen-1.10 {gleich lang ist erlaubt} -body {
     $p destroy
     set rc
 } -result 0
+
+test form-zadb-1.1 {ZaDb bekommt eine ToUnicode-Zuordnung} -body {
+    # WARUM: ohne sie meldete pdfcheck-native
+    #   "ZapfDingbats: no ToUnicode map -- text cannot be extracted"
+    # -- gemessen ueber demo/out, sechs Dateien, alle mit Formularen.
+    # ZapfDingbats kommt nur ueber Ankreuz- und Optionsfelder herein,
+    # und zwar nur bei -markstyle font/auto ohne -pdfa; mit Vektormarke
+    # entsteht die Schrift gar nicht.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 50 50 15 15 -id haken
+    $p endPage
+    set d [$p get]
+    $p destroy
+    set i [string first "/BaseFont /ZapfDingbats" $d]
+    list [expr {$i >= 0}] \
+         [expr {[string first "/ToUnicode" [string range $d $i end]] >= 0}]
+} -result {1 1}
+
+test form-zadb-1.2 {die Zuordnung nennt Haken und Punkt} -body {
+    # Nicht nur DASS eine Zuordnung da ist, sondern WELCHE. Eine leere
+    # oder falsche CMap wuerde den Test oben bestehen und trotzdem
+    # nichts taugen.
+    #   (4) = 0x34  Haken   -> U+2714
+    #   (l) = 0x6C  Punkt   -> U+25CF
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 50 50 15 15 -id haken
+    $p endPage
+    set d [$p get]
+    $p destroy
+    set i [string first "/Registry (ZapfDingbats)" $d]
+    set rest [string range $d $i end]
+    list [expr {[string first "<34> <2714>" $rest] >= 0}] \
+         [expr {[string first "<6C> <25CF>" $rest] >= 0}]
+} -result {1 1}
+
+test form-zadb-1.3 {das Dokument bleibt lesbar} -body {
+    # DER WICHTIGE TEST. Der erste Einbau uebergab MakeStream ein
+    # fertiges "<<\n>>", und MakeStream haengt /Length und ">>" selbst
+    # an -- es entstand ein ">>" zuviel, die Datei war kaputt, und JEDER
+    # Leser lief sich darin fest: getForms haengte, auch die Fassung .63
+    # an einer .64-Datei.
+    #
+    # Kein bestehender Test hat das gefangen, weil keiner getForms auf
+    # ein Dokument MIT Ankreuzfeld anwendet. Genau das tut dieser.
+    set f [makeFile {} zadb-lesbar.pdf]
+    set p [pdf4tcl::new %AUTO%]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 50 100 200 20 -id name
+    $p addForm checkbutton 50 50 15 15 -id haken
+    $p write -file $f
+    $p destroy
+    set n [dict size [pdf4tcl::getForms $f]]
+    removeFile zadb-lesbar.pdf
+    set n
+} -result 2
+
+
+test form-fillap-1.1 {fillForms zieht den Appearance-Strom mit} -body {
+    # DIE LUECKE, die fillForms bis .63 hatte: es setzte /V und
+    # /NeedAppearances, liess den Strom aber, wie er war. Ein Betrachter,
+    # der die Flagge befolgt, zeigte den neuen Wert; eine Druckstrecke,
+    # die den Strom zeichnet, den ALTEN -- bei einem leeren Feld also
+    # nichts. Auf Papier stand etwas anderes als in der Datei, und man
+    # sah es dem Bildschirm nicht an.
+    #
+    # .63 hat vorgesorgt: seither bekommt auch ein leeres Feld einen
+    # (leeren) Strom, damit es hier etwas zum Ueberschreiben gibt.
+    set leer [makeFile {} fillap-leer.pdf]
+    set voll [makeFile {} fillap-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 80 68 150 16 -id kunde
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {kunde "Spedition Muster"}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile fillap-leer.pdf
+    removeFile fillap-voll.pdf
+    # Der Wert muss GEZEICHNET werden, nicht nur in /V stehen.
+    list [expr {[string first "(Spedition Muster) Tj" $d] >= 0}] \
+         [expr {[string first "/NeedAppearances" $d] >= 0}]
+} -result {1 1}
+
+test form-fillap-1.2 {der Strom ersetzt den alten, er kommt nicht dazu} -body {
+    # Ueberschreiben statt anhaengen: .63 legt den leeren Strom an, und
+    # genau dieses Objekt wird neu geschrieben. Ein zweites Objekt waere
+    # Muell in der Datei, auf das niemand zeigt.
+    set leer [makeFile {} fillap2-leer.pdf]
+    set voll [makeFile {} fillap2-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 80 68 150 16 -id kunde
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {kunde "Muster"}
+    set fh [open $leer rb] ; set a [read $fh] ; close $fh
+    set fh [open $voll rb] ; set b [read $fh] ; close $fh
+    set na [regexp -all {/Subtype /Form} $a]
+    set nb [regexp -all {/Subtype /Form} $b]
+    removeFile fillap2-leer.pdf
+    removeFile fillap2-voll.pdf
+    expr {$na == $nb}
+} -result 1
+
+test form-fillap-1.3 {ein Comb-Feld bleibt unangetastet} -body {
+    # Die Zellenbreite haengt an /MaxLen, und ein halb gezeichnetes
+    # Comb-Feld waere schlechter als ein ungezeichnetes. Der alte Strom
+    # bleibt also stehen -- wie bisher, und das ist hier die richtige
+    # Antwort.
+    set leer [makeFile {} fillap3-leer.pdf]
+    set voll [makeFile {} fillap3-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id kfz -maxlen 8 -comb 1
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {kfz "AB123456"}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile fillap3-leer.pdf
+    removeFile fillap3-voll.pdf
+    # Der Wert steht in /V, aber NICHT als fortlaufender Text im Strom.
+    list [expr {[string first "(AB123456)" $d] >= 0}] \
+         [expr {[string first "(AB123456) Tj" $d] >= 0}]
+} -result {1 0}
+
+
+test form-fillap-1.4 {ein Kennwortfeld bekommt KEINEN neuen Strom} -body {
+    # Gefunden ueber demo-forms-tk.tcl, nicht ueber einen Test: der
+    # Rundlauf der Demo zeigte "pw_empty ... gezeichnet ja", und im
+    # Strom stand "(Muster pw_empty) Tj" -- das Kennwort im KLARTEXT,
+    # waehrend der Bildschirm Punkte zeigt.
+    #
+    # Punkte statt Klartext zu zeichnen waere die andere Moeglichkeit,
+    # aber sie ist schlechter: der Wert steht ohnehin in /V, und ein
+    # gezeichneter Punktestrom taeuschte vor, die Datei gaebe das
+    # Kennwort nicht preis.
+    set leer [makeFile {} pw-leer.pdf]
+    set voll [makeFile {} pw-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm password 30 40 150 16 -id geheim
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {geheim "Sesam"}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile pw-leer.pdf
+    removeFile pw-voll.pdf
+    # In /V steht er -- das ist die Aufgabe von fillForms. Im STROM nicht.
+    list [expr {[string first "/V (Sesam)" $d] >= 0}] \
+         [expr {[string first "(Sesam) Tj" $d] >= 0}]
+} -result {1 0}
+
+
+test form-multi-1.1 {addForm bricht ein mehrzeiliges Feld um} -body {
+    # Bis 0.9.4.63 stand der ganze Text in EINER Zeile -- mitsamt dem
+    # "\n" als sichtbarem Zeichen im Textstring, das kein Betrachter
+    # umbricht. Ein langer Text lief aus dem Kasten.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 50 -id ml -multiline 1 \
+            -init "Erste Zeile\nZweite Zeile"
+    $p endPage
+    set d [$p get]
+    $p destroy
+    list [expr {[string first "(Erste Zeile) Tj" $d] >= 0}] \
+         [expr {[string first "(Zweite Zeile) Tj" $d] >= 0}]
+} -result {1 1}
+
+test form-multi-1.2 {ein langer Text bricht von selbst um} -body {
+    # Wer nur an "\n" bricht, laesst lange Zeilen aus dem Kasten laufen.
+    # Der Umbruch misst mit derselben Schrift und Groesse, die auch der
+    # Strom setzt -- eine geschaetzte Breite waere eine zweite Rechnung.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 100 50 -id ml -multiline 1 \
+            -init "Ein recht langer Text ohne Umbruchzeichen der von selbst umbrechen muesste"
+    $p endPage
+    set d [$p get]
+    $p destroy
+    # Mehr als eine Zeile heisst: mehr als ein Tj im Strom.
+    regexp {/Tx BMC BT.*?ET EMC} $d strom
+    expr {[regexp -all {\) Tj} $strom] > 1}
+} -result 1
+
+test form-multi-1.3 {einzeilig bleibt einzeilig} -body {
+    # Die Gegenprobe: ohne -multiline darf sich nichts aendern, sonst
+    # misst der Test oben nur, dass ueberhaupt etwas gezeichnet wird.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id einz -init "Nur eine Zeile"
+    $p endPage
+    set d [$p get]
+    $p destroy
+    regexp {/Tx BMC BT.*?ET EMC} $d strom
+    list [regexp -all {\) Tj} $strom] \
+         [expr {[string first "2 1.1 Td" $strom] >= 0}]
+} -result {1 1}
+
+test form-multi-1.4 {fillForms bricht ebenso um} -body {
+    # DIESELBE Routine wie beim Erzeugen. Zwei Umbruchrechnungen fuer
+    # dieselbe Sache gingen auseinander, und dann saehe dasselbe Feld je
+    # nachdem verschieden aus.
+    set leer [makeFile {} ml-leer.pdf]
+    set voll [makeFile {} ml-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 50 -id ml -multiline 1
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll \
+            {ml "Spedition Muster GmbH\nHauptstrasse 1\n48691 Vreden"}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile ml-leer.pdf
+    removeFile ml-voll.pdf
+    list [expr {[string first "(Spedition Muster GmbH) Tj" $d] >= 0}] \
+         [expr {[string first "(48691 Vreden) Tj" $d] >= 0}]
+} -result {1 1}
+
+test form-multi-1.5 {ein zu breites Wort wird nicht getrennt} -body {
+    # Mitten im Wort zu trennen waere eine Silbentrennung, und die ist
+    # ohne Woerterbuch geraten. Es bleibt ganz und ragt lieber heraus --
+    # der BBox schneidet es ab, und das sieht man.
+    set breite [list apply {{s} {expr {[string length $s] * 5.0}}}]
+    pdf4tcl::FormWrapLines "kurz Donaudampfschiffahrtsgesellschaft x" 40 $breite
+} -result {kurz Donaudampfschiffahrtsgesellschaft x}
+
+
+test form-comb-1.1 {fillForms zeichnet ein Comb-Feld in Zellen} -body {
+    # Die Feldbreite durch /MaxLen geteilt, jedes Zeichen MITTIG in
+    # seiner Zelle (ISO 32000-1 12.7.4.3, Tabelle 228, Bit 25). Ein
+    # Kennzeichen steht so ueber den vorgedruckten Kaestchen und nicht
+    # daneben. Dasselbe, was addForm beim Erzeugen tut.
+    set leer [makeFile {} comb-leer.pdf]
+    set voll [makeFile {} comb-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 160 20 -id kfz -maxlen 8 -comb 1
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {kfz "BOR-AB12"}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile comb-leer.pdf
+    removeFile comb-voll.pdf
+    regexp {/Tx BMC BT.*?ET EMC} $d strom
+    # Acht Zeichen, also acht Tj -- eines je Zelle, nicht eine
+    # Zeichenkette am Stueck.
+    list [regexp -all {\) Tj} $strom] \
+         [expr {[string first "(B) Tj" $strom] >= 0}]
+} -result {8 1}
+
+test form-comb-1.2 {ohne /MaxLen bleibt der alte Strom stehen} \
+        -constraints haveCombNoMax -body {
+    # Ein Formular darf Bit 25 tragen, ohne /MaxLen zu setzen. Dann gibt
+    # es keinen Teiler und keine Zellen -- und ein halb gezeichnetes
+    # Comb-Feld waere schlechter als ein ungezeichnetes.
+    #
+    # Die Bedingung ist MESSBAR und nicht geraten: /MaxLen ist da oder
+    # nicht. /V wird trotzdem gesetzt, das ist die Aufgabe von
+    # fillForms.
+    set aus [makeFile {} combno-voll.pdf]
+    pdf4tcl::fillForms $::combNoMax $aus {kfz "AB12"}
+    set fh [open $aus rb] ; set d [read $fh] ; close $fh
+    removeFile combno-voll.pdf
+    # Der alte Strom steht komprimiert in der Datei -- also entpacken
+    # statt im Klartext zu suchen. Mein erster Anlauf tat das nicht und
+    # meldete "alter Strom weg", obwohl er dastand: ein Messfehler, kein
+    # Befund.
+    set altDa 0
+    foreach m [regexp -all -inline "stream\n(.*?)endstream" $d] {
+        if {[catch {zlib decompress [string trimright $m "\n"]} t]} continue
+        if {[string first "(alt) Tj" $t] >= 0} { set altDa 1 }
+    }
+    list [expr {[string first "/V (AB12)" $d] >= 0}] $altDa
+} -result {1 1}
+
+
+test form-choice-1.1 {ein Auswahlfeld behaelt seinen Kasten} -body {
+    # DER RUECKSCHRITT, den das Strombauen selbst eingebaut hatte: bis
+    # hierher pruefte fillForms nur die FLAGGEN und nicht den Feldtyp.
+    # Ein Listenfeld lief als Textfeld durch, und der neue Strom warf
+    # weissen Kasten und Rahmen weg:
+    #
+    #   vorher:  /Tx BMC 1 1 1 rg 0 0 150 40 re f ... (Bremen) Tj
+    #   nachher: /Tx BMC BT ... (Vreden) Tj
+    #
+    # Der Wert war richtig und das Feld sah aus wie nichts.
+    set leer [makeFile {} ch-leer.pdf]
+    set voll [makeFile {} ch-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5 -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm listbox 30 40 150 40 -id lb \
+            -options {Bremen Hamburg Vreden} -init Bremen
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {lb Vreden}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile ch-leer.pdf
+    removeFile ch-voll.pdf
+    # /V neu, Strom unveraendert -- die dokumentierte Grenze.
+    list [expr {[string first "/V (Vreden)" $d] >= 0}] \
+         [expr {[string first "0 0 150 40 re f" $d] >= 0}] \
+         [expr {[string first "(Bremen) Tj" $d] >= 0}]
+} -result {1 1 1}
+
+
+test form-opt-1.1 {getForms nennt Erklaerung und Auswahlwerte} -body {
+    # pdf4tcl SCHRIEB beides schon -- -tooltip wird zu /TU, -options zu
+    # /Opt -- und getForms gab keines von beiden wieder heraus. Ein
+    # Paket, das eine Auskunft schreibt und nicht liest, zwingt den
+    # Aufrufer, die Datei selbst aufzumachen.
+    #
+    # Aufgefallen ueber tclpdfium: dort hatte ich beide Auskuenfte am
+    # 06.09.2026 ergaenzt, und beim Vergleich fehlten sie hier.
+    set f [makeFile {} opt-a.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id kunde -tooltip "Empfaenger und Anschrift"
+    $p addForm combobox 30 70 150 16 -id artikel -options {Alpha Beta} -init Alpha
+    $p write -file $f
+    $p destroy
+    set d [pdf4tcl::getForms $f]
+    removeFile opt-a.pdf
+    list [dict get $d kunde description] \
+         [dict get $d kunde options] \
+         [dict get $d artikel options]
+} -result {{Empfaenger und Anschrift} {} {{Alpha Alpha} {Beta Beta}}}
+
+test form-opt-1.2 {fillForms lehnt einen Wert ab, den es nicht gibt} -body {
+    # Bis 0.9.4.64 wurde JEDER Wert in /V geschrieben und ein Erfolg
+    # gemeldet. Das Feld traegt damit einen ungueltigen Zustand, und ein
+    # Betrachter zeigt je nach Laune nichts oder den alten Eintrag --
+    # ein stiller Falscherfolg.
+    set leer [makeFile {} opt-b.pdf]
+    set voll [makeFile {} opt-c.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm combobox 30 70 150 16 -id artikel -options {Alpha Beta} -init Alpha
+    $p write -file $leer
+    $p destroy
+    set gut [catch {pdf4tcl::fillForms $leer $voll {artikel Beta}}]
+    catch {pdf4tcl::fillForms $leer $voll {artikel "Gibt es nicht"}} e
+    removeFile opt-b.pdf
+    removeFile opt-c.pdf
+    list $gut [string match "*is not an option*" $e] \
+         [string match "*Alpha Beta*" $e]
+} -result {0 1 1}
+
+test form-opt-1.3 {Exportwert UND Beschriftung werden angenommen} \
+        -constraints haveOptPaare -body {
+    # /Opt darf auch Paare tragen: [[(DE) (Deutschland)] ...]. pdf4tcl
+    # schreibt diese Form nicht, LIEST aber fremde Formulare -- und dort
+    # kommt sie vor.
+    #
+    # Geprueft wird gegen BEIDE Spalten: ein Aufrufer kann den
+    # Exportwert oder die Beschriftung meinen. Wer nur eine nimmt, lehnt
+    # die Haelfte der gueltigen Werte ab.
+    #
+    # Ausserdem faengt dieser Test ein grobes Muster ab: wer /Opt mit
+    # [^\]]* liest, bricht an der ersten inneren Klammer und haelt drei
+    # Eintraege fuer sechs.
+    set aus [makeFile {} opt-d.pdf]
+    set opts [dict get [pdf4tcl::getForms $::optPaare] land options]
+    set a [catch {pdf4tcl::fillForms $::optPaare $aus {land DE}}]
+    set b [catch {pdf4tcl::fillForms $::optPaare $aus {land Niederlande}}]
+    set c [catch {pdf4tcl::fillForms $::optPaare $aus {land Frankreich}}]
+    removeFile opt-d.pdf
+    list [llength $opts] [lindex [lindex $opts 0] 0] $a $b $c
+} -result {3 DE 0 0 1}
+
+
+test form-opt-1.4 {ein LEERER Wert ist erlaubt} -body {
+    # "nichts gewaehlt" ist ein gueltiger Zustand, und /V () steht so in
+    # jedem frisch erzeugten Auswahlfeld.
+    #
+    # Meine erste Fassung der Pruefung lehnte ihn ab -- damit brach der
+    # Rundlauf in demo/demo-forms.tcl, der ALLE Felder ausliest und
+    # zurueckschreibt, das leere Auswahlfeld eingeschlossen. Gemeldet
+    # 07.09.2026, gefunden hat es die Demo und kein Test.
+    #
+    # Eine Pruefung, die einen gueltigen Zustand verbietet, ist
+    # schlimmer als keine: sie bricht Arbeitsablaeufe, die vorher
+    # liefen.
+    set leer [makeFile {} opt-e.pdf]
+    set voll [makeFile {} opt-f.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm combobox 30 40 150 16 -id a -options {Alpha Beta}
+    $p write -file $leer
+    $p destroy
+    set rc [catch {pdf4tcl::fillForms $leer $voll [list a ""]}]
+    removeFile opt-e.pdf
+    removeFile opt-f.pdf
+    set rc
+} -result 0
+
+test form-opt-1.5 {der Rundlauf ueber ALLE Felder laeuft durch} -body {
+    # Genau das tut die Demo: getForms lesen, jeden Wert
+    # zurueckschreiben. Eine Pruefung darf daran nicht scheitern --
+    # sonst bricht sie den haeufigsten Gebrauch der Schnittstelle.
+    set leer [makeFile {} opt-g.pdf]
+    set voll [makeFile {} opt-h.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 20 150 16 -id t
+    $p addForm combobox 30 50 150 16 -id c -options {Alpha Beta}
+    $p addForm checkbutton 30 80 15 15 -id h
+    $p write -file $leer
+    $p destroy
+    set werte {}
+    dict for {id info} [pdf4tcl::getForms $leer] {
+        if {[dict get $info type] eq "/Btn"} continue
+        dict set werte $id [dict get $info value]
+    }
+    set rc [catch {pdf4tcl::fillForms $leer $voll $werte} e]
+    removeFile opt-g.pdf
+    removeFile opt-h.pdf
+    list $rc $e
+} -result {0 2}
+
 
 ::tcltest::cleanupTests

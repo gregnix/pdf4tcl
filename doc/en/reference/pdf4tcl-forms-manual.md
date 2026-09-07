@@ -623,8 +623,27 @@ dict for {fieldId fieldInfo} $forms {
 }
 ```
 
-This returns a dictionary with field IDs as keys. Each value is a dictionary
-containing `type`, `value`, `flags`, and optionally `default`.
+This returns a dictionary with field IDs as keys. Each value is a
+dictionary containing:
+
+| Key | Since | Meaning |
+|---|---|---|
+| `type` | | `/Tx`, `/Btn`, `/Ch`, `/Sig` |
+| `value` | | the current value, unpacked |
+| `flags` | | the `/Ff` bits |
+| `default` | | the current appearance state (buttons only) |
+| `maxlen` | 0.9.4.63 | `/MaxLen`, or empty |
+| `comb` | 0.9.4.63 | 1 for a comb field -- the bit **and** a `/MaxLen` |
+| `widgets` | 0.9.4.64 | how many widgets the field has |
+| `description` | 0.9.4.65 | the field's `/TU`, what a viewer shows as a tooltip |
+| `options` | 0.9.4.65 | a choice field's permitted values, `{export label}` pairs |
+
+`description` and `options` are empty when the file carries none -- but
+present, so a caller need not branch on the field type.
+
+The field name is composed from the `/Parent` chain since 0.9.4.64:
+`person.city`, not `city`. A field with several widgets is reported once,
+with `widgets` saying how many.
 
 ---
 

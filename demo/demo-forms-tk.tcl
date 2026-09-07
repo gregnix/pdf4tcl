@@ -91,6 +91,29 @@ namespace eval ::demo {
     variable paperList {a4 a5 letter legal}
 }
 
+# Das Ausgabeverzeichnis: demo/out neben diesem Skript, angelegt wenn
+# noetig. Ein Argument auf der Kommandozeile ueberschreibt es -- dasselbe
+# Muster wie in den anderen Demos.
+# Das Verzeichnis dieses Skripts BEIM LADEN merken.
+#
+# "info script" gilt nur waehrend des Einlesens; in einer Prozedur, die
+# spaeter aus einem Ereignis heraus laeuft, gibt es die leere
+# Zeichenkette zurueck. Gemessen: der erste Anlauf schrieb still
+# nirgendwohin.
+variable ::demo::skriptVerzeichnis \
+        [file dirname [file normalize [info script]]]
+
+proc ::demo::demoOutDir {} {
+    global argv
+    variable skriptVerzeichnis
+    set d [file join $skriptVerzeichnis out]
+    if {[llength $argv] && [file isdirectory [lindex $argv 0]]} {
+        set d [lindex $argv 0]
+    }
+    file mkdir $d
+    return $d
+}
+
 proc ::demo::mm2pt {mm} { expr {$mm * 2.8346456693} }
 
 proc ::demo::log {msg {tag ""}} {
@@ -532,7 +555,15 @@ proc ::demo::generatePDF {} {
     $pdf setFillColor 0 0 0
 
     # Save
-    set outputPath [file join [pwd] $outputFile]
+    # NACH demo/out, wie jede andere Demo -- nicht ins aktuelle
+    # Verzeichnis.
+    #
+    # Mit "[pwd]" landete die Ausgabe dort, wo man das Programm
+    # gestartet hat: aus dem Wurzelverzeichnis aufgerufen, lagen
+    # demo-forms-output.pdf und -gefuellt.pdf zwischen den Quelldateien
+    # und sahen aus wie versehentlich eingecheckte Reste. Gemeldet
+    # 07.09.2026.
+    set outputPath [file join [demoOutDir] $outputFile]
     if {[catch {$pdf write -file $outputPath} err]} {
         log "ERROR: $err" error; $pdf destroy; return
     }
@@ -551,8 +582,14 @@ proc ::demo::generatePDF {} {
         catch {
             set forms [pdf4tcl::getForms $outputPath]
             dict for {fid fi} $forms {
-                log [format "  %-16s type=%-12s flags=%-6s val='%s'" \
-                    $fid [dict get $fi type] [dict get $fi flags] [dict get $fi value]]
+                # "widgets" gibt es seit 0.9.4.64: ein Feld kann auf
+                # mehreren Blaettern erscheinen -- beim Durchschlagsatz
+                # eines CMR-Frachtbriefs vier Widgets an EINEM Feld.
+                set nw 1
+                if {[dict exists $fi widgets]} { set nw [dict get $fi widgets] }
+                log [format "  %-16s type=%-12s flags=%-6s w=%d val='%s'" \
+                    $fid [dict get $fi type] [dict get $fi flags] \
+                    $nw [dict get $fi value]]
             }
         }
     }
@@ -562,6 +599,122 @@ proc ::demo::generatePDF {} {
 # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 # Debug Tools
 # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+# ---------------------------------------------------------------------
+# fillForms: der Rundlauf, und die Probe, die zaehlt
+# ---------------------------------------------------------------------
+#
+# Bis 0.9.4.63 setzte fillForms /V und /NeedAppearances und liess den
+# Appearance-Strom, wie er war: der Bildschirm zeigte den neuen Wert, das
+# Papier den alten -- bei einem leeren Feld gar nichts. Genau das sieht
+# man am Bildschirm NICHT, und darum prueft diese Demo beides getrennt:
+#
+#   /V         steht der Wert in der Datei?
+#   (Wert) Tj  wird er auch GEZEICHNET?
+#
+# Auseinander gehen die beiden bei Comb-, mehrzeiligen und Auswahlfeldern
+# -- dort bleibt der alte Strom mit Absicht stehen.
+
+proc ::demo::fillDemo {} {
+    variable outputFile
+    set quelle [file join [demoOutDir] $outputFile]
+    if {![file exists $quelle]} {
+        log "Kein PDF da -- erst \"Generate PDF\"." error
+        return
+    }
+    log "\n=== fillForms: Rundlauf ===" heading
+
+    if {[catch {pdf4tcl::getForms $quelle} vorher]} {
+        log "getForms: $vorher" error
+        return
+    }
+    # Testwerte je Feldart. Ein Ankreuzfeld nimmt einen Zustandsnamen,
+    # kein Wort -- das ist der haeufigste Anfaengerfehler mit fillForms.
+    set werte [dict create]
+    dict for {fid fi} $vorher {
+        set typ [dict get $fi type]
+        switch -- $typ {
+            /Tx     { dict set werte $fid "Muster $fid" }
+            /Btn    {
+                set d ""
+                if {[dict exists $fi default]} { set d [dict get $fi default] }
+                # /Off waere "nicht angekreuzt" -- dann saehe man nichts.
+                if {$d eq "" || $d eq "/Off"} { continue }
+                dict set werte $fid $d
+            }
+            default { continue }
+        }
+    }
+    if {![dict size $werte]} {
+        log "  Keine fuellbaren Felder gefunden." error
+        return
+    }
+
+    set ziel [file rootname $quelle]-gefuellt.pdf
+    if {[catch {pdf4tcl::fillForms $quelle $ziel $werte} n]} {
+        log "fillForms: $n" error
+        return
+    }
+    log "  $n Feld(er) gefuellt -> [file tail $ziel]"
+
+    set fh [open $ziel rb] ; set roh [read $fh] ; close $fh
+    set nachher [pdf4tcl::getForms $ziel]
+
+    log "\n  Feld              /V gesetzt   gezeichnet" heading
+    dict for {fid wert} $werte {
+        set v ""
+        if {[dict exists $nachher $fid]} { set v [dict get $nachher $fid value] }
+        set inV [expr {$v eq $wert || $v eq [string trimleft $wert /]}]
+        # Gezeichnet heisst: der Wert steht als Tj im Strom. Bei einem
+        # Ankreuzfeld schaltet /AS die Erscheinung um, da gibt es kein Tj.
+        set gezeichnet [expr {
+            [string first "($wert) Tj" $roh] >= 0
+            || [string match {/*} $wert]}]
+        log [format "  %-16s %-12s %s" $fid \
+                [expr {$inV ? "ja" : "NEIN"}] \
+                [expr {$gezeichnet ? "ja" : "nein (alter Strom)"}]]
+    }
+    log "\n  \"nein\" ist kein Fehler: Comb-, mehrzeilige und Auswahlfelder"
+    log "  behalten mit Absicht ihren alten Strom -- ein halb gezeichnetes"
+    log "  Comb-Feld waere schlechter als ein ungezeichnetes."
+}
+
+# Den Appearance-Strom eines Feldes zeigen.
+#
+# DAS eigentliche Debug-Werkzeug: dort steht, mit welcher Schrift und an
+# welcher Stelle gezeichnet wird. Ein Feld kann den richtigen /V-Wert
+# tragen und trotzdem falsch aussehen -- die Td-Position sagt, warum.
+proc ::demo::showAP {} {
+    variable outputFile
+    set quelle [file join [demoOutDir] $outputFile]
+    if {![file exists $quelle]} {
+        log "Kein PDF da -- erst \"Generate PDF\"." error
+        return
+    }
+    log "\n=== Appearance-Stroeme ===" heading
+    set fh [open $quelle rb] ; set roh [read $fh] ; close $fh
+    # Jedes Widget nennt sein /AP; der Strom steht im genannten Objekt.
+    set n 0
+    foreach {ganz name apId} [regexp -all -inline \
+            {/T\s*\(([^)]*)\)[^>]*?/AP\s*<<[^>]*?/N\s+(\d+)\s+0\s+R} $roh] {
+        incr n
+        log "  Feld \"$name\" -> Objekt $apId"
+        if {[regexp "\n$apId 0 obj(.*?)endobj" $roh -> obj]} {
+            if {[string match {*FlateDecode*} $obj]} {
+                log "     (komprimiert -- mit -compress 0 erzeugen, um ihn zu sehen)"
+                continue
+            }
+            if {[regexp {stream\n(.*?)\nendstream} $obj -> strom]} {
+                foreach zeile [split [string trim $strom] \n] {
+                    log "     $zeile"
+                }
+            }
+        }
+    }
+    if {$n == 0} {
+        log "  Kein Feld mit /AP gefunden."
+    }
+}
 
 proc ::demo::calcArea {} {
     variable W; variable paper
@@ -843,7 +996,10 @@ proc ::demo::buildGUI {} {
     ttk::button $df.fonts  -text "Font List"          -command ::demo::showFontList
     ttk::button $df.coords -text "Coordinate Calculator" -command ::demo::coordCalc
     ttk::button $df.flags  -text "Ff-Flag Calculator"     -command ::demo::fflagCalc
+    ttk::button $df.fill   -text "fillForms round trip"   -command ::demo::fillDemo
+    ttk::button $df.ap     -text "Show /AP streams"       -command ::demo::showAP
     pack $df.info $df.fonts $df.coords $df.flags -side left -padx 4
+    pack $df.fill $df.ap -side left -padx 4
 
     # \u2500\u2500 Action Bar \u2500\u2500
     set af [ttk::frame $top.actions]

@@ -184,10 +184,15 @@ if {$textfeld ne ""} {
     set danach [pdf4tcl::getForms $gefuellt]
     puts "  Wert danach: [dict get $danach $textfeld value]"
     puts "  Geschrieben: $gefuellt"
-    puts ""
-    puts "  Der Wert steht in der Datei, GEZEICHNET wird er nicht."
-    puts "  /NeedAppearances weist den Leser an, ihn darzustellen --"
-    puts "  Acrobat und die gaengigen Browser tun das."
+    # Bis 0.9.4.63 stand hier, der Wert werde NICHT gezeichnet, und dazu
+    # eine Erklaerung zu /NeedAppearances. Beides ist weg: seit .64
+    # zeichnet fillForms ein einzeiliges Textfeld, und nachgemessen
+    # traegt genau ein Strom "Meier". Der Satz sagte also das Gegenteil
+    # dessen, was die Demo gerade vorgefuehrt hatte.
+    #
+    # Und die Innerei gehoert nicht in eine Demo: wer sie braucht, liest
+    # das Howto. Eine Demo zeigt, was herauskommt.
+    puts "  Der Wert wird auch gezeichnet -- auf Papier wie am Schirm."
 
     # ----------------------------------------------------------------------
     # Der Rundlauf: auslesen, aendern, zurueckschreiben (0.9.4.55)

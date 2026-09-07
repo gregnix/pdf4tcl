@@ -1987,11 +1987,23 @@ proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
 # ones a field knows is in its /AP dictionary; getForms reports the
 # current one under "default".
 #
-# What this does NOT do: build appearance streams. A viewer that honours
-# /NeedAppearances -- which is set here -- draws the value itself. One
-# that ignores the flag shows the field as it was, with the value present
-# but invisible. Acrobat and most browsers honour it; some print paths do
-# not.
+# Since 0.9.4.64 the appearance stream is rebuilt along with /V, so a
+# print path that renders the appearance puts the new value on the paper.
+# /NeedAppearances is still set for viewers that draw the value
+# themselves.
+#
+# NOT rebuilt, and deliberately so: comb fields (the cell width hangs on
+# /MaxLen, which a foreign form may omit while carrying the flag),
+# multi-line fields (line breaking needs the glyph widths), choice
+# fields, and check boxes and radio buttons (they have two states and
+# /AS switches between them, which fillForms already handles). There the
+# old stream stays as it was -- a half-drawn comb field would be worse
+# than an undrawn one. In those cases the value is present in /V and the
+# appearance is the old one, exactly as before .64.
+#
+# This comment used to say "What this does NOT do: build appearance
+# streams." It was right until .63 and wrong afterwards -- a stale
+# comment is worse than none, because it is believed.
 proc pdf4tcl::fillForms {inFile outFile values} {
     if {![file exists $inFile]} {
         throw {PDF4TCL} "No such file: $inFile"
@@ -2003,36 +2015,252 @@ proc pdf4tcl::fillForms {inFile outFile values} {
     set gefuellt 0
     set gesehen {}
 
-    for {set o 1} {$o <= $N} {incr o} {
-        if {![dict exists $pdf $o]} continue
-        set body [dict get $pdf $o full]
-        if {![string match {*/Widget*} $body]} continue
-        set d [pdf4tcl::cat::PdfObjToTclDict $body]
-        if {![dict exists $d /Subtype] || [dict get $d /Subtype] ne "/Widget"} {
-            continue
+    # DYNAMISCHES XFA ablehnen.
+    #
+    # Bei einem XFA-Formular steht der Inhalt als XML unter /XFA. Es gibt
+    # zwei Sorten, und nur bei einer ist das Fuellen sinnlos:
+    #
+    #   hybrid    XFA UND gueltige AcroForm-Felder. Ein Betrachter ohne
+    #             XFA nimmt die AcroForm-Seite, /V wirkt. Das laeuft
+    #             hier weiter wie bisher.
+    #   dynamisch /NeedsRendering true im Katalog (ISO 32000-1 12.7.8,
+    #             Tabelle 28). Die AcroForm-Felder sind eine Attrappe,
+    #             der Betrachter baut die Seiten aus dem XML. Wer hier
+    #             /V setzt, aendert am Sichtbaren NICHTS.
+    #
+    # Bis .63 lief der dynamische Fall klaglos durch und meldete einen
+    # Erfolg, den es nicht gab -- gemessen an einer eigens gebauten
+    # Datei. Ein stiller Fehlschlag ist schlimmer als eine Absage.
+    # Die zwei Merkmale stehen an ZWEI Stellen, und nur eine davon ist der
+    # Katalog:
+    #
+    #   /NeedsRendering   Katalog        (ISO 32000-1 Tabelle 28)
+    #   /XFA              /AcroForm      (Tabelle 218)
+    #
+    # Der erste Anlauf suchte BEIDE im Katalogkoerper. Das trifft nur
+    # eine Datei, die AcroForm direkt eingebettet hat -- pdf4tcl selbst
+    # schreibt "/AcroForm 12 0 R", und die allermeisten Erzeuger auch.
+    # Gemessen an einer Datei mit der normgerechten Lage: still
+    # durchgelaufen, n=1. Die eigene Testdatei fing es nicht, weil sie
+    # das Flag zum Katalog gelegt hatte -- ein Test, der den Fall
+    # konstruiert, den der Code trifft, statt den, der vorkommt.
+    #
+    # /NeedsRendering wird auch am AcroForm-Objekt akzeptiert. Dort
+    # gehoert es nicht hin, aber wer es dort schreibt, meint dasselbe --
+    # beim LESEN grosszuegig zu sein kostet nichts und faengt einen Fall
+    # mehr.
+    set rootId1 [lindex [dict get $pdf trailer /Root] 0]
+    if {[dict exists $pdf $rootId1]} {
+        set rb1 [dict get $pdf $rootId1 full]
+        set afBody $rb1
+        if {[regexp {/AcroForm\s+(\d+)\s+0\s+R} $rb1 -> afId]
+                && [dict exists $pdf $afId]} {
+            append afBody "\n" [dict get $pdf $afId full]
         }
-        if {![dict exists $d /T]} continue
-        set id [string trim [dict get $d /T] "()"]
+        if {[regexp {/NeedsRendering\s+true} $afBody]
+                && [string match {*/XFA*} $afBody]} {
+            throw {PDF4TCL} "fillForms: \"$inFile\" is a dynamic XFA form\
+                    (/NeedsRendering true). Its AcroForm fields are a\
+                    placeholder; the viewer builds the pages from the XML\
+                    under /XFA, so setting /V would change nothing visible."
+        }
+    }
+
+    # Die Schriften des Formulars aus /AcroForm /DR /Font.
+    #
+    # Ein Appearance-Strom muss die Schrift, die er benutzt, in seinen
+    # eigenen /Resources nennen. Welche das ist, steht im /DA des Feldes
+    # -- aber nur als RESSOURCENNAME ("/Helv"), und wo dieser Name
+    # hinzeigt, weiss allein das /DR des Formulars. Ohne diese Tabelle
+    # laesst sich kein gueltiger Strom bauen.
+    # /AcroForm liegt entweder in einem eigenen Objekt ODER direkt im
+    # Katalog. Beides kommt vor -- pdf4tcl schreibt "/AcroForm 12 0 R",
+    # eine handgeschriebene Datei oft das Woerterbuch selbst. Der erste
+    # Anlauf sah nur die indirekte Form, und dann blieb die Schrifttabelle
+    # leer: /V wurde gesetzt, ein Strom entstand nicht, und gemeldet wurde
+    # trotzdem "1 gefuellt". Gemessen an tests/fixtures/form-multiwidget.pdf.
+    set drFonts [dict create]
+    set rootId0 [lindex [dict get $pdf trailer /Root] 0]
+    if {[dict exists $pdf $rootId0]} {
+        set rb [dict get $pdf $rootId0 full]
+        set ab $rb
+        if {[regexp {/AcroForm\s+(\d+)\s+0\s+R} $rb -> acroId]
+                && [dict exists $pdf $acroId]} {
+            set ab [dict get $pdf $acroId full]
+        }
+        set dr ""
+        if {[regexp {/DR\s+(\d+)\s+0\s+R} $ab -> drId]
+                && [dict exists $pdf $drId]} {
+            set dr [dict get $pdf $drId full]
+        } elseif {[regexp {/DR\s*<<(.*)} $ab -> dr]} {
+            # Direkt eingebettet: bis zum Ende des Objekts reicht, denn
+            # gesucht wird nur nach "/Name n 0 R", und ausserhalb des /DR
+            # stehen davon keine.
+        }
+        foreach {ganz nam num} [regexp -all -inline \
+                {/([A-Za-z0-9#]+)\s+(\d+)\s+0\s+R} $dr] {
+            dict set drFonts $nam "$num 0 R"
+        }
+    }
+
+    # Ueber den FELDBAUM. Bis .64 wurde je Widget mit /T gesucht -- ein
+    # Feld mit mehreren Widgets fiel ganz durch, ein verschachtelter Name
+    # kam ohne seinen Vater. Siehe FormFieldTree.
+    dict for {fo e} [pdf4tcl::FormFieldTree $pdf] {
+        set id [dict get $e name]
+        if {$id eq ""} continue
         lappend gesehen $id
         if {![dict exists $values $id]} continue
 
         set wert [dict get $values $id]
-        set istBtn [expr {[dict exists $d /FT]
-                && [dict get $d /FT] eq "/Btn"}]
+        set istBtn [expr {[dict get $e FT] eq "/Btn"}]
+        set body [dict get $pdf $fo full]
 
         if {$istBtn} {
             # A state name, written as a name object. Also set /AS, or the
             # box keeps showing its old appearance.
             if {![string match {/*} $wert]} { set wert "/$wert" }
             set body [FormSetKey $body /V $wert]
-            set body [FormSetKey $body /AS $wert]
-        } else {
-            # QuoteString liefert die Klammern schon mit -- sie noch einmal
-            # zu setzen ergab ((Meier)) und damit einen Wert, den kein
-            # Leser anzeigt.
-            set body [FormSetKey $body /V [::pdf4tcl::QuoteString $wert]]
+            dict set pdf $fo full $body
+            # /AS gehoert an JEDES Widget, nicht ans Feld: es sagt, welche
+            # Erscheinung dieses eine Kaestchen gerade zeigt. Bei einem
+            # Feld mit einem Widget ist das dasselbe Objekt.
+            foreach w [dict get $e widgets] {
+                if {![dict exists $pdf $w]} continue
+                dict set pdf $w full \
+                        [FormSetKey [dict get $pdf $w full] /AS $wert]
+            }
+            incr gefuellt
+            continue
         }
-        dict set pdf $o full $body
+
+        # QuoteString liefert die Klammern schon mit -- sie noch einmal
+        # zu setzen ergab ((Meier)) und damit einen Wert, den kein
+        # Leser anzeigt.
+        set body [FormSetKey $body /V [::pdf4tcl::QuoteString $wert]]
+        dict set pdf $fo full $body
+
+        # Und den Appearance-Strom mitziehen, JE WIDGET.
+        #
+        # Jedes Widget hat sein eigenes /Rect und sein eigenes /AP -- beim
+        # Durchschlagsatz vier verschiedene auf vier Blaettern. Ein Strom
+        # fuer alle waere an drei Stellen falsch positioniert.
+        set flags [dict get $e Ff]
+        if {$flags eq ""} { set flags 0 }
+        set mehrzeilig [expr {$flags & 4096}]
+        set comb       [expr {$flags & 16777216}]
+        # Bit 14: Kennwortfeld (ISO 32000-1 12.7.4.3, Tabelle 228).
+        #
+        # KEIN Strom fuer ein Kennwortfeld. Der Wert stuende sonst im
+        # KLARTEXT in der Datei, waehrend der Bildschirm Punkte zeigt --
+        # gemessen an demo-forms-tk.tcl: "(Muster pw_empty) Tj" stand im
+        # Strom.
+        #
+        # Punkte statt Klartext zu zeichnen waere die andere
+        # Moeglichkeit, aber sie ist schlechter: der Wert steht ohnehin
+        # in /V, und ein gezeichneter Punktestrom taeuschte vor, die
+        # Datei gaebe das Kennwort nicht preis. Wer ein Kennwort in eine
+        # PDF-Datei schreibt, soll wissen, dass es darin steht -- und
+        # nicht auch noch ein zweites Mal.
+        set kennwort [expr {$flags & 8192}]
+        # Comb und Kennwort bleiben aussen vor -- Comb, weil die
+        # Zellenbreite an /MaxLen haengt, das ein fremdes Formular
+        # weglassen kann; Kennwort, weil der Wert sonst im Klartext in
+        # der Datei staende. MEHRZEILIG geht seit 0.9.4.64, mit
+        # demselben Umbruch, den addForm beim Erzeugen benutzt.
+        # Comb geht, WENN /MaxLen dasteht -- ohne Teiler gibt es keine
+        # Zellen, und dann bleibt der alte Strom. Kennwort bleibt aussen
+        # vor, sonst staende der Wert im Klartext in der Datei.
+        set maxlen [dict get $e MaxLen]
+        if {$comb && ![string is integer -strict $maxlen]} {
+            incr gefuellt ; continue
+        }
+        if {$kennwort} { incr gefuellt ; continue }
+
+        # Ein Auswahlfeld nimmt nur, was in /Opt steht.
+        #
+        # Bis 0.9.4.64 schrieb fillForms JEDEN Wert in /V und meldete
+        # einen Erfolg -- gemessen: {artikel "Gibt es nicht"} ergab
+        # "1 gefuellt" und ein /V, das in keiner Optionsliste steht. Das
+        # Feld traegt damit einen ungueltigen Zustand, und ein
+        # Betrachter zeigt je nach Laune nichts oder den alten Eintrag.
+        #
+        # Geprueft wird gegen BEIDE Spalten: ein fremdes Formular kann
+        # den Exportwert oder die Beschriftung meinen, und wer nur eine
+        # davon nimmt, lehnt gueltige Werte ab.
+        # Der LEERE Wert ist erlaubt: er heisst "nichts gewaehlt", und
+        # /V () steht so in jedem frisch erzeugten Auswahlfeld.
+        #
+        # Meine erste Fassung lehnte ihn ab, und damit brach der
+        # Rundlauf in demo/demo-forms.tcl: der liest ALLE Felder mit
+        # getForms aus und schreibt sie zurueck, das leere
+        # Auswahlfeld eingeschlossen. Gemeldet 07.09.2026.
+        #
+        # Eine Pruefung, die einen gueltigen Zustand verbietet, ist
+        # schlimmer als keine -- sie bricht Arbeitsablaeufe, die vorher
+        # liefen.
+        if {$wert ne "" && [dict get $e FT] eq "/Ch"
+                && [llength [dict get $e Opt]]} {
+            set erlaubt {}
+            set passt 0
+            foreach paar [dict get $e Opt] {
+                lassign $paar ex la
+                lappend erlaubt $la
+                if {$wert eq $ex || $wert eq $la} { set passt 1 }
+            }
+            if {!$passt} {
+                throw {PDF4TCL} "fillForms: \"$wert\" is not an option of\
+                        \"$id\"; allowed: $erlaubt"
+            }
+        }
+
+        # NUR Textfelder. Ein Auswahlfeld (/Ch) hat einen ganz anderen
+        # Strom: addForm zeichnet ihm einen weissen Kasten mit Rahmen,
+        # beim Kombinationsfeld dazu die Pfeilflaeche.
+        #
+        # Bis hierher pruefte diese Stelle nur die FLAGGEN und nicht den
+        # Typ -- ein Listenfeld lief als Textfeld durch, und der neue
+        # Strom warf Kasten und Rahmen weg. Gemessen:
+        #
+        #   vorher:  /Tx BMC 1 1 1 rg 0 0 150 40 re f ... (Bremen) Tj
+        #   nachher: /Tx BMC BT ... (Vreden) Tj
+        #
+        # Der Wert war richtig und das Feld sah aus wie nichts. Ein
+        # Rueckschritt, den ich mit dem Strombauen selbst eingebaut
+        # hatte.
+        #
+        # Auswahlfelder bleiben darum aussen vor. Beim
+        # Kombinationsfeld ist das ohnehin richtig: addForm laesst dort
+        # den Text mit Absicht aus dem Strom, weil der Betrachter ihn
+        # aus /DA und /V zeichnet -- stuende er auch im Strom, erschiene
+        # er doppelt.
+        if {[dict get $e FT] ne "/Tx"} { incr gefuellt ; continue }
+
+        set da [dict get $e DA]
+        set da [string trim $da "()"]
+        if {$da eq ""} { incr gefuellt ; continue }
+        set resName ""
+        regexp {/([A-Za-z0-9#]+)\s+[0-9.]+\s+Tf} $da -> resName
+        if {$resName eq "" || ![dict exists $drFonts $resName]} {
+            incr gefuellt ; continue
+        }
+        set q [dict get $e Q]
+        if {![string is integer -strict $q]} { set q 0 }
+
+        foreach w [dict get $e widgets] {
+            if {![dict exists $pdf $w]} continue
+            set wb [dict get $pdf $w full]
+            if {![regexp {/AP\s*<<[^>]*?/N\s+(\d+)\s+0\s+R} $wb -> apId]} continue
+            if {![dict exists $pdf $apId]} continue
+            if {![regexp {/Rect\s*\[([^\]]*)\]} $wb -> rect]} continue
+            set neuStrom [::pdf4tcl::FormBuildTextAP $da $rect $wert \
+                    [dict get $drFonts $resName] $resName $q \
+                    [expr {$mehrzeilig ? 1 : 0}] \
+                    [expr {$comb ? $maxlen : 0}]]
+            if {$neuStrom ne ""} {
+                dict set pdf $apId full "$apId 0 obj\n$neuStrom\nendobj"
+            }
+        }
         incr gefuellt
     }
 
@@ -2065,6 +2293,356 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 
     pdf4tcl::cat::WritePdf $outFile $pdf
     return $gefuellt
+}
+
+# Den Feldbaum eines Formulars aufbauen.
+#
+# Rueckgabe: dict fieldObj -> {name N widgets {o1 o2 ...} body B}
+#
+# WARUM DAS NOETIG IST: getForms und fillForms suchten das /T am WIDGET.
+# Das trifft den haeufigen Fall -- Feld und Widget in einem Objekt --, aber
+# nicht die zwei anderen, die in der Norm stehen:
+#
+#   * EIN Feld, MEHRERE Widgets (ISO 32000-1 12.7.4.1). Der CMR-Frachtbrief:
+#     ein Feld erscheint auf vier Blaettern, /T und /V stehen am Vater,
+#     darunter haengen Widgets mit eigenem /Rect und eigenem /AP. Bis .64
+#     wurde so ein Feld GAR NICHT gefunden -- getForms gab ein leeres dict,
+#     fillForms meldete "no such field". Gemessen an
+#     tests/fixtures/form-multiwidget.pdf.
+#
+#   * VERSCHACHTELTE Namen (12.7.3.2). Der volle Name ist die Kette der /T
+#     vom Wurzelfeld herab: /T "person" am Vater und /T "city" am Kind
+#     ergibt "person.city". Bis .64 kam nur "city" heraus -- und in einem
+#     Formular mit "rechnung.betrag" und "lieferung.betrag" hiessen dann
+#     BEIDE Felder "betrag", und eines ueberschrieb das andere im dict.
+#
+# /FT, /Ff, /V und /DA duerfen vom Vater geerbt werden (12.7.3.1); wer nur
+# das Kind ansieht, haelt ein Textfeld fuer typenlos.
+proc pdf4tcl::FormFieldTree {pdf} {
+    set N [dict get $pdf N]
+    set roh [dict create]
+    for {set o 1} {$o <= $N} {incr o} {
+        if {![dict exists $pdf $o]} continue
+        set objtext [dict get $pdf $o full]
+        # Nur Objekte, die ueberhaupt nach Formular aussehen.
+        if {![string match {*/Widget*} $objtext]
+                && ![string match {*/FT*} $objtext]
+                && ![string match {*/Kids*} $objtext]} continue
+        set eintrag [dict create body $objtext parent "" name ""]
+        # /T aus dem ROHTEXT: PdfObjToTclDict zerlegt an Leerzeichen, und
+        # ein Name mit Leerzeichen -- "Given Name Text Box", so schreibt
+        # OpenOffice -- kaeme dort zerrissen an.
+        if {[regexp {/T\s*\(((?:\\.|[^\\)])*)\)} $objtext -> t]} {
+            dict set eintrag name [FormUnquoteString "($t)"]
+        }
+        if {[regexp {/Parent\s+(\d+)\s+0\s+R} $objtext -> pa]} {
+            dict set eintrag parent $pa
+        }
+        dict set roh $o $eintrag
+    }
+
+    # Wer ist Widget, wer ist Feld?
+    #
+    # Ein Objekt mit /Kids hat Widgets unter sich. Ein Objekt mit
+    # /Subtype /Widget ist eines -- und wenn es zugleich ein /T traegt,
+    # ist es beides in einem.
+    set felder [dict create]
+    dict for {o e} $roh {
+        set objtext [dict get $e body]
+        set istWidget [string match {*/Subtype*/Widget*} $objtext]
+        set hatKids   [string match {*/Kids*} $objtext]
+        if {[dict get $e name] eq ""} continue
+        if {$istWidget && !$hatKids} {
+            dict set felder $o [dict create widgets [list $o]]
+        } elseif {$hatKids} {
+            set kids {}
+            foreach {ganz num} [regexp -all -inline {(\d+)\s+0\s+R} \
+                    [lindex [regexp -inline {/Kids\s*\[([^\]]*)\]} $objtext] 1]] {
+                # Nur Kinder OHNE eigenes /T sind Widgets dieses Feldes;
+                # ein Kind MIT /T ist ein eigenes Feld darunter.
+                if {[dict exists $roh $num]
+                        && [dict get $roh $num name] ne ""} continue
+                lappend kids $num
+            }
+            if {[llength $kids]} {
+                dict set felder $o [dict create widgets $kids]
+            }
+        }
+    }
+
+    # Den vollen Namen aus der /Parent-Kette bilden.
+    set ergebnis [dict create]
+    dict for {o f} $felder {
+        set teile [list [dict get $roh $o name]]
+        set p [dict get $roh $o parent]
+        set tiefe 0
+        # Die Zaehlung ist kein Schmuck: eine Datei mit einer Schleife in
+        # der /Parent-Kette wuerde hier sonst haengen, und ein haengendes
+        # getForms ist schlimmer als eines, das etwas Falsches meldet.
+        while {$p ne "" && [dict exists $roh $p] && [incr tiefe] < 32} {
+            set pn [dict get $roh $p name]
+            if {$pn ne ""} { set teile [linsert $teile 0 $pn] }
+            set p [dict get $roh $p parent]
+        }
+        dict set ergebnis $o name [join $teile "."]
+        dict set ergebnis $o widgets [dict get $f widgets]
+        dict set ergebnis $o body [dict get $roh $o body]
+        # Geerbte Schluessel: erst am Feld, sonst die Kette hinauf.
+        # /TU gehoert dazu: der Name FUER MENSCHEN, den ein Betrachter
+        # als Erklaerung anzeigt. addForm schreibt ihn (-tooltip), und
+        # getForms verschwieg ihn -- pdf4tcl schrieb also eine Auskunft,
+        # die es selbst nicht wieder herausgab. Gemessen 07.09.2026.
+        foreach schluessel {/FT /Ff /V /DA /Q /MaxLen /TU} {
+            set wert ""
+            set q $o
+            set t2 0
+            while {$q ne "" && [dict exists $roh $q] && [incr t2] < 32} {
+                set objBody [dict get $roh $q body]
+                if {[regexp "\\$schluessel\\s*(\\(((?:\\\\.|\[^\\\\)\])*)\\)|/\\w+|-?\\d+)" \
+                        $objBody -> gefunden]} {
+                    set wert $gefunden
+                    break
+                }
+                set q [dict get $roh $q parent]
+            }
+            dict set ergebnis $o [string range $schluessel 1 end] $wert
+        }
+        # Die Auswahlwerte -- ebenfalls vererbbar, darum die Kette
+        # hinauf.
+        set opt {}
+        set q2 $o
+        set t3 0
+        while {$q2 ne "" && [dict exists $roh $q2] && [incr t3] < 32} {
+            set opt [FormReadOpt [dict get $roh $q2 body]]
+            if {[llength $opt]} break
+            set q2 [dict get $roh $q2 parent]
+        }
+        dict set ergebnis $o Opt $opt
+    }
+    return $ergebnis
+}
+
+# Textbreite aus den Metriken einer Standardschrift, in Punkt.
+#
+# 0, wenn die Schrift nicht dabei ist -- der Aufrufer bleibt dann
+# linksbuendig. Ein geschaetzter Wert waere schlimmer: eine Ausrichtung,
+# die falsch ist und richtig aussieht.
+proc pdf4tcl::FormStdWidth {text size {basefont Helvetica}} {
+    variable ::pdf4tcl::BFA
+    if {![info exists BFA($basefont,charWidths)]} { return 0.0 }
+    set breiten $BFA($basefont,charWidths)
+    set summe 0.0
+    foreach ch [split $text ""] {
+        set cp [scan $ch %c]
+        if {[dict exists $breiten $cp]} {
+            set summe [expr {$summe + [dict get $breiten $cp]}]
+        } else {
+            # Ein Zeichen, das die Schrift nicht hat, zeichnet pdf4tcl als
+            # "?" -- also hier auch dessen Breite zaehlen und nicht null.
+            if {[dict exists $breiten 63]} {
+                set summe [expr {$summe + [dict get $breiten 63]}]
+            }
+        }
+    }
+    return [expr {$summe * $size / 1000.0}]
+}
+
+# Die erlaubten Werte eines Auswahlfeldes aus /Opt.
+#
+# Rueckgabe: Liste von {exportwert beschriftung}. Bei der einfachen Form
+# sind beide gleich.
+#
+# ZWEI SCHREIBWEISEN, beide erlaubt (ISO 32000-1 12.7.4.4):
+#
+#   /Opt [(Alpha) (Beta)]                  -- nur Beschriftungen
+#   /Opt [[(a) (Alpha)] [(b) (Beta)]]      -- Exportwert und Beschriftung
+#
+# pdf4tcl schreibt nur die erste. getForms liest aber auch FREMDE
+# Formulare, und dort kommt die zweite vor -- wer sie mit einem groben
+# Muster liest, bekommt "a" und "Alpha" als zwei getrennte Werte und
+# haelt ein Feld mit zwei Eintraegen fuer eines mit vieren.
+proc pdf4tcl::FormReadOpt {body} {
+    if {![regexp {/Opt\s*\[} $body]} { return {} }
+    # Von der oeffnenden Klammer an zeichenweise bis zur passenden
+    # schliessenden -- ein Muster mit [^\]]* bricht bei der
+    # verschachtelten Form an der ersten inneren Klammer ab.
+    set start [string first "/Opt" $body]
+    set i [string first "\[" $body $start]
+    if {$i < 0} { return {} }
+    set tiefe 0
+    set ende -1
+    for {set j $i} {$j < [string length $body]} {incr j} {
+        set ch [string index $body $j]
+        if {$ch eq "\["} { incr tiefe }
+        if {$ch eq "\]"} {
+            incr tiefe -1
+            if {$tiefe == 0} { set ende $j ; break }
+        }
+    }
+    if {$ende < 0} { return {} }
+    set inhalt [string range $body [expr {$i + 1}] [expr {$ende - 1}]]
+
+    set aus {}
+    # Erst die Paare: [(x) (y)]
+    set rest $inhalt
+    while {[regexp -indices {\[\s*\(((?:\\.|[^\\)])*)\)\s*\(((?:\\.|[^\\)])*)\)\s*\]} \
+            $rest -> a b]} {
+        set ex [string range $rest {*}$a]
+        set la [string range $rest {*}$b]
+        lappend aus [list [FormUnquoteString "($ex)"] \
+                          [FormUnquoteString "($la)"]]
+        set rest [string replace $rest 0 [lindex $b 1]]
+    }
+    if {[llength $aus]} { return $aus }
+
+    # Sonst die einfache Form: nur Zeichenketten.
+    foreach {ganz txt} [regexp -all -inline {\(((?:\\.|[^\\)])*)\)} $inhalt] {
+        set w [FormUnquoteString "($txt)"]
+        lappend aus [list $w $w]
+    }
+    return $aus
+}
+
+# Den Appearance-Strom eines Textfeldes neu bauen.
+#
+# DAS WAR DIE LUECKE: fillForms setzte /V und /NeedAppearances, liess den
+# Strom aber, wie er war. Ein Betrachter, der die Flagge befolgt, zeigte
+# den neuen Wert; eine Druckstrecke, die den Strom zeichnet, den ALTEN --
+# bei einem leeren Feld also nichts, bei einem vorbelegten den alten
+# Text. Auf Papier stand damit etwas anderes als in der Datei, und man
+# sah es dem Bildschirm nicht an.
+#
+# .63 hat dafuer vorgesorgt: seither bekommt auch ein LEERES Feld einen
+# (leeren) Strom, damit es hier etwas zum Ueberschreiben gibt. Genau das
+# geschieht jetzt.
+#
+# Rueckgabe: der neue Objektkoerper, oder "" wenn nichts gebaut werden
+# konnte -- dann bleibt alles wie bisher. Kein Rueckschritt gegen .63.
+#
+# WAS HIER NICHT GEHT und mit Absicht nicht versucht wird:
+#   * Comb-Felder -- die Zellenbreite haengt an /MaxLen, und ein fremdes
+#     Formular kann das Bit ohne die Laenge tragen
+#   * mehrzeilige Felder -- der Umbruch braucht die Schriftbreiten
+#   * Ankreuz- und Optionsfelder -- die haben zwei Zustaende, und /AS
+#     schaltet zwischen ihnen; das tut fillForms schon richtig
+#   * Auswahllisten
+# In all diesen Faellen bleibt der alte Strom stehen, so wie bisher.
+proc pdf4tcl::FormBuildTextAP {daString rect wert fontRef fontResName {quadding 0} {multiline 0} {combLen 0}} {
+    lassign $rect x1 y1 x2 y2
+    set width  [expr {abs($x2 - $x1)}]
+    set height [expr {abs($y2 - $y1)}]
+    if {$width <= 0 || $height <= 0} { return "" }
+
+    # /DA sieht aus wie "/Helv 10 Tf 0 g". Die Groesse 0 heisst
+    # "automatisch"; dann wird sie aus der Feldhoehe genommen, wie es ein
+    # Betrachter auch taete.
+    set fsize 0
+    regexp {/[^\s]+\s+([0-9.]+)\s+Tf} $daString -> fsize
+    if {$fsize <= 0} {
+        set fsize [expr {$height * 0.65}]
+        if {$fsize > 12.0} { set fsize 12.0 }
+        if {$fsize < 4.0}  { set fsize 4.0 }
+    }
+    # Die Farbe aus /DA uebernehmen -- steht dort keine, ist es Schwarz.
+    set farbe "0 g"
+    if {[regexp {Tf\s+(.*)$} $daString -> rest]} {
+        set rest [string trim $rest]
+        if {$rest ne ""} { set farbe $rest }
+    }
+
+    # /Q beachten: 0 links, 1 mittig, 2 rechts (ISO 32000-1 12.7.4.3,
+    # Tabelle 228). Ohne das rutschte ein rechtsbuendiges Feld nach dem
+    # Fuellen nach links -- gemessen: /Q 2 stand im Feld, der Strom
+    # setzte "2 1.1 Td". Die Option gab es, und sie tat nichts.
+    #
+    # Die Breite kommt aus getStringWidth mit DERSELBEN Schrift und
+    # Groesse, die auch der Strom setzt. Eine geschaetzte Breite waere
+    # eine zweite Rechnung, und zwei Rechnungen fuer dieselbe Sache
+    # gehen auseinander.
+    set tx 2.0
+    if {$quadding == 1 || $quadding == 2} {
+        # Die Breite kommt aus den Metriken der BASISSCHRIFT.
+        #
+        # Nur fuer die vierzehn Standardschriften: deren Breiten stehen in
+        # stdmetrics.tcl und sind ueberall dieselben. Eine EINGEBETTETE
+        # Fremdschrift kennt pdf4tcl beim Fuellen nicht -- ihre Metriken
+        # stecken im Schriftprogramm des fremden Dokuments, und ein
+        # geschaetzter Wert waere eine Ausrichtung, die falsch ist und
+        # richtig aussieht. Dann bleibt es linksbuendig, wie bisher.
+        set tw [FormStdWidth $wert $fsize]
+        if {$tw > 0.0} {
+            if {$quadding == 1} {
+                set tx [expr {($width - $tw) / 2.0}]
+            } else {
+                set tx [expr {$width - $tw - 2.0}]
+            }
+            if {$tx < 2.0} { set tx 2.0 }
+        }
+    }
+    set stream "/Tx BMC BT "
+    append stream "/$fontResName [::pdf4tcl::Nf $fsize] Tf $farbe "
+    if {$combLen > 0} {
+        # Comb: die Feldbreite durch /MaxLen geteilt, jedes Zeichen
+        # MITTIG in seiner Zelle (ISO 32000-1 12.7.4.3, Tabelle 228,
+        # Bit 25). Dasselbe, was addForm beim Erzeugen tut.
+        #
+        # Die Bedingung dafuer ist MESSBAR und nicht geraten: /MaxLen ist
+        # da oder nicht. Ein Formular kann Bit 25 ohne die Laenge tragen
+        # -- dann gibt es keinen Teiler, keine Zellen, und der Aufrufer
+        # laesst den alten Strom stehen. Genau deshalb wurde der Fall bis
+        # hierher ausgelassen.
+        #
+        # Die Breite je Zeichen kommt aus den Metriken der Basisschrift.
+        # Kennt pdf4tcl die Schrift nicht, misst FormStdWidth 0 -- dann
+        # sitzt das Zeichen am linken Zellenrand statt mittig. Schief,
+        # aber in der richtigen Zelle; eine geratene Breite waere in
+        # keiner.
+        set zelle [expr {double($width) / $combLen}]
+        set frei [expr {$combLen - [string length $wert]}]
+        if {$frei < 0} { set frei 0 }
+        switch -- $quadding {
+            1       { set i [expr {$frei / 2}] }
+            2       { set i $frei }
+            default { set i 0 }
+        }
+        foreach ch [split $wert ""] {
+            if {$i >= $combLen} break
+            set cw [FormStdWidth $ch $fsize]
+            set cx [expr {$i * $zelle + ($zelle - $cw) / 2.0}]
+            append stream "1 0 0 1 [::pdf4tcl::Nf $cx] 1.1 Tm "
+            append stream "[::pdf4tcl::QuoteString $ch] Tj "
+            incr i
+        }
+    } elseif {$multiline} {
+        # Derselbe Umbruch wie beim Erzeugen -- FormWrapLines wird von
+        # beiden Stellen gerufen. Die Breite kommt hier aus den Metriken
+        # der Basisschrift; kennt pdf4tcl die Schrift nicht, misst
+        # FormStdWidth 0, und dann bleibt jeder Absatz eine Zeile.
+        # Das ist der ehrliche Rueckfall: lieber ungebrochen als an
+        # geratener Stelle gebrochen.
+        set zeilen [::pdf4tcl::FormWrapLines $wert [expr {$width - 4.0}] \
+                [list apply {{size s} {::pdf4tcl::FormStdWidth $s $size}} $fsize]]
+        set abstand [expr {$fsize * 1.15}]
+        set y [expr {$height - $abstand}]
+        foreach zeile $zeilen {
+            if {$y < 0} break
+            append stream "1 0 0 1 [::pdf4tcl::Nf $tx] [::pdf4tcl::Nf $y] Tm "
+            append stream "[::pdf4tcl::QuoteString $zeile] Tj "
+            set y [expr {$y - $abstand}]
+        }
+    } else {
+        append stream "[::pdf4tcl::Nf $tx] 1.1 Td "
+        append stream "[::pdf4tcl::QuoteString $wert] Tj "
+    }
+    append stream "ET EMC"
+
+    set dict "<< /BBox \[ 0 0 [::pdf4tcl::Nf $width] [::pdf4tcl::Nf $height]\]\n"
+    append dict "/Resources << /Font << /$fontResName $fontRef >> >>\n"
+    append dict "/Subtype /Form\n/Type /XObject"
+    # Unkomprimiert: der Strom ist kurz, und eine Datei, in der man den
+    # gefuellten Wert im Klartext findet, ist beim Nachsehen mehr wert
+    # als zweihundert gesparte Bytes.
+    return [::pdf4tcl::MakeStream $dict $stream 0]
 }
 
 # Set or replace one key in an object body. The value is written as given,
@@ -2215,63 +2793,59 @@ proc pdf4tcl::getForms {pdfFile} {
     }
     set pdf [pdf4tcl::cat::ReadPdf $pdfFile]
 
-    # Locate Forms
-    set N [dict get $pdf N]
+    # Ueber den FELDBAUM, nicht ueber die Widgets.
+    #
+    # Bis .64 wurde jedes Widget mit /T als eigenes Feld gemeldet. Das
+    # trifft den haeufigen Fall, aber ein Feld mit mehreren Widgets fiel
+    # ganz durch und ein verschachtelter Name kam ohne seinen Vater.
+    # Siehe FormFieldTree.
     set result {}
-    for {set o 1} {$o <= $N} {incr o} {
-        if {![dict exists $pdf $o]} continue
-        set d [pdf4tcl::cat::PdfObjToTclDict [dict get $pdf $o full]]
-        if {[dict exists $d /Subtype] && [dict get $d /Subtype] eq "/Widget"} {
-            # A widget without /T is the child of a field: with radio
-            # buttons the parent carries the name and the children only
-            # their appearance. This used to abort with "key /T not known
-            # in dictionary" -- measured on demo/demo-forms.tcl.
-            if {![dict exists $d /T]} { continue }
-            set id [dict get $d /T]
-            # Remove parens from ID-string
-            set id [string trim $id "()"]
-            # Field Type (/Tx or /Btn)
-            if {[dict exists $d /FT]} {
-                dict set result $id type [dict get $d /FT]
-            } else {
-                dict set result $id type {}
+    dict for {o e} [pdf4tcl::FormFieldTree $pdf] {
+        set id [dict get $e name]
+        if {$id eq ""} continue
+        dict set result $id type [dict get $e FT]
+        set v [dict get $e V]
+        dict set result $id value [expr {$v eq "" ? "" : [FormUnquoteString $v]}]
+        set ff [dict get $e Ff]
+        dict set result $id flags [expr {$ff eq "" ? 0 : $ff}]
+        set ml [dict get $e MaxLen]
+        dict set result $id maxlen $ml
+        # Comb ist Bit 25 und gilt nur zusammen mit /MaxLen -- ohne
+        # Teiler gibt es keine Zellen (ISO 32000-1 12.7.4.3). Ein
+        # gesetztes Bit ohne /MaxLen ist darum KEIN Kammfeld, und hier
+        # steht 0, nicht 1: die Auskunft soll sagen, was die Datei
+        # bewirkt, nicht was in ihr steht.
+        dict set result $id comb [expr {
+            ([dict get $result $id flags] & $::pdf4tcl::Ff_COMB)
+            && $ml ne "" ? 1 : 0}]
+        # /AS steht am WIDGET, nicht am Feld: bei einem Ankreuzfeld
+        # sagt es, welche Erscheinung gerade gilt.
+        #
+        # NUR wenn es eines gibt -- wie bisher. Der Schluessel
+        # unbedingt zu setzen waere eine stille Erweiterung der
+        # Rueckgabe, und die ist eine Zusage: form-4.1 nagelt das ganze
+        # dict fest und hat es gemeldet.
+        foreach w [dict get $e widgets] {
+            if {![dict exists $pdf $w]} continue
+            if {[regexp {/AS\s*(/\w+)} [dict get $pdf $w full] -> as]} {
+                dict set result $id default $as
+                break
             }
-            # Default value, if any
-            if {[dict exists $d /AS]} {
-                dict set result $id default [dict get $d /AS]
-            }
-            # Value
-            if {[dict exists $d /V]} {
-                dict set result $id value \
-                        [FormUnquoteString [dict get $d /V]]
-            } else {
-                dict set result $id value {}
-            }
-            # Flags
-            if {[dict exists $d /Ff]} {
-                dict set result $id flags [dict get $d /Ff]
-            } else {
-                dict set result $id flags 0
-            }
-            # Was addForm schreiben kann, muss getForms auch lesen
-            # koennen. /MaxLen und die Kaestchen kamen in 0.9.4.63 dazu,
-            # und beim Zuruecklesen fielen sie unter den Tisch: wer ein
-            # Formular liest, um es nachzubauen, verlor die Kaestchen und
-            # merkte es erst am fertigen Nachbau.
-            if {[dict exists $d /MaxLen]} {
-                dict set result $id maxlen [dict get $d /MaxLen]
-            } else {
-                dict set result $id maxlen {}
-            }
-            # Comb ist Bit 25 und gilt nur zusammen mit /MaxLen -- ohne
-            # Teiler gibt es keine Zellen (ISO 32000-1 12.7.4.3). Ein
-            # gesetztes Bit ohne /MaxLen ist darum KEIN Kammfeld, und
-            # hier steht 0, nicht 1: die Auskunft soll sagen, was die
-            # Datei bewirkt, nicht was in ihr steht.
-            set ff [dict get $result $id flags]
-            dict set result $id comb [expr {
-                ($ff & $::pdf4tcl::Ff_COMB) && [dict exists $d /MaxLen] ? 1 : 0}]
         }
+        # Wieviele Widgets -- beim Durchschlagsatz die entscheidende
+        # Auskunft, und sonst immer 1. Wer sie nicht braucht, sieht sie
+        # nicht.
+        dict set result $id widgets [llength [dict get $e widgets]]
+        # Der Name FUER MENSCHEN. addForm schreibt ihn ueber -tooltip,
+        # und getForms gab ihn bis 0.9.4.65 nicht wieder heraus.
+        set tu [dict get $e TU]
+        dict set result $id description \
+                [expr {$tu eq "" ? "" : [FormUnquoteString $tu]}]
+        # Die erlaubten Werte eines Auswahlfeldes, {exportwert
+        # beschriftung} je Eintrag. LEER bei allen anderen Feldarten --
+        # aber DA, damit der Aufrufer nicht nach der Feldart
+        # unterscheiden muss.
+        dict set result $id options [dict get $e Opt]
     }
     return $result
 }

@@ -75,15 +75,26 @@ automatically.
 All seven produce a real annotation object; verified in the output of a
 single test document:
 
-| Method | Annotation type | Visible without clicking |
-|---|---|---|
-| `addAnnotNote` | `/Text` | icon only, popup on click |
-| `addAnnotFreeText` | `/FreeText` | yes |
-| `addAnnotHighlight` | `/Highlight` | yes |
-| `addAnnotUnderline` | `/Underline` | yes |
-| `addAnnotStrikeOut` | `/StrikeOut` | yes |
-| `addAnnotStamp` | `/Stamp` | yes |
-| `addAnnotLine` | `/Line` | yes |
+| Method | Annotation type | Visible without clicking | Drawn from |
+|---|---|---|---|
+| `addAnnotNote` | `/Text` | icon only, popup on click | the viewer's icon set |
+| `addAnnotFreeText` | `/FreeText` | yes | `/DA` and the colours |
+| `addAnnotHighlight` | `/Highlight` | yes | `/QuadPoints` and `/C` |
+| `addAnnotUnderline` | `/Underline` | yes | `/QuadPoints` and `/C` |
+| `addAnnotStrikeOut` | `/StrikeOut` | yes | `/QuadPoints` and `/C` |
+| `addAnnotStamp` | `/Stamp` | yes | its appearance stream (0.9.4.64) |
+| `addAnnotLine` | `/Line` | yes | its appearance stream (0.9.4.64) |
+
+A stamp says `/Name /Draft`, which is a hint at what was meant, not a
+drawing (ISO 32000-1 12.5.6.12); a line's end points say where, not how.
+Both therefore carry an **appearance stream** since 0.9.4.64. Without
+one only a viewer with its own artwork shows anything -- Acrobat has it,
+PDFium does not, and PDFium is the viewer in Chrome and Edge.
+
+A stamp's stream needs a font and is written only after `setFont`;
+without one the annotation is written as before. Arrow heads are drawn
+for `OpenArrow`, `ClosedArrow`, `ROpenArrow`, `RClosedArrow`, `Circle`
+and `Square`; any other ending stays a plain line.
 
 ```tcl
 $pdf addAnnotNote 300 20 20 20 -content "Check this" -author "greg" \

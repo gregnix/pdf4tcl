@@ -2322,13 +2322,63 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Make Sure ZaDb font is available, for internal use
+    #
+    # MIT ToUnicode -- und zwar fuer genau die zwei Zeichen, die pdf4tcl
+    # aus dieser Schrift benutzt:
+    #
+    #   (4)  Haken im Ankreuzfeld   -> U+2714 HEAVY CHECK MARK
+    #   (l)  Punkt im Optionsfeld   -> U+25CF BLACK CIRCLE
+    #
+    # WARUM: ohne die Zuordnung findet pdftotext an der Stelle nichts,
+    # und ein Vorleseprogramm ebenso wenig -- gemessen mit
+    # pdfcheck-native ueber demo/out: sechs Dateien meldeten
+    # "ZapfDingbats: no ToUnicode map -- text cannot be extracted", und
+    # alle sechs waren Formulardemos. Bei einem Kaestchen ist das
+    # verschmerzbar, bei einem Frachtbrief mit zwanzig nicht.
+    #
+    # Die Zeichnung aendert sich dadurch NICHT. Es ist eine Auskunft
+    # ueber den Glyphen, kein anderer Glyph.
+    #
+    # Nur diese beiden Eintraege, nicht die ganze Schrift: eine
+    # vollstaendige Tabelle waere eine Behauptung ueber Zeichen, die
+    # pdf4tcl gar nicht setzt -- und jede davon koennte falsch sein,
+    # ohne dass es je auffiele.
+    #
+    # -markstyle vector und -pdfa brauchen das alles nicht: dort wird
+    # der Haken als Vektor gezeichnet und ZaDb entsteht erst gar nicht.
     method SetupZaDbFont {} {
         set fontname ZaDb
         if {[info exists fonts($fontname)]} return
+
+        set cmap    "/CIDInit /ProcSet findresource begin\n"
+        append cmap "12 dict begin\nbegincmap\n"
+        append cmap "/CIDSystemInfo\n"
+        append cmap "<< /Registry (ZapfDingbats)\n"
+        append cmap "/Ordering (UCS)\n/Supplement 0\n>> def\n"
+        append cmap "/CMapName /Adobe-Identity-UCS def\n"
+        append cmap "/CMapType 1 def\n"
+        append cmap "1 begincodespacerange\n<00> <FF>\nendcodespacerange\n"
+        append cmap "2 beginbfchar\n"
+        append cmap "<34> <2714>\n"
+        append cmap "<6C> <25CF>\n"
+        append cmap "endbfchar\n"
+        append cmap "endcmap\n"
+        append cmap "CMapName currentdict /CMap defineresource pop\nend\nend\n"
+        # OHNE schliessende Klammer: MakeStream haengt /Length und ">>"
+        # selbst an. Mit "<<\n>>" entstand
+        #     <<\n>>\n/Length 351\n>>\nstream
+        # -- ein ">>" zuviel, die Datei war kaputt, und JEDER Leser lief
+        # sich darin fest: getForms haengte, auch die Fassung .63 an
+        # einer .64-Datei. Gemessen 06.09.2026; die Testsuite hat es
+        # nicht gefangen, weil kein Test getForms auf ein Dokument MIT
+        # Ankreuzfeld anwendet.
+        set cmapid [my AddObject [MakeStream "<<" $cmap $pdf(compress)]]
+
         set body    "<<\n/Type /Font\n"
         append body "/Subtype /Type1\n"
         append body "/Name /[::pdf4tcl::PdfName $fontname]\n"
         append body "/BaseFont /ZapfDingbats\n"
+        append body "/ToUnicode $cmapid 0 R\n"
         append body ">>"
         set oid [my AddObject $body]
         set fonts($fontname) $oid
@@ -6223,6 +6273,152 @@ Use -pdfa-icc to specify a profile path."
         lappend pdf(annotations) "[my AddAnnot $d] 0 R"
     }
 
+    # Appearance-Strom fuer eine Anmerkung.
+    #
+    # WARUM DAS SEIN MUSS: ohne /AP steht in der Datei nur, WAS gemeint
+    # ist, nicht wie es aussieht. Bei einer Textmarkierung geht das gut
+    # -- ein Betrachter darf sie aus /QuadPoints und /C selbst zeichnen
+    # (ISO 32000-1 12.5.6.10). Bei einem STEMPEL nicht: nach 12.5.6.12
+    # kommt sein Aussehen aus dem Appearance-Strom, /Name ist nur ein
+    # Hinweis darauf, was gemeint war. Wer trotzdem etwas zeigt, malt es
+    # aus eigenem Vorrat -- Acrobat tut das, PDFium nicht.
+    #
+    # Gemessen am 06.09.2026 an demo-annotations.pdf: /AP kam darin NULL
+    # mal vor. Von sechs Stempeln und fuenf Linien war in PDFium keiner
+    # zu sehen -- und PDFium ist der Betrachter von Chrome und Edge,
+    # also bei den meisten Empfaengern.
+    #
+    # Ein vorhandener /AP hat Vorrang vor dem eingebauten Vorrat. Die
+    # Datei sieht damit ueberall gleich aus, auch dort, wo bisher schon
+    # etwas zu sehen war.
+    #
+    # Der Strom wird in KOORDINATEN DER BBOX gezeichnet, also relativ
+    # zur linken unteren Ecke des /Rect -- nicht in Seitenkoordinaten.
+    # Wer das verwechselt, zeichnet neben die Anmerkung, und es faellt
+    # erst im Betrachter auf.
+    method _AnnotAP {width height stream} {
+        set obj [my _FormXObjHeader $width $height]
+        set body [MakeStream $obj $stream $pdf(compress)]
+        return [my AddObject $body]
+    }
+
+    # Ein Stempel: Rahmen und das Wort darin.
+    #
+    # Die Schrift kommt aus der laufenden Einstellung, weil der Strom
+    # sie ueber /Resources 3 0 R nennen muss. Ohne gesetzte Schrift
+    # entsteht KEIN /AP -- der Stempel bleibt dann wie bisher, statt
+    # dass addAnnotStamp mit einer internen Meldung abbricht. Ein
+    # Rueckschritt gegen heute ist das nicht.
+    method _BuildStampAP {width height name rgb} {
+        if {$pdf(current_font) eq ""} { return "" }
+        set fs [expr {$height * 0.5}]
+        if {$fs > 24.0} { set fs 24.0 }
+        if {$fs < 6.0}  { set fs 6.0 }
+        set txt [string map {( \\( ) \\) \\ \\\\} $name]
+        set tw [my getStringWidth $name -font $pdf(current_font) \
+                -size $fs -internal 1]
+        # Passt das Wort nicht in den Rahmen, wird die Schrift kleiner --
+        # abschneiden waere schlimmer als klein schreiben.
+        set innen [expr {$width - 8.0}]
+        if {$tw > $innen && $tw > 0} {
+            set fs [expr {$fs * $innen / $tw}]
+            set tw $innen
+        }
+        set tx [expr {($width - $tw) / 2.0}]
+        set ty [expr {($height - $fs * 0.7) / 2.0}]
+        set c [join $rgb " "]
+        set lw [expr {$height * 0.06}]
+        if {$lw < 0.5} { set lw 0.5 }
+        set half [expr {$lw / 2.0}]
+
+        set st "q $c RG $c rg [Nf $lw] w\n"
+        append st "[Nf $half] [Nf $half] [Nf [expr {$width - $lw}]]\
+                [Nf [expr {$height - $lw}]] re S\n"
+        append st "BT /$pdf(current_font) [Nf $fs] Tf $c rg\
+                [Nf $tx] [Nf $ty] Td ($txt) Tj ET\n"
+        append st "Q\n"
+        return $st
+    }
+
+    # Eine Linie mit ihren Endstuecken.
+    #
+    # Nur die Formen, die sich mit wenigen Operatoren zeichnen lassen.
+    # Was nicht dabei ist, bleibt ein schlichtes Ende -- eine Linie ohne
+    # Spitze ist eine halbe Auskunft, eine falsch gezeichnete Spitze
+    # eine falsche.
+    method _BuildLineAP {width height x1 y1 x2 y2 rgb lwidth startend} {
+        set c [join $rgb " "]
+        set st "q $c RG $c rg [Nf $lwidth] w\n"
+        append st "[Nf $x1] [Nf $y1] m [Nf $x2] [Nf $y2] l S\n"
+        set dx [expr {$x2 - $x1}]
+        set dy [expr {$y2 - $y1}]
+        set len [expr {hypot($dx, $dy)}]
+        if {$len > 0.0001} {
+            set ux [expr {$dx / $len}]
+            set uy [expr {$dy / $len}]
+            # Die Spitze waechst mit der Strichbreite, hat aber eine
+            # Untergrenze: mit "max(4, w*4)" war sie bei einem Strich
+            # von 1 Punkt vier Punkte lang und 1,6 breit -- im Bild
+            # kaum von einem Knick zu unterscheiden. Gemessen am
+            # erzeugten Strom, nicht geschaetzt.
+            set a [expr {max(8.0, $lwidth * 4.0)}]
+            foreach {ende px py vx vy} [list \
+                    [lindex $startend 0] $x1 $y1 [expr {-$ux}] [expr {-$uy}] \
+                    [lindex $startend end] $x2 $y2 $ux $uy] {
+                switch -- $ende {
+                    OpenArrow - ClosedArrow - ROpenArrow - RClosedArrow {
+                        # Die zwei Schenkel, 30 Grad zur Achse.
+                        set r [expr {$ende in {ROpenArrow RClosedArrow}}]
+                        set sx [expr {$r ? -$vx : $vx}]
+                        set sy [expr {$r ? -$vy : $vy}]
+                        set nx [expr {-$sy}]
+                        set ny [expr {$sx}]
+                        set bx [expr {$px - $sx * $a}]
+                        set by [expr {$py - $sy * $a}]
+                        set h  [expr {$a * 0.4}]
+                        append st "[Nf $px] [Nf $py] m\
+                                [Nf [expr {$bx + $nx*$h}]]\
+                                [Nf [expr {$by + $ny*$h}]] l\n"
+                        append st "[Nf $px] [Nf $py] m\
+                                [Nf [expr {$bx - $nx*$h}]]\
+                                [Nf [expr {$by - $ny*$h}]] l S\n"
+                        if {$ende in {ClosedArrow RClosedArrow}} {
+                            append st "[Nf $px] [Nf $py] m\
+                                    [Nf [expr {$bx + $nx*$h}]]\
+                                    [Nf [expr {$by + $ny*$h}]] l\
+                                    [Nf [expr {$bx - $nx*$h}]]\
+                                    [Nf [expr {$by - $ny*$h}]] l f\n"
+                        }
+                    }
+                    Circle {
+                        set r [expr {$a * 0.35}]
+                        set k [expr {$r * 0.5523}]
+                        append st "[Nf [expr {$px - $r}]] [Nf $py] m\
+                                [Nf [expr {$px - $r}]] [Nf [expr {$py + $k}]]\
+                                [Nf [expr {$px - $k}]] [Nf [expr {$py + $r}]]\
+                                [Nf $px] [Nf [expr {$py + $r}]] c\n"
+                        append st "[Nf [expr {$px + $k}]] [Nf [expr {$py + $r}]]\
+                                [Nf [expr {$px + $r}]] [Nf [expr {$py + $k}]]\
+                                [Nf [expr {$px + $r}]] [Nf $py] c\n"
+                        append st "[Nf [expr {$px + $r}]] [Nf [expr {$py - $k}]]\
+                                [Nf [expr {$px + $k}]] [Nf [expr {$py - $r}]]\
+                                [Nf $px] [Nf [expr {$py - $r}]] c\n"
+                        append st "[Nf [expr {$px - $k}]] [Nf [expr {$py - $r}]]\
+                                [Nf [expr {$px - $r}]] [Nf [expr {$py - $k}]]\
+                                [Nf [expr {$px - $r}]] [Nf $py] c f\n"
+                    }
+                    Square {
+                        set r [expr {$a * 0.3}]
+                        append st "[Nf [expr {$px - $r}]] [Nf [expr {$py - $r}]]\
+                                [Nf [expr {2*$r}]] [Nf [expr {2*$r}]] re f\n"
+                    }
+                }
+            }
+        }
+        append st "Q\n"
+        return $st
+    }
+
     # addAnnotStamp x y width height ?options?
     #
     # Adds a /Stamp annotation (rubber stamp).
@@ -6277,6 +6473,11 @@ Use -pdfa-icc to specify a profile path."
 "
         if {$content ne {}} {
             append d "  /Contents [QuoteString $content]
+"
+        }
+        set apStream [my _BuildStampAP $width $height $name $rgb]
+        if {$apStream ne ""} {
+            append d "  /AP << /N [my _AnnotAP $width $height $apStream] 0 R >>
 "
         }
         append d ">>
@@ -6347,6 +6548,18 @@ Use -pdfa-icc to specify a profile path."
             append d "  /Contents [QuoteString $content]
 "
         }
+        # Der Strom zeichnet in Koordinaten der BBox, also relativ zur
+        # linken unteren Ecke des /Rect -- nicht in Seitenkoordinaten.
+        # Wer das verwechselt, zeichnet neben die Anmerkung, und es
+        # faellt erst im Betrachter auf.
+        set apW [expr {$rx2 - $rx}]
+        set apH [expr {$ry2 - $ry}]
+        set apStream [my _BuildLineAP $apW $apH \
+                [expr {$x1 - $rx}] [expr {$y1 - $ry}] \
+                [expr {$x2 - $rx}] [expr {$y2 - $ry}] \
+                $rgb $lwidth $startend]
+        append d "  /AP << /N [my _AnnotAP $apW $apH $apStream] 0 R >>
+"
         append d ">>
 "
 
@@ -6489,7 +6702,7 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Build text/password appearance: returns onid or ""
-    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"} {combLen 0}} {
+    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"} {combLen 0} {multiline 0}} {
         if {$initValue eq ""} {
             # Ein LEERES Feld bekommt einen leeren Appearance-Stream.
             #
@@ -6577,6 +6790,38 @@ Use -pdfa-icc to specify a profile path."
                 append stream "1 0 0 1 [Nf $cx] 1.1 Tm "
                 append stream "[PdfText $ch $pdf(current_font)] Tj "
                 incr i
+            }
+        } elseif {$multiline} {
+            # MEHRZEILIG: umbrechen und Zeile fuer Zeile setzen.
+            #
+            # Bis 0.9.4.64 stand der ganze Text in EINER Zeile -- mitsamt
+            # dem "\n" als sichtbarem Zeichen im Textstring, das kein
+            # Betrachter umbricht, und ein langer Text lief aus dem
+            # Kasten. Gemessen an einem Feld mit "-init
+            # \"Erste Zeile\nZweite Zeile\"".
+            #
+            # Der Umbruch kommt aus FormWrapLines -- dieselbe Routine,
+            # die fillForms beim Neubauen benutzt. Zwei Rechnungen fuer
+            # dieselbe Sache gingen auseinander.
+            set innen [expr {$width - 4.0}]
+            set fs $pdf(font_size)
+            set zeilen [::pdf4tcl::FormWrapLines $dispText $innen \
+                    [list apply {{obj fn size s} {
+                        $obj getStringWidth $s -font $fn -size $size -internal 1
+                    }} [self] $pdf(current_font) $fs]]
+            # Zeilenabstand wie beim Setzen von Fliesstext: etwas mehr
+            # als die Schriftgroesse, sonst kleben die Zeilen.
+            set abstand [expr {$fs * 1.15}]
+            # Von OBEN nach unten. Die erste Grundlinie liegt eine
+            # Zeilenhoehe unter der Oberkante -- so macht es ein
+            # Betrachter auch, und so steht der Text nicht halb im
+            # Rahmen.
+            set y [expr {$height - $abstand}]
+            foreach zeile $zeilen {
+                if {$y < 0} break
+                append stream "1 0 0 1 [Nf $tx] [Nf $y] Tm "
+                append stream "[PdfText $zeile $pdf(current_font)] Tj "
+                set y [expr {$y - $abstand}]
             }
         } else {
             append stream "[Nf $tx] 1.1 Td "
@@ -7293,7 +7538,7 @@ Use -pdfa-icc to specify a profile path."
         } elseif {$ftype in {text password}} {
             set onid [my _BuildTextAP $width $height $initValue \
                     [expr {$ftype eq "password"}] $quadding $daColor \
-                    [expr {$comb ? $maxlen : 0}]]
+                    [expr {$comb ? $maxlen : 0}] $multiline]
         } elseif {$ftype eq "listbox"} {
             set choiceApId [my _BuildChoiceAP $width $height $ftype \
                     $initValue $optionsList]

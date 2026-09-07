@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.63]
+[manpage_begin pdf4tcl n 0.9.4.65]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.63]]
+[require pdf4tcl [opt 0.9.4.65]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -326,11 +326,39 @@ value ([const /Yes], [const /Off]) is left as it is.
 (0.9.4.63). A file may carry the bit without the length; the norm divides the
 field width by [const /MaxLen], so without it there are no cells and this
 reports 0. The answer says what the file does, not what stands in it.
+[opt_def description] The field's [const /TU] -- the text a viewer shows
+as a tooltip (0.9.4.65). [method addForm] writes it from
+[option -tooltip]; until 0.9.4.64 [cmd getForms] did not give it back, so
+the package wrote an answer it would not read.
+[opt_def options] The permitted values of a choice field (0.9.4.65), one
+[const {export label}] pair per entry. Empty for every other kind of
+field -- but present, so the caller need not branch on the field type.
+[para]
+[const /Opt] may be written two ways (ISO 32000-1 12.7.4.4): labels
+only, or export value and label as a pair. [method addForm] writes the
+first; foreign forms carry the second, and both are read.
+[opt_def widgets] How many widgets the field has (0.9.4.64). Normally 1.
+A field that appears on several sheets -- the carbon set of a CMR
+consignment note -- is one field with several widgets, each with its own
+[const /Rect] and its own appearance (ISO 32000-1 12.7.4.1).
 [list_end]
 [para]
-[emph {The returned dictionary gained two keys in 0.9.4.63.}] Code that
-compares the whole dict against a literal will notice; code that reads
-individual keys will not.
+[emph {Field names are composed since 0.9.4.64.}] The full name of a
+field is the chain of [const /T] entries from the root field down, joined
+with dots (ISO 32000-1 12.7.3.2): [const /T] [const person] on the parent
+and [const city] on the child gives [const person.city]. Up to 0.9.4.63
+only [const city] came back -- and in a form with
+[const rechnung.betrag] and [const lieferung.betrag] both fields were
+then called [const betrag], one overwriting the other in the dictionary.
+[para]
+[emph {A field with several widgets is found since 0.9.4.64.}] Up to
+0.9.4.63 the name was looked for on the widget; where it sits on the
+parent, the field was not found at all -- [cmd getForms] returned an
+empty dictionary and [cmd fillForms] said "no such field".
+[para]
+[emph {The returned dictionary gained two keys in 0.9.4.63 and one in
+0.9.4.64.}] Code that compares the whole dict against a literal will
+notice; code that reads individual keys will not.
 
 [call [cmd ::pdf4tcl::fillForms] [arg "infile"] [arg "outfile"] [arg "values"]]
 
@@ -352,22 +380,91 @@ pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
 }]
 
 [para]
-[emph {The value is written, not drawn.}] [const /NeedAppearances] is set,
-which tells the viewer to render it, and Acrobat and the common browsers
-honour that. A viewer or print path that does not shows the field's
-[emph old] appearance stream -- which is not the same as showing nothing.
-Measured: a field created with [option {-init Alt}] and then filled with
-[const Meier] carries [const {/V (Meier)}] while its [const /AP] still
-draws [const Alt]. [cmd pdftotext] reads the value and reports
-[const Meier]; a printer that renders the appearance puts [const Alt] on
-the paper, and nobody sees the difference before the sheet is out.
+[emph {Since 0.9.4.64 the value is drawn as well.}] Along with
+[const /V] and [const /NeedAppearances] the field's appearance stream is
+rebuilt, so a print path that renders the appearance puts the new value
+on the paper. Up to 0.9.4.63 it put the [emph old] one there -- for an
+empty field, nothing at all -- while the screen showed the new one, and
+nobody saw the difference before the sheet was out.
+
 [para]
-[method addForm] does build appearance streams, so a document produced in
-one go is unaffected. The gap is in filling a document that already
-exists. If it must not go wrong, produce the document with the values in
-place instead of filling it afterwards -- and where the file comes from
-elsewhere and cannot be regenerated, check the result in the viewer that
-will print it.
+Every widget of the field gets its own stream, built from its own
+[const /Rect] (0.9.4.64). One stream for all of them would sit in the
+wrong place on every sheet but the first.
+[para]
+[emph {A choice field takes only what is in}] [const /Opt] (0.9.4.65) --
+or the empty string, which means "nothing selected".
+Until 0.9.4.64 any value was written into [const /V] and a success
+reported; the field then carried a state no viewer can show, and it
+looked like it had worked. Both the export value and the label are
+accepted, because a caller may mean either.
+
+[para]
+Only [emph text] fields are rebuilt. A choice field has a different
+appearance altogether -- a white box with a border, and for a combo box
+a drop-down arrow -- and rebuilding it as a text line would throw that
+away. For a combo box leaving it alone is right anyway: [method addForm]
+deliberately keeps the text out of the stream there, because the viewer
+draws it from [const /DA] and [const /V], and text in the stream as well
+would appear twice.
+[para]
+A [emph comb] field is drawn in cells (0.9.4.64) when the field carries a
+[const /MaxLen] -- the field width divided by it, one character centred
+per cell, the same as [method addForm] does. A form may carry flag bit 25
+[emph without] the length; then there is no divisor and no cells, and the
+old stream is left alone. The condition is measurable, not guessed.
+[para]
+A [emph multi-line] field is wrapped (0.9.4.64), on its explicit line
+breaks first and then to the field width. The same routine builds the
+stream in [method addForm], so a field looks the same whether the
+document was produced with its values or filled afterwards. Up to
+0.9.4.63 both wrote the whole text into ONE line, with the newline
+sitting in the text string as a visible character that no viewer breaks,
+and a long text ran out of the box.
+[para]
+A word wider than the field is not broken: splitting inside a word is
+hyphenation, and that is guesswork without a dictionary. It stays whole
+and is clipped by the bounding box, which can be seen.
+[para]
+[const /Q] is honoured (0.9.4.64): a right-aligned or centred field keeps
+its alignment. The width comes from the metrics of the base font, so this
+works for the fourteen standard faces. For an [emph embedded] font the
+metrics live in the foreign document's font program and are not available
+here; the text then stays left-aligned, because a guessed alignment would
+be wrong and look right.
+[para]
+This works for the plain case: a single-line text field whose
+[const /AP] points at an object of its own, and whose [const /DA] names
+a font the form's [const /DR] knows. That is what [method addForm]
+produces, and 0.9.4.63 made sure an empty field carries a stream too, so
+that there is something here to overwrite. The old object is replaced
+rather than a new one added.
+
+[para]
+[emph {Deliberately not rebuilt:}] comb fields, where the cell width
+depends on [const /MaxLen] and a foreign form may carry the flag without
+the length; multi-line fields, whose line breaking needs the glyph
+widths; check boxes and radio buttons, which have two states with
+[const /AS] switching between them, and which fillForms already handles
+correctly; and choice fields. In all of these the old stream stays as it
+was, exactly as before -- a half-drawn comb field would be worse than an
+undrawn one.
+
+[para]
+So the value in [const /V] and the value on the paper agree in the plain
+case, and where they cannot, nothing changed rather than something
+half-changed. Where a foreign file uses one of the untouched kinds and
+it must not go wrong, check the result in the viewer that will print it.
+
+[para]
+A [emph dynamic] XFA form is refused (0.9.4.64+). There the catalogue
+carries [const {/NeedsRendering true}] and the content lives as XML
+under [const /XFA]; the AcroForm fields are a placeholder and the viewer
+builds the pages from the XML, so setting [const /V] would change
+nothing visible. Up to 0.9.4.63 the call ran through and reported a
+success that had not happened. A [emph hybrid] XFA form -- XFA together
+with usable AcroForm fields -- is filled as before, because there a
+viewer without XFA takes the AcroForm side and the value does work.
 
 [call [cmd ::pdf4tcl::exportForms] [arg "infile"] [arg "outfile"] [opt [arg "options"]]]
 
@@ -1237,6 +1334,19 @@ black for Underline, red for StrikeOut.
 
 Add a [const /Stamp] annotation -- a rubber stamp visible on the page (0.9.4.23+).
 
+Since 0.9.4.64 the stamp carries an appearance stream: a frame with the
+name inside, in the stamp colour. Without one, only viewers with their
+own artwork for named stamps show anything -- Acrobat has it, PDFium
+does not, and PDFium is the viewer in Chrome and Edge. ISO 32000-1
+12.5.6.12 makes the appearance stream the source of a stamp's look;
+[const /Name] is only a hint at what was meant. Measured on
+[file demo/demo-annotations.pdf]: none of six stamps was visible before,
+all six are now.
+
+The stream needs a font, so it is written only after [method setFont].
+Without one the annotation is written as before rather than the call
+failing.
+
 [list_begin options]
 [opt_def -name    [arg "name"]]   Predefined stamp name (default: [const Draft]).
 Valid names: [const Approved], [const Confidential], [const Draft], [const Experimental],
@@ -1249,6 +1359,12 @@ Valid names: [const Approved], [const Confidential], [const Draft], [const Exper
 [call [arg objectName] [method addAnnotLine] [arg "x1"] [arg "y1"] [arg "x2"] [arg "y2"] [opt [arg "option value"]...]]
 
 Add a [const /Line] annotation with optional arrowheads (0.9.4.23+).
+
+Since 0.9.4.64 the line carries an appearance stream with its arrow
+heads, for the same reason. [const OpenArrow], [const ClosedArrow],
+[const ROpenArrow], [const RClosedArrow], [const Circle] and
+[const Square] are drawn; any other ending stays a plain line. A line
+without a head is half an answer, a wrongly drawn head is a wrong one.
 
 [list_begin options]
 [opt_def -color     [arg "color"]] Line color (default: [const {0 0 0}]).

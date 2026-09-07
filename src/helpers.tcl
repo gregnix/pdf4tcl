@@ -951,3 +951,54 @@ namespace eval pdf4tcl {
     # points (identity -- for symmetric usage)
     proc pt {v} { expr {double($v)} }
 }
+
+# Text auf eine Feldbreite umbrechen.
+#
+# Rueckgabe: Liste von Zeilen.
+#
+# EINE Routine fuer BEIDE Stellen -- addForm baut den Strom beim Erzeugen,
+# fillForms baut ihn beim Fuellen neu. Zwei Umbruchrechnungen fuer
+# dieselbe Sache gingen auseinander, und dann saehe dasselbe Feld je
+# nachdem verschieden aus.
+#
+# Die Breite misst der Aufrufer: "widthCmd" wird als Praefix aufgerufen
+# und bekommt die Zeichenkette angehaengt. Beim Erzeugen kommt sie aus
+# der geladenen Schrift, beim Fuellen aus den Metriken der Basisschrift
+# -- dieselbe Rechnung, verschiedene Quellen.
+#
+# ZUERST an den ausdruecklichen Umbruechen trennen (\n, \r\n), dann jeden
+# Absatz fuellen. Wer nur nach Breite bricht, verliert die Absaetze des
+# Verfassers; wer nur an \n bricht, laesst lange Zeilen aus dem Kasten
+# laufen. Beides kam vor: pdf4tcl schrieb bis 0.9.4.64 den ganzen Text in
+# EINE Zeile, mitsamt dem \n als sichtbarem Zeichen.
+#
+# Ein Wort, das allein schon zu breit ist, bleibt ungebrochen in seiner
+# eigenen Zeile: mitten im Wort zu trennen waere eine Silbentrennung, und
+# die ist ohne Woerterbuch geraten.
+proc ::pdf4tcl::FormWrapLines {text maxwidth widthCmd} {
+    set zeilen {}
+    foreach absatz [split [string map [list \r\n \n \r \n] $text] \n] {
+        if {$absatz eq ""} {
+            lappend zeilen ""
+            continue
+        }
+        set aktuell ""
+        foreach wort [split $absatz " "] {
+            if {$aktuell eq ""} {
+                set versuch $wort
+            } else {
+                set versuch "$aktuell $wort"
+            }
+            set b 0
+            catch { set b [{*}$widthCmd $versuch] }
+            if {$b <= $maxwidth || $aktuell eq ""} {
+                set aktuell $versuch
+            } else {
+                lappend zeilen $aktuell
+                set aktuell $wort
+            }
+        }
+        lappend zeilen $aktuell
+    }
+    return $zeilen
+}

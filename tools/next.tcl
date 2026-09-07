@@ -6,5 +6,5 @@
 # NEXT_MSG ist absichtlich leer: was .64 wird, ist noch nicht entschieden.
 # Aus der Aktualliste stuenden bereit: /AP in fillForms, CID-CFF-Subset,
 # ToUnicode zwei CIDs, PDF/A-4.
-set NEXT_VERSION 0.9.4.64
+set NEXT_VERSION 0.9.4.65
 set NEXT_MSG ""

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.63 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.65 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.63?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.65?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -833,11 +833,45 @@ Value of \fB/MaxLen\fR, or empty if the field has none
 (0\&.9\&.4\&.63)\&. A file may carry the bit without the length; the norm divides the
 field width by \fB/MaxLen\fR, so without it there are no cells and this
 reports 0\&. The answer says what the file does, not what stands in it\&.
+.TP
+\fBdescription\fR
+The field's \fB/TU\fR -- the text a viewer shows
+as a tooltip (0\&.9\&.4\&.65)\&. \fBaddForm\fR writes it from
+\fB-tooltip\fR; until 0\&.9\&.4\&.64 \fBgetForms\fR did not give it back, so
+the package wrote an answer it would not read\&.
+.TP
+\fBoptions\fR
+The permitted values of a choice field (0\&.9\&.4\&.65), one
+\fBexport label\fR pair per entry\&. Empty for every other kind of
+field -- but present, so the caller need not branch on the field type\&.
+.sp
+\fB/Opt\fR may be written two ways (ISO 32000-1 12\&.7\&.4\&.4): labels
+only, or export value and label as a pair\&. \fBaddForm\fR writes the
+first; foreign forms carry the second, and both are read\&.
+.TP
+\fBwidgets\fR
+How many widgets the field has (0\&.9\&.4\&.64)\&. Normally 1\&.
+A field that appears on several sheets -- the carbon set of a CMR
+consignment note -- is one field with several widgets, each with its own
+\fB/Rect\fR and its own appearance (ISO 32000-1 12\&.7\&.4\&.1)\&.
 .RE
 .sp
-\fIThe returned dictionary gained two keys in 0\&.9\&.4\&.63\&.\fR Code that
-compares the whole dict against a literal will notice; code that reads
-individual keys will not\&.
+\fIField names are composed since 0\&.9\&.4\&.64\&.\fR The full name of a
+field is the chain of \fB/T\fR entries from the root field down, joined
+with dots (ISO 32000-1 12\&.7\&.3\&.2): \fB/T\fR \fBperson\fR on the parent
+and \fBcity\fR on the child gives \fBperson\&.city\fR\&. Up to 0\&.9\&.4\&.63
+only \fBcity\fR came back -- and in a form with
+\fBrechnung\&.betrag\fR and \fBlieferung\&.betrag\fR both fields were
+then called \fBbetrag\fR, one overwriting the other in the dictionary\&.
+.sp
+\fIA field with several widgets is found since 0\&.9\&.4\&.64\&.\fR Up to
+0\&.9\&.4\&.63 the name was looked for on the widget; where it sits on the
+parent, the field was not found at all -- \fBgetForms\fR returned an
+empty dictionary and \fBfillForms\fR said "no such field"\&.
+.sp
+\fIThe returned dictionary gained two keys in 0\&.9\&.4\&.63 and one in
+0\&.9\&.4\&.64\&.\fR Code that compares the whole dict against a literal will
+notice; code that reads individual keys will not\&.
 .TP
 \fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR
 Fill the form fields of an existing PDF and write it out again (0\&.9\&.4\&.50+)\&.
@@ -857,22 +891,86 @@ pdf4tcl::fillForms empty\&.pdf filled\&.pdf {name "Meier" agreed /Yes}
 
 .CE
 .sp
-\fIThe value is written, not drawn\&.\fR \fB/NeedAppearances\fR is set,
-which tells the viewer to render it, and Acrobat and the common browsers
-honour that\&. A viewer or print path that does not shows the field's
-\fIold\fR appearance stream -- which is not the same as showing nothing\&.
-Measured: a field created with \fB-init Alt\fR and then filled with
-\fBMeier\fR carries \fB/V (Meier)\fR while its \fB/AP\fR still
-draws \fBAlt\fR\&. \fBpdftotext\fR reads the value and reports
-\fBMeier\fR; a printer that renders the appearance puts \fBAlt\fR on
-the paper, and nobody sees the difference before the sheet is out\&.
+\fISince 0\&.9\&.4\&.64 the value is drawn as well\&.\fR Along with
+\fB/V\fR and \fB/NeedAppearances\fR the field's appearance stream is
+rebuilt, so a print path that renders the appearance puts the new value
+on the paper\&. Up to 0\&.9\&.4\&.63 it put the \fIold\fR one there -- for an
+empty field, nothing at all -- while the screen showed the new one, and
+nobody saw the difference before the sheet was out\&.
 .sp
-\fBaddForm\fR does build appearance streams, so a document produced in
-one go is unaffected\&. The gap is in filling a document that already
-exists\&. If it must not go wrong, produce the document with the values in
-place instead of filling it afterwards -- and where the file comes from
-elsewhere and cannot be regenerated, check the result in the viewer that
-will print it\&.
+Every widget of the field gets its own stream, built from its own
+\fB/Rect\fR (0\&.9\&.4\&.64)\&. One stream for all of them would sit in the
+wrong place on every sheet but the first\&.
+.sp
+\fIA choice field takes only what is in\fR \fB/Opt\fR (0\&.9\&.4\&.65) --
+or the empty string, which means "nothing selected"\&.
+Until 0\&.9\&.4\&.64 any value was written into \fB/V\fR and a success
+reported; the field then carried a state no viewer can show, and it
+looked like it had worked\&. Both the export value and the label are
+accepted, because a caller may mean either\&.
+.sp
+Only \fItext\fR fields are rebuilt\&. A choice field has a different
+appearance altogether -- a white box with a border, and for a combo box
+a drop-down arrow -- and rebuilding it as a text line would throw that
+away\&. For a combo box leaving it alone is right anyway: \fBaddForm\fR
+deliberately keeps the text out of the stream there, because the viewer
+draws it from \fB/DA\fR and \fB/V\fR, and text in the stream as well
+would appear twice\&.
+.sp
+A \fIcomb\fR field is drawn in cells (0\&.9\&.4\&.64) when the field carries a
+\fB/MaxLen\fR -- the field width divided by it, one character centred
+per cell, the same as \fBaddForm\fR does\&. A form may carry flag bit 25
+\fIwithout\fR the length; then there is no divisor and no cells, and the
+old stream is left alone\&. The condition is measurable, not guessed\&.
+.sp
+A \fImulti-line\fR field is wrapped (0\&.9\&.4\&.64), on its explicit line
+breaks first and then to the field width\&. The same routine builds the
+stream in \fBaddForm\fR, so a field looks the same whether the
+document was produced with its values or filled afterwards\&. Up to
+0\&.9\&.4\&.63 both wrote the whole text into ONE line, with the newline
+sitting in the text string as a visible character that no viewer breaks,
+and a long text ran out of the box\&.
+.sp
+A word wider than the field is not broken: splitting inside a word is
+hyphenation, and that is guesswork without a dictionary\&. It stays whole
+and is clipped by the bounding box, which can be seen\&.
+.sp
+\fB/Q\fR is honoured (0\&.9\&.4\&.64): a right-aligned or centred field keeps
+its alignment\&. The width comes from the metrics of the base font, so this
+works for the fourteen standard faces\&. For an \fIembedded\fR font the
+metrics live in the foreign document's font program and are not available
+here; the text then stays left-aligned, because a guessed alignment would
+be wrong and look right\&.
+.sp
+This works for the plain case: a single-line text field whose
+\fB/AP\fR points at an object of its own, and whose \fB/DA\fR names
+a font the form's \fB/DR\fR knows\&. That is what \fBaddForm\fR
+produces, and 0\&.9\&.4\&.63 made sure an empty field carries a stream too, so
+that there is something here to overwrite\&. The old object is replaced
+rather than a new one added\&.
+.sp
+\fIDeliberately not rebuilt:\fR comb fields, where the cell width
+depends on \fB/MaxLen\fR and a foreign form may carry the flag without
+the length; multi-line fields, whose line breaking needs the glyph
+widths; check boxes and radio buttons, which have two states with
+\fB/AS\fR switching between them, and which fillForms already handles
+correctly; and choice fields\&. In all of these the old stream stays as it
+was, exactly as before -- a half-drawn comb field would be worse than an
+undrawn one\&.
+.sp
+So the value in \fB/V\fR and the value on the paper agree in the plain
+case, and where they cannot, nothing changed rather than something
+half-changed\&. Where a foreign file uses one of the untouched kinds and
+it must not go wrong, check the result in the viewer that will print it\&.
+.sp
+A \fIdynamic\fR XFA form is refused (0\&.9\&.4\&.64+)\&. There the catalogue
+carries \fB/NeedsRendering true\fR and the content lives as XML
+under \fB/XFA\fR; the AcroForm fields are a placeholder and the viewer
+builds the pages from the XML, so setting \fB/V\fR would change
+nothing visible\&. Up to 0\&.9\&.4\&.63 the call ran through and reported a
+success that had not happened\&. A \fIhybrid\fR XFA form -- XFA together
+with usable AcroForm fields -- is filled as before, because there a
+viewer without XFA takes the AcroForm side and the value does work\&.
 .TP
 \fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
 Export form field data from a filled PDF as FDF or XFDF (0\&.9\&.4\&.23+)\&.
@@ -1709,6 +1807,17 @@ Author name\&.
 .TP
 \fIobjectName\fR \fBaddAnnotStamp\fR \fIx\fR \fIy\fR \fIwidth\fR \fIheight\fR ?\fIoption value\fR\&.\&.\&.?
 Add a \fB/Stamp\fR annotation -- a rubber stamp visible on the page (0\&.9\&.4\&.23+)\&.
+Since 0\&.9\&.4\&.64 the stamp carries an appearance stream: a frame with the
+name inside, in the stamp colour\&. Without one, only viewers with their
+own artwork for named stamps show anything -- Acrobat has it, PDFium
+does not, and PDFium is the viewer in Chrome and Edge\&. ISO 32000-1
+12\&.5\&.6\&.12 makes the appearance stream the source of a stamp's look;
+\fB/Name\fR is only a hint at what was meant\&. Measured on
+"\fIdemo/demo-annotations\&.pdf\fR": none of six stamps was visible before,
+all six are now\&.
+The stream needs a font, so it is written only after \fBsetFont\fR\&.
+Without one the annotation is written as before rather than the call
+failing\&.
 .RS
 .TP
 \fB-name\fR \fIname\fR
@@ -1726,6 +1835,11 @@ Optional popup content\&.
 .TP
 \fIobjectName\fR \fBaddAnnotLine\fR \fIx1\fR \fIy1\fR \fIx2\fR \fIy2\fR ?\fIoption value\fR\&.\&.\&.?
 Add a \fB/Line\fR annotation with optional arrowheads (0\&.9\&.4\&.23+)\&.
+Since 0\&.9\&.4\&.64 the line carries an appearance stream with its arrow
+heads, for the same reason\&. \fBOpenArrow\fR, \fBClosedArrow\fR,
+\fBROpenArrow\fR, \fBRClosedArrow\fR, \fBCircle\fR and
+\fBSquare\fR are drawn; any other ending stays a plain line\&. A line
+without a head is half an answer, a wrongly drawn head is a wrong one\&.
 .RS
 .TP
 \fB-color\fR \fIcolor\fR

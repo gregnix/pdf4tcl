@@ -786,4 +786,163 @@ test form-24.4 {der Rundlauf haelt auch hier} -constraints {haveForeignForm} -bo
     set v
 } -result {Meier & Co (GmbH)}
 
+# ---------------------------------------------------------------------------
+# form-25.x  Was getForms und fillForms NICHT sehen (0.9.4.64)
+#
+# Diese drei Dateien sind von Hand gebaut (tests/fixtures/form-*.pdf), nicht
+# heruntergeladen: eine Testdatei bleibt fuer immer im Repository, und eine,
+# deren Herkunft oder Lizenz man erst klaeren muss, ist schlechter als gar
+# keine.
+#
+# Sie halten den STAND fest, nicht ein Ziel. Alle drei Faelle liest pdf4tcl
+# heute falsch oder gar nicht, und zwar STILL -- kein Fehler, keine Meldung,
+# nur eine Auskunft, die nicht stimmt. Genau davor warnt der Kommentar zu
+# form-24.x: eigene Ausgabe trifft die eigenen Annahmen.
+#
+# Wenn einer der Tests spaeter faellt, ist das die gute Nachricht: dann ist
+# der Fall behoben, und die Erwartung gehoert nachgezogen.
+# ---------------------------------------------------------------------------
+
+set ::multiWidget [file join $::pdf4tclTestRoot tests fixtures form-multiwidget.pdf]
+set ::nestedForm  [file join $::pdf4tclTestRoot tests fixtures form-nested.pdf]
+set ::xfaForm     [file join $::pdf4tclTestRoot tests fixtures form-xfa.pdf]
+testConstraint haveMultiWidget [file exists $::multiWidget]
+testConstraint haveNestedForm  [file exists $::nestedForm]
+testConstraint haveXfaForm     [file exists $::xfaForm]
+set ::xfaDyn [file join $::pdf4tclTestRoot tests fixtures form-xfa-dynamic.pdf]
+testConstraint haveXfaDyn      [file exists $::xfaDyn]
+set ::xfaIso [file join $::pdf4tclTestRoot tests fixtures form-xfa-iso.pdf]
+testConstraint haveXfaIso      [file exists $::xfaIso]
+
+test form-25.1 {ein Feld mit zwei Widgets wird gefunden} \
+        -constraints haveMultiWidget -body {
+    # DER DURCHSCHLAGSATZ. Ein CMR-Frachtbrief hat ein Feld, das auf vier
+    # Blaettern erscheint: EIN Feldobjekt mit /T und /V, darunter mehrere
+    # Widgets mit eigenem /Rect und eigenem /AP (ISO 32000-1 12.7.4.1).
+    #
+    # Bis .63 wurde so ein Feld GAR NICHT gefunden -- getForms gab ein
+    # leeres dict, fillForms meldete "no such field". Seit .64 laeuft
+    # beides ueber den Feldbaum.
+    #
+    # "widgets" sagt, wieviele es sind. Ohne den Schluessel sagt getForms
+    # ueber diesen Fall gar nichts.
+    set f [pdf4tcl::getForms $::multiWidget]
+    list [dict size $f] [dict exists $f kunde] \
+         [dict get $f kunde widgets]
+} -result {1 1 2}
+
+test form-25.2 {und fillForms zeichnet in JEDEM Widget} \
+        -constraints haveMultiWidget -body {
+    # Jedes Widget hat sein eigenes /Rect und sein eigenes /AP -- beim
+    # Durchschlagsatz vier verschiedene auf vier Blaettern. EIN Strom
+    # fuer alle waere an drei Stellen falsch positioniert.
+    set aus [makeFile {} mw-voll.pdf]
+    set n [pdf4tcl::fillForms $::multiWidget $aus {kunde "Spedition Muster"}]
+    set fh [open $aus rb] ; set d [read $fh] ; close $fh
+    removeFile mw-voll.pdf
+    list $n [regexp -all {\(Spedition Muster\) Tj} $d]
+} -result {1 2}
+
+test form-25.3 {ein verschachtelter Name kommt mit seinem Vater} \
+        -constraints haveNestedForm -body {
+    # Der volle Name eines Feldes setzt sich aus der /Parent-Kette
+    # zusammen: /T am Vater "person", /T am Kind "city" ergibt
+    # "person.city" (ISO 32000-1 12.7.3.2).
+    #
+    # Bis .63 kam nur "city" heraus. Das ist nicht bloss unschoen: in
+    # einem Formular mit "rechnung.betrag" und "lieferung.betrag"
+    # hiessen dann BEIDE Felder "betrag", und eines ueberschrieb das
+    # andere im dict.
+    dict keys [pdf4tcl::getForms $::nestedForm]
+} -result person.city
+
+test form-25.3a {und unter diesem Namen laesst es sich fuellen} \
+        -constraints haveNestedForm -body {
+    set aus [makeFile {} nested-voll.pdf]
+    set n [pdf4tcl::fillForms $::nestedForm $aus {person.city "Vreden"}]
+    set fh [open $aus rb] ; set d [read $fh] ; close $fh
+    removeFile nested-voll.pdf
+    list $n [expr {[string first "(Vreden) Tj" $d] >= 0}]
+} -result {1 1}
+
+test form-25.3b {rechtsbuendig bleibt rechtsbuendig} -body {
+    # /Q 0 links, 1 mittig, 2 rechts (ISO 32000-1 12.7.4.3, Tabelle 228).
+    # Bis .63 setzte der neu gebaute Strom immer "2 1.1 Td" -- die Option
+    # gab es, und sie tat nichts. Gemessen: /Q 2 stand im Feld, der Text
+    # stand links.
+    #
+    # Die Breite kommt aus den Metriken der Basisschrift. Bei einer
+    # EINGEBETTETEN Fremdschrift gibt es sie beim Fuellen nicht; dann
+    # bleibt es linksbuendig, denn eine geschaetzte Ausrichtung waere
+    # falsch und saehe richtig aus.
+    set leer [makeFile {} q-leer.pdf]
+    set voll [makeFile {} q-voll.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id rechts -align right
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {rechts "X"}
+    set fh [open $voll rb] ; set d [read $fh] ; close $fh
+    removeFile q-leer.pdf
+    removeFile q-voll.pdf
+    set tx 0
+    regexp {([0-9.]+) [0-9.]+ Td \(X\) Tj} $d -> tx
+    # Bei 150 Punkt Breite und einem schmalen "X" muss der Text weit
+    # rechts stehen -- deutlich mehr als der linke Rand von 2.
+    expr {$tx > 100}
+} -result 1
+
+test form-25.4 {ein HYBRIDES XFA-Formular wird weiter gefuellt} \
+        -constraints haveXfaForm -body {
+    # Hybrid: XFA UND gueltige AcroForm-Felder. Ein Betrachter ohne XFA
+    # nimmt die AcroForm-Seite, /V wirkt -- also bleibt es beim Fuellen.
+    # Eine pauschale Absage bei jedem /XFA waere hier falsch gewesen.
+    set aus [makeFile {} xfa-voll.pdf]
+    set rc [catch {pdf4tcl::fillForms $::xfaForm $aus {name "Muster"}} n]
+    removeFile xfa-voll.pdf
+    list $rc $n
+} -result {0 1}
+
+test form-25.6 {dynamisches XFA in der NORMGERECHTEN Lage} \
+        -constraints haveXfaIso -body {
+    # DER FALL, DER WIRKLICH VORKOMMT -- und den die erste Fassung nicht
+    # traf.
+    #
+    # Die zwei Merkmale stehen an ZWEI Stellen:
+    #   /NeedsRendering   Katalog     (ISO 32000-1 Tabelle 28)
+    #   /XFA              /AcroForm   (Tabelle 218)
+    # und /AcroForm liegt fast immer in einem EIGENEN Objekt -- pdf4tcl
+    # selbst schreibt "/AcroForm 12 0 R".
+    #
+    # Der erste Anlauf suchte beide im Katalogkoerper und traf damit nur
+    # eine Datei mit direkt eingebettetem AcroForm. form-25.5 blieb
+    # gruen, weil seine Vorlage das Flag zum Katalog legt: ein Test, der
+    # den Fall konstruiert, den der Code trifft, statt den, der
+    # vorkommt. Gemeldet aus einer Durchsicht am 06.09.2026, nachgemessen
+    # -- still durchgelaufen, n=1.
+    set aus [makeFile {} xfaiso-voll.pdf]
+    catch {pdf4tcl::fillForms $::xfaIso $aus {name "Muster"}} e
+    removeFile xfaiso-voll.pdf
+    list [string match "*dynamic XFA*" $e] [string match "*NeedsRendering*" $e]
+} -result {1 1}
+
+test form-25.5 {ein DYNAMISCHES XFA-Formular wird abgelehnt} \
+        -constraints haveXfaDyn -body {
+    # /NeedsRendering true (ISO 32000-1 12.7.8, Tabelle 28): die
+    # AcroForm-Felder sind eine Attrappe, der Betrachter baut die Seiten
+    # aus dem XML. Wer hier /V setzt, aendert am Sichtbaren nichts.
+    #
+    # Bis .63 lief das klaglos durch und meldete einen Erfolg, den es
+    # nicht gab. Ein stiller Fehlschlag ist schlimmer als eine Absage --
+    # und die Absage nennt den Grund, statt nur nein zu sagen.
+    set aus [makeFile {} xfadyn-voll.pdf]
+    catch {pdf4tcl::fillForms $::xfaDyn $aus {name "Muster"}} e
+    removeFile xfadyn-voll.pdf
+    list [string match "*dynamic XFA*" $e] \
+         [string match "*NeedsRendering*" $e]
+} -result {1 1}
+
+
 ::tcltest::cleanupTests

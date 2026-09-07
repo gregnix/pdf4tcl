@@ -165,4 +165,78 @@ test annot-6.1 {annotations in /Annots page dict} -body {
     expr {[string first "/Annots \[" $d] >= 0}
 } -result 1
 
+# --- 0.9.4.64: Appearance-Stroeme fuer Stempel und Linie ---
+#
+# WARUM DAS GEPRUEFT WIRD: ohne /AP steht in der Datei nur, WAS gemeint
+# ist, nicht wie es aussieht. Bei einer Textmarkierung darf ein
+# Betrachter aus /QuadPoints und /C selbst zeichnen (ISO 32000-1
+# 12.5.6.10); bei einem Stempel kommt das Aussehen aus dem
+# Appearance-Strom (12.5.6.12), /Name ist nur ein Hinweis. Wer trotzdem
+# etwas zeigt, malt es aus eigenem Vorrat -- Acrobat tut das, PDFium
+# nicht, und PDFium ist der Betrachter von Chrome und Edge.
+#
+# Gemessen am 06.09.2026 an demo-annotations.pdf: /AP kam darin NULL mal
+# vor, von sechs Stempeln war in PDFium keiner zu sehen.
+
+test annot-8.1 {addAnnotStamp schreibt einen Appearance-Strom} -body {
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addAnnotStamp 300 650 180 60 -name Draft
+    $p endPage; set d [$p get]; $p destroy
+    list [expr {[string first "/AP" $d] >= 0}] \
+         [expr {[string first "/Subtype /Form" $d] >= 0}]
+} -result {1 1}
+
+test annot-8.2 {der Strom enthaelt den Namen des Stempels} -body {
+    # Nicht nur DASS ein Strom da ist, sondern dass er das Wort
+    # zeichnet. Ein leerer Strom waere so unsichtbar wie gar keiner --
+    # und der Test bliebe gruen.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addAnnotStamp 300 650 180 60 -name Confidential
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "(Confidential) Tj" $d] >= 0}
+} -result 1
+
+test annot-8.3 {ohne setFont bleibt es wie bisher, statt abzubrechen} -body {
+    # Der Strom braucht eine Schrift, weil er sie ueber /Resources
+    # nennen muss. Fehlt sie, entsteht kein /AP -- ein Rueckschritt
+    # gegen .63 ist das nicht, und ein Abbruch waere schlimmer als der
+    # alte Zustand.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p addAnnotStamp 300 650 180 60
+    $p endPage; set d [$p get]; $p destroy
+    list [expr {[string first "/Subtype /Stamp" $d] >= 0}] \
+         [expr {[string first "/AP" $d] >= 0}]
+} -result {1 0}
+
+test annot-8.4 {addAnnotLine schreibt einen Strom mit Pfeilspitze} -body {
+    # Die Linie braucht KEINE Schrift, also entsteht der Strom immer.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p addAnnotLine 100 100 300 100 -startend {None OpenArrow}
+    $p endPage; set d [$p get]; $p destroy
+    # "m ... l S" ist der Strich; mehr als ein Strich heisst Spitze.
+    set striche [regexp -all { l S} $d]
+    list [expr {[string first "/AP" $d] >= 0}] [expr {$striche >= 2}]
+} -result {1 1}
+
+test annot-8.5 {der Strom zeichnet in BBox-Koordinaten} -body {
+    # DIE Falle: die BBox faengt bei 0 0 an, das /Rect steht in
+    # Seitenkoordinaten. Wer beides verwechselt, zeichnet neben die
+    # Anmerkung -- und es faellt erst im Betrachter auf.
+    #
+    # Die Linie liegt bei x=100..300, der Rahmen bekommt 10 Punkt Rand,
+    # also faengt die BBox bei 90 an. Im Strom muss die Linie darum bei
+    # 10 beginnen und bei 210 enden, nicht bei 100 und 300.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    $p startPage
+    $p addAnnotLine 100 100 300 100
+    $p endPage; set d [$p get]; $p destroy
+    expr {[string first "10 10 m 210 10 l S" $d] >= 0}
+} -result 1
+
 ::tcltest::cleanupTests

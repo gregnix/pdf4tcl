@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.63 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.65 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.63?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.65?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -560,10 +560,38 @@ value (<b class="const">/Yes</b>, <b class="const">/Off</b>) is left as it is.</
 (0.9.4.63). A file may carry the bit without the length; the norm divides the
 field width by <b class="const">/MaxLen</b>, so without it there are no cells and this
 reports 0. The answer says what the file does, not what stands in it.</p></dd>
+<dt><b class="option">description</b></dt>
+<dd><p>The field's <b class="const">/TU</b> -- the text a viewer shows
+as a tooltip (0.9.4.65). <b class="method">addForm</b> writes it from
+<b class="option">-tooltip</b>; until 0.9.4.64 <b class="cmd">getForms</b> did not give it back, so
+the package wrote an answer it would not read.</p></dd>
+<dt><b class="option">options</b></dt>
+<dd><p>The permitted values of a choice field (0.9.4.65), one
+<b class="const">export label</b> pair per entry. Empty for every other kind of
+field -- but present, so the caller need not branch on the field type.</p>
+<p><b class="const">/Opt</b> may be written two ways (ISO 32000-1 12.7.4.4): labels
+only, or export value and label as a pair. <b class="method">addForm</b> writes the
+first; foreign forms carry the second, and both are read.</p></dd>
+<dt><b class="option">widgets</b></dt>
+<dd><p>How many widgets the field has (0.9.4.64). Normally 1.
+A field that appears on several sheets -- the carbon set of a CMR
+consignment note -- is one field with several widgets, each with its own
+<b class="const">/Rect</b> and its own appearance (ISO 32000-1 12.7.4.1).</p></dd>
 </dl>
-<p><em>The returned dictionary gained two keys in 0.9.4.63.</em> Code that
-compares the whole dict against a literal will notice; code that reads
-individual keys will not.</p></dd>
+<p><em>Field names are composed since 0.9.4.64.</em> The full name of a
+field is the chain of <b class="const">/T</b> entries from the root field down, joined
+with dots (ISO 32000-1 12.7.3.2): <b class="const">/T</b> <b class="const">person</b> on the parent
+and <b class="const">city</b> on the child gives <b class="const">person.city</b>. Up to 0.9.4.63
+only <b class="const">city</b> came back -- and in a form with
+<b class="const">rechnung.betrag</b> and <b class="const">lieferung.betrag</b> both fields were
+then called <b class="const">betrag</b>, one overwriting the other in the dictionary.</p>
+<p><em>A field with several widgets is found since 0.9.4.64.</em> Up to
+0.9.4.63 the name was looked for on the widget; where it sits on the
+parent, the field was not found at all -- <b class="cmd">getForms</b> returned an
+empty dictionary and <b class="cmd">fillForms</b> said &quot;no such field&quot;.</p>
+<p><em>The returned dictionary gained two keys in 0.9.4.63 and one in
+0.9.4.64.</em> Code that compares the whole dict against a literal will
+notice; code that reads individual keys will not.</p></dd>
 <dt><a name="17"><b class="cmd">::pdf4tcl::fillForms</b> <i class="arg">infile</i> <i class="arg">outfile</i> <i class="arg">values</i></a></dt>
 <dd><p>Fill the form fields of an existing PDF and write it out again (0.9.4.50+).
 Returns the number of fields filled.
@@ -578,21 +606,75 @@ value.</p>
 <pre class="doctools_example">
 pdf4tcl::fillForms empty.pdf filled.pdf {name &quot;Meier&quot; agreed /Yes}
 </pre>
-<p><em>The value is written, not drawn.</em> <b class="const">/NeedAppearances</b> is set,
-which tells the viewer to render it, and Acrobat and the common browsers
-honour that. A viewer or print path that does not shows the field's
-<em>old</em> appearance stream -- which is not the same as showing nothing.
-Measured: a field created with <b class="option">-init Alt</b> and then filled with
-<b class="const">Meier</b> carries <b class="const">/V (Meier)</b> while its <b class="const">/AP</b> still
-draws <b class="const">Alt</b>. <b class="cmd">pdftotext</b> reads the value and reports
-<b class="const">Meier</b>; a printer that renders the appearance puts <b class="const">Alt</b> on
-the paper, and nobody sees the difference before the sheet is out.</p>
-<p><b class="method">addForm</b> does build appearance streams, so a document produced in
-one go is unaffected. The gap is in filling a document that already
-exists. If it must not go wrong, produce the document with the values in
-place instead of filling it afterwards -- and where the file comes from
-elsewhere and cannot be regenerated, check the result in the viewer that
-will print it.</p></dd>
+<p><em>Since 0.9.4.64 the value is drawn as well.</em> Along with
+<b class="const">/V</b> and <b class="const">/NeedAppearances</b> the field's appearance stream is
+rebuilt, so a print path that renders the appearance puts the new value
+on the paper. Up to 0.9.4.63 it put the <em>old</em> one there -- for an
+empty field, nothing at all -- while the screen showed the new one, and
+nobody saw the difference before the sheet was out.</p>
+<p>Every widget of the field gets its own stream, built from its own
+<b class="const">/Rect</b> (0.9.4.64). One stream for all of them would sit in the
+wrong place on every sheet but the first.</p>
+<p><em>A choice field takes only what is in</em> <b class="const">/Opt</b> (0.9.4.65) --
+or the empty string, which means &quot;nothing selected&quot;.
+Until 0.9.4.64 any value was written into <b class="const">/V</b> and a success
+reported; the field then carried a state no viewer can show, and it
+looked like it had worked. Both the export value and the label are
+accepted, because a caller may mean either.</p>
+<p>Only <em>text</em> fields are rebuilt. A choice field has a different
+appearance altogether -- a white box with a border, and for a combo box
+a drop-down arrow -- and rebuilding it as a text line would throw that
+away. For a combo box leaving it alone is right anyway: <b class="method">addForm</b>
+deliberately keeps the text out of the stream there, because the viewer
+draws it from <b class="const">/DA</b> and <b class="const">/V</b>, and text in the stream as well
+would appear twice.</p>
+<p>A <em>comb</em> field is drawn in cells (0.9.4.64) when the field carries a
+<b class="const">/MaxLen</b> -- the field width divided by it, one character centred
+per cell, the same as <b class="method">addForm</b> does. A form may carry flag bit 25
+<em>without</em> the length; then there is no divisor and no cells, and the
+old stream is left alone. The condition is measurable, not guessed.</p>
+<p>A <em>multi-line</em> field is wrapped (0.9.4.64), on its explicit line
+breaks first and then to the field width. The same routine builds the
+stream in <b class="method">addForm</b>, so a field looks the same whether the
+document was produced with its values or filled afterwards. Up to
+0.9.4.63 both wrote the whole text into ONE line, with the newline
+sitting in the text string as a visible character that no viewer breaks,
+and a long text ran out of the box.</p>
+<p>A word wider than the field is not broken: splitting inside a word is
+hyphenation, and that is guesswork without a dictionary. It stays whole
+and is clipped by the bounding box, which can be seen.</p>
+<p><b class="const">/Q</b> is honoured (0.9.4.64): a right-aligned or centred field keeps
+its alignment. The width comes from the metrics of the base font, so this
+works for the fourteen standard faces. For an <em>embedded</em> font the
+metrics live in the foreign document's font program and are not available
+here; the text then stays left-aligned, because a guessed alignment would
+be wrong and look right.</p>
+<p>This works for the plain case: a single-line text field whose
+<b class="const">/AP</b> points at an object of its own, and whose <b class="const">/DA</b> names
+a font the form's <b class="const">/DR</b> knows. That is what <b class="method">addForm</b>
+produces, and 0.9.4.63 made sure an empty field carries a stream too, so
+that there is something here to overwrite. The old object is replaced
+rather than a new one added.</p>
+<p><em>Deliberately not rebuilt:</em> comb fields, where the cell width
+depends on <b class="const">/MaxLen</b> and a foreign form may carry the flag without
+the length; multi-line fields, whose line breaking needs the glyph
+widths; check boxes and radio buttons, which have two states with
+<b class="const">/AS</b> switching between them, and which fillForms already handles
+correctly; and choice fields. In all of these the old stream stays as it
+was, exactly as before -- a half-drawn comb field would be worse than an
+undrawn one.</p>
+<p>So the value in <b class="const">/V</b> and the value on the paper agree in the plain
+case, and where they cannot, nothing changed rather than something
+half-changed. Where a foreign file uses one of the untouched kinds and
+it must not go wrong, check the result in the viewer that will print it.</p>
+<p>A <em>dynamic</em> XFA form is refused (0.9.4.64+). There the catalogue
+carries <b class="const">/NeedsRendering true</b> and the content lives as XML
+under <b class="const">/XFA</b>; the AcroForm fields are a placeholder and the viewer
+builds the pages from the XML, so setting <b class="const">/V</b> would change
+nothing visible. Up to 0.9.4.63 the call ran through and reported a
+success that had not happened. A <em>hybrid</em> XFA form -- XFA together
+with usable AcroForm fields -- is filled as before, because there a
+viewer without XFA takes the AcroForm side and the value does work.</p></dd>
 <dt><a name="18"><b class="cmd">::pdf4tcl::exportForms</b> <i class="arg">infile</i> <i class="arg">outfile</i> <span class="opt">?<i class="arg">options</i>?</span></a></dt>
 <dd><p>Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+).
 Returns the number of exported fields.</p>
@@ -1263,7 +1345,18 @@ black for Underline, red for StrikeOut.</p></dd>
 <dd><p>Author name.</p></dd>
 </dl></dd>
 <dt><a name="48"><i class="arg">objectName</i> <b class="method">addAnnotStamp</b> <i class="arg">x</i> <i class="arg">y</i> <i class="arg">width</i> <i class="arg">height</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
-<dd><p>Add a <b class="const">/Stamp</b> annotation -- a rubber stamp visible on the page (0.9.4.23+).</p>
+<dd><p>Add a <b class="const">/Stamp</b> annotation -- a rubber stamp visible on the page (0.9.4.23+).
+Since 0.9.4.64 the stamp carries an appearance stream: a frame with the
+name inside, in the stamp colour. Without one, only viewers with their
+own artwork for named stamps show anything -- Acrobat has it, PDFium
+does not, and PDFium is the viewer in Chrome and Edge. ISO 32000-1
+12.5.6.12 makes the appearance stream the source of a stamp's look;
+<b class="const">/Name</b> is only a hint at what was meant. Measured on
+&quot;<b class="file">demo/demo-annotations.pdf</b>&quot;: none of six stamps was visible before,
+all six are now.
+The stream needs a font, so it is written only after <b class="method">setFont</b>.
+Without one the annotation is written as before rather than the call
+failing.</p>
 <dl class="doctools_options">
 <dt><b class="option">-name</b> <i class="arg">name</i></dt>
 <dd><p>Predefined stamp name (default: <b class="const">Draft</b>).
@@ -1276,7 +1369,12 @@ Valid names: <b class="const">Approved</b>, <b class="const">Confidential</b>, <
 <dd><p>Optional popup content.</p></dd>
 </dl></dd>
 <dt><a name="49"><i class="arg">objectName</i> <b class="method">addAnnotLine</b> <i class="arg">x1</i> <i class="arg">y1</i> <i class="arg">x2</i> <i class="arg">y2</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></dt>
-<dd><p>Add a <b class="const">/Line</b> annotation with optional arrowheads (0.9.4.23+).</p>
+<dd><p>Add a <b class="const">/Line</b> annotation with optional arrowheads (0.9.4.23+).
+Since 0.9.4.64 the line carries an appearance stream with its arrow
+heads, for the same reason. <b class="const">OpenArrow</b>, <b class="const">ClosedArrow</b>,
+<b class="const">ROpenArrow</b>, <b class="const">RClosedArrow</b>, <b class="const">Circle</b> and
+<b class="const">Square</b> are drawn; any other ending stays a plain line. A line
+without a head is half an answer, a wrongly drawn head is a wrong one.</p>
 <dl class="doctools_options">
 <dt><b class="option">-color</b> <i class="arg">color</i></dt>
 <dd><p>Line color (default: <b class="const">0 0 0</b>).</p></dd>

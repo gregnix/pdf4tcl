@@ -58,26 +58,40 @@ pdf4tcl::fillForms "order.pdf" "filled.pdf" {f_name "Meier & Co"}
 pdf4tcl::exportForms "filled.pdf" "filled.fdf"
 ```
 
-`getForms` returns a dictionary of id to `{type value flags default}`.
+`getForms` returns a dictionary of id to a dictionary per field:
+
+| Key | Meaning |
+|---|---|
+| `type` | `/Tx`, `/Btn`, `/Ch`, `/Sig` |
+| `value` | the current value, unpacked |
+| `flags` | the `/Ff` bits |
+| `default` | the current appearance state, for buttons |
+| `maxlen` | `/MaxLen`, or empty (0.9.4.63) |
+| `comb` | 1 for a comb field (0.9.4.63) |
+| `widgets` | how many widgets the field has (0.9.4.64) |
+| `description` | the field's `/TU` (0.9.4.65) |
+| `options` | a choice field's permitted values (0.9.4.65) |
+
 `fillForms` writes values and returns how many fields it filled.
 `exportForms` writes FDF or XFDF.
 
-**`fillForms` writes the value, it does not draw it.** It sets `/V` and
-turns on `/NeedAppearances`; the existing appearance stream stays as it
-is. A viewer that honours the flag shows the new value -- Acrobat and the
-common browsers do. A print path that renders the appearance shows the
-**old** one.
+**`fillForms` draws the value as well** (since 0.9.4.64), for a
+single-line, multi-line or comb text field. It sets `/V`, turns on
+`/NeedAppearances`, and rebuilds the field's appearance stream -- one per
+widget, from that widget's own `/Rect`.
 
-Measured: a field created with `-init "Alt"` and then filled with
-`"Meier"` carries `/V (Meier)` while its `/AP` still draws `Alt`.
-`pdftotext` reads the value and reports `Meier`; on paper it would say
-`Alt`.
+Up to 0.9.4.63 the stream was left alone: a viewer honouring the flag
+showed the new value, a print path rendering the stream the **old** one,
+and for an empty field nothing at all.
+
+**Not rebuilt, deliberately:** password fields, because the value would
+end up in clear text in the file; choice fields, because they have a box
+and a border a text line would throw away; and comb fields without a
+`/MaxLen`, where there is no divisor and hence no cells. There the value
+is in `/V` and the appearance is the one it had.
 
 `addForm` builds the streams as it goes, so a document produced in one
-pass is unaffected. **Where it must not go wrong, produce the document
-with its values instead of filling it afterwards.** Filling is for forms
-that come from elsewhere and cannot be regenerated -- and there the result
-belongs in the viewer that will print it, before the paper does.
+pass is unaffected either way.
 
 A text field takes a string; a check box or radio button takes the state
 name **with the slash**, as it appears in the file:
@@ -88,6 +102,33 @@ pdf4tcl::fillForms in.pdf out.pdf {agreed /Yes}
 
 Which states a field knows is in its appearance dictionary; `getForms`
 reports the current one under `default`.
+
+A **choice field** takes one of its options -- either the export value or
+the label:
+
+```tcl
+pdf4tcl::fillForms in.pdf out.pdf {land Niederlande}
+```
+
+Anything else is refused, with the permitted values named:
+
+```
+fillForms: "Frankreich" is not an option of "land";
+allowed: Deutschland Niederlande Belgien
+```
+
+The **empty** value is allowed -- it means "nothing selected", and that
+is what a freshly created choice field carries. A round trip that reads
+every field and writes it back must not fail on it.
+
+Up to 0.9.4.64 any value was written and a success reported; the field
+then carried a state no viewer can show.
+
+A field can carry more than one widget -- the same field on four sheets
+of a consignment note. `fillForms` fills them all in one call, and
+`getForms` reports how many under `widgets` (0.9.4.64). The field name
+is composed from the `/Parent` chain, so a nested field is
+`person.city`, not `city`.
 
 A name that is not in the form raises an error:
 
@@ -126,15 +167,35 @@ Meier & Co (GmbH)
 A **name** value (`/Yes`, `/Off`) is left as it is -- that is the form
 `fillForms` expects for check boxes and radio buttons.
 
-### The value is written, not drawn
+### Which fields get a rebuilt stream (0.9.4.64, 0.9.4.65)
 
-`fillForms` sets `/NeedAppearances`, which tells the viewer to render the
-value. A viewer that honours the flag -- Acrobat and the common browsers
-do -- shows it; one that ignores it shows the field as it was, with the
-value present but invisible.
+| Field | Stream |
+|---|---|
+| text, single-line | rebuilt, `/Q` honoured |
+| text, multi-line | rebuilt, wrapped |
+| comb with `/MaxLen` | rebuilt, one character per cell |
+| comb without `/MaxLen` | kept -- no divisor, no cells |
+| password | kept -- a stream would hold the value in clear text |
+| choice | kept -- it has a box and a border |
+| check box, radio | `/AS` switches between the states it already has |
 
-Building an appearance stream per field would need the font metrics of
-the target document, which is more than a string. It is on the list.
+A field with several widgets gets one stream **per widget**, from that
+widget's own `/Rect`. One stream for all of them would sit in the wrong
+place on every sheet but the first.
+
+0.9.4.63 made sure an empty field carries a stream too, so that there is
+something here to overwrite.
+
+### Dynamic XFA forms are refused (0.9.4.64)
+
+If the catalogue carries `/NeedsRendering true` (ISO 32000-1 table 28)
+and the form dictionary a `/XFA` entry (table 218), the AcroForm fields
+are a placeholder: the viewer builds its pages from the XML, and setting
+`/V` changes nothing visible. `fillForms` refuses and says why.
+
+**Hybrid** XFA forms -- XFA together with usable AcroForm fields -- are
+filled as before, because there a viewer without XFA takes the AcroForm
+side and the value does work.
 
 ## Forms and PDF/A
 

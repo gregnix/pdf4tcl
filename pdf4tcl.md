@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.63?**
+package require **pdf4tcl ?0****.9****.4****.65?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -404,6 +404,7 @@ mypdf destroy
 ```
 
 - The options come before the file names, so every existing call keeps working unchanged. Each value is written to BOTH places a PDF carries it: the **/Info** dictionary and the XMP packet the catalog points at. ISO 19005-1 clause 6.7.3 requires the two to be equivalent, so a merged PDF/A-1 file with a new title stays conformant. The packet is edited, not rebuilt -- a Factur-X or ZUGFeRD extension schema in it survives untouched. Note that a proof run against PDF/A-2 or -3 shows nothing here: those parts dropped clause 6.7.3, and a validator stays silent however far the two places drift apart. Check against **1b**. Since 0.9.4.49 a file whose cross-reference table is a stream (PDF 1.5+) is read as well, which covers PDF/A-2 and -3 and therefore ZUGFeRD invoices. Since 0.9.4.50 objects packed into an object stream (**/ObjStm**) are unpacked too, so a file written by **qpdf** with **--object-streams=generate** merges like any other.
+
 **type**
 : Field type.
 
@@ -422,8 +423,17 @@ mypdf destroy
 **comb**
 : 1 for a comb field -- flag bit 25 *and* a **/MaxLen** (0.9.4.63). A file may carry the bit without the length; the norm divides the field width by **/MaxLen**, so without it there are no cells and this reports 0. The answer says what the file does, not what stands in it.
 
+**description**
+: The field's **/TU** -- the text a viewer shows as a tooltip (0.9.4.65). **addForm** writes it from **-tooltip**; until 0.9.4.64 **getForms** did not give it back, so the package wrote an answer it would not read.
+
+**options**
+: The permitted values of a choice field (0.9.4.65), one **export label** pair per entry. Empty for every other kind of field -- but present, so the caller need not branch on the field type. **/Opt** may be written two ways (ISO 32000-1 12.7.4.4): labels only, or export value and label as a pair. **addForm** writes the first; foreign forms carry the second, and both are read.
+
+**widgets**
+: How many widgets the field has (0.9.4.64). Normally 1. A field that appears on several sheets -- the carbon set of a CMR consignment note -- is one field with several widgets, each with its own **/Rect** and its own appearance (ISO 32000-1 12.7.4.1).
+
 **::pdf4tcl::getForms infile**
-: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields: *The returned dictionary gained two keys in 0**.9**.4**.63**.* Code that compares the whole dict against a literal will notice; code that reads individual keys will not.
+: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields: *Field names are composed since 0**.9**.4**.64**.* The full name of a field is the chain of **/T** entries from the root field down, joined with dots (ISO 32000-1 12.7.3.2): **/T** **person** on the parent and **city** on the child gives **person****.city**. Up to 0.9.4.63 only **city** came back -- and in a form with **rechnung****.betrag** and **lieferung****.betrag** both fields were then called **betrag**, one overwriting the other in the dictionary. *A field with several widgets is found since 0**.9**.4**.64**.* Up to 0.9.4.63 the name was looked for on the widget; where it sits on the parent, the field was not found at all -- **getForms** returned an empty dictionary and **fillForms** said "no such field". *The returned dictionary gained two keys in 0**.9**.4**.63 and one in 0**.9**.4**.64**.* Code that compares the whole dict against a literal will notice; code that reads individual keys will not.
 
 **::pdf4tcl::fillForms infile outfile values**
 : Fill the form fields of an existing PDF and write it out again (0.9.4.50+). Returns the number of fields filled. *values* is a dictionary of field id to value. A text field takes a string; a check box or radio button takes the state name as it appears in the file, with the slash (**/Yes**, **/Off**). **getForms** reports the current state under **default**. A field named in *values* but not present in the file raises an error rather than being ignored: a form that comes out empty with no explanation is worse than a refused call. Fields present but not named keep their value.
@@ -432,9 +442,29 @@ mypdf destroy
 pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
 ```
 
-*The value is written, not drawn**.* **/NeedAppearances** is set, which tells the viewer to render it, and Acrobat and the common browsers honour that. A viewer or print path that does not shows the field's *old* appearance stream -- which is not the same as showing nothing. Measured: a field created with **-init Alt** and then filled with **Meier** carries **/V (Meier)** while its **/AP** still draws **Alt**. **pdftotext** reads the value and reports **Meier**; a printer that renders the appearance puts **Alt** on the paper, and nobody sees the difference before the sheet is out.
+*Since 0**.9**.4**.64 the value is drawn as well**.* Along with **/V** and **/NeedAppearances** the field's appearance stream is rebuilt, so a print path that renders the appearance puts the new value on the paper. Up to 0.9.4.63 it put the *old* one there -- for an empty field, nothing at all -- while the screen showed the new one, and nobody saw the difference before the sheet was out.
 
-**addForm** does build appearance streams, so a document produced in one go is unaffected. The gap is in filling a document that already exists. If it must not go wrong, produce the document with the values in place instead of filling it afterwards -- and where the file comes from elsewhere and cannot be regenerated, check the result in the viewer that will print it.
+Every widget of the field gets its own stream, built from its own **/Rect** (0.9.4.64). One stream for all of them would sit in the wrong place on every sheet but the first.
+
+*A choice field takes only what is in* **/Opt** (0.9.4.65) -- or the empty string, which means "nothing selected". Until 0.9.4.64 any value was written into **/V** and a success reported; the field then carried a state no viewer can show, and it looked like it had worked. Both the export value and the label are accepted, because a caller may mean either.
+
+Only *text* fields are rebuilt. A choice field has a different appearance altogether -- a white box with a border, and for a combo box a drop-down arrow -- and rebuilding it as a text line would throw that away. For a combo box leaving it alone is right anyway: **addForm** deliberately keeps the text out of the stream there, because the viewer draws it from **/DA** and **/V**, and text in the stream as well would appear twice.
+
+A *comb* field is drawn in cells (0.9.4.64) when the field carries a **/MaxLen** -- the field width divided by it, one character centred per cell, the same as **addForm** does. A form may carry flag bit 25 *without* the length; then there is no divisor and no cells, and the old stream is left alone. The condition is measurable, not guessed.
+
+A *multi-line* field is wrapped (0.9.4.64), on its explicit line breaks first and then to the field width. The same routine builds the stream in **addForm**, so a field looks the same whether the document was produced with its values or filled afterwards. Up to 0.9.4.63 both wrote the whole text into ONE line, with the newline sitting in the text string as a visible character that no viewer breaks, and a long text ran out of the box.
+
+A word wider than the field is not broken: splitting inside a word is hyphenation, and that is guesswork without a dictionary. It stays whole and is clipped by the bounding box, which can be seen.
+
+**/Q** is honoured (0.9.4.64): a right-aligned or centred field keeps its alignment. The width comes from the metrics of the base font, so this works for the fourteen standard faces. For an *embedded* font the metrics live in the foreign document's font program and are not available here; the text then stays left-aligned, because a guessed alignment would be wrong and look right.
+
+This works for the plain case: a single-line text field whose **/AP** points at an object of its own, and whose **/DA** names a font the form's **/DR** knows. That is what **addForm** produces, and 0.9.4.63 made sure an empty field carries a stream too, so that there is something here to overwrite. The old object is replaced rather than a new one added.
+
+*Deliberately not rebuilt:* comb fields, where the cell width depends on **/MaxLen** and a foreign form may carry the flag without the length; multi-line fields, whose line breaking needs the glyph widths; check boxes and radio buttons, which have two states with **/AS** switching between them, and which fillForms already handles correctly; and choice fields. In all of these the old stream stays as it was, exactly as before -- a half-drawn comb field would be worse than an undrawn one.
+
+So the value in **/V** and the value on the paper agree in the plain case, and where they cannot, nothing changed rather than something half-changed. Where a foreign file uses one of the untouched kinds and it must not go wrong, check the result in the viewer that will print it.
+
+A *dynamic* XFA form is refused (0.9.4.64+). There the catalogue carries **/NeedsRendering true** and the content lives as XML under **/XFA**; the AcroForm fields are a placeholder and the viewer builds the pages from the XML, so setting **/V** would change nothing visible. Up to 0.9.4.63 the call ran through and reported a success that had not happened. A *hybrid* XFA form -- XFA together with usable AcroForm fields -- is filled as before, because there a viewer without XFA takes the AcroForm side and the value does work.
 
 **-format fdf|xfdf**
 : Output format. **fdf** (default): Forms Data Format (ISO 32000 SS12.7.7), a compact text format supported by most PDF viewers. **xfdf**: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
@@ -913,10 +943,10 @@ $pdfobject hyperlinkAdd 50 160 200 20 "https://www.tcl.tk"  -borderwidth 1 -bord
 : Text markup annotations (0.9.4.23+). The rectangle defines the text area to mark.
 
 **objectName addAnnotStamp x y width height ?option value...?**
-: Add a **/Stamp** annotation -- a rubber stamp visible on the page (0.9.4.23+).
+: Add a **/Stamp** annotation -- a rubber stamp visible on the page (0.9.4.23+). Since 0.9.4.64 the stamp carries an appearance stream: a frame with the name inside, in the stamp colour. Without one, only viewers with their own artwork for named stamps show anything -- Acrobat has it, PDFium does not, and PDFium is the viewer in Chrome and Edge. ISO 32000-1 12.5.6.12 makes the appearance stream the source of a stamp's look; **/Name** is only a hint at what was meant. Measured on all six are now. The stream needs a font, so it is written only after **setFont**. Without one the annotation is written as before rather than the call failing.
 
 **objectName addAnnotLine x1 y1 x2 y2 ?option value...?**
-: Add a **/Line** annotation with optional arrowheads (0.9.4.23+).
+: Add a **/Line** annotation with optional arrowheads (0.9.4.23+). Since 0.9.4.64 the line carries an appearance stream with its arrow heads, for the same reason. **OpenArrow**, **ClosedArrow**, **ROpenArrow**, **RClosedArrow**, **Circle** and **Square** are drawn; any other ending stays a plain line. A line without a head is half an answer, a wrongly drawn head is a wrong one.
 
 **objectName viewerPreferences ?option value...?**
 : Set viewer preference flags in the PDF catalog. These control how a PDF viewer displays the document when it is opened. Options can be combined freely.
