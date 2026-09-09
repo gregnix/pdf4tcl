@@ -835,17 +835,17 @@ field width by \fB/MaxLen\fR, so without it there are no cells and this
 reports 0\&. The answer says what the file does, not what stands in it\&.
 .TP
 \fBdescription\fR
-The field's \fB/TU\fR -- the text a viewer shows
-as a tooltip (0\&.9\&.4\&.65)\&. \fBaddForm\fR writes it from
-\fB-tooltip\fR; until 0\&.9\&.4\&.64 \fBgetForms\fR did not give it back, so
-the package wrote an answer it would not read\&.
+The field's tooltip text (0\&.9\&.4\&.65)\&.
+\fBaddForm\fR writes it from \fB-tooltip\fR; until 0\&.9\&.4\&.64
+\fBgetForms\fR did not give it back, so the package wrote an answer it
+would not read\&.
 .TP
 \fBoptions\fR
 The permitted values of a choice field (0\&.9\&.4\&.65), one
 \fBexport label\fR pair per entry\&. Empty for every other kind of
 field -- but present, so the caller need not branch on the field type\&.
 .sp
-\fB/Opt\fR may be written two ways (ISO 32000-1 12\&.7\&.4\&.4): labels
+A form may list its options two ways (ISO 32000-1 12\&.7\&.4\&.4): labels
 only, or export value and label as a pair\&. \fBaddForm\fR writes the
 first; foreign forms carry the second, and both are read\&.
 .TP
@@ -902,8 +902,8 @@ Every widget of the field gets its own stream, built from its own
 \fB/Rect\fR (0\&.9\&.4\&.64)\&. One stream for all of them would sit in the
 wrong place on every sheet but the first\&.
 .sp
-\fIA choice field takes only what is in\fR \fB/Opt\fR (0\&.9\&.4\&.65) --
-or the empty string, which means "nothing selected"\&.
+\fIA choice field takes only one of its options\fR (0\&.9\&.4\&.65) -- or
+the empty string, which means "nothing selected"\&.
 Until 0\&.9\&.4\&.64 any value was written into \fB/V\fR and a success
 reported; the field then carried a state no viewer can show, and it
 looked like it had worked\&. Both the export value and the label are
@@ -964,9 +964,8 @@ half-changed\&. Where a foreign file uses one of the untouched kinds and
 it must not go wrong, check the result in the viewer that will print it\&.
 .sp
 A \fIdynamic\fR XFA form is refused (0\&.9\&.4\&.64+)\&. There the catalogue
-carries \fB/NeedsRendering true\fR and the content lives as XML
-under \fB/XFA\fR; the AcroForm fields are a placeholder and the viewer
-builds the pages from the XML, so setting \fB/V\fR would change
+the content lives as XML and the ordinary fields are a placeholder: the
+viewer builds its pages from the XML, so setting a value would change
 nothing visible\&. Up to 0\&.9\&.4\&.63 the call ran through and reported a
 success that had not happened\&. A \fIhybrid\fR XFA form -- XFA together
 with usable AcroForm fields -- is filled as before, because there a

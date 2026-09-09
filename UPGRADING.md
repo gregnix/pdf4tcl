@@ -1,12 +1,33 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.66
+
+**An empty field draws its border.** A text field, check box or radio
+button with `-bordercolor` and `-borderwidth` now carries an appearance
+stream that paints the border instead of an empty one. An empty stream
+is the statement "this is what the field looks like: nothing", and a
+viewer believes it -- measured on the same file: 0 dark pixels with the
+empty stream, 463 without any. Nothing changes for fields without a
+border: the stream stays empty, because there is nothing to draw.
+
+**`fillForms` no longer sets `/NeedAppearances` when it drew the
+appearance itself.** It still sets it where the stream stays old:
+password fields, choice fields, comb fields without `/MaxLen`. If you
+relied on the flag always being present -- for instance because your
+viewer rebuilds everything -- fill such a field, or set the flag
+yourself.
+
+The reason is measurable: filling one text field made an **untouched**
+check box lose its border, because PDFium rebuilds every Off appearance
+under that flag and returns an empty one.
+
 ## 0.9.4.65 -- getForms answers what addForm writes
 
 ### Two more keys in getForms
 
-`description` is the field's `/TU` (what a viewer shows as a tooltip),
-`options` the permitted values of a choice field as `{export label}`
-pairs. `addForm` wrote both already; `getForms` gave back neither.
+`description` is the field's tooltip text, `options` the permitted
+values of a choice field as `{export label}` pairs. `addForm` wrote both
+already -- `-tooltip` and `-options`; `getForms` gave back neither.
 
 `options` is empty for other field types, but present.
 
@@ -14,12 +35,15 @@ Code comparing the whole dict against a literal will notice.
 
 ### fillForms rejects a value that is not an option
 
-Export value and label are both accepted. Up to 0.9.4.64 any value was
-written into `/V` and a success reported -- the field then carried a
-state no viewer can show.
+Export value and label are both accepted, and so is the empty value --
+it means "nothing selected", and a round trip reading every field and
+writing it back must not fail on it.
 
-**If you filled a choice field with something not in `/Opt`, the call
-fails now.**
+Up to 0.9.4.64 any value was written and a success reported; the field
+then carried a state no viewer can show.
+
+**If you filled a choice field with something it does not offer, the
+call fails now.**
 
 ## 0.9.4.64 -- stamps and lines that are visible everywhere
 
@@ -30,53 +54,52 @@ file, and what `getForms` reports.
 
 ### Stamps and lines carry an appearance stream
 
-Without one a stamp has nothing to draw from (ISO 32000-1 12.5.6.12).
-Acrobat draws named stamps from its own stock, PDFium does not -- and
-PDFium is the viewer in Chrome and Edge. Measured on
-`demo/demo-annotations.pdf`: `/AP` appeared zero times, none of six
-stamps and five lines was visible; now eleven streams, all visible.
+Without one a stamp only names what was meant, which is not a drawing.
+Acrobat has artwork for the named stamps; **PDFium has none, and PDFium
+is the viewer in Chrome and Edge.** Measured on
+`demo/demo-annotations.pdf`: none of six stamps and five lines was
+visible before, all eleven are now.
 
-Files get slightly larger: one form XObject per stamp and per line.
-A stamp needs a font, so its stream is written only after `setFont`;
-without one the annotation is written exactly as in `.63`.
+Files get slightly larger. A stamp needs a font, so its appearance is
+written only after `setFont`; without one the annotation is written
+exactly as in `.63`.
 
 ### fillForms draws the value now
 
-The appearance stream is rebuilt along with `/V`, one per widget from
-its own `/Rect`. Up to `.63` the screen showed the new value and the
-paper the old one -- for an empty field, nothing at all.
+The appearance is rebuilt along with the value, one per widget from that
+widget's own rectangle. Up to `.63` the screen showed the new value and
+the paper the old one -- for an empty field, nothing at all.
 
-`/Q` is honoured, comb fields are drawn in cells when `/MaxLen` is
-present, multi-line fields are wrapped (and so are they in `addForm`,
-which drew them as one line before).
+Alignment is honoured, comb fields are drawn in cells where a maximum
+length is given, multi-line fields are wrapped (and so are they in
+`addForm`, which drew them as one line before).
 
-**No stream for password fields** -- it would put the value in clear
-text into the file. **None for choice fields** -- they have a box and a
-border that a text line would throw away.
+**No new appearance for password fields** -- the value would end up in
+clear text in the file. **None for choice fields** -- they have a box and
+a border that a text line would throw away.
 
 ### Fields with several widgets, and composed names
 
 `getForms` and `fillForms` go through the field tree instead of looking
-for `/T` on each widget.
+at each widget on its own.
 
-A field appearing on several sheets -- the carbon set of a CMR
-consignment note -- was not found at all before. And the full name is
-now composed from the `/Parent` chain: `person.city`, not `city`.
-**If you filled such a form by the short name, that no longer matches.**
+A field appearing on several sheets -- the carbon set of a consignment
+note -- was not found at all before. And a nested field is now called
+`person.city`, not `city`. **If you filled such a form by the short
+name, that no longer matches.**
 
 `getForms` returns one more key, `widgets`.
 
 ### Dynamic XFA forms are refused
 
-`/NeedsRendering` at the catalogue together with `/XFA` in the form
-dictionary: the AcroForm fields are a placeholder and setting `/V`
-changes nothing visible. Hybrid XFA forms are filled as before.
+There the visible pages are built from the XML, and setting a field
+value changes nothing. Hybrid XFA forms are filled as before.
 
-### Check boxes carry a ToUnicode map
+### Check boxes carry a character mapping
 
-`(4)` to `U+2714` and `(l)` to `U+25CF`, so text extraction finds
-something there. The drawing does not change. One more object per
-document with a check box or radio button.
+So that text extraction finds something where the check mark is. The
+drawing does not change. One more object per document with a check box
+or radio button.
 
 ### Regenerate reference PDFs
 

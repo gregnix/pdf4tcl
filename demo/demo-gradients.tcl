@@ -33,7 +33,7 @@ set auto_path [linsert $auto_path 0 $reporoot]
 
 package require pdf4tcl
 
-set outdir  [expr {$argc > 0 ? [lindex $argv 0] : $demodir}]
+set outdir  [expr {$argc > 0 ? [lindex $argv 0] : [file join $demodir out]}]
 if {[file isdirectory $outdir]} {
     set outfile [file join $outdir demo-gradients.pdf]
 } else {

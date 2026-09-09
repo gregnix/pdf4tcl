@@ -45,7 +45,13 @@ package require pdf4tcl
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-set outDir  "."
+# Vorgabe demo/out -- NICHT das Arbeitsverzeichnis.
+#
+# "." schrieb die PDF dorthin, wo man gerade stand. Wer die Demo aus dem
+# Projektbaum aufrief, hatte sie danach im Baum stehen, und "git status"
+# meldete eine Datei, die niemand angelegt zu haben glaubte. Gemeldet
+# 09.09.2026 aus einem echten "git add -A".
+set outDir [file join [file dirname [file normalize [info script]]] out]
 set otfFile ""
 
 for {set i 0} {$i < [llength $argv]} {incr i} {

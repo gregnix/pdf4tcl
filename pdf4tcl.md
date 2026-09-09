@@ -424,10 +424,10 @@ mypdf destroy
 : 1 for a comb field -- flag bit 25 *and* a **/MaxLen** (0.9.4.63). A file may carry the bit without the length; the norm divides the field width by **/MaxLen**, so without it there are no cells and this reports 0. The answer says what the file does, not what stands in it.
 
 **description**
-: The field's **/TU** -- the text a viewer shows as a tooltip (0.9.4.65). **addForm** writes it from **-tooltip**; until 0.9.4.64 **getForms** did not give it back, so the package wrote an answer it would not read.
+: The field's tooltip text (0.9.4.65). **addForm** writes it from **-tooltip**; until 0.9.4.64 **getForms** did not give it back, so the package wrote an answer it would not read.
 
 **options**
-: The permitted values of a choice field (0.9.4.65), one **export label** pair per entry. Empty for every other kind of field -- but present, so the caller need not branch on the field type. **/Opt** may be written two ways (ISO 32000-1 12.7.4.4): labels only, or export value and label as a pair. **addForm** writes the first; foreign forms carry the second, and both are read.
+: The permitted values of a choice field (0.9.4.65), one **export label** pair per entry. Empty for every other kind of field -- but present, so the caller need not branch on the field type. A form may list its options two ways (ISO 32000-1 12.7.4.4): labels only, or export value and label as a pair. **addForm** writes the first; foreign forms carry the second, and both are read.
 
 **widgets**
 : How many widgets the field has (0.9.4.64). Normally 1. A field that appears on several sheets -- the carbon set of a CMR consignment note -- is one field with several widgets, each with its own **/Rect** and its own appearance (ISO 32000-1 12.7.4.1).
@@ -446,7 +446,7 @@ pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
 
 Every widget of the field gets its own stream, built from its own **/Rect** (0.9.4.64). One stream for all of them would sit in the wrong place on every sheet but the first.
 
-*A choice field takes only what is in* **/Opt** (0.9.4.65) -- or the empty string, which means "nothing selected". Until 0.9.4.64 any value was written into **/V** and a success reported; the field then carried a state no viewer can show, and it looked like it had worked. Both the export value and the label are accepted, because a caller may mean either.
+*A choice field takes only one of its options* (0.9.4.65) -- or the empty string, which means "nothing selected". Until 0.9.4.64 any value was written into **/V** and a success reported; the field then carried a state no viewer can show, and it looked like it had worked. Both the export value and the label are accepted, because a caller may mean either.
 
 Only *text* fields are rebuilt. A choice field has a different appearance altogether -- a white box with a border, and for a combo box a drop-down arrow -- and rebuilding it as a text line would throw that away. For a combo box leaving it alone is right anyway: **addForm** deliberately keeps the text out of the stream there, because the viewer draws it from **/DA** and **/V**, and text in the stream as well would appear twice.
 
@@ -464,7 +464,7 @@ This works for the plain case: a single-line text field whose **/AP** points at 
 
 So the value in **/V** and the value on the paper agree in the plain case, and where they cannot, nothing changed rather than something half-changed. Where a foreign file uses one of the untouched kinds and it must not go wrong, check the result in the viewer that will print it.
 
-A *dynamic* XFA form is refused (0.9.4.64+). There the catalogue carries **/NeedsRendering true** and the content lives as XML under **/XFA**; the AcroForm fields are a placeholder and the viewer builds the pages from the XML, so setting **/V** would change nothing visible. Up to 0.9.4.63 the call ran through and reported a success that had not happened. A *hybrid* XFA form -- XFA together with usable AcroForm fields -- is filled as before, because there a viewer without XFA takes the AcroForm side and the value does work.
+A *dynamic* XFA form is refused (0.9.4.64+). There the catalogue the content lives as XML and the ordinary fields are a placeholder: the viewer builds its pages from the XML, so setting a value would change nothing visible. Up to 0.9.4.63 the call ran through and reported a success that had not happened. A *hybrid* XFA form -- XFA together with usable AcroForm fields -- is filled as before, because there a viewer without XFA takes the AcroForm side and the value does work.
 
 **-format fdf|xfdf**
 : Output format. **fdf** (default): Forms Data Format (ISO 32000 SS12.7.7), a compact text format supported by most PDF viewers. **xfdf**: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.

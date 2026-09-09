@@ -1,21 +1,74 @@
+2026-09-08 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.66
+
+	* src/main.tcl (_BuildTextAP, _BuildCheckboxAP, _BuildRadioAP,
+	_RahmenStream): an empty text field, check box or radio button with
+	-bordercolor / -borderwidth / -bgcolor now carries an appearance
+	stream that paints the border, instead of an empty one. An empty
+	stream tells a viewer "this is what the field looks like: nothing",
+	and it is believed. Without a border the stream stays empty -- there
+	is nothing to draw. The Off stream is shared per SHAPE now; one
+	shared object was enough only while they were all empty.
+	* src/cat.tcl (fillForms): /NeedAppearances is set only where the
+	stream stays old -- password, choice, comb without /MaxLen. Setting
+	it after drawing the stream made an untouched check box lose its
+	border, because PDFium rebuilds every Off appearance under that flag.
+	* demo/demo-forms.tcl: fields carry a border, so one can see them.
+	* demo/*.tcl: eight demos wrote their PDF into demo/ or into the
+	current directory; .gitignore only knows demo/out/. Running them from
+	the project tree left files behind that showed up in "git add -A" as
+	if nobody had made them. The default output directory is demo/out
+	everywhere now.
+	* tests/form.test: form-rahmen-1.1 to 1.4, form-fillap-1.5;
+	form-fillap-1.1 now expects the flag to be absent.
+	* UPGRADING.md: section 0.9.4.66.
+
+2026-09-07 Gregor  <gregnix@github>
+	* Rundlauf pdf4tcl <-> tclpdfium
+
+	* src/main.tcl (addForm, finish): the same -id on several pages is now
+	ONE field with several widgets, not several fields sharing a name.
+	ISO 32000-1 7.7.3.1 requires field names to be unique among siblings;
+	a field on several pages is one field with kids (12.7.4.1). Found in a
+	round trip with tclpdfium: a viewer takes the two for one field and
+	fills both on screen, but writes the value to only one -- after
+	flattening, page 1 said "Muster" and page 2 nothing. 0.9.4.64 solved
+	this case for READING; writing stayed wrong.
+	* src/main.tcl (FormBodyOf, FormSetBodyOf, FormEntryOf,
+	FormStripFieldEntries): new. The widget bodies are held back until
+	finish, because FlushObjects writes and clears after every page and
+	whether a name recurs is not known until the last one.
+	* tests/form.test: form-kids-1.1 to 1.3.
+
 2026-09-06 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.65
-	* getForms reports /TU and /Opt; fillForms validates choice values
+	* getForms reports description and options; fillForms validates choice
+	values
 
-	* src/cat.tcl (getForms): new keys "description" (the field's /TU) and
-	"options" (a choice field's permitted values, as {export label}
-	pairs). Empty but present for other field types.
-	* src/cat.tcl (FormReadOpt): new. Reads both forms of /Opt -- labels
-	only, and export/label pairs (ISO 32000-1 12.7.4.4). Counts brackets;
-	a pattern stops at the first inner one.
-	* src/cat.tcl (fillForms): a choice field takes only what is in /Opt.
-	Export value and label are both accepted, and so is the empty string --
-	it means "nothing selected", and a round trip reading every field and
-	writing it back must not fail on it. Until .64 any value was written
-	and a success reported.
-	* tests/form.test: form-opt-1.1 to 1.3, with
+	* src/cat.tcl (getForms): new keys "description" (the field's tooltip
+	text) and "options" (a choice field's permitted values, as
+	{export label} pairs). Empty but present for other field types.
+	* src/cat.tcl (FormReadOpt): new. Reads both ways a form may list its
+	options -- labels only, or export value and label as a pair.
+	* src/cat.tcl (fillForms): a choice field takes only one of its
+	options. Export value and label are both accepted, and so is the empty
+	value -- it means "nothing selected", and a round trip reading every
+	field and writing it back must not fail on it. Until .64 any value was
+	written and a success reported.
+	* tests/form.test: form-opt-1.1 to 1.5, with
 	tests/fixtures/form-opt-paare.pdf for the pair form.
+	* src/cat.tcl (WritePdf): a missing object number no longer aborts the
+	write. A file saved by PDFium holds objects 1-5 and 7-8 but not 6 and
+	9, and states that in xref subsections -- ISO 32000-1 7.5.4 allows it
+	and qpdf --check accepts the file. The loop ran from 1 to N and
+	demanded every number: key "6" not known in dictionary. A gap is now
+	written as free; skipping it would shift every following object
+	number, since the table is positional.
+	* tests/form.test, tests/fixtures/form-luecke.pdf: form-luecke-1.1 and
+	1.2. The fixture is hand-built -- the first attempt let qpdf clean up
+	a file and hoped for a gap, and qpdf produces none.
 
 2026-09-06 Gregor  <gregnix@github>
 
@@ -23,24 +76,30 @@
 	* Appearance streams for stamp and line annotations
 
 	* src/main.tcl (addAnnotStamp, addAnnotLine): both write an appearance
-	stream now; without one a stamp has nothing to draw from
-	(ISO 32000-1 12.5.6.12) and stays invisible in PDFium, hence in Chrome
-	and Edge. Arrow heads for OpenArrow, ClosedArrow, ROpenArrow,
-	RClosedArrow, Circle and Square; any other ending stays a plain line.
+	stream now. Without one a stamp only names what was meant, which is
+	not a drawing (ISO 32000-1 12.5.6.12); Acrobat has artwork for the
+	named stamps, PDFium has none, and PDFium is the viewer in Chrome and
+	Edge. A line's end points likewise say where, not how. Arrow heads for
+	OpenArrow, ClosedArrow, ROpenArrow, RClosedArrow, Circle and Square;
+	any other ending stays a plain line.
 	* src/main.tcl (_AnnotAP, _BuildStampAP, _BuildLineAP): new.
-	* src/main.tcl (SetupZaDbFont): ToUnicode map for the two ZapfDingbats
-	characters pdf4tcl uses, (4) to U+2714 and (l) to U+25CF.
+	* src/main.tcl (SetupZaDbFont): a character mapping for the two
+	ZapfDingbats characters pdf4tcl uses, the check mark and the radio
+	dot, so text extraction finds something there.
 	* src/cat.tcl (FormFieldTree): new. getForms and fillForms go through
-	the field tree instead of the widget's /T. Finds a field with several
-	widgets (12.7.4.1) and composes nested names (12.7.3.2).
+	the field tree instead of the widget's own name. Finds a field that
+	appears on several sheets (ISO 32000-1 12.7.4.1) and composes nested
+	names (12.7.3.2): person.city, not city.
 	* src/cat.tcl (getForms): new key "widgets".
-	* src/cat.tcl (fillForms): rebuilds the appearance stream along with
-	/V, one per widget from its own /Rect. Honours /Q, draws comb fields
-	in cells when /MaxLen is present, wraps multi-line fields. No stream
-	for password fields (clear text) or choice fields (own box).
-	* src/cat.tcl (fillForms): refuses a dynamic XFA form --
-	/NeedsRendering at the catalogue, /XFA in the form dictionary, also
-	behind an indirect /AcroForm. Hybrid XFA is filled as before.
+	* src/cat.tcl (fillForms): rebuilds the appearance along with the
+	value, one per widget from that widget's own rectangle. Honours the
+	field's alignment, draws comb fields in cells where a maximum length
+	is given, wraps multi-line fields. No new appearance for password
+	fields -- the value would end up in clear text -- nor for choice
+	fields, which have a box and a border a text line would throw away.
+	* src/cat.tcl (fillForms): refuses a dynamic XFA form, where the
+	visible pages are built from the XML and setting a field value changes
+	nothing. Hybrid XFA forms are filled as before.
 	* src/helpers.tcl (FormWrapLines): new. One line-breaking routine for
 	addForm and fillForms.
 	* demo/demo-forms-tk.tcl: "fillForms round trip" and "Show /AP

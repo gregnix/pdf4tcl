@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.65
+package provide pdf4tcl 0.9.4.66
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -3702,6 +3702,23 @@ oo::define ::pdf4tcl::pdf4tcl {
         set pdf(forms) {}
         set pdf(forms_co) {}
         set pdf(radiogroups) {}
+        # Name -> Liste der Widget-Objektnummern. Fuer den Fall, dass
+        # derselbe -id auf mehreren Seiten vorkommt: EIN Feld, mehrere
+        # Widgets (ISO 32000-1 12.7.4.1).
+        set pdf(fieldwidgets) {}
+        # Die Rumpfe der Formular-Widgets, ZURUECKGEHALTEN bis zum
+        # Abschluss.
+        #
+        # FlushObjects schreibt und leert pdf(objects) am Ende JEDER
+        # Seite. Ob ein Name auf einer spaeteren Seite noch einmal
+        # vorkommt, weiss man da noch nicht -- und dann ist es zu spaet,
+        # aus zwei Feldern eines mit /Kids zu machen. Gemessen: der
+        # Vaterknoten entstand ohne /FT, weil der Rumpf des ersten
+        # Widgets schon weg war.
+        #
+        # Die Objektnummer wird weiter sofort vergeben, nur der Rumpf
+        # wartet. Damit stimmen alle Verweise aus /Annots.
+        set pdf(formobjects) {}
         set pdf(needAppearances) 0
         set pdf(cidfonts) {}
         set pdf(viewer) {}
@@ -4280,6 +4297,72 @@ oo::define ::pdf4tcl::pdf4tcl {
 
     # Create an object to be added to the stream at a suitable time.
     # Returns the Object Id.
+    # Der Rumpf eines gesammelten Objekts.
+    #
+    # pdf(objects) ist eine flache Liste "oid koerper oid koerper ...".
+    # Solange nichts geschrieben ist, laesst sich darin noch aendern --
+    # und genau darauf beruht die Zusammenfassung gleichnamiger Felder.
+    method FormBodyOf {oid} {
+        foreach {o body} $pdf(formobjects) {
+            if {$o eq $oid} { return $body }
+        }
+        return ""
+    }
+
+    method FormSetBodyOf {oid neu} {
+        set aus {}
+        foreach {o body} $pdf(formobjects) {
+            if {$o eq $oid} { set body $neu }
+            lappend aus $o $body
+        }
+        set pdf(formobjects) $aus
+    }
+
+    # Den Wert EINES Eintrags aus einem Woerterbuchrumpf.
+    #
+    # Bewusst zeilenweise: die Rumpfe entstehen hier selbst, ein
+    # Eintrag je Zeile. Ein allgemeiner PDF-Zerleger waere die
+    # richtige Loesung fuer fremde Dateien und hier zuviel -- und
+    # ein grobes Muster ueber den ganzen Rumpf traefe auch /DA in
+    # einem verschachtelten Woerterbuch.
+    method FormEntryOf {body schluessel} {
+        foreach zeile [split $body \n] {
+            set z [string trim $zeile]
+            if {[string match "$schluessel *" $z]} {
+                return [string trim [string range $z \
+                        [string length $schluessel] end]]
+            }
+            if {$z eq $schluessel} { return "" }
+        }
+        return ""
+    }
+
+    # Die Feldeintraege aus einem Widget entfernen und /Parent setzen.
+    method FormStripFieldEntries {oid vaterOid} {
+        set body [my FormBodyOf $oid]
+        if {$body eq ""} return
+        set aus {}
+        foreach zeile [split $body \n] {
+            set z [string trim $zeile]
+            set raus 0
+            foreach schluessel {/FT /T /Ff /V /DV /DA /Q /MaxLen /Opt /TU} {
+                if {[string match "$schluessel *" $z] || $z eq $schluessel} {
+                    set raus 1
+                    break
+                }
+            }
+            if {!$raus} { lappend aus $zeile }
+        }
+        set body [join $aus \n]
+        # /Parent vor die schliessende Klammer.
+        set i [string last ">>" $body]
+        if {$i >= 0} {
+            set body "[string range $body 0 [expr {$i - 1}]]\
+                    /Parent $vaterOid 0 R\n[string range $body $i end]"
+        }
+        my FormSetBodyOf $oid $body
+    }
+
     method AddObject {body} {
         set oid [my GetOid 1]
         lappend pdf(objects) $oid "$oid 0 obj\n$body\nendobj\n"
@@ -4712,6 +4795,83 @@ oo::define ::pdf4tcl::pdf4tcl {
                 incr nbookmark
             }
         }
+        # Die zurueckgehaltenen Formular-Widgets schreiben -- NACH der
+        # Zusammenfassung weiter unten, aber vor allem anderen darf es
+        # nicht vergessen werden: ohne diese Schleife fehlten die
+        # Objekte ganz, und die Seiten verwiesen ins Leere.
+        # (Die Schleife steht am Ende dieses Abschnitts.)
+
+        # EIN NAME, MEHRERE SEITEN -- EIN Feld mit /Kids.
+        #
+        # addForm legte fuer denselben -id auf zwei Seiten ZWEI
+        # eigenstaendige Felder an. Nach ISO 32000-1 7.7.3.1 muessen
+        # Feldnamen unter Geschwistern eindeutig sein; ein Feld auf
+        # mehreren Seiten ist EIN Feld mit mehreren Widgets (12.7.4.1).
+        #
+        # Gemessen 07.09.2026 im Rundlauf mit tclpdfium: ein Betrachter
+        # haelt die zwei fuer dasselbe Feld und fuellt beide auf dem
+        # Bildschirm, schreibt den Wert aber nur an eines. Nach dem
+        # Einbrennen stand auf Seite 1 "Muster" und auf Seite 2 nichts.
+        # Der Durchschlagsatz kam leer heraus.
+        #
+        # 0.9.4.64 hat diesen Fall beim LESEN geloest -- FormFieldTree
+        # folgt /Kids. Geschrieben wurde er weiter falsch.
+        #
+        # Die Feldeintraege wandern ans Vaterfeld, die Widget-Eintraege
+        # bleiben am Widget. Welche wohin gehoeren, steht in 12.7.3.1
+        # (Feld) und 12.5.2 (Anmerkung).
+        dict for {feldName widgetIds} $pdf(fieldwidgets) {
+            if {[llength $widgetIds] < 2} continue
+            set vaterOid [my GetOid 1]
+            # Die Feldeintraege vom ERSTEN Widget uebernehmen: alle
+            # stammen aus demselben addForm-Aufruf und sind gleich.
+            set ersterBody [my FormBodyOf [lindex $widgetIds 0]]
+            set feldTeil ""
+            foreach schluessel {/FT /Ff /V /DV /DA /Q /MaxLen /Opt /TU} {
+                set wert [my FormEntryOf $ersterBody $schluessel]
+                if {$wert ne ""} { append feldTeil "  $schluessel $wert\n" }
+            }
+            set grpbody "$vaterOid 0 obj\n<<\n$feldTeil"
+            append grpbody "  /T ($feldName)\n"
+            set kidsref [join $widgetIds { 0 R }]
+            append grpbody "  /Kids \[$kidsref 0 R\]\n"
+            append grpbody ">>\nendobj\n\n"
+            if {$pdf(encrypt)} {
+                set grpbody [my EncryptStringsInBody $vaterOid $grpbody]
+            }
+            my StoreXref $vaterOid
+            my Pdfout $grpbody
+            # Die Widgets verlieren ihre Feldeintraege und bekommen
+            # /Parent. Sie zu lassen waere nicht bloss doppelt: ein
+            # Betrachter, der am Widget ein /V findet, nimmt es und
+            # ignoriert das Vaterfeld.
+            foreach wid $widgetIds {
+                my FormStripFieldEntries $wid $vaterOid
+            }
+            # In der Feldliste steht nur noch das Vaterfeld.
+            set neu {}
+            foreach f $pdf(forms) {
+                set weg 0
+                foreach wid $widgetIds {
+                    if {$f eq "$wid 0 R"} { set weg 1 }
+                }
+                if {!$weg} { lappend neu $f }
+            }
+            lappend neu "$vaterOid 0 R"
+            set pdf(forms) $neu
+        }
+
+        # Jetzt die Widget-Rumpfe -- moeglicherweise umgeschrieben.
+        foreach {o body} $pdf(formobjects) {
+            if {$pdf(encrypt)} {
+                set body [my EncryptStringsInBody $o $body]
+                set body [my EncryptStreamBody    $o $body]
+            }
+            my StoreXref $o
+            my Pdfout $body
+        }
+        set pdf(formobjects) {}
+
         # Finalize radio button groups
         # Each group becomes a parent field with /Kids pointing to buttons
         dict for {groupName groupData} $pdf(radiogroups) {
@@ -10224,7 +10384,31 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Build checkbox appearance: returns {onid offid}
-    method _BuildCheckboxAP {width height onObj offObj} {
+    # Rahmen und Hintergrund als Inhalt eines Erscheinungsstroms.
+    #
+    # Dreimal gebraucht: Textfeld, Kaestchen, Optionsfeld. Eine Regel an
+    # drei Stellen waere eine Regel, die an zwei Stellen vergessen wird.
+    #
+    # Leer, wenn weder Rahmen noch Hintergrund genannt sind -- dann gibt
+    # es nichts zu zeichnen, und ein leerer Strom verdeckt auch nichts.
+    method _RahmenStream {width height borderColor borderWidth bgColor} {
+        set mal ""
+        if {$bgColor ne ""} {
+            append mal "[join [my GetColor $bgColor] { }] rg\n"
+            append mal "0 0 [Nf $width] [Nf $height] re f\n"
+        }
+        if {$borderWidth > 0 && $borderColor ne ""} {
+            set h [expr {$borderWidth / 2.0}]
+            append mal "[join [my GetColor $borderColor] { }] RG\n"
+            append mal "[Nf $borderWidth] w\n"
+            append mal "[Nf $h] [Nf $h] [Nf [expr {$width - $borderWidth}]]\
+                    [Nf [expr {$height - $borderWidth}]] re S\n"
+        }
+        if {$mal eq ""} { return "" }
+        return "q\n$mal Q\n"
+    }
+
+    method _BuildCheckboxAP {width height onObj offObj {borderColor ""} {borderWidth 0} {bgColor ""}} {
         set vector [my UseVectorMark]
         if {!$vector} { my SetupZaDbFont }
         set obj [my _FormXObjHeader $width $height]
@@ -10252,37 +10436,71 @@ Use -pdfa-icc to specify a profile path."
         if {$offObj ne ""} {
             set offid [lindex $images($offObj) 2]
         } else {
-            if {![info exists pdf(checkboxoffobj)]} {
-                set stream ""
-                set body [MakeStream $obj $stream $pdf(compress)]
-                set pdf(checkboxoffobj) [my AddObject $body]
+            # DER OFF-ZUSTAND ZEICHNET DEN KASTEN.
+            #
+            # Er war leer -- und damit war ein nicht angekreuztes
+            # Kaestchen auf dem Papier unsichtbar. Gemessen 08.09.2026:
+            # ap 0, null dunkle Punkte, obwohl -bordercolor und
+            # -borderwidth gesetzt waren.
+            #
+            # Der Strom wird weiterhin geteilt, aber nun je GESTALT:
+            # zwei Kaestchen mit verschiedenem Rahmen brauchen zwei
+            # Stroeme. Ein Schluessel aus Groesse und Rahmen haelt das
+            # auseinander; vorher genuegte ein einziges Objekt, weil
+            # alle leer waren.
+            set mal [my _RahmenStream $width $height $borderColor \
+                    $borderWidth $bgColor]
+            set schl "$width,$height,$borderColor,$borderWidth,$bgColor"
+            if {![info exists pdf(checkboxoffobj,$schl)]} {
+                set body [MakeStream $obj $mal $pdf(compress)]
+                set pdf(checkboxoffobj,$schl) [my AddObject $body]
             }
-            set offid $pdf(checkboxoffobj)
+            set offid $pdf(checkboxoffobj,$schl)
         }
         return [list $onid $offid]
     }
 
     # Build text/password appearance: returns onid or ""
-    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"} {combLen 0} {multiline 0}} {
+    # Der Erscheinungsstrom eines Textfeldes.
+    #
+    # borderColor/borderWidth/bgColor kommen seit 0.9.4.66 mit: ein
+    # LEERES Feld soll seinen Rahmen zeigen. Vorgabewerte, damit
+    # bestehende Aufrufe unveraendert gehen.
+    method _BuildTextAP {width height initValue isPassword {quadding 0} {daColor "0 g"} {combLen 0} {multiline 0} {borderColor ""} {borderWidth 0} {bgColor ""}} {
         if {$initValue eq ""} {
-            # Ein LEERES Feld bekommt einen leeren Appearance-Stream.
+            # EIN LEERES FELD BEKOMMT EINEN STROM -- und der zeichnet
+            # den Rahmen.
             #
-            # Vorher entstand gar keiner. Das ist der Normalfall fuer ein
-            # Formular, das spaeter gefuellt wird -- und genau dort erbt
-            # ein fillForms nichts, was es aktualisieren koennte: ohne
-            # /AP gibt es keinen Strom, den man ueberschreiben kann.
+            # Warum ueberhaupt einer: ohne /AP gibt es nichts, was
+            # fillForms ueberschreiben koennte. Bis 0.9.4.63 entstand
+            # gar keiner, und die Kette fillForms -> flatten brach --
+            # gemessen, das Papier blieb leer.
             #
-            # Der Strom ist leer, also braucht er auch keine Schrift;
-            # die Pruefung darunter greift erst, wenn wirklich Text
-            # gezeichnet wird. Die Schrift des Feldes steht ohnehin in
-            # /DA, wo ein Betrachter sie beim Fuellen holt.
-            # Der Strom bleibt LEER, Laenge 0 -- genau der, den PDF/A
-            # hier schon immer geschrieben hat (ISO 19005 6.3.3 verlangt
-            # das Dictionary, nicht seinen Inhalt). Ein "/Tx BMC EMC"
-            # waere ein zweiter, neuer Fall; encrypt-empty-1.1 misst die
-            # Laenge und haette ihn sofort gemeldet.
+            # Warum nicht LEER: siehe unten. Ein leerer Strom ist die
+            # Aussage "so sieht das Feld aus: gar nicht".
+            #
+            # DER STROM ZEICHNET DEN RAHMEN, statt leer zu bleiben.
+            #
+            # Ein leerer Strom ist die Aussage "so sieht das Feld aus:
+            # gar nicht", und ein Betrachter glaubt sie. Gemessen
+            # 08.09.2026 an derselben Datei mit /MK /BC [0 0 0]:
+            #
+            #   leerer Strom:  0 dunkle Punkte, kein Rahmen
+            #   kein Strom:    463 Punkte -- der Betrachter baut selbst
+            #
+            # Den Strom WEGZULASSEN waere der naheliegende Schluss und
+            # ist falsch: gemessen bricht dann die Kette
+            # fillForms -> flatten, das Papier bleibt leer. Ein Strom,
+            # der den Rahmen malt, ist sichtbar UND bleibt etwas, das
+            # fillForms ersetzen und flatten einbrennen kann.
+            #
+            # Ohne Rahmen und ohne Hintergrund bleibt er leer -- dann
+            # gibt es nichts zu zeichnen, und der leere Strom verdeckt
+            # auch nichts.
+            set mal [my _RahmenStream $width $height $borderColor \
+                    $borderWidth $bgColor]
             set obj [my _FormXObjHeader $width $height]
-            set body [MakeStream $obj "" $pdf(compress)]
+            set body [MakeStream $obj $mal $pdf(compress)]
             return [my AddObject $body]
         }
         # Erst HIER wird eine Schrift gebraucht. Ohne sie brach der Bau
@@ -10450,7 +10668,7 @@ Use -pdfa-icc to specify a profile path."
     }
 
     # Build radiobutton appearance: returns {onid offid}
-    method _BuildRadioAP {width height} {
+    method _BuildRadioAP {width height {borderColor ""} {borderWidth 0} {bgColor ""}} {
         set vector [my UseVectorMark]
         if {$vector} {
             set obj [my _FormXObjHeader $width $height]
@@ -10474,12 +10692,16 @@ Use -pdfa-icc to specify a profile path."
         set body [MakeStream $obj $stream $pdf(compress)]
         set onid [my AddObject $body]
         # Off state: empty (shared across all radio buttons)
-        if {![info exists pdf(radiobtnoffobj)]} {
-            set stream ""
-            set body [MakeStream $obj $stream $pdf(compress)]
-            set pdf(radiobtnoffobj) [my AddObject $body]
+        # Wie beim Kaestchen: der Off-Zustand zeichnet den Rahmen, und
+        # der Strom wird je Gestalt geteilt.
+        set mal [my _RahmenStream $width $height $borderColor \
+                $borderWidth $bgColor]
+        set schl "$width,$height,$borderColor,$borderWidth,$bgColor"
+        if {![info exists pdf(radiobtnoffobj,$schl)]} {
+            set body [MakeStream $obj $mal $pdf(compress)]
+            set pdf(radiobtnoffobj,$schl) [my AddObject $body]
         }
-        set offid $pdf(radiobtnoffobj)
+        set offid $pdf(radiobtnoffobj,$schl)
         return [list $onid $offid]
     }
 
@@ -11095,11 +11317,13 @@ Use -pdfa-icc to specify a profile path."
 
         # Build appearance streams via helper methods
         if {$ftype eq "checkbutton"} {
-            lassign [my _BuildCheckboxAP $width $height $onObj $offObj] onid offid
+            lassign [my _BuildCheckboxAP $width $height $onObj $offObj \
+                    $bordercolor $borderwidth $bgcolor] onid offid
         } elseif {$ftype in {text password}} {
             set onid [my _BuildTextAP $width $height $initValue \
                     [expr {$ftype eq "password"}] $quadding $daColor \
-                    [expr {$comb ? $maxlen : 0}] $multiline]
+                    [expr {$comb ? $maxlen : 0}] $multiline \
+                    $bordercolor $borderwidth $bgcolor]
         } elseif {$ftype eq "listbox"} {
             set choiceApId [my _BuildChoiceAP $width $height $ftype \
                     $initValue $optionsList]
@@ -11109,7 +11333,8 @@ Use -pdfa-icc to specify a profile path."
             # Ein statischer AP-Stream wuerde zu doppelter Darstellung fuehren
             # (AP-Stream + Viewer-eigenes Rendering uebereinander).
         } elseif {$ftype eq "radiobutton"} {
-            lassign [my _BuildRadioAP $width $height] onid offid
+            lassign [my _BuildRadioAP $width $height \
+                    $bordercolor $borderwidth $bgcolor] onid offid
         } elseif {$ftype eq "pushbutton"} {
             set onid [my _BuildPushbuttonAP $width $height $caption]
         } elseif {$ftype eq "signature"} {
@@ -11435,6 +11660,18 @@ Use -pdfa-icc to specify a profile path."
             lappend pdf(forms_co) "$anid 0 R"
         }
 
+        # Den Rumpf aus der Seitenliste in die Formularliste holen --
+        # er darf erst beim Abschluss geschrieben werden, siehe oben.
+        set rest {}
+        foreach {o body} $pdf(objects) {
+            if {$o eq $anid} {
+                lappend pdf(formobjects) $o $body
+            } else {
+                lappend rest $o $body
+            }
+        }
+        set pdf(objects) $rest
+
         # Insert annotation into current page
         lappend pdf(annotations) "$anid 0 R"
         # Insert form into document
@@ -11446,6 +11683,9 @@ Use -pdfa-icc to specify a profile path."
             dict set pdf(radiogroups) $groupName kids $kids
         } else {
             lappend pdf(forms) "$anid 0 R"
+            if {$idStr ne ""} {
+                dict lappend pdf(fieldwidgets) $idStr $anid
+            }
         }
     }
 
@@ -15832,12 +16072,34 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     # "reported number of objects (19) is not one plus the highest object
     # number (16)". Lesbar blieb die Datei, falsch war sie trotzdem.
     dict set pdfd trailer /Size $N
+    # FEHLENDE OBJEKTNUMMERN SIND ERLAUBT.
+    #
+    # Die Schleife lief von 1 bis N und verlangte jede Nummer. Fehlte
+    # eine, brach das Schreiben ab mit
+    #
+    #     key "6" not known in dictionary
+    #
+    # Gemessen 07.09.2026 an einer Datei, die PDFium gespeichert hatte:
+    # sie enthaelt die Objekte 1-5 und 7-8, die 6 und 9 nicht. Die
+    # xref-Tabelle nennt das in TEILABSCHNITTEN ("0 6", dann "7 2"), und
+    # das ist normgerecht -- ISO 32000-1 7.5.4 laesst mehrere
+    # Teilabschnitte ausdruecklich zu, und ein Verweis auf ein nicht
+    # vorhandenes Objekt gilt nach 7.3.10 als "null" und nicht als
+    # Fehler. qpdf --check beanstandete die Datei nicht.
+    #
+    # Eine fehlende Nummer wird darum als FREI eingetragen, wie es die
+    # Norm fuer Luecken vorsieht. Sie zu ueberspringen waere falsch: die
+    # Tabelle ist positionsbezogen, jede ausgelassene Zeile verschoebe
+    # alle folgenden Objektnummern.
     WriteCh $ch "xref\n" pos
     WriteCh $ch "0 $N\n" pos
     WriteCh $ch "0000000000 65535 f \n" pos
     for {set a 1} {$a < $N} {incr a} {
-        # TBD handle missing objects?
-        WriteCh $ch [format "%010ld 00000 n \n" [dict get $xref $a]] pos
+        if {[dict exists $xref $a]} {
+            WriteCh $ch [format "%010ld 00000 n \n" [dict get $xref $a]] pos
+        } else {
+            WriteCh $ch "0000000000 65535 f \n" pos
+        }
     }
     WriteCh $ch "trailer\n" pos
     WriteCh $ch [TclDictToPdfDict [dict get $pdfd trailer]]\n pos
@@ -17159,15 +17421,26 @@ proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
 #
 # Since 0.9.4.64 the appearance stream is rebuilt along with /V, so a
 # print path that renders the appearance puts the new value on the paper.
-# /NeedAppearances is still set for viewers that draw the value
-# themselves.
 #
-# NOT rebuilt, and deliberately so: comb fields (the cell width hangs on
-# /MaxLen, which a foreign form may omit while carrying the flag),
-# multi-line fields (line breaking needs the glyph widths), choice
-# fields, and check boxes and radio buttons (they have two states and
-# /AS switches between them, which fillForms already handles). There the
-# old stream stays as it was -- a half-drawn comb field would be worse
+# /NeedAppearances is set ONLY where the stream stays old (see below).
+# Setting it after drawing the stream throws the own work away, and
+# worse: measured 08.09.2026, filling one text field made an UNTOUCHED
+# check box lose its border, because PDFium rebuilds every Off
+# appearance under that flag.
+#
+# NOT rebuilt, and deliberately so: comb fields WITHOUT /MaxLen (the
+# cell width hangs on it, and a foreign form may omit it while carrying
+# the flag), password fields (the value would sit in the file in clear),
+# choice fields, and check boxes and radio buttons (they have two states
+# and /AS switches between them, which fillForms already handles).
+#
+# REBUILT since 0.9.4.64, contrary to what this comment said until
+# 0.9.4.66: multi-line fields (with the same line breaking addForm uses)
+# and comb fields WITH /MaxLen. A dead comment is believed -- this one
+# warned about that itself a few lines down.
+#
+# There the old stream stays as it was -- a half-drawn comb field would
+# be worse
 # than an undrawn one. In those cases the value is present in /V and the
 # appearance is the old one, exactly as before .64.
 #
@@ -17183,6 +17456,9 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 
     set N [dict get $pdf N]
     set gefuellt 0
+    # Musste irgendwo der alte Strom stehenbleiben? Nur dann wird
+    # /NeedAppearances gesetzt -- siehe unten.
+    set brauchtFlagge 0
     set gesehen {}
 
     # DYNAMISCHES XFA ablehnen.
@@ -17343,9 +17619,10 @@ proc pdf4tcl::fillForms {inFile outFile values} {
         # vor, sonst staende der Wert im Klartext in der Datei.
         set maxlen [dict get $e MaxLen]
         if {$comb && ![string is integer -strict $maxlen]} {
+            set brauchtFlagge 1
             incr gefuellt ; continue
         }
-        if {$kennwort} { incr gefuellt ; continue }
+        if {$kennwort} { set brauchtFlagge 1 ; incr gefuellt ; continue }
 
         # Ein Auswahlfeld nimmt nur, was in /Opt steht.
         #
@@ -17404,14 +17681,22 @@ proc pdf4tcl::fillForms {inFile outFile values} {
         # den Text mit Absicht aus dem Strom, weil der Betrachter ihn
         # aus /DA und /V zeichnet -- stuende er auch im Strom, erschiene
         # er doppelt.
-        if {[dict get $e FT] ne "/Tx"} { incr gefuellt ; continue }
+        if {[dict get $e FT] ne "/Tx"} {
+            # Auswahlfeld oder Knopf: /V ist gesetzt, der Strom bleibt
+            # alt. Genau dafuer ist die Flagge da.
+            if {[dict get $e FT] eq "/Ch"} { set brauchtFlagge 1 }
+            incr gefuellt ; continue
+        }
 
         set da [dict get $e DA]
         set da [string trim $da "()"]
-        if {$da eq ""} { incr gefuellt ; continue }
+        if {$da eq ""} { set brauchtFlagge 1 ; incr gefuellt ; continue }
         set resName ""
         regexp {/([A-Za-z0-9#]+)\s+[0-9.]+\s+Tf} $da -> resName
         if {$resName eq "" || ![dict exists $drFonts $resName]} {
+            # Ohne auffindbare Schrift kein Strom -- dann muss der
+            # Betrachter ran.
+            set brauchtFlagge 1
             incr gefuellt ; continue
         }
         set q [dict get $e Q]
@@ -17429,6 +17714,11 @@ proc pdf4tcl::fillForms {inFile outFile values} {
                     [expr {$comb ? $maxlen : 0}]]
             if {$neuStrom ne ""} {
                 dict set pdf $apId full "$apId 0 obj\n$neuStrom\nendobj"
+            } else {
+                # Fuer dieses Feld ist der Strom ALT geblieben -- Comb
+                # ohne /MaxLen, Kennwort, Auswahlfeld. Nur dann braucht
+                # es die Flagge. Siehe unten.
+                set brauchtFlagge 1
             }
         }
         incr gefuellt
@@ -17445,13 +17735,31 @@ proc pdf4tcl::fillForms {inFile outFile values} {
                 [join [lsort $fehlend] {, }]"
     }
 
-    # /NeedAppearances tells the viewer to draw the values. Without it a
-    # field carries the value and shows the old appearance.
+    # /NeedAppearances NUR, WENN WIR DEN STROM NICHT SELBST GEBAUT HABEN.
+    #
+    # Die Flagge sagt dem Betrachter: bau die Erscheinungen neu. Wer sie
+    # setzt, obwohl er gerade selbst gezeichnet hat, wirft die eigene
+    # Arbeit weg -- und mehr als das.
+    #
+    # Gemessen 08.09.2026: EIN Textfeld zu fuellen liess ein UNBERUEHRTES
+    # Kaestchen seinen Rahmen verlieren.
+    #
+    #   vor  fillForms:  f_text 38   f_check 37   NeedApp 0
+    #   nach fillForms:  f_text 114  f_check  4   NeedApp 1
+    #
+    # PDFium baut unter der Flagge die Off-Erscheinung neu und liefert
+    # eine leere (tclpdfium 2.96). Der Strom stand unveraendert in der
+    # Datei -- die Flagge allein hat ihn unsichtbar gemacht.
+    #
+    # Gebraucht wird sie weiterhin dort, wo fillForms den Strom NICHT
+    # neu baut: Comb ohne /MaxLen, Kennwort, Auswahlfeld. Dann traegt
+    # das Feld den neuen Wert und zeigt die alte Erscheinung, und ohne
+    # die Flagge saehe man ihn nirgends.
     set rootId [lindex [dict get $pdf trailer /Root] 0]
     if {[dict exists $pdf $rootId]} {
         set rootBody [dict get $pdf $rootId full]
         if {[regexp {/AcroForm\s+(\d+)\s+0\s+R} $rootBody -> acroId]} {
-            if {[dict exists $pdf $acroId]} {
+            if {[dict exists $pdf $acroId] && $brauchtFlagge} {
                 set acroBody [dict get $pdf $acroId full]
                 if {![string match {*NeedAppearances*} $acroBody]} {
                     set acroBody [FormSetKey $acroBody /NeedAppearances true]

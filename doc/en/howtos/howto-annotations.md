@@ -38,27 +38,26 @@ from that alone depends on the kind:
 
 | Kind | Drawn from |
 |---|---|
-| Highlight, Underline, StrikeOut | `/QuadPoints` and `/C` -- every viewer |
-| FreeText | `/DA` and the colours |
+| Highlight, Underline, StrikeOut | the marked area and the colour |
+| FreeText | the text settings and the colours |
 | Note | the viewer's own icon set |
-| **Stamp** | the appearance stream only |
-| **Line** | the appearance stream only |
+| **Stamp** | its appearance stream only |
+| **Line** | its appearance stream only |
 
-A stamp says `/Name /Draft`, and that is a hint at what was meant, not a
-drawing (ISO 32000-1 12.5.6.12). Acrobat has artwork for the named
-stamps; **PDFium does not, and PDFium is the viewer in Chrome and
-Edge.** The same holds for a line: the end points say where, not how.
+A stamp only names which stamp was meant, and a name is not a drawing
+(ISO 32000-1 12.5.6.12). Acrobat has artwork for the named stamps;
+**PDFium does not, and PDFium is the viewer in Chrome and Edge.** The
+same holds for a line: the end points say where, not how.
 
 Since **0.9.4.64** `addAnnotStamp` and `addAnnotLine` write an
 appearance stream, so both are visible everywhere. Measured on
-`demo/demo-annotations.pdf`: `/AP` appeared **zero** times before and
-none of six stamps and five lines was visible in PDFium; now eleven
-streams, all visible.
+`demo/demo-annotations.pdf`: none of six stamps and five lines was
+visible in PDFium before, all eleven are now.
 
 Two consequences worth knowing:
 
-**A stamp needs a font.** Its stream has to name one in `/Resources`, so
-it is written only after `setFont`. Without one the annotation is
+**A stamp needs a font**, because its appearance has to name one. It is
+therefore written only after `setFont`; without one the annotation is
 written as before rather than the call failing.
 
 **Arrow heads** are drawn for `OpenArrow`, `ClosedArrow`, `ROpenArrow`,

@@ -9,7 +9,8 @@
 # Usage:
 #   tclsh demo-embedfile.tcl ?--out dir?
 
-set outDir [file dirname [file normalize [info script]]]
+# Vorgabe demo/out, nicht demo/ selbst -- .gitignore kennt nur out/.
+set outDir [file join [file dirname [file normalize [info script]]] out]
 for {set i 0} {$i < [llength $argv]} {incr i} {
     if {[lindex $argv $i] eq "--out"} {
         set outDir [lindex $argv [incr i]]

@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.65]
+[manpage_begin pdf4tcl n 0.9.4.66]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.65]]
+[require pdf4tcl [opt 0.9.4.66]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -326,15 +326,15 @@ value ([const /Yes], [const /Off]) is left as it is.
 (0.9.4.63). A file may carry the bit without the length; the norm divides the
 field width by [const /MaxLen], so without it there are no cells and this
 reports 0. The answer says what the file does, not what stands in it.
-[opt_def description] The field's [const /TU] -- the text a viewer shows
-as a tooltip (0.9.4.65). [method addForm] writes it from
-[option -tooltip]; until 0.9.4.64 [cmd getForms] did not give it back, so
-the package wrote an answer it would not read.
+[opt_def description] The field's tooltip text (0.9.4.65).
+[method addForm] writes it from [option -tooltip]; until 0.9.4.64
+[cmd getForms] did not give it back, so the package wrote an answer it
+would not read.
 [opt_def options] The permitted values of a choice field (0.9.4.65), one
 [const {export label}] pair per entry. Empty for every other kind of
 field -- but present, so the caller need not branch on the field type.
 [para]
-[const /Opt] may be written two ways (ISO 32000-1 12.7.4.4): labels
+A form may list its options two ways (ISO 32000-1 12.7.4.4): labels
 only, or export value and label as a pair. [method addForm] writes the
 first; foreign forms carry the second, and both are read.
 [opt_def widgets] How many widgets the field has (0.9.4.64). Normally 1.
@@ -392,8 +392,8 @@ Every widget of the field gets its own stream, built from its own
 [const /Rect] (0.9.4.64). One stream for all of them would sit in the
 wrong place on every sheet but the first.
 [para]
-[emph {A choice field takes only what is in}] [const /Opt] (0.9.4.65) --
-or the empty string, which means "nothing selected".
+[emph {A choice field takes only one of its options}] (0.9.4.65) -- or
+the empty string, which means "nothing selected".
 Until 0.9.4.64 any value was written into [const /V] and a success
 reported; the field then carried a state no viewer can show, and it
 looked like it had worked. Both the export value and the label are
@@ -458,9 +458,8 @@ it must not go wrong, check the result in the viewer that will print it.
 
 [para]
 A [emph dynamic] XFA form is refused (0.9.4.64+). There the catalogue
-carries [const {/NeedsRendering true}] and the content lives as XML
-under [const /XFA]; the AcroForm fields are a placeholder and the viewer
-builds the pages from the XML, so setting [const /V] would change
+the content lives as XML and the ordinary fields are a placeholder: the
+viewer builds its pages from the XML, so setting a value would change
 nothing visible. Up to 0.9.4.63 the call ran through and reported a
 success that had not happened. A [emph hybrid] XFA form -- XFA together
 with usable AcroForm fields -- is filled as before, because there a

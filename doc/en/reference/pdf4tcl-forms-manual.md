@@ -593,9 +593,30 @@ time.
 those for signature fields. This caused signature placeholders to appear
 blank.
 
-**Solution (current version):** Combobox and listbox fields now generate
-their own appearance streams. The NeedAppearances flag is never set. All
-field types coexist correctly in the same document.
+**Solution:** Combobox and listbox fields generate their own appearance
+streams, so `addForm` does not set the flag for them, and signature
+placeholders stay visible.
+
+**Where the flag IS set (0.9.4.66):**
+
+- `addForm -calculate` sets it. A calculated field needs the viewer to
+  run the calculation and redraw, and there is no way around that.
+- `fillForms` sets it **only where it did not rebuild the appearance
+  itself**: password fields, choice fields, and comb fields without
+  `/MaxLen`. There the field carries the new value and shows the old
+  appearance, and without the flag the value would be nowhere to see.
+
+Until 0.9.4.65 `fillForms` set it always, including after drawing the
+stream itself. That is worse than wasteful: measured against PDFium,
+filling **one** text field made an **untouched** check box lose its
+border, because PDFium rebuilds every Off appearance under the flag and
+returns an empty one. The stream sat unchanged in the file.
+
+**What this means for you:** a document with a calculated field looks
+different in PDFium-based viewers (Chrome, and anything built on
+tclpdfium) than one without -- unticked boxes and empty text fields lose
+their borders there. That is the viewer's doing under the flag, not the
+file's.
 
 ### PDF Viewer Compatibility
 
@@ -628,20 +649,20 @@ dictionary containing:
 
 | Key | Since | Meaning |
 |---|---|---|
-| `type` | | `/Tx`, `/Btn`, `/Ch`, `/Sig` |
+| `type` | | text, button, choice or signature |
 | `value` | | the current value, unpacked |
-| `flags` | | the `/Ff` bits |
+| `flags` | | the field flags |
 | `default` | | the current appearance state (buttons only) |
-| `maxlen` | 0.9.4.63 | `/MaxLen`, or empty |
-| `comb` | 0.9.4.63 | 1 for a comb field -- the bit **and** a `/MaxLen` |
+| `maxlen` | 0.9.4.63 | the maximum length, or empty |
+| `comb` | 0.9.4.63 | 1 for a comb field -- the flag **and** a maximum length |
 | `widgets` | 0.9.4.64 | how many widgets the field has |
-| `description` | 0.9.4.65 | the field's `/TU`, what a viewer shows as a tooltip |
+| `description` | 0.9.4.65 | the field's tooltip text |
 | `options` | 0.9.4.65 | a choice field's permitted values, `{export label}` pairs |
 
 `description` and `options` are empty when the file carries none -- but
 present, so a caller need not branch on the field type.
 
-The field name is composed from the `/Parent` chain since 0.9.4.64:
+The field name is composed from the whole chain since 0.9.4.64:
 `person.city`, not `city`. A field with several widgets is reported once,
 with `widgets` saying how many.
 

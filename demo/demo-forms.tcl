@@ -61,7 +61,13 @@ foreach {label id y} {
     $p setFont 10 Helvetica
     $p text $label -x 72 -y $y
     $p setFont 10 Helvetica
-    $p addForm text 160 [expr {$y - 10}] 300 16 -id $id -init ""
+    # MIT RAHMEN, seit 0.9.4.66.
+    #
+    # Ein leeres Feld ohne Rahmen ist auf dem Papier nicht zu sehen --
+    # es gibt dann nichts zu zeichnen. Die Demo zeigt jetzt, was ein
+    # Formular braucht, damit man die Felder findet.
+    $p addForm text 160 [expr {$y - 10}] 300 16 -id $id -init "" \
+            -bordercolor "#808080" -borderwidth 1
 }
 
 # --- Combobox ---
@@ -86,14 +92,16 @@ foreach {rid rval rx rlabel} {
     prio_o  overnight 320 "Overnight"
 } {
     $p setFont 10 Helvetica
-    $p addForm radiobutton $rx 230 12 12 -id $rid -group "prio" -value $rval
+    $p addForm radiobutton $rx 230 12 12 -id $rid -group "prio" -value $rval \
+            -bordercolor "#808080" -borderwidth 1
     $p setFont 10 Helvetica
     $p text $rlabel -x [expr {$rx + 16}] -y 240
 }
 
 # --- Checkbox ---
 $p setFont 10 Helvetica
-$p addForm checkbutton 72 263 12 12 -id "f_agb"
+$p addForm checkbutton 72 263 12 12 -id "f_agb" \
+        -bordercolor "#808080" -borderwidth 1
 $p setFont 10 Helvetica
 $p text "Ich akzeptiere die AGB." -x 90 -y 273
 
@@ -101,7 +109,8 @@ $p text "Ich akzeptiere die AGB." -x 90 -y 273
 $p setFont 10 Helvetica
 $p text "Bemerkung:" -x 72 -y 300
 $p setFont 10 Helvetica
-$p addForm text 160 285 300 55 -id "f_bemerkung" -multiline 1
+$p addForm text 160 285 300 55 -id "f_bemerkung" -multiline 1 \
+        -bordercolor "#808080" -borderwidth 1
 
 # --- Buttons ---
 $p setFont 10 Helvetica

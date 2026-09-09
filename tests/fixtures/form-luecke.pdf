@@ -1,0 +1,57 @@
+%PDF-1.7
+%והצח
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [10 0 R]
+   /DR << /Font << /Helv 5 0 R >> >> >> >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595]
+   /Resources << /Font << /Helv 5 0 R >> >>
+   /Contents 4 0 R /Annots [10 0 R] >>
+endobj
+4 0 obj
+<< /Length 53 >>
+stream
+BT /Helv 10 Tf 40 200 Td (Formular mit Luecke) Tj ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Name /Helv >>
+endobj
+7 0 obj
+<< /BBox [0 0 150 16] /Resources << /Font << /Helv 5 0 R >> >>
+   /Subtype /Form /Type /XObject /Length 49 >>
+stream
+/Tx BMC BT /Helv 10 Tf 0 g 2 1.1 Td () Tj ET EMC
+
+endstream
+endobj
+8 0 obj
+<< >>
+endobj
+10 0 obj
+<< /Type /Annot /Subtype /Widget /P 3 0 R /FT /Tx /T (kunde) /V ()
+   /DA (/Helv 10 Tf 0 g) /Rect [40 400 190 416] /F 4 /AP << /N 7 0 R >> >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000134 00000 n 
+0000000191 00000 n 
+0000000342 00000 n 
+0000000445 00000 n 
+7 2
+0000000527 00000 n 
+0000000719 00000 n 
+10 1
+0000000740 00000 n 
+trailer
+<< /Root 1 0 R /Size 11 >>
+startxref
+898
+%%EOF

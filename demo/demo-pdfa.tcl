@@ -55,7 +55,8 @@ set pkgver [package require pdf4tcl]
 # Argumente verarbeiten
 # -----------------------------------------------------------------------------
 
-set out_dir      $demodir
+# Vorgabe demo/out, nicht demo/ selbst -- .gitignore kennt nur out/.
+set out_dir      [file join $demodir out]
 set icc_override ""
 set font_override ""
 

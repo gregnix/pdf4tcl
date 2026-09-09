@@ -662,12 +662,34 @@ proc pdf4tcl::cat::WritePdf {filename pdfd} {
     # "reported number of objects (19) is not one plus the highest object
     # number (16)". Lesbar blieb die Datei, falsch war sie trotzdem.
     dict set pdfd trailer /Size $N
+    # FEHLENDE OBJEKTNUMMERN SIND ERLAUBT.
+    #
+    # Die Schleife lief von 1 bis N und verlangte jede Nummer. Fehlte
+    # eine, brach das Schreiben ab mit
+    #
+    #     key "6" not known in dictionary
+    #
+    # Gemessen 07.09.2026 an einer Datei, die PDFium gespeichert hatte:
+    # sie enthaelt die Objekte 1-5 und 7-8, die 6 und 9 nicht. Die
+    # xref-Tabelle nennt das in TEILABSCHNITTEN ("0 6", dann "7 2"), und
+    # das ist normgerecht -- ISO 32000-1 7.5.4 laesst mehrere
+    # Teilabschnitte ausdruecklich zu, und ein Verweis auf ein nicht
+    # vorhandenes Objekt gilt nach 7.3.10 als "null" und nicht als
+    # Fehler. qpdf --check beanstandete die Datei nicht.
+    #
+    # Eine fehlende Nummer wird darum als FREI eingetragen, wie es die
+    # Norm fuer Luecken vorsieht. Sie zu ueberspringen waere falsch: die
+    # Tabelle ist positionsbezogen, jede ausgelassene Zeile verschoebe
+    # alle folgenden Objektnummern.
     WriteCh $ch "xref\n" pos
     WriteCh $ch "0 $N\n" pos
     WriteCh $ch "0000000000 65535 f \n" pos
     for {set a 1} {$a < $N} {incr a} {
-        # TBD handle missing objects?
-        WriteCh $ch [format "%010ld 00000 n \n" [dict get $xref $a]] pos
+        if {[dict exists $xref $a]} {
+            WriteCh $ch [format "%010ld 00000 n \n" [dict get $xref $a]] pos
+        } else {
+            WriteCh $ch "0000000000 65535 f \n" pos
+        }
     }
     WriteCh $ch "trailer\n" pos
     WriteCh $ch [TclDictToPdfDict [dict get $pdfd trailer]]\n pos
@@ -1989,15 +2011,26 @@ proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
 #
 # Since 0.9.4.64 the appearance stream is rebuilt along with /V, so a
 # print path that renders the appearance puts the new value on the paper.
-# /NeedAppearances is still set for viewers that draw the value
-# themselves.
 #
-# NOT rebuilt, and deliberately so: comb fields (the cell width hangs on
-# /MaxLen, which a foreign form may omit while carrying the flag),
-# multi-line fields (line breaking needs the glyph widths), choice
-# fields, and check boxes and radio buttons (they have two states and
-# /AS switches between them, which fillForms already handles). There the
-# old stream stays as it was -- a half-drawn comb field would be worse
+# /NeedAppearances is set ONLY where the stream stays old (see below).
+# Setting it after drawing the stream throws the own work away, and
+# worse: measured 08.09.2026, filling one text field made an UNTOUCHED
+# check box lose its border, because PDFium rebuilds every Off
+# appearance under that flag.
+#
+# NOT rebuilt, and deliberately so: comb fields WITHOUT /MaxLen (the
+# cell width hangs on it, and a foreign form may omit it while carrying
+# the flag), password fields (the value would sit in the file in clear),
+# choice fields, and check boxes and radio buttons (they have two states
+# and /AS switches between them, which fillForms already handles).
+#
+# REBUILT since 0.9.4.64, contrary to what this comment said until
+# 0.9.4.66: multi-line fields (with the same line breaking addForm uses)
+# and comb fields WITH /MaxLen. A dead comment is believed -- this one
+# warned about that itself a few lines down.
+#
+# There the old stream stays as it was -- a half-drawn comb field would
+# be worse
 # than an undrawn one. In those cases the value is present in /V and the
 # appearance is the old one, exactly as before .64.
 #
@@ -2013,6 +2046,9 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 
     set N [dict get $pdf N]
     set gefuellt 0
+    # Musste irgendwo der alte Strom stehenbleiben? Nur dann wird
+    # /NeedAppearances gesetzt -- siehe unten.
+    set brauchtFlagge 0
     set gesehen {}
 
     # DYNAMISCHES XFA ablehnen.
@@ -2173,9 +2209,10 @@ proc pdf4tcl::fillForms {inFile outFile values} {
         # vor, sonst staende der Wert im Klartext in der Datei.
         set maxlen [dict get $e MaxLen]
         if {$comb && ![string is integer -strict $maxlen]} {
+            set brauchtFlagge 1
             incr gefuellt ; continue
         }
-        if {$kennwort} { incr gefuellt ; continue }
+        if {$kennwort} { set brauchtFlagge 1 ; incr gefuellt ; continue }
 
         # Ein Auswahlfeld nimmt nur, was in /Opt steht.
         #
@@ -2234,14 +2271,22 @@ proc pdf4tcl::fillForms {inFile outFile values} {
         # den Text mit Absicht aus dem Strom, weil der Betrachter ihn
         # aus /DA und /V zeichnet -- stuende er auch im Strom, erschiene
         # er doppelt.
-        if {[dict get $e FT] ne "/Tx"} { incr gefuellt ; continue }
+        if {[dict get $e FT] ne "/Tx"} {
+            # Auswahlfeld oder Knopf: /V ist gesetzt, der Strom bleibt
+            # alt. Genau dafuer ist die Flagge da.
+            if {[dict get $e FT] eq "/Ch"} { set brauchtFlagge 1 }
+            incr gefuellt ; continue
+        }
 
         set da [dict get $e DA]
         set da [string trim $da "()"]
-        if {$da eq ""} { incr gefuellt ; continue }
+        if {$da eq ""} { set brauchtFlagge 1 ; incr gefuellt ; continue }
         set resName ""
         regexp {/([A-Za-z0-9#]+)\s+[0-9.]+\s+Tf} $da -> resName
         if {$resName eq "" || ![dict exists $drFonts $resName]} {
+            # Ohne auffindbare Schrift kein Strom -- dann muss der
+            # Betrachter ran.
+            set brauchtFlagge 1
             incr gefuellt ; continue
         }
         set q [dict get $e Q]
@@ -2259,6 +2304,11 @@ proc pdf4tcl::fillForms {inFile outFile values} {
                     [expr {$comb ? $maxlen : 0}]]
             if {$neuStrom ne ""} {
                 dict set pdf $apId full "$apId 0 obj\n$neuStrom\nendobj"
+            } else {
+                # Fuer dieses Feld ist der Strom ALT geblieben -- Comb
+                # ohne /MaxLen, Kennwort, Auswahlfeld. Nur dann braucht
+                # es die Flagge. Siehe unten.
+                set brauchtFlagge 1
             }
         }
         incr gefuellt
@@ -2275,13 +2325,31 @@ proc pdf4tcl::fillForms {inFile outFile values} {
                 [join [lsort $fehlend] {, }]"
     }
 
-    # /NeedAppearances tells the viewer to draw the values. Without it a
-    # field carries the value and shows the old appearance.
+    # /NeedAppearances NUR, WENN WIR DEN STROM NICHT SELBST GEBAUT HABEN.
+    #
+    # Die Flagge sagt dem Betrachter: bau die Erscheinungen neu. Wer sie
+    # setzt, obwohl er gerade selbst gezeichnet hat, wirft die eigene
+    # Arbeit weg -- und mehr als das.
+    #
+    # Gemessen 08.09.2026: EIN Textfeld zu fuellen liess ein UNBERUEHRTES
+    # Kaestchen seinen Rahmen verlieren.
+    #
+    #   vor  fillForms:  f_text 38   f_check 37   NeedApp 0
+    #   nach fillForms:  f_text 114  f_check  4   NeedApp 1
+    #
+    # PDFium baut unter der Flagge die Off-Erscheinung neu und liefert
+    # eine leere (tclpdfium 2.96). Der Strom stand unveraendert in der
+    # Datei -- die Flagge allein hat ihn unsichtbar gemacht.
+    #
+    # Gebraucht wird sie weiterhin dort, wo fillForms den Strom NICHT
+    # neu baut: Comb ohne /MaxLen, Kennwort, Auswahlfeld. Dann traegt
+    # das Feld den neuen Wert und zeigt die alte Erscheinung, und ohne
+    # die Flagge saehe man ihn nirgends.
     set rootId [lindex [dict get $pdf trailer /Root] 0]
     if {[dict exists $pdf $rootId]} {
         set rootBody [dict get $pdf $rootId full]
         if {[regexp {/AcroForm\s+(\d+)\s+0\s+R} $rootBody -> acroId]} {
-            if {[dict exists $pdf $acroId]} {
+            if {[dict exists $pdf $acroId] && $brauchtFlagge} {
                 set acroBody [dict get $pdf $acroId full]
                 if {![string match {*NeedAppearances*} $acroBody]} {
                     set acroBody [FormSetKey $acroBody /NeedAppearances true]

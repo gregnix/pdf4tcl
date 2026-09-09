@@ -586,8 +586,50 @@ test form-fillap-1.1 {fillForms zieht den Appearance-Strom mit} -body {
     removeFile fillap-leer.pdf
     removeFile fillap-voll.pdf
     # Der Wert muss GEZEICHNET werden, nicht nur in /V stehen.
+    #
+    # UND DIE FLAGGE DARF FEHLEN. Bis 0.9.4.66 setzte fillForms
+    # /NeedAppearances auch dann, wenn es den Strom gerade selbst
+    # gebaut hatte -- und warf damit die eigene Arbeit weg.
+    #
+    # Schlimmer: gemessen 08.09.2026 liess EIN gefuelltes Textfeld ein
+    # UNBERUEHRTES Kaestchen seinen Rahmen verlieren.
+    #
+    #   vor  fillForms:  Text 38   Kaestchen 37   NeedApp 0
+    #   nach fillForms:  Text 114  Kaestchen  4   NeedApp 1
+    #
+    # PDFium baut unter der Flagge die Off-Erscheinung neu und liefert
+    # eine leere (tclpdfium 2.96). Der Strom stand unveraendert in der
+    # Datei.
+    #
+    # Wo fillForms den Strom NICHT baut -- Kennwort, Auswahlfeld, Comb
+    # ohne /MaxLen -- wird sie weiter gesetzt; siehe form-fillap-1.5.
     list [expr {[string first "(Spedition Muster) Tj" $d] >= 0}] \
          [expr {[string first "/NeedAppearances" $d] >= 0}]
+} -result {1 0}
+
+test form-fillap-1.5 {die Flagge bleibt, wo der Strom alt bleibt} -body {
+    # Die Gegenrichtung zu 1.1: bei Kennwort und Auswahlfeld baut
+    # fillForms keinen Strom. Dann traegt das Feld den neuen Wert und
+    # zeigt die alte Erscheinung -- ohne die Flagge saehe man ihn
+    # nirgends.
+    set aus {}
+    foreach {art zusatz wert} {password {} geheim
+                               combobox {-options {Eins Zwei}} Zwei} {
+        set leer [makeFile {} fl5-leer.pdf]
+        set voll [makeFile {} fl5-voll.pdf]
+        set p [::pdf4tcl::new %AUTO% -paper a5]
+        $p startPage
+        $p setFont 10 Helvetica
+        $p addForm $art 30 40 150 16 -id f {*}$zusatz
+        $p write -file $leer
+        $p destroy
+        pdf4tcl::fillForms $leer $voll [list f $wert]
+        set fh [open $voll rb] ; set d [read $fh] ; close $fh
+        lappend aus [expr {[string first "/NeedAppearances" $d] >= 0}]
+        removeFile fl5-leer.pdf
+        removeFile fl5-voll.pdf
+    }
+    set aus
 } -result {1 1}
 
 test form-fillap-1.2 {der Strom ersetzt den alten, er kommt nicht dazu} -body {
@@ -612,7 +654,7 @@ test form-fillap-1.2 {der Strom ersetzt den alten, er kommt nicht dazu} -body {
     expr {$na == $nb}
 } -result 1
 
-test form-fillap-1.3 {ein Comb-Feld bleibt unangetastet} -body {
+test form-fillap-1.3 {ein Comb-Feld mit /MaxLen bekommt Zellen} -body {
     # Die Zellenbreite haengt an /MaxLen, und ein halb gezeichnetes
     # Comb-Feld waere schlechter als ein ungezeichnetes. Der alte Strom
     # bleibt also stehen -- wie bisher, und das ist hier die richtige
@@ -938,6 +980,264 @@ test form-opt-1.5 {der Rundlauf ueber ALLE Felder laeuft durch} -body {
     removeFile opt-h.pdf
     list $rc $e
 } -result {0 2}
+
+
+set ::formLuecke [file join [file dirname [file normalize [info script]]] \
+        fixtures form-luecke.pdf]
+tcltest::testConstraint haveFormLuecke [file readable $::formLuecke]
+
+test form-luecke-1.1 {fehlende Objektnummern brechen das Schreiben nicht} \
+        -constraints haveFormLuecke -body {
+    # EIN BEFUND AUS DEM RUNDLAUF ueber zwei Pakete.
+    #
+    # Eine von PDFium gespeicherte Datei enthaelt die Objekte 1-5 und
+    # 7-8, die 6 und 9 nicht. Ihre xref-Tabelle nennt das in
+    # TEILABSCHNITTEN ("0 6", dann "7 2") -- ISO 32000-1 7.5.4 laesst
+    # das ausdruecklich zu, und "qpdf --check" beanstandet nichts.
+    #
+    # WritePdf lief von 1 bis N und verlangte jede Nummer:
+    #
+    #     key "6" not known in dictionary
+    #
+    # Jede Haelfte war geprueft, die FOLGE nie. Genau dafuer ist ein
+    # Rundlauf da.
+    #
+    # DIE VORLAGE IST HANDGEBAUT. Der erste Anlauf liess qpdf eine
+    # Datei aufraeumen und hoffte auf eine Luecke -- gemessen: qpdf
+    # erzeugt keine, die Gegenprobe blieb gruen, und der Test haette
+    # nichts gefangen.
+    set aus [makeFile {} luecke-voll.pdf]
+    set rc [catch {pdf4tcl::fillForms $::formLuecke $aus {kunde "Muster"}} e]
+    set wert ""
+    if {!$rc} {
+        set d [pdf4tcl::getForms $aus]
+        if {[dict exists $d kunde]} { set wert [dict get $d kunde value] }
+    }
+    removeFile luecke-voll.pdf
+    list $rc $wert
+} -result {0 Muster}
+
+test form-luecke-1.2 {die Luecke bleibt eine Luecke} \
+        -constraints {haveFormLuecke haveQpdf} -body {
+    # Eine fehlende Nummer wird als FREI eingetragen, nicht
+    # uebersprungen: die Tabelle ist positionsbezogen, jede ausgelassene
+    # Zeile verschoebe alle folgenden Objektnummern -- und dann zeigte
+    # jeder Verweis auf das falsche Objekt.
+    #
+    # qpdf prueft genau das.
+    set aus [makeFile {} luecke-q.pdf]
+    pdf4tcl::fillForms $::formLuecke $aus {kunde "Muster"}
+    set rc [catch {exec qpdf --check $aus} ausgabe]
+    removeFile luecke-q.pdf
+    string match "*No syntax or stream encoding errors*" $ausgabe
+} -result 1
+
+
+test form-kids-1.1 {derselbe Name auf zwei Seiten wird EIN Feld} -body {
+    # Nach ISO 32000-1 7.7.3.1 muessen Feldnamen unter Geschwistern
+    # eindeutig sein; ein Feld auf mehreren Seiten ist EIN Feld mit
+    # mehreren Widgets (12.7.4.1).
+    #
+    # addForm legte zwei eigenstaendige Felder an. Gemessen 07.09.2026
+    # im Rundlauf mit tclpdfium: ein Betrachter haelt die zwei fuer
+    # dasselbe Feld und fuellt beide auf dem Bildschirm, schreibt den
+    # Wert aber nur an eines. Nach dem Einbrennen stand auf Seite 1
+    # "Muster" und auf Seite 2 nichts -- der Durchschlagsatz kam leer
+    # heraus.
+    #
+    # 0.9.4.64 hat den Fall beim LESEN geloest (FormFieldTree folgt
+    # /Kids). Geschrieben wurde er weiter falsch.
+    set f [makeFile {} kids.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id empf
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id empf
+    $p write -file $f
+    $p destroy
+    set d [pdf4tcl::getForms $f]
+    removeFile kids.pdf
+    list [dict size $d] [dict get $d empf widgets]
+} -result {1 2}
+
+test form-kids-1.2 {der Wert kommt auf BEIDE Seiten} -body {
+    # Die Probe, die zaehlt: nicht ob /V gesetzt ist, sondern ob auf
+    # beiden Blaettern etwas steht.
+    set leer [makeFile {} kids2.pdf]
+    set voll [makeFile {} kids3.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id empf
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id empf
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {empf "Muster"}
+    # Beide Widgets muessen einen Strom mit dem Wert tragen.
+    set ch [open $voll rb]
+    set roh [read $ch]
+    close $ch
+    set n 0
+    foreach {ganz} [regexp -all -inline {\(Muster\) Tj} $roh] { incr n }
+    removeFile kids2.pdf
+    removeFile kids3.pdf
+    expr {$n >= 2}
+} -result 1
+
+test form-kids-1.3 {ein einzelnes Feld bleibt ohne Vaterknoten} -body {
+    # Nicht jedes Feld bekommt jetzt einen Vater: das waere ein
+    # ueberfluessiges Objekt je Feld und eine Aenderung an jeder
+    # bestehenden Datei.
+    set f [makeFile {} kids4.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id einzeln
+    $p write -file $f
+    $p destroy
+    set ch [open $f rb]
+    set roh [read $ch]
+    close $ch
+    set d [pdf4tcl::getForms $f]
+    removeFile kids4.pdf
+    # NICHT auf "/Kids" allein pruefen: der SEITENBAUM traegt das
+    # ebenfalls (/Type /Pages /Kids [...]). Der erste Anlauf tat es und
+    # fiel darum immer -- ein Test, der das Falsche misst, ist so
+    # nutzlos wie keiner.
+    #
+    # Gemeint ist ein Feld-Vaterknoten, also /Kids NEBEN einem /T.
+    set vater 0
+    foreach stueck [split $roh ">>"] {
+        if {[string first "/Kids" $stueck] >= 0
+                && [string first "/T (" $stueck] >= 0} { set vater 1 }
+    }
+    list [dict get $d einzeln widgets] $vater
+} -result {1 0}
+
+
+test form-rahmen-1.1 {ein leeres Feld zeichnet seinen Rahmen} -body {
+    # AUS DEM ANZEIGEKATALOG VON tclpdfium, 08.09.2026.
+    #
+    # Ein leeres Textfeld bekam einen LEEREN Erscheinungsstrom. Das ist
+    # die Aussage "so sieht das Feld aus: gar nicht", und ein Betrachter
+    # glaubt sie -- gemessen an derselben Datei mit /MK /BC [0 0 0]:
+    #
+    #   leerer Strom:  0 dunkle Punkte, kein Rahmen
+    #   kein Strom:    463 Punkte, der Betrachter baut selbst
+    #
+    # DEN STROM WEGZULASSEN waere der naheliegende Schluss und ist
+    # falsch: dann bricht die Kette fillForms -> flatten, und das Papier
+    # bleibt leer. Ein Strom, der den Rahmen malt, ist sichtbar UND
+    # bleibt etwas zum Ersetzen.
+    #
+    # Geprueft wird der INHALT des Stroms, nicht seine Laenge: eine
+    # Laenge groesser null hatte er auch vorher nicht, und "irgendwas
+    # drin" waere kein Rahmen.
+    set f [makeFile {} rahmen.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5 -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id mitRahmen \
+            -bordercolor black -borderwidth 1
+    $p addForm text 30 70 150 16 -id ohneRahmen
+    $p write -file $f
+    $p destroy
+    set ch [open $f rb]
+    set roh [read $ch]
+    close $ch
+    removeFile rahmen.pdf
+    # Ein "re S" zeichnet den Rahmen; ohne Rahmenangabe bleibt der
+    # Strom leer, denn dann gibt es nichts zu malen.
+    set striche 0
+    foreach {ganz} [regexp -all -inline {re\s+S} $roh] { incr striche }
+    set striche
+} -result 1
+
+test form-rahmen-1.3 {auch Kaestchen und Optionsfeld zeichnen ihren Rahmen} \
+        -body {
+    # DER FEHLER, MIT DEM DER TAG ANFING: ein nicht angekreuztes
+    # Kaestchen war auf dem Papier unsichtbar. Der Off-Zustand trug
+    # einen LEEREN Strom.
+    #
+    # Gemessen 08.09.2026, mit -bordercolor und -borderwidth:
+    #
+    #   vorher:  Kaestchen ap 0  0 Punkte   Optionsfeld ap 0  0 Punkte
+    #   jetzt:   Kaestchen ap 37 15 Punkte  Optionsfeld ap 37 25 Punkte
+    #
+    # Der Off-Strom wird weiterhin geteilt, aber je GESTALT: zwei
+    # Kaestchen mit verschiedenem Rahmen brauchen zwei Stroeme. Vorher
+    # genuegte ein einziges Objekt, weil alle leer waren -- und genau
+    # das haette die Behebung stillschweigend zunichte gemacht.
+    set f [makeFile {} rahmen4.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5 -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 30 40 14 14 -id k \
+            -bordercolor black -borderwidth 1
+    $p addForm radiobutton 30 70 12 12 -id r -group g -value a \
+            -bordercolor black -borderwidth 1
+    $p write -file $f
+    $p destroy
+    set ch [open $f rb]
+    set roh [read $ch]
+    close $ch
+    removeFile rahmen4.pdf
+    # Ein Strich je Feld -- der Off-Zustand. Die On-Zustaende zeichnen
+    # Haken und Punkt, keinen Rahmen.
+    set striche 0
+    foreach {ganz} [regexp -all -inline {re\s+S} $roh] { incr striche }
+    expr {$striche >= 2}
+} -result 1
+
+test form-rahmen-1.4 {zwei Gestalten teilen sich keinen Off-Strom} -body {
+    # Der Zwischenspeicher war ein EINZIGES Objekt fuer alle Kaestchen.
+    # Solange alle leer waren, ging das. Mit Rahmen nicht mehr: das
+    # zweite Kaestchen haette den Rahmen des ersten bekommen -- und das
+    # faellt nur auf, wenn sie verschieden aussehen sollen.
+    set f [makeFile {} rahmen5.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5 -compress 0]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm checkbutton 30 40 14 14 -id k1 \
+            -bordercolor black -borderwidth 1
+    $p addForm checkbutton 30 70 14 14 -id k2 \
+            -bordercolor red -borderwidth 2
+    $p write -file $f
+    $p destroy
+    set ch [open $f rb]
+    set roh [read $ch]
+    close $ch
+    removeFile rahmen5.pdf
+    # Zwei verschiedene Rahmenfarben muessen beide in der Datei stehen.
+    list [expr {[string first "1 0 0 RG" $roh] >= 0}] \
+         [expr {[string first "0 0 0 RG" $roh] >= 0}]
+} -result {1 1}
+
+test form-rahmen-1.2 {fillForms und flatten gehen weiter} -constraints haveQpdf -body {
+    # Die Kette, die beim ersten Anlauf zerbrach: der Strom muss
+    # ersetzbar bleiben.
+    set leer [makeFile {} rahmen2.pdf]
+    set voll [makeFile {} rahmen3.pdf]
+    set p [::pdf4tcl::new %AUTO% -paper a5]
+    $p startPage
+    $p setFont 10 Helvetica
+    $p addForm text 30 40 150 16 -id f -bordercolor black -borderwidth 1
+    $p write -file $leer
+    $p destroy
+    pdf4tcl::fillForms $leer $voll {f Muster}
+    set d [pdf4tcl::getForms $voll]
+    set ch [open $voll rb]
+    set roh [read $ch]
+    close $ch
+    removeFile rahmen2.pdf
+    removeFile rahmen3.pdf
+    list [dict get $d f value] \
+         [expr {[string first "(Muster) Tj" $roh] >= 0}]
+} -result {Muster 1}
 
 
 ::tcltest::cleanupTests
