@@ -49,7 +49,30 @@ set ::auto_path [concat [list $tmp] $::auto_path]
 if {[file exists $tmp/pdf4tcl.tcl_i]} {
     source $tmp/pdf4tcl.tcl_i
 }
-package require pdf4tcl 0.9.4.66
+package require pdf4tcl 0.9.4.67
+
+# WELCHES Paket wurde geladen?
+#
+# Eine gruene Suite ohne diese Zeile sagt nur: irgendein Paket dieses
+# Namens funktioniert. Liegt der Arbeitsbaum nicht vorn im Suchpfad,
+# nimmt "package require" das INSTALLIERTE -- ohne Fehlermeldung.
+#
+# Gemessen 14.09.2026, zweimal an einem Tag:
+#
+#   pdf4tcllib   0.6.4 aus der Installation statt 0.6.4 aus dem Baum
+#                -- GLEICHE Nummer, anderer Baum, keine Meldung
+#   pdf4tcl      pkg/pdf4tcl.tcl war alt, waehrend die Wurzelfassung
+#                die Behebung trug; geladen wurde pkg/
+#
+# Beide Male sah es aus, als wirke eine richtige Behebung nicht.
+#
+# DIE FASSUNGSNUMMER REICHT NICHT -- zwei Baeume koennen dieselbe
+# tragen. Darum nennt die Zeile unten den PFAD.
+#
+# Keine feste Nummer in diesem Kommentar: bump.tcl ersetzt sie sonst
+# beim Erhoehen mit und macht aus einer Messung eine Behauptung.
+puts stdout "pdf4tcl [package provide pdf4tcl] aus:\
+        [lindex [package ifneeded pdf4tcl [package provide pdf4tcl]] end]"
 
 proc myexec {args} {
     set ch [open "|$args"]

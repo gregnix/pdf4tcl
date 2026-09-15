@@ -471,6 +471,271 @@ test encrypt-20.5 {entschluesselt ist der Ebenenname wieder da} \
 } -result 1
 
 # ---------------------------------------------------------------------------
+# Verschluesselung UND eingebettete Schrift zusammen
+#
+# Beide Eigenschaften sind einzeln geprueft -- Verschluesselung in dieser
+# Datei, CID/TTF-Schriften in new-0.9.4.35.test -- aber nie gemeinsam.
+# Genau dort sass der Fehler: die Objekte aus WriteCIDFontObjects gingen
+# mit Pdfout an EncryptStreamBody vorbei. Das PDF entstand, war ohne
+# Kennwort dicht, liess sich aber MIT Kennwort nicht lesen.
+# Gemessen 14.09.2026 an 0.9.4.66.
+
+test encrypt-cid-1.0 {verschluesseltes PDF mit eingebetteter CID-Schrift
+        ist mit Kennwort lesbar} -constraints haveQpdf -setup {
+    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+} -body {
+    if {![file readable $ttf]} { return "uebersprungen: keine DejaVuSans.ttf" }
+    pdf4tcl::loadBaseTrueTypeFont EncCidBase $ttf
+    pdf4tcl::createFontSpecCID EncCidBase EncCidUni
+    set p [::pdf4tcl::new %AUTO% -paper a4 \
+            -userpassword geheim -permissions {print}]
+    $p startPage
+    $p setFont 12 EncCidUni
+    $p text "CID-PROBE-4711" -x 60 -y 700
+    set datei [file join [temporaryDirectory] enc-cid.pdf]
+    $p write -file $datei
+    $p destroy
+
+    # qpdf darf keine Stromfehler melden -- genau die traten vorher auf
+    # ("inflate: incorrect header check" an den /Length1-Objekten).
+    set pruef ""
+    catch {exec qpdf --password=geheim --check $datei 2>@1} pruef
+    set stromfehler [regexp -all {error decoding stream data} $pruef]
+
+    # und der Text muss mit Kennwort herauskommen
+    set klar [file join [temporaryDirectory] enc-cid-klar.pdf]
+    exec qpdf --password=geheim --decrypt $datei $klar
+    set fh [open $klar rb] ; set data [read $fh] ; close $fh
+    file delete -force $datei $klar
+    list $stromfehler [expr {[string length $data] > 0}]
+} -result {0 1}
+
+test encrypt-cid-1.1 {ohne Kennwort bleibt dasselbe PDF dicht} \
+        -constraints haveQpdf -setup {
+    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+} -body {
+    if {![file readable $ttf]} { return "uebersprungen: keine DejaVuSans.ttf" }
+    pdf4tcl::loadBaseTrueTypeFont EncCidBase2 $ttf
+    pdf4tcl::createFontSpecCID EncCidBase2 EncCidUni2
+    set p [::pdf4tcl::new %AUTO% -paper a4 -userpassword geheim]
+    $p startPage ; $p setFont 12 EncCidUni2
+    $p text "CID-PROBE-4711" -x 60 -y 700
+    set datei [file join [temporaryDirectory] enc-cid2.pdf]
+    $p write -file $datei
+    $p destroy
+    # Ohne Kennwort muss qpdf scheitern.
+    set rc [catch {exec qpdf --check $datei 2>@1}]
+    file delete -force $datei
+    set rc
+} -result 1
+
+# ---------------------------------------------------------------------------
+# Der XMP-Strom gehoert mitverschluesselt
+#
+# Die Datei schreibt /EncryptMetadata true; ein Leser entschluesselt
+# den Strom daraufhin. Blieb er im Klartext, bekam er Buchstabensalat --
+# und der Titel stand ausserdem lesbar in einer angeblich
+# verschluesselten Datei. Gemessen 14.09.2026 an 0.9.4.66.
+#
+# qpdf --check findet das NICHT: der XMP-Strom ist unkomprimiert, es
+# gibt also kein Entpacken, das scheitern koennte. Darum wird hier in
+# den Rohbytes nachgesehen.
+
+test encrypt-xmp-1.0 {XMP-Metadaten stehen nicht im Klartext} -body {
+    set p [::pdf4tcl::new %AUTO% -paper a4 -userpassword geheim]
+    $p metadata -title "XMPMARKE-4711"
+    $p startPage ; $p setFont 12 Helvetica ; $p text "X" -x 50 -y 700
+    set datei [file join [temporaryDirectory] enc-xmp.pdf]
+    $p write -file $datei
+    $p destroy
+    set fh [::open $datei rb] ; set roh [read $fh] ; close $fh
+    file delete -force $datei
+    string first "XMPMARKE-4711" $roh
+} -result -1
+
+test encrypt-xmp-1.1 {ohne Verschluesselung steht er sehr wohl da} -body {
+    # Gegenprobe: ohne -userpassword muss die Marke auffindbar sein.
+    # Sonst prueft der Fall oben nur, dass metadata gar nichts schreibt.
+    set p [::pdf4tcl::new %AUTO% -paper a4]
+    $p metadata -title "XMPMARKE-4711"
+    $p startPage ; $p setFont 12 Helvetica ; $p text "X" -x 50 -y 700
+    set datei [file join [temporaryDirectory] klar-xmp.pdf]
+    $p write -file $datei
+    $p destroy
+    set fh [::open $datei rb] ; set roh [read $fh] ; close $fh
+    file delete -force $datei
+    expr {[string first "XMPMARKE-4711" $roh] >= 0}
+} -result 1
+
+test encrypt-strings-1.0 {kein Literalstring der Klarfassung ueberlebt} -body {
+    # Breiter als ein einzelnes Merkmal: ALLE Literalstrings beider
+    # Dateien vergleichen. Was in beiden gleich dasteht, ist nicht
+    # verschluesselt worden.
+    proc ::EncStrings {datei} {
+        set fh [::open $datei rb] ; set d [read $fh] ; close $fh
+        set out {}
+        foreach m [regexp -all -inline {\(([ -~]{6,})\)} $d] {
+            if {[string index $m 0] ne "("} { lappend out $m }
+        }
+        return [lsort -unique $out]
+    }
+    set gemeinsam {}
+    foreach {name opts} {klar {} enc {-userpassword geheim}} {
+        set p [::pdf4tcl::new %AUTO% -paper a4 {*}$opts]
+        $p metadata -title "STRMARKE-4711"
+        $p startPage ; $p setFont 12 Helvetica
+        $p text "Seite" -x 50 -y 700
+        $p bookmarkAdd -title "LESEMARKE-4711"
+        $p hyperlinkAdd 50 650 150 20 "https://LINKMARKE.example"
+        set d($name) [file join [temporaryDirectory] str-$name.pdf]
+        $p write -file $d($name)
+        $p destroy
+    }
+    set k [::EncStrings $d(klar)]
+    set e [::EncStrings $d(enc)]
+    foreach s $k { if {$s in $e} { lappend gemeinsam $s } }
+    file delete -force $d(klar) $d(enc)
+    rename ::EncStrings {}
+    list [expr {[llength $k] > 0}] $gemeinsam
+} -result {1 {}}
+
+test encrypt-cid-2.0 {AES-256 mit eingebetteter Schrift} \
+        -constraints haveQpdf -setup {
+    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+} -body {
+    # -encversion 5 geht einen anderen Schluesselweg als AESv2. Die
+    # Behebung an WriteCIDFontObjects gilt fuer beide, das war aber
+    # unbelegt, bis dieser Fall dazukam (14.09.2026).
+    if {![file readable $ttf]} { return "uebersprungen: keine DejaVuSans.ttf" }
+    pdf4tcl::loadBaseTrueTypeFont Enc256Base $ttf
+    pdf4tcl::createFontSpecCID Enc256Base Enc256Uni
+    set p [::pdf4tcl::new %AUTO% -paper a4 -userpassword geheim -encversion 5]
+    $p startPage ; $p setFont 12 Enc256Uni
+    $p text "AES256-PROBE" -x 60 -y 700
+    set datei [file join [temporaryDirectory] enc-cid256.pdf]
+    $p write -file $datei
+    $p destroy
+    set pruef ""
+    catch {exec qpdf --password=geheim --check $datei 2>@1} pruef
+    set stromfehler [regexp -all {error decoding stream data} $pruef]
+    set aesv3 [regexp {AESv3} $pruef]
+    file delete -force $datei
+    list $stromfehler $aesv3
+} -result {0 1}
+
+# ---------------------------------------------------------------------------
+# Die allgemeine Probe: kein Byte der Klarfassung ueberlebt
+#
+# Die Faelle oben pruefen je EINE Eigenschaft -- Anhangsname, Ebenenname,
+# XMP, CID-Schrift. Jeder davon entstand, nachdem ein Fehler aufgefallen
+# war. Was niemandem einfaellt, wird nicht geprueft.
+#
+# Dieser Fall geht andersherum: dasselbe Dokument zweimal bauen, einmal
+# klar und einmal verschluesselt, und verlangen, dass KEIN Strom
+# bytegleich ist. Ein Strom, der die Verschluesselung umgeht, steht
+# unveraendert da -- unabhaengig davon, wozu er gehoert.
+#
+# Gemessen 14.09.2026: beide Fehler dieser Fassung waren genau das --
+# die CID-Schriftstroeme und der XMP-Strom standen Byte fuer Byte wie
+# in der unverschluesselten Datei.
+
+proc ::EncStreams {datei} {
+    set fh [::open $datei rb] ; set d [read $fh] ; close $fh
+    set out {}
+    set pos 0
+    while {1} {
+        # "endstream" enthaelt selbst "stream" -- daher die Abgrenzung.
+        if {![regexp -start $pos -indices {(^|[^a-zA-Z])stream\r?\n} $d m]} break
+        set s [expr {[lindex $m 1] + 1}]
+        set e [string first "endstream" $d $s]
+        if {$e < 0} break
+        set roh [string range $d $s [expr {$e - 1}]]
+        if {[string length $roh] > 16} { lappend out $roh }
+        set pos $e
+    }
+    return $out
+}
+
+proc ::EncBaue {datei opts} {
+    set p [::pdf4tcl::new %AUTO% -paper a4 {*}$opts]
+    $p metadata -title "ALLPROBE-XMP"
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "ALLPROBE-SEITE" -x 50 -y 750
+    $p bookmarkAdd -title "ALLPROBE-LESEZEICHEN"
+    $p hyperlinkAdd 50 700 150 20 "https://ALLPROBE-LINK.example"
+    catch {
+        $p addLayer "ALLPROBE-EBENE"
+    }
+    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    if {[file readable $ttf]} {
+        catch {
+            pdf4tcl::loadBaseTrueTypeFont AllProbeBase $ttf
+            pdf4tcl::createFontSpecCID AllProbeBase AllProbeUni
+            $p setFont 12 AllProbeUni
+            $p text "ALLPROBE-CID" -x 50 -y 650
+        }
+    }
+    $p write -file $datei
+    $p destroy
+}
+
+test encrypt-all-1.0 {kein Strom ueberlebt die Verschluesselung unveraendert} -body {
+    set klar [file join [temporaryDirectory] all-klar.pdf]
+    set enc  [file join [temporaryDirectory] all-enc.pdf]
+    ::EncBaue $klar {}
+    ::EncBaue $enc  {-userpassword geheim}
+    set k [::EncStreams $klar]
+    set e [::EncStreams $enc]
+    set gleich 0
+    foreach s $k { if {$s in $e} { incr gleich } }
+    file delete -force $klar $enc
+    # erste Zahl: es wurden ueberhaupt Stroeme gefunden
+    list [expr {[llength $k] > 2}] $gleich
+} -result {1 0}
+
+test encrypt-all-1.1 {kein Literalstring ueberlebt} -body {
+    set klar [file join [temporaryDirectory] all2-klar.pdf]
+    set enc  [file join [temporaryDirectory] all2-enc.pdf]
+    ::EncBaue $klar {}
+    ::EncBaue $enc  {-userpassword geheim}
+    array unset d
+    foreach {n f} [list klar $klar enc $enc] {
+        set fh [::open $f rb] ; set roh [read $fh] ; close $fh
+        set l {}
+        foreach m [regexp -all -inline {\(([ -~]{6,})\)} $roh] {
+            if {[string index $m 0] ne "("} { lappend l $m }
+        }
+        set d($n) [lsort -unique $l]
+    }
+    set gemeinsam {}
+    foreach s $d(klar) { if {$s in $d(enc)} { lappend gemeinsam $s } }
+    file delete -force $klar $enc
+    list [expr {[llength $d(klar)] > 0}] $gemeinsam
+} -result {1 {}}
+
+test encrypt-all-1.2 {und mit Kennwort ist alles wieder da} \
+        -constraints haveQpdf -body {
+    # Gegenrichtung: die Verschluesselung darf nicht dadurch "gelingen",
+    # dass der Inhalt kaputtgeht. qpdf muss die Datei sauber
+    # entschluesseln koennen.
+    set enc  [file join [temporaryDirectory] all3-enc.pdf]
+    set klar [file join [temporaryDirectory] all3-back.pdf]
+    ::EncBaue $enc {-userpassword geheim}
+    set pruef ""
+    catch {exec qpdf --password=geheim --check $enc 2>@1} pruef
+    set fehler [regexp -all {error decoding stream data} $pruef]
+    exec qpdf --password=geheim --decrypt $enc $klar
+    set fh [::open $klar rb] ; set zurueck [read $fh] ; close $fh
+    set marken 0
+    foreach m {ALLPROBE-XMP ALLPROBE-LESEZEICHEN ALLPROBE-LINK} {
+        if {[string first $m $zurueck] >= 0} { incr marken }
+    }
+    file delete -force $enc $klar
+    list $fehler $marken
+} -result {0 3}
+
+# ---------------------------------------------------------------------------
 # Cleanup
 # ---------------------------------------------------------------------------
 cleanupTests

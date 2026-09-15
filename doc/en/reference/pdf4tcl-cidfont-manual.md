@@ -1,5 +1,10 @@
 # pdf4tcl CID Fonts – User Manual
 
+> **With encryption:** nothing special to do since 0.9.4.67 -- see
+> [`pdf4tcl-encryption.md`](pdf4tcl-encryption.md#encryption-and-embedded-fonts).
+> Up to 0.9.4.66 the font objects were not encrypted, and such a file
+> could not be opened even with the correct password.
+
 ## Introduction
 
 pdf4tcl 0.9.4.5 adds `createFontSpecCID`, a new font creation command that

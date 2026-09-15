@@ -1,3 +1,27 @@
+2026-09-14  Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.67
+
+	* src/main.tcl (WriteObjectDirect): new method. Objects written
+	directly with Pdfout bypassed FlushObjects and thus
+	EncryptStreamBody. WriteCIDFontObjects did that for five objects, so
+	an encrypted PDF with an embedded CID font could not be read even
+	with the password -- qpdf reported "inflate: incorrect header check".
+	ISO 32000-1 7.6.2 requires all streams to be encrypted.
+	* src/main.tcl (finish): the XMP stream was written in the clear
+	while the file states /EncryptMetadata true. qpdf --check does not
+	catch this -- the stream is uncompressed, so no inflate fails.
+	* tests/encrypt.test: encryption and CID fonts were tested
+	separately but never together; that is where the bug lived. Six new
+	cases, including AES-256 and a check that no literal string survives.
+	* tests/build.test: build-2.0 guards that objects go through
+	WriteObjectDirect (seven exceptions, each checked); build-3.0 keeps
+	init.tcl off stderr (tcltest reports any stderr as a file error);
+	build-4.0 keeps pkg/pdf4tcl.tcl in sync with pdf4tcl.tcl.
+	* tests/init.tcl: reports which file the package was loaded from.
+	The version number alone is not enough -- two trees can carry the
+	same one.
+	
 2026-09-08 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.66

@@ -1,5 +1,32 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.67
+
+**Encrypted PDFs with an embedded font are now readable.** Until
+0.9.4.66 the five objects of `WriteCIDFontObjects` were written
+straight to the file, bypassing encryption. The document was produced,
+was tight without a password -- and could not be opened **with** one:
+`qpdf` reported `inflate: incorrect header check`, `pdftotext -upw`
+returned nothing. The font stream was byte-identical to the one in an
+unencrypted file, and a reader that obeys `/Encrypt` decrypts it
+anyway.
+
+If you worked around this -- by falling back to a standard font for
+encrypted output, for example -- you can drop the workaround. Nothing
+else changes: files without encryption, and encrypted files with
+standard fonts, are produced exactly as before.
+
+**XMP metadata is encrypted too.** The stream was written in the clear
+while the file states `/EncryptMetadata true`. Anyone reading such a
+file got garbage from the metadata -- and the title stood readable in a
+supposedly encrypted document. `qpdf --check` does not catch this: the
+stream is uncompressed, so there is no inflate to fail.
+
+**If you produced encrypted PDFs with 0.9.4.66 or earlier**, they carry
+this defect. Nothing is lost -- the content is there, in the clear --
+but a reader cannot show the embedded font, and the metadata was never
+protected. Rebuild them with 0.9.4.67.
+
 ## 0.9.4.66
 
 **An empty field draws its border.** A text field, check box or radio

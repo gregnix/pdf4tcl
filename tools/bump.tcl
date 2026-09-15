@@ -100,6 +100,7 @@ if {$verify} {
         pdf4tcl.man        {manpage_begin pdf4tcl n \S+}
         Makefile           {VERSION\s*=\s*\S+}
         pdf4tcl.html       {pdf4tcl\(n\) \S+ pdf4tcl}
+        pdf4tcl.n          {\.TH "pdf4tcl" n (\S+) pdf4tcl}
     } {
         if {![file exists $f]} { puts "  SKIP $f"; continue }
         set c [readFile $f]
@@ -111,6 +112,12 @@ if {$verify} {
         # Makefile fuehrt die Version ohne Punkte (09444).
         set want $oldVersion
         if {$f eq "Makefile"} { set want [regsub -all {\.} $oldVersion {}] }
+        # nroff schreibt jeden Punkt als \&. -- sonst nimmt groff ihn am
+        # Zeilenanfang fuer einen Befehl. Vor dem Vergleich herausnehmen.
+        # Ohne das stand pdf4tcl.n zwei Fassungen zurueck, ohne dass es
+        # jemandem auffiel: die Datei war nicht in dieser Liste, und kein
+        # sed traf die Schreibweise. Gemessen 15.09.2026.
+        if {$f eq "pdf4tcl.n"} { set m [string map {{\&} {}} $m] }
         if {[string match "*$want*" $m]} {
             puts "  OK   $f: $m"
         } else {

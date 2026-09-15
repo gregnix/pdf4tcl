@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.66 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.67 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.66?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.67?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -561,12 +561,12 @@ value (<b class="const">/Yes</b>, <b class="const">/Off</b>) is left as it is.</
 field width by <b class="const">/MaxLen</b>, so without it there are no cells and this
 reports 0. The answer says what the file does, not what stands in it.</p></dd>
 <dt><b class="option">description</b></dt>
-<dd><p>The field's tooltip text (0.9.4.66).
+<dd><p>The field's tooltip text (0.9.4.65).
 <b class="method">addForm</b> writes it from <b class="option">-tooltip</b>; until 0.9.4.64
 <b class="cmd">getForms</b> did not give it back, so the package wrote an answer it
 would not read.</p></dd>
 <dt><b class="option">options</b></dt>
-<dd><p>The permitted values of a choice field (0.9.4.66), one
+<dd><p>The permitted values of a choice field (0.9.4.65), one
 <b class="const">export label</b> pair per entry. Empty for every other kind of
 field -- but present, so the caller need not branch on the field type.</p>
 <p>A form may list its options two ways (ISO 32000-1 12.7.4.4): labels
@@ -615,7 +615,7 @@ nobody saw the difference before the sheet was out.</p>
 <p>Every widget of the field gets its own stream, built from its own
 <b class="const">/Rect</b> (0.9.4.64). One stream for all of them would sit in the
 wrong place on every sheet but the first.</p>
-<p><em>A choice field takes only one of its options</em> (0.9.4.66) -- or
+<p><em>A choice field takes only one of its options</em> (0.9.4.65) -- or
 the empty string, which means &quot;nothing selected&quot;.
 Until 0.9.4.64 any value was written into <b class="const">/V</b> and a success
 reported; the field then carried a state no viewer can show, and it

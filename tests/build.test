@@ -30,4 +30,109 @@ test build-1.0 {pdf4tcl.tcl is in sync with src/*.tcl (cat CATFILES)} -body {
     expr {$built eq $onDisk ? "in-sync" : "STALE: run 'make pdf4tcl.tcl'"}
 } -result in-sync
 
+# ---------------------------------------------------------------------------
+# Objekte direkt zu schreiben umgeht die Verschluesselung
+#
+# Es gibt zwei Wege, ein Objekt in die Datei zu bringen:
+#
+#   ueber pdf(objects) -> FlushObjects -> EncryptStreamBody
+#   direkt mit Pdfout  -> ohne Verschluesselung
+#
+# Der zweite ist noetig: die CID-Schriften entstehen erst in finish(),
+# mitten im Strom, wenn pdf(objects) laengst geleert ist, und ihre OIDs
+# sind vorher reserviert, weil die Seitenressourcen sie brauchen.
+#
+# Er darf aber nur ueber WriteObjectDirect gehen. Wer "$oid 0 obj" von
+# Hand an Pdfout gibt, verschluesselt nicht -- und das faellt erst auf,
+# wenn jemand ein verschluesseltes PDF mit eigener Schrift oeffnen will.
+# Gemessen 14.09.2026: fuenf solche Stellen in WriteCIDFontObjects,
+# qpdf meldete "inflate: incorrect header check".
+
+test build-2.0 {Objekte gehen ueber WriteObjectDirect, nicht roh ueber Pdfout} -body {
+    set fh [open [file join $repoRoot pdf4tcl.tcl] r]
+    set text [read $fh]
+    close $fh
+
+    # Erlaubt, jede Ausnahme einzeln geprueft (14.09.2026):
+    #
+    #   WriteObjectDirect  der sichere Weg selbst
+    #   startPage          Seitenobjekt, wird spaeter ergaenzt
+    #   WriteEncryptDict   das Verschluesselungswoerterbuch DARF nicht
+    #                      verschluesselt sein (ISO 32000-1, 7.6.2)
+    #   TagWriteObjects    Zahlenbaum ohne Strings und Stroeme
+    #   _WriteXrefStream   Querverweisstroeme sind ausgenommen
+    #   _WriteOutputIntent ICC-Profil; nur bei -pdfa, und -pdfa schliesst
+    #                      Verschluesselung aus (throw in main.tcl)
+    #   finish             fuenf Stellen, einzeln nachgesehen:
+    #                        /Outlines und /AcroForm -- nur Zahlen und
+    #                          Verweise, keine Strings
+    #                        Lesezeichentitel -- ruft EncryptStringsInBody
+    #                          selbst (gemessen: im verschluesselten PDF
+    #                          nicht im Klartext)
+    #                        XMP -- ruft jetzt EncryptStreamBody selbst
+    #                        OutputIntent-Liste -- nur bei -pdfa
+    set erlaubt {WriteObjectDirect startPage WriteEncryptDict \
+            TagWriteObjects _WriteXrefStream _WriteOutputIntent finish}
+
+    set methode ""
+    set treffer {}
+    set n 0
+    foreach zeile [split $text \n] {
+        incr n
+        if {[regexp {^    method ([A-Za-z0-9_]+)} $zeile -> m]} { set methode $m }
+        if {[regexp {my Pdfout "\$[A-Za-z0-9_]+ 0 obj} $zeile]} {
+            if {$methode ni $erlaubt} { lappend treffer "$n:$methode" }
+        }
+    }
+    set treffer
+} -result {}
+
+# ---------------------------------------------------------------------------
+# Kein stderr aus init.tcl
+#
+# tcltest wertet JEDE Ausgabe eines Testlaufs auf stderr als
+# "Test file error" -- auch eine reine Auskunft. Eine Zeile in
+# init.tcl liess daraufhin alle 55 Dateien als fehlerhaft erscheinen,
+# obwohl 1413 Faelle bestanden. Gemeldet 14.09.2026.
+#
+# Auskuenfte gehen auf stdout.
+
+test build-3.0 {init.tcl schreibt nicht auf stderr} -body {
+    set fh [open [file join [file dirname [info script]] init.tcl] r]
+    set text [read $fh]
+    close $fh
+    set treffer {}
+    set n 0
+    foreach zeile [split $text \n] {
+        incr n
+        if {[string match "*#*" $zeile] && [string first "puts" $zeile] < 0} continue
+        if {[regexp {puts\s+stderr} $zeile]} { lappend treffer $n }
+    }
+    set treffer
+} -result {}
+
+# ---------------------------------------------------------------------------
+# pkg/pdf4tcl.tcl darf nicht veralten
+#
+# Der Baum haelt zwei Kopien: pdf4tcl.tcl in der Wurzel (aus src/*.tcl
+# zusammengesetzt) und pkg/pdf4tcl.tcl (der Paketstand, den pkgIndex.tcl
+# laedt). Welche geladen wird, haengt am auto_path.
+#
+# Gemeldet 14.09.2026: eine Behebung lag in der Wurzelfassung, geladen
+# wurde die aus pkg/ -- die Tests fielen aus, obwohl die Aenderung
+# richtig war. "make pdf4tcl.tcl" allein genuegt nicht; es braucht
+# "make all" oder "make pkg/pdf4tcl.tcl".
+#
+# build-1.0 prueft Wurzel gegen src/, dieser Fall pkg/ gegen Wurzel.
+
+test build-4.0 {pkg/pdf4tcl.tcl ist mit pdf4tcl.tcl gleich} -body {
+    set pkgFile [file join $repoRoot pkg pdf4tcl.tcl]
+    if {![file exists $pkgFile]} { return "kein pkg/ in diesem Baum" }
+    set fh [open [file join $repoRoot pdf4tcl.tcl] rb]
+    set wurzel [read $fh] ; close $fh
+    set fh [open $pkgFile rb]
+    set paket [read $fh] ; close $fh
+    expr {$wurzel eq $paket ? "in-sync" : "STALE: run 'make all'"}
+} -result in-sync
+
 cleanupTests

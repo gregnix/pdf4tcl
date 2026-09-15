@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.66
+package provide pdf4tcl 0.9.4.67
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -4967,12 +4967,27 @@ oo::define ::pdf4tcl::pdf4tcl {
         # Diesen direkt in pdf(ob) akkumulieren verhindert EILSEQ beim
         # Schreiben auf den iso8859-1-Channel in write/get.
         set xmpBytes [encoding convertto utf-8 $xmp]
+
+        # DER XMP-STROM MUSS MITVERSCHLUESSELT WERDEN.
+        #
+        # Die Datei schreibt /EncryptMetadata true; ein Leser
+        # entschluesselt den Strom daraufhin. Blieb er im Klartext,
+        # bekam er Buchstabensalat -- und der Titel stand ausserdem
+        # lesbar in einer angeblich verschluesselten Datei.
+        # Gemessen 14.09.2026 an 0.9.4.66.
+        #
+        # Unverschluesselt waere nur mit /EncryptMetadata false
+        # zulaessig (ISO 32000-1, 7.6.2); das schreibt pdf4tcl nicht.
         set xmpLen [string length $xmpBytes]
+        set xmpBody "<< /Type /Metadata /Subtype /XML /Length $xmpLen >>\n"
+        append xmpBody "stream\n" $xmpBytes "\nendstream"
+        # EncryptStreamBody setzt /Length selbst nach.
+        if {$pdf(encrypt)} {
+            set xmpBody [my EncryptStreamBody $xmp_oid $xmpBody]
+        }
         my Pdfout "$xmp_oid 0 obj\n"
-        my Pdfout "<< /Type /Metadata /Subtype /XML /Length $xmpLen >>\n"
-        my Pdfout "stream\n"
-        my Pdfout $xmpBytes
-        my Pdfout "\nendstream\nendobj\n\n"
+        my Pdfout $xmpBody
+        my Pdfout "\nendobj\n\n"
 
         # PDF/A OutputIntent objects (ISO 19005-1 SS6.2.2)
         # Written here so that the reserved OID is filled before xref.
@@ -6281,6 +6296,25 @@ Use -pdfa-icc to specify a profile path."
 
     # Write PDF objects for a CID (Type0) font at finish() time.
     # Called once per CID font after all text has been rendered.
+    # Ein Objekt schreiben, das NICHT ueber pdf(objects) laeuft.
+    #
+    # FlushObjects verschluesselt gespeicherte Objekte; wer direkt mit
+    # Pdfout schreibt, umgeht das. Bei den CID-Schriftobjekten fuehrte
+    # das dazu, dass ein verschluesseltes PDF mit eingebetteter Schrift
+    # zwar entstand, aber mit richtigem Kennwort nicht lesbar war:
+    # qpdf meldete "inflate: incorrect header check", pdftotext gab
+    # nichts aus. Gemessen 14.09.2026 an 0.9.4.66.
+    #
+    # Der Schluessel haengt an der Objektnummer -- $oid muss deshalb
+    # die Nummer sein, unter der das Objekt auch geschrieben wird.
+    method WriteObjectDirect {oid body} {
+        if {$pdf(encrypt)} {
+            set body [my EncryptStringsInBody $oid $body]
+            set body [my EncryptStreamBody    $oid $body]
+        }
+        my Pdfout "$oid 0 obj\n$body\nendobj\n\n"
+    }
+
     method WriteCIDFontObjects {fontname oid} {
         variable ::pdf4tcl::BFA
         variable ::pdf4tcl::BFP
@@ -6345,7 +6379,7 @@ Use -pdfa-icc to specify a profile path."
         }
         set fsbody [MakeStream $dictv $rawttf $pdf(compress)]
         set fsoid [my GetOid]
-        my Pdfout "$fsoid 0 obj\n$fsbody\nendobj\n\n"
+        my WriteObjectDirect $fsoid $fsbody
 
         # 2. Font descriptor
         set body "<<\n/Type /FontDescriptor\n"
@@ -6395,13 +6429,13 @@ Use -pdfa-icc to specify a profile path."
             set cidset ""
             foreach b $bits { append cidset [binary format cu $b] }
             set csoid [my GetOid]
-            my Pdfout "$csoid 0 obj\n[MakeStream {<<} $cidset \
-                    $pdf(compress)]\nendobj\n\n"
+            my WriteObjectDirect $csoid \
+                    [MakeStream {<<} $cidset $pdf(compress)]
             append body "/CIDSet $csoid 0 R\n"
         }
         append body ">>"
         set fdoid [my GetOid]
-        my Pdfout "$fdoid 0 obj\n$body\nendobj\n\n"
+        my WriteObjectDirect $fdoid $body
 
         # 3. ToUnicode CMap
         set cmaplines "/CIDInit /ProcSet findresource begin\n"
@@ -6465,7 +6499,7 @@ Use -pdfa-icc to specify a profile path."
         append cmaplines "end\nend\n"
         set ucbody [MakeStream "<<" $cmaplines $pdf(compress)]
         set ucoid [my GetOid]
-        my Pdfout "$ucoid 0 obj\n$ucbody\nendobj\n\n"
+        my WriteObjectDirect $ucoid $ucbody
 
         # 4. W array (per-glyph widths)
         set warray ""
@@ -6493,7 +6527,7 @@ Use -pdfa-icc to specify a profile path."
         }
         append body ">>"
         set cidoid [my GetOid]
-        my Pdfout "$cidoid 0 obj\n$body\nendobj\n\n"
+        my WriteObjectDirect $cidoid $body
 
         # 6. Type0 font (top-level) - write with the pre-reserved OID
         set body "<<\n/Type /Font\n"
@@ -6504,7 +6538,7 @@ Use -pdfa-icc to specify a profile path."
         append body "/ToUnicode $ucoid 0 R\n"
         append body ">>"
         my StoreXref $oid
-        my Pdfout "$oid 0 obj\n$body\nendobj\n\n"
+        my WriteObjectDirect $oid $body
     }
 
     # Get metrics from current font.

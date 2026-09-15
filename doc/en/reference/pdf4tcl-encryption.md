@@ -126,6 +126,56 @@ dictionaries (AcroForm fields, metadata, bookmarks) in addition to
 page content streams. This ensures that field names, values, labels,
 and tooltips are protected alongside the document content.
 
+## Encryption and embedded fonts
+
+Nothing to do: an encrypted document with a CID/TrueType font of your own
+is produced like any other.
+
+```tcl
+pdf4tcl::loadBaseTrueTypeFont dejavu /path/DejaVuSans.ttf
+pdf4tcl::createFontSpecCID dejavu mine
+
+set p [pdf4tcl::new %AUTO% -paper a4 -userpassword secret -permissions {print}]
+$p startPage
+$p setFont 12 mine
+$p text "Grusse aus Munchen" -x 50 -y 700
+$p write -file out.pdf
+```
+
+**Up to and including 0.9.4.66 this was broken.** The five objects of
+the font -- the font program, the CID set, the ToUnicode map and the two
+dictionaries -- were written straight to the file and never encrypted.
+The result looked right: the document was produced, and without a
+password nothing could be read from it. But **with** the password it
+could not be read either:
+
+```
+qpdf --password=secret --check
+    error decoding stream data: inflate: incorrect header check
+pdftotext -upw secret
+    (empty)
+```
+
+The font stream was byte-identical to the one in an unencrypted file,
+and a reader that obeys `/Encrypt` decrypts it anyway -- and gets
+garbage. ISO 32000-1 clause 7.6.2 leaves no room here: all strings and
+streams of a document are encrypted, with a short, named list of
+exceptions that a font program is not part of.
+
+Fixed in **0.9.4.67**. If you worked around it -- by falling back to a
+standard font for encrypted output -- you can drop the workaround.
+Documents produced with 0.9.4.66 or earlier carry the defect; rebuild
+them.
+
+The same applied to the XMP metadata stream, which was written in the
+clear while the file states `/EncryptMetadata true`.
+
+> **Checking it yourself.** `qpdf --check` finds an unencrypted
+> **compressed** stream, because the inflate fails. It stays silent for
+> an **un**compressed one -- that is why the XMP stream went unnoticed
+> for so long. Look at the raw bytes as well: no string of the plain
+> file may appear in the encrypted one.
+
 ## Limitations
 
 - pdf4tcl can write encrypted PDFs but cannot read or decrypt them.

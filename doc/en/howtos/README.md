@@ -29,6 +29,7 @@ walkthroughs see `../tutorials/`. For full option lists see the manual page
 | `howto-headers-footers.md` | Repeating chrome? | `demo-tagged.tcl` (artifacts) |
 | `howto-encrypt.md` | Passwords? | `demo-encryption.tcl`, `demo-aes256.tcl` |
 | `howto-permissions.md` | Restrict print/copy after open? | `demo-permissions.tcl` |
+| `howto-encrypted-cidfont.md` | Encryption with your own embedded font? | -- |
 | `howto-encrypted-forms.md` | Encrypted AcroForms? | `demo-forms-aes128.tcl`, `demo-forms-aes256.tcl`, `demo-forms-enc.tcl` |
 | `howto-facturx.md` | Factur-X container? | `examples/facturx.tcl` |
 | `howto-cmyk.md` | DeviceCMYK? | -- |
