@@ -213,6 +213,44 @@ if {![dict exists $verzeichnis cmap]} {
 }
 
 # ---------------------------------------------------------------------------
+# 5b. /Flags der Schriftbeschreibung
+#
+# Die cmap allein genuegte nicht. loadBaseTrueTypeFont setzt fuer jede
+# TrueType-Schrift pauschal Bit 3 ("symbolic"), auch fuer eine reine
+# Textschrift. ISO 32000-1 zu einer symbolischen Schrift: sie soll eine
+# (3,0)- oder (1,0)-cmap haben, "otherwise it leaves the character code to
+# GID mapping up to the PDF reader". Die angehaengte Tabelle ist (3,1) --
+# symbolisch plus nur (3,1) ist die Grauzone, in der Umsetzungen
+# auseinanderlaufen. Seit 0.9.4.69 traegt der CID-Weg Bit 6
+# ("nonsymbolic", 32) statt Bit 3.
+# ---------------------------------------------------------------------------
+puts ""
+puts "Schriftbeschreibung:"
+set gefunden 0
+# "split $pdfdaten endobj" waere falsch: split trennt an JEDEM ZEICHEN der
+# zweiten Zeichenkette. Erst eine Marke setzen.
+foreach stueck [split [string map [list endobj \u0000] $pdfdaten] \u0000] {
+    if {![string match *FontDescriptor* $stueck]} continue
+    if {![regexp {/FontName\s*/(\S+)} $stueck -> fname]} continue
+    if {![regexp {/Flags\s+(\d+)} $stueck -> flags]} continue
+    incr gefunden
+    set bits {}
+    if {$flags & 1}        { lappend bits "fester Schritt" }
+    if {$flags & 4}        { lappend bits "SYMBOLISCH" }
+    if {$flags & 32}       { lappend bits "nicht symbolisch" }
+    if {$flags & 64}       { lappend bits "kursiv" }
+    if {$flags & (1<<18)}  { lappend bits "fett erzwungen" }
+    puts "   $fname: /Flags $flags ([join $bits {, }])"
+    if {$flags & 4} {
+        lappend fehler "$fname ist symbolisch markiert, die cmap ist aber (3,1)"
+    }
+    if {!($flags & 32)} {
+        lappend fehler "$fname ist nicht als nicht-symbolisch markiert"
+    }
+}
+if {!$gefunden} { lappend fehler "keine Schriftbeschreibung gefunden" }
+
+# ---------------------------------------------------------------------------
 # 6. Der Rundlauf: nimmt pdf4tcl sein eigenes Erzeugnis?
 #
 # Das ist die schaerfste Probe und braucht keinen Betrachter. Bis 0.9.4.67
@@ -240,5 +278,5 @@ if {[llength $fehler]} {
     foreach f $fehler { puts "   - $f" }
     exit 1
 }
-puts "Alles in Ordnung: gueltige Schrift, richtige Pruefsummen, Code N ist Glyphe N."
+puts "Alles in Ordnung: gueltige Schrift, richtige Pruefsummen, Code N ist\n   Glyphe N, und die Schrift ist nicht als symbolisch markiert."
 exit 0

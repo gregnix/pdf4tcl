@@ -941,4 +941,86 @@ test cidfont-11.6 {symbolische Teilschrift hat eine cmap, die die Spezifikation 
     set fehler
 } -result {}
 
+test cidfont-11.7 {CID-Schrift ist nicht symbolisch, einfache Schrift schon} \
+        -constraints {DejaVuSans} -body {
+    # Der Befund vom 27.09.2026: die cmap aus 0.9.4.68 war notwendig -- ohne
+    # sie war die Teilschrift keine gueltige Schrift --, aber nicht
+    # hinreichend. Der Adobe Reader zeichnete weiter falsch, weil
+    # loadBaseTrueTypeFont fuer JEDE TrueType-Schrift pauschal Bit 3
+    # ("symbolic") setzt, auch fuer eine reine Textschrift.
+    #
+    # ISO 32000-1 zu einer symbolischen TrueType-Schrift: sie soll eine
+    # (3,0)- oder eine (1,0)-cmap haben, "otherwise it leaves the character
+    # code to GID mapping up to the PDF reader". CIDIdentityCmap schreibt
+    # eine (3,1). Symbolisch plus nur (3,1) ist die Grauzone, in der
+    # Umsetzungen auseinanderlaufen.
+    #
+    # Darum: im CID-Weg Bit 6 ("nonsymbolic", 32) statt Bit 3 (4). Die beiden
+    # schliessen sich aus, also wird 4 geloescht und nicht bloss 32 gesetzt.
+    # Der EINFACHE Weg bleibt symbolisch, weil dort eine (1,0)-Macintosh-cmap
+    # steht -- siehe cidfont-11.6.
+    #
+    # Gemessen wird an drei Schnitten, damit die uebrigen Bits mitgeprueft
+    # sind: Regular 4, Mono 5 (fester Schritt), Bold 262148 (ForceBold)
+    # wurden zu 32, 33 und 262176.
+    set fehler {}
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    set y 60
+    foreach {kennung datei} [list \
+            Reg  $::dejavuPath \
+            Mono [file join [file dirname $::dejavuPath] DejaVuSansMono.ttf] \
+            Bold [file join [file dirname $::dejavuPath] DejaVuSans-Bold.ttf]] {
+        if {![file exists $datei]} continue
+        pdf4tcl::loadBaseTrueTypeFont FlagBase$kennung $datei
+        pdf4tcl::createFontSpecCID FlagBase$kennung FlagCid$kennung
+        $pdf setFont 12 FlagCid$kennung
+        $pdf text "Probe $kennung" -x 50 -y $y
+        incr y 22
+    }
+    # dazu der einfache Weg
+    pdf4tcl::loadBaseTrueTypeFont FlagSimpleBase $::dejavuPath
+    pdf4tcl::createFont FlagSimpleBase FlagSimple cp1252
+    $pdf setFont 12 FlagSimple
+    $pdf text "einfacher Weg" -x 50 -y $y
+    set data [$pdf get]
+    $pdf destroy
+
+    # Die Schriftbeschreibungen einsammeln. An "endobj" trennen, nicht ab
+    # "/Type /FontDescriptor" lesen: die Schluesselreihenfolge steht nicht
+    # fest, und bei der einfachen Schrift kommt /Flags VOR /Type. Ein Muster,
+    # das am Typ ansetzt, hat sie beim ersten Anlauf uebersehen -- und der
+    # Test haette dann die eine Haelfte der Aussage nicht geprueft.
+    set cidGefunden 0
+    set einfachGefunden 0
+    # "split $data endobj" waere falsch: split trennt an JEDEM ZEICHEN der
+    # zweiten Zeichenkette, also an e, n, d, o, b und j. Erst ueber string map
+    # eine Marke setzen, dann daran trennen.
+    foreach inhalt [split [string map [list endobj \u0000] $data] \u0000] {
+        if {![string match *FontDescriptor* $inhalt]} continue
+        if {![regexp {/FontName\s*/(\S+)} $inhalt -> fname]} continue
+        if {![regexp {/Flags\s+(\d+)} $inhalt -> flags]} {
+            lappend fehler "$fname ohne /Flags"
+            continue
+        }
+        if {[string match *Simple* $fname]} {
+            incr einfachGefunden
+            if {!($flags & 4)} {
+                lappend fehler "einfacher Weg nicht mehr symbolisch: $fname /Flags $flags"
+            }
+        } else {
+            incr cidGefunden
+            if {$flags & 4} {
+                lappend fehler "CID-Schrift noch symbolisch: $fname /Flags $flags"
+            }
+            if {!($flags & 32)} {
+                lappend fehler "CID-Schrift nicht als nicht-symbolisch markiert: $fname /Flags $flags"
+            }
+        }
+    }
+    if {$cidGefunden < 1} { lappend fehler "keine CID-Schriftbeschreibung gefunden" }
+    if {$einfachGefunden < 1} { lappend fehler "keine einfache Schriftbeschreibung gefunden" }
+    set fehler
+} -result {}
+
 ::tcltest::cleanupTests

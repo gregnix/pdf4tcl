@@ -1,5 +1,24 @@
 2026-09-27  Gregor  <gregnix@github>
 
+	* Bumped revision to 0.9.4.69
+
+	* src/main.tcl (DrawText, DrawTextAt): open the marked content before
+	the BT, not between the Tm and the Tj. TagOpenMC and TagCloseMC end the
+	text object, so the Tj came to stand outside BT/ET, which ISO 32000-1
+	9.4 forbids: Adobe Reader does not draw it, poppler and Chrome do.
+	Measured on a tagged cheat sheet: 133 of 146 text-showing operators
+	stood outside, and exactly the 13 inside were what the Reader showed.
+	Where TagEnsureMC closes an open text object, Tm is written again --
+	only there, or every untagged document changes (text-1.1).
+	* tests/tagged.test (tagged-text-1): the defect. -2 to -4 are
+	neighbouring cases, already right before.
+	* src/main.tcl (WriteCIDFontObjects): CID /Flags nonsymbolic (32)
+	instead of symbolic (4), to match the (3,1) cmap. Not the cause of the
+	above. MakeTTFSubset stays symbolic (cidfont-11.6, -11.7).
+	* demo/demo-cidsubset.tcl: reports /Flags, fails on a symbolic CID font..
+
+2026-09-27  Gregor  <gregnix@github>
+
 	* Bumped revision to 0.9.4.68
 
 	* src/fonts.tcl (CIDIdentityCmap): new procedure. CIDRebuildTtf

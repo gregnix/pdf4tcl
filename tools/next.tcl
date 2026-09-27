@@ -16,5 +16,5 @@
 # Anmerkungen und Dateianhaenge unter Verschluesselung sind NICHT mehr
 # offen -- encrypt-20.1 bis 20.5 pruefen sie seit 0.9.4.64, und
 # encrypt-all-1.0 deckt sie seit .67 ohne Kenntnis der Eigenschaft ab.
-set NEXT_VERSION 0.9.4.68
-set NEXT_MSG "cmap"
+set NEXT_VERSION 0.9.4.69
+set NEXT_MSG "0.9.4.69: tagged text stays inside BT/ET"

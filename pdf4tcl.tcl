@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.68
+package provide pdf4tcl 0.9.4.69
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -6471,9 +6471,40 @@ Use -pdfa-icc to specify a profile path."
         my WriteObjectDirect $fsoid $fsbody
 
         # 2. Font descriptor
+        #
+        # /Flags: NICHT symbolisch, anders als beim einfachen Weg (0.9.4.69).
+        #
+        # loadBaseTrueTypeFont setzt fuer JEDE TrueType-Schrift pauschal Bit 3
+        # ("symbolic", Wert 4) -- auch fuer eine reine Textschrift wie
+        # DejaVuSans. Das ist keine Beurteilung der Schrift, sondern eine
+        # Vorgabe. Fuer eine CID-Schrift passt sie nicht zu der cmap, die
+        # CIDIdentityCmap seit 0.9.4.68 anhaengt:
+        #
+        #   ISO 32000-1 zu einer SYMBOLISCHEN TrueType-Schrift: sie soll eine
+        #   (3,0)- oder eine (1,0)-cmap haben, "otherwise it leaves the
+        #   character code to GID mapping up to the PDF reader".
+        #
+        # Genau dort stand pdf4tcl: symbolisch markiert, aber nur mit einer
+        # (3,1)-Tabelle. Das ist die Grauzone, in der Umsetzungen
+        # auseinanderlaufen -- der Adobe Reader zeichnete die Seite auch mit
+        # der neuen cmap falsch, waehrend jede Anzeige, die /CIDToGIDMap
+        # /Identity folgt, richtig zeichnete. Gemessen am 27.09.2026 an
+        # pack.pdf: drei Teilschriften, Flags 4, 5 und 262148 -- alle
+        # symbolisch.
+        #
+        # Bit 6 ("nonsymbolic", Wert 32) statt Bit 3 macht (3,1) zur
+        # erwarteten Tabelle und nimmt die Schrift aus der Grauzone. Kursiv
+        # (64), fett (1<<18) und fester Schritt (1) bleiben, wie sie sind;
+        # die beiden Bits schliessen sich nach der Spezifikation gegenseitig
+        # aus, darum wird Bit 3 geloescht und nicht bloss Bit 6 dazugesetzt.
+        #
+        # NUR fuer den CID-Weg. MakeTTFSubset bleibt symbolisch, weil dort
+        # eine (1,0)-Macintosh-cmap steht -- eine der beiden zulaessigen
+        # Formen. cidfont-11.6 haelt das fest, cidfont-11.7 dieses hier.
+        set cidFlags [expr {($BFA($BFN,flags) & ~4) | 32}]
         set body "<<\n/Type /FontDescriptor\n"
         append body "/FontName /[::pdf4tcl::PdfName $subsetName]\n"
-        append body "/Flags $BFA($BFN,flags)\n"
+        append body "/Flags $cidFlags\n"
         set fbbox {}
         foreach n $BFA($BFN,bbox) {lappend fbbox [Nf $n]}
         append body "/FontBBox \[$fbbox\]\n"
@@ -7079,14 +7110,40 @@ Use -pdfa-icc to specify a profile path."
             # Position needs to be set since we left the text object
             set posSet 1
         }
+        # 0.9.4.69: die Auszeichnung MUSS VOR dem BT stehen.
+        #
+        # TagEnsureMC kann das Textobjekt schliessen: TagOpenMC und TagCloseMC
+        # rufen beide EndTextObj, um BDC bzw. EMC ausserhalb eines Textobjekts
+        # zu schreiben. Stand der Aufruf ZWISCHEN Tm und Tj, kam das Tj
+        # ausserhalb von BT/ET zu stehen:
+        #
+        #     BT / Tm / ET / <</MCID n>> BDC / <...> Tj / EMC
+        #
+        # ISO 32000-1 9.4: eine Textausgabe gehoert zwischen BT und ET. Der
+        # Adobe Reader zeichnet sie ausserhalb NICHT; poppler, mupdf und
+        # Chrome tun es. Gemessen am 27.09.2026 an einem getaggten
+        # Spickzettel: 133 von 146 Textausgaben standen draussen, und genau
+        # die 13 drinnen waren im Reader zu sehen -- Titel, Untertitel und
+        # elf Ueberschriften.
+        #
+        # Schliesst TagEnsureMC ein OFFENES Textobjekt, geht dabei die
+        # Textmatrix verloren. BT setzt sie auf die Einheitsmatrix zurueck,
+        # also muss Tm danach neu geschrieben werden -- sonst landet der Text
+        # im Ursprung. Dafuer posSet.
+        #
+        # Nur dann. Ein "if {!$pdf(in_text_object)}" allein waere zu weit
+        # gefasst: bei der ersten Ausgabe einer Seite ist das Textobjekt
+        # ohnehin zu, und ein Tm dort aendert die Ausgabe jedes ungetaggten
+        # Dokuments (text-1.1 erwartet "BT (Hej hopp) Tj ET" ohne Tm).
+        set warOffen $pdf(in_text_object)
+        my TagEnsureMC Tj
+        if {$warOffen && !$pdf(in_text_object)} { set posSet 1 }
         my BeginTextObj
         if {$angle || $xangle || $yangle} {
             my SetTextPositionAngle $x $y $angle $xangle $yangle
         } elseif {$posSet} {
             my SetTextPosition $x $y
         }
-
-        my TagEnsureMC Tj
         # Kerning where the face has pairs. If PdfTextKerned returns
         # nothing, a plain Tj is written and a document without kerning
         # comes out byte for byte as before.
@@ -7116,9 +7173,11 @@ Use -pdfa-icc to specify a profile path."
         } elseif {$align == "center"} {
             set x [expr {$x - $strWidth / 2}]
         }
+        # Siehe oben: die Auszeichnung vor das BT, sonst steht das Tj
+        # ausserhalb des Textobjekts (0.9.4.69).
+        my TagEnsureMC Tj
         my BeginTextObj
         my SetTextPosition $x $y
-        my TagEnsureMC Tj
         # Kerning where the face has pairs. If PdfTextKerned returns
         # nothing, a plain Tj is written and a document without kerning
         # comes out byte for byte as before.

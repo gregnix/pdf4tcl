@@ -17,6 +17,30 @@ proc taggedPdf {body {opts {}}} {
     return $data
 }
 
+# Zaehlt Textausgaben (Tj, TJ, ', ") ausserhalb eines Textobjekts.
+#
+# ISO 32000-1 9.4: eine Textausgabe gehoert zwischen BT und ET. Der Adobe
+# Reader zeichnet sie ausserhalb NICHT, poppler und Chrome tun es -- darum
+# bleibt der Fehler in jeder anderen Anzeige unsichtbar. Gemessen am
+# 27.09.2026 an einem getaggten Spickzettel: 133 von 146 Textausgaben
+# standen draussen, und genau die 13 drinnen waren im Reader zu sehen.
+#
+# Gibt eine Liste {drinnen draussen} zurueck.
+proc textAusserhalb {data} {
+    set drinnen 0
+    set draussen 0
+    set offen 0
+    foreach zeile [split $data \n] {
+        set z [string trim $zeile]
+        if {[regexp {\mBT\M} $z]} { set offen 1 }
+        if {[regexp {\m(Tj|TJ)\M} $z] || [regexp {^\s*\(.*\)\s*['\"]\s*$} $z]} {
+            if {$offen} { incr drinnen } else { incr draussen }
+        }
+        if {[regexp {\mET\M} $z]} { set offen 0 }
+    }
+    return [list $drinnen $draussen]
+}
+
 proc contains {str sub} {
     expr {[string first $sub $str] >= 0}
 }
@@ -1366,5 +1390,100 @@ test tagged-span-8 {Summary nur am Table} -body {
     $p destroy
     expr {[string match {*applies to Table*} $e]}
 } -result 1
+
+# ---------------------------------------------------------------------------
+# tagged-text: jede Textausgabe steht zwischen BT und ET (0.9.4.69)
+# ---------------------------------------------------------------------------
+#
+# Der Ausloeser ist ein Wechsel der Auszeichnung, WAEHREND das Textobjekt
+# offen bleibt. BeginTextObj ruft TagEnsureMC nur, wenn es das BT selbst
+# schreibt; steht das Textobjekt schon offen, tat das erst DrawText -- und
+# TagOpenMC/TagCloseMC beenden das Textobjekt, um BDC bzw. EMC draussen zu
+# schreiben. Ergebnis war BT / Tm / ET / BDC / <...> Tj / EMC.
+#
+# Darum reicht ein tagBegin/text/tagEnd je Stueck NICHT als Probe: tagEnd
+# schliesst die Auszeichnung und damit das Textobjekt, das naechste BT holt
+# sich seine Auszeichnung selbst. Es braucht zwei Ausgaben in verschiedenen
+# Elementen ohne Ende dazwischen.
+#
+# Gemessen am 27.09.2026 mit der alten Reihenfolge: NUR tagged-text-1 fiel
+# durch. tagged-text-2 bis -4 waren schon vorher richtig und stehen hier als
+# Nachbarfaelle -- tagText schliesst sein Element selbst, drawTextBox ruft
+# BeginTextObj am Anfang, und ein Artefakt laeuft an TagEnsureMC vorbei. Sie
+# beweisen den Fehler nicht, sie halten fest, dass die neue Reihenfolge sie
+# nicht kaputt macht.
+
+test tagged-text-1 {Auszeichnung wechselt, Textobjekt bleibt offen} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin P
+        $p text "erstes Stueck" -x 50 -y 700
+        $p tagBegin Span
+        $p text "zweites Stueck" -x 50 -y 680
+        $p tagEnd
+        $p text "drittes Stueck" -x 50 -y 660
+        $p tagEnd
+    }]
+    textAusserhalb $data
+} -result {3 0}
+
+test tagged-text-2 {tagText hintereinander in verschiedenen Zellen} -body {
+    # Der Weg, den ein Tabellenaufbau nimmt: tagText oeffnet und schliesst
+    # das Element selbst, aber die Ausgaben folgen ohne Unterbrechung.
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Table
+        foreach zeile {1 2 3} {
+            $p tagBegin TR
+            $p tagText TD "Zelle $zeile a" -x 50 -y [expr {700 - 20 * $zeile}]
+            $p tagText TD "Zelle $zeile b" -x 200 -y [expr {700 - 20 * $zeile}]
+            $p tagEnd
+        }
+        $p tagEnd
+    }]
+    textAusserhalb $data
+} -result {6 0}
+
+test tagged-text-3 {drawTextBox und text gemischt} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin Div
+        $p tagBegin H1
+        $p text "Ueberschrift" -x 50 -y 750
+        $p tagEnd
+        $p tagBegin P
+        $p drawTextBox 50 600 300 100 "Ein Absatz, der ueber mehrere Zeilen\
+                laeuft, damit drawTextBox mehr als eine Ausgabe schreibt."
+        $p tagEnd
+        $p tagBegin P
+        $p drawTextBox 50 500 300 100 "Ein zweiter Absatz gleich danach,\
+                ohne etwas dazwischen."
+        $p tagEnd
+        $p tagEnd
+    }]
+    lindex [textAusserhalb $data] 1
+} -result 0
+
+test tagged-text-4 {Artefakt zwischen zwei Ausgaben} -body {
+    set data [taggedPdf {
+        $p tagged 1 -lang de-DE
+        $p startPage
+        $p setFont 10 Helvetica
+        $p tagBegin P
+        $p text "vor dem Artefakt" -x 50 -y 700
+        $p tagArtifact
+        $p text "Seitenzahl" -x 300 -y 40
+        $p tagArtifactEnd
+        $p text "nach dem Artefakt" -x 50 -y 680
+        $p tagEnd
+    }]
+    lindex [textAusserhalb $data] 1
+} -result 0
 
 cleanupTests
