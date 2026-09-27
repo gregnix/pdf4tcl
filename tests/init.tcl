@@ -49,7 +49,7 @@ set ::auto_path [concat [list $tmp] $::auto_path]
 if {[file exists $tmp/pdf4tcl.tcl_i]} {
     source $tmp/pdf4tcl.tcl_i
 }
-package require pdf4tcl 0.9.4.67
+package require pdf4tcl 0.9.4.68
 
 # WELCHES Paket wurde geladen?
 #

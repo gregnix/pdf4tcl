@@ -21,6 +21,7 @@ Output goes to `demo/out/`. The directory is rebuilt, not added to.
 | [`demo-api-vergleich.tcl`](demo-api-vergleich.tcl) | API-Vergleich (Font-Demo) |
 | [`demo-catpdf.tcl`](demo-catpdf.tcl) | PDFs zusammenfuehren (catPdf) |
 | [`demo-cidfont.tcl`](demo-cidfont.tcl) | CIDFont Unicode-Support |
+| [`demo-cidsubset.tcl`](demo-cidsubset.tcl) | Die eingebettete CID-Teilschrift von innen: Pflichttabellen, Pruefsummen, cmap (0.9.4.68). Ausgang 1, wenn etwas fehlt. |
 | [`demo-embedfile.tcl`](demo-embedfile.tcl) | Eingebettete Dateien (addEmbeddedFile) |
 | [`demo-encryption.tcl`](demo-encryption.tcl) | AES-128 Verschluesselung + -permissions |
 | [`demo-forms-aes128.tcl`](demo-forms-aes128.tcl) | Formular mit AES-128 |

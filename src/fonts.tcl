@@ -1156,7 +1156,7 @@ space instead of the usual empty rectangle."
     #
     # Zahlen, keine 0x-Literale: [expr {$i in $liste}] vergleicht als
     # ZEICHENKETTE. "129 in {0x81 ...}" ist FALSCH, obwohl 129 == 0x81.
-    # Der frühere Waechter hat deshalb nie gegriffen, und dieselbe Quelle
+    # Der fruehere Waechter hat deshalb nie gegriffen, und dieselbe Quelle
     # lieferte unter 8.6 <0081> und unter 9.0 <FFFD>. Gemessen 2026-09-03.
     variable Cp1252UndefinedBytes {129 141 143 144 157}
     proc Cp1252Undefined {byte} {
@@ -1419,11 +1419,60 @@ space instead of the usual empty rectangle."
         return $teile
     }
 
+    # cmap for a CID subset whose content stream already names glyph ids.
+    #
+    # cmap is a REQUIRED table (Apple TrueType Reference, Font Tables, Table 2;
+    # OpenType "Required Tables"). Up to 0.9.4.67 CIDRebuildTtf dropped it,
+    # reasoning that Identity-H addresses glyphs directly. That holds for the
+    # PDF side -- and is exactly why nobody noticed: every viewer that follows
+    # /CIDToGIDMap /Identity drew the glyphs, pdftotext extracted the right
+    # text, qpdf found no syntax error. Adobe Reader showed a blank page. The
+    # subset simply was not a valid font.
+    #
+    # Whether Reader really paints FROM this table is unmeasured, and the PDF
+    # spec says CIDToGIDMap governs the mapping for an embedded CIDFontType2.
+    # The likely mechanism is that Reader validates the font program. That is
+    # a guess and is written down as one: the fix rests on cmap being
+    # mandatory, which needs no guess.
+    #
+    # Identity, not the original Unicode cmap: a viewer going through the cmap
+    # would read the glyph id as a character code. Glyph 0x5A is not U+005A.
+    # Both paths must find the same glyph.
+    #
+    # letzteGlyphe is numGlyphs-1. A cmap entry must not point at a glyph that
+    # does not exist -- an earlier draft ran the first segment to 0xFFFE, which
+    # left 59282 codes pointing into nothing for DejaVuSans, and fontTools
+    # refused the font. cidfont-11.2 holds both ends.
+    proc CIDIdentityCmap {letzteGlyphe} {
+        if {$letzteGlyphe < 0} { set letzteGlyphe 0 }
+        if {$letzteGlyphe > 0xFFFE} { set letzteGlyphe 0xFFFE }
+        # format 4, two segments: 0..letzteGlyphe maps to itself, FFFF is the
+        # required sentinel and points at glyph 0.
+        set sub [binary format SuSuSu 4 32 0]
+        append sub [binary format SuSuSuSu 4 4 1 0]
+        append sub [binary format SuSu $letzteGlyphe 0xFFFF]
+        append sub [binary format Su 0]
+        append sub [binary format SuSu 0 0xFFFF]
+        append sub [binary format SuSu 0 1]
+        append sub [binary format SuSu 0 0]
+        set cmap [binary format SuSu 0 1]
+        append cmap [binary format SuSuIu 3 1 12]
+        append cmap $sub
+        return $cmap
+    }
+
     # Write a TrueType file with some tables replaced.
     #
-    # Tables that a CID font does not need are dropped: cmap (Identity-H
-    # addresses glyphs directly), and the layout tables, whose contents
-    # pdf4tcl has already read into BFA at load time.
+    # Dropped are the LAYOUT tables -- GPOS, GSUB, GDEF, kern, MATH, FFTM,
+    # DSIG. They are not required, and pdf4tcl has already read their contents
+    # into BFA at load time.
+    #
+    # cmap is NOT dropped. Up to 0.9.4.67 it was, with the reasoning that
+    # Identity-H addresses glyphs directly -- and the subset was therefore not
+    # a valid font, since cmap is a required table. An identity cmap is
+    # appended below; see CIDIdentityCmap for why identity and not the
+    # original. cidfont-11.1 holds the required tables, cidfont-11.2 the
+    # mapping.
     proc CIDRebuildTtf {roh ersatz} {
         binary scan $roh IuSu ver anzahl
         set tabellen {}
@@ -1439,13 +1488,31 @@ space instead of the usual empty rectangle."
                         [string range $roh $off [expr {$off + $len - 1}]]]
             }
         }
+        # numGlyphs steht in maxp an Offset 4 -- die Tabelle liegt hier schon
+        # vor, ersetzt oder im Original.
+        set numGlyphs 0
+        foreach e $tabellen {
+            if {[lindex $e 0] eq "maxp" && [string length [lindex $e 1]] >= 6} {
+                binary scan [string range [lindex $e 1] 4 5] Su numGlyphs
+            }
+        }
+        lappend tabellen [list cmap [::pdf4tcl::CIDIdentityCmap [expr {$numGlyphs - 1}]]]
         # head: indexToLocFormat must say "long", since that is what
         # MakeCIDSubset writes.
+        #
+        # checkSumAdjustment is zeroed here (0.9.4.68). It must be, twice over:
+        # the original value belongs to the ORIGINAL font and is a lie in a
+        # subset, and the spec computes head's own table checksum with this
+        # field at zero. The final value is written at the very end, once the
+        # whole file exists.
         set neu {}
         foreach e $tabellen {
             lassign $e tag inhalt
             if {$tag eq "head" && [string length $inhalt] >= 52} {
                 set inhalt [string replace $inhalt 50 51 [binary format Su 1]]
+            }
+            if {$tag eq "head" && [string length $inhalt] >= 12} {
+                set inhalt [string replace $inhalt 8 11 [binary format Iu 0]]
             }
             lappend neu [list $tag $inhalt]
         }
@@ -1460,15 +1527,37 @@ space instead of the usual empty rectangle."
         set off [expr {12 + $anzahl * 16}]
         set verz ""
         set daten ""
+        set headAnfang -1
         foreach e $tabellen {
             lassign $e tag inhalt
-            append verz [binary format a4IuIuIu $tag 0 \
-                    [expr {$off + [string length $daten]}] \
-                    [string length $inhalt]]
+            set tabAnfang [expr {$off + [string length $daten]}]
+            if {$tag eq "head"} { set headAnfang $tabAnfang }
+            # Die Pruefsumme JE TABELLE (0.9.4.68). Bis 0.9.4.67 stand hier
+            # eine 0. Damit war die erzeugte Datei keine gueltige
+            # TrueType-Datei -- und zwar so deutlich, dass
+            # loadBaseTrueTypeFont, die eigene Ladefunktion, sie mit
+            # "invalid TTF file checksum" abgelehnt hat. MakeTTFSubset, der
+            # andere Schneider, macht es seit immer richtig; nur der CID-Weg
+            # nicht. Gemessen am 27.09.2026.
+            append verz [binary format a4IuIuIu $tag \
+                    [CalcTTFCheckSum $inhalt 0 [string length $inhalt]] \
+                    $tabAnfang [string length $inhalt]]
             append daten $inhalt
             while {[string length $daten] % 4} { append daten "\x00" }
         }
-        return "$kopf$verz$daten"
+        set res "$kopf$verz$daten"
+
+        # checkSumAdjustment: die Gesamtsumme der Datei muss 0xB1B0AFBA
+        # ergeben. Das Feld liegt in head an Offset 8 und steht bis hierher
+        # auf 0, damit die Tabellenpruefsumme von head stimmt -- genau die
+        # Reihenfolge, die ChecksumTables beim Laden nachrechnet.
+        if {$headAnfang >= 0 && [string length $res] >= $headAnfang + 12} {
+            set summe [CalcTTFCheckSum $res 0 [string length $res]]
+            set adj [expr {(0xB1B0AFBA - $summe) & 0xFFFFFFFF}]
+            set res [string replace $res [expr {$headAnfang + 8}] \
+                    [expr {$headAnfang + 11}] [binary format Iu $adj]]
+        }
+        return $res
     }
 
     proc MakeTTFSubset {bfname fontname subset} {

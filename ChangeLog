@@ -1,3 +1,31 @@
+2026-09-27  Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.68
+
+	* src/fonts.tcl (CIDIdentityCmap): new procedure. CIDRebuildTtf
+	dropped the cmap table, reasoning that Identity-H addresses glyphs
+	directly. cmap is a required table (Apple TrueType Reference, Font
+	Tables, Table 2), so the subset was not a valid font -- Adobe Reader
+	showed a blank page while every other viewer drew the glyphs. An
+	identity cmap is appended instead: code N is glyph N, so the cmap and
+	/CIDToGIDMap /Identity agree. The first segment ends at numGlyphs-1
+	from maxp; entries beyond that would point at glyphs that do not
+	exist. Regression since 0.9.4.57.
+	* src/fonts.tcl (CIDRebuildTtf): each table now carries its checksum,
+	and head its checkSumAdjustment, which until now held the value of the
+	ORIGINAL font. loadBaseTrueTypeFont rejected pdf4tcl's own CID subset
+	with "invalid TTF file checksum".
+	* demo/demo-cidsubset.tcl: new demo. Writes a PDF, pulls the embedded
+	font back out and checks it: required tables, checksums, the cmap
+	segments, and a round trip through loadBaseTrueTypeFont. Exits 1 if
+	something is wrong, so it also serves as a hand probe after a change to
+	MakeCIDSubset or CIDRebuildTtf. demo-cidfont.tcl shows what one SEES;
+	this one shows what one does not.
+	* tests/cidfont.test (cidfont-11.1 .. 11.6): the subset is checked as a
+	font, not only as a PDF object. 11.5 feeds it back into
+	loadBaseTrueTypeFont. 11.6 records that a (1,0)-only cmap from
+	MakeTTFSubset is permitted for a symbolic font and is left alone.
+
 2026-09-14  Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.67

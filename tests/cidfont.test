@@ -713,4 +713,232 @@ test cidfont-9.12 {ein Subset traegt einen CIDSet} \
     string match "*/CIDSet*" $data
 } -result 1
 
+# -----------------------------------------------------------------------
+# cidfont-11.x  Das Subset ist eine GUELTIGE SCHRIFT (0.9.4.68)
+# -----------------------------------------------------------------------
+# Der Befund: bis 0.9.4.67 warf CIDRebuildTtf die cmap weg, mit der
+# Begruendung, Identity-H adressiere die Glyphen direkt. Das stimmt fuer
+# die PDF-Seite -- und genau deshalb hat es niemand gemerkt: pdftotext gab
+# den richtigen Text, qpdf fand keinen Syntaxfehler, und jede Anzeige, die
+# sich an /CIDToGIDMap /Identity haelt, zeichnete die Glyphen. Der Adobe
+# Reader zeigte die Seite leer.
+#
+# cmap ist eine PFLICHTTABELLE: Apple TrueType Reference, Font Tables,
+# Table 2, und OpenType "Required Tables". Ohne sie ist das eingebettete
+# Programm keine gueltige Schrift, ganz unabhaengig davon, welcher Betrachter
+# was daraus macht.
+#
+# Die Pruefungen hier liegen deshalb bewusst auf der SCHRIFT-Seite. Die
+# uebrigen Tests dieser Datei pruefen die PDF-Seite -- CID 0, CIDToGIDMap,
+# CIDSet, jeweils mit Klausel aus ISO 32000-2 bzw. ISO 19005-1. Das war
+# sorgfaeltig und hat den Fehler nicht gefunden, weil er eine Ebene tiefer
+# lag.
+proc ttfTabellen {ttf} {
+    binary scan $ttf IuSu ver anzahl
+    set out {}
+    for {set i 0} {$i < $anzahl} {incr i} {
+        set o [expr {12 + $i * 16}]
+        binary scan [string range $ttf $o [expr {$o + 15}]] a4IuIuIu tag chk off len
+        dict set out [string trimright $tag] [list $off $len]
+    }
+    return $out
+}
+
+test cidfont-11.1 {das Subset hat alle Pflichttabellen} \
+        -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont ReqBase $::dejavuPath
+    set sub [::pdf4tcl::MakeCIDSubset ReqBase {36 37 38 100 250}]
+    set da [dict keys [ttfTabellen $sub]]
+    # Apple TrueType Reference, Font Tables, Table 2
+    set pflicht {cmap glyf head hhea hmtx loca maxp name post}
+    set fehlt {}
+    foreach tag $pflicht { if {$tag ni $da} { lappend fehlt $tag } }
+    set fehlt
+} -result {}
+
+test cidfont-11.2 {die cmap zeigt nur auf vorhandene Glyphen, und identisch} \
+        -constraints {DejaVuSans} -body {
+    # Code N muss Glyphe N sein: im Inhaltsstrom stehen Glyphennummern, und
+    # ein Betrachter, der ueber die cmap geht, muss dieselbe Glyphe finden
+    # wie einer, der /CIDToGIDMap /Identity folgt. Die originale
+    # Unicode-cmap zu behalten waere darum falsch gewesen -- Glyphe 0x5A
+    # ist nicht das Zeichen U+005A.
+    #
+    # Und kein Eintrag darf auf eine Glyphe >= numGlyphs zeigen. Der erste
+    # Entwurf liess das erste Segment bis 0xFFFE laufen: 59282 Codes zeigten
+    # bei DejaVuSans ins Leere, und fontTools verweigerte die Schrift. Eine
+    # ungueltige cmap, um eine unvollstaendige Schrift zu heilen, waere ein
+    # schlechter Tausch -- gerade weil der Betrachter, um den es geht, prueft.
+    pdf4tcl::loadBaseTrueTypeFont CmapBase $::dejavuPath
+    set sub [::pdf4tcl::MakeCIDSubset CmapBase {36 37 38}]
+    set tab [ttfTabellen $sub]
+    lassign [dict get $tab maxp] moff mlen
+    binary scan [string range $sub [expr {$moff + 4}] [expr {$moff + 5}]] Su numGlyphs
+    lassign [dict get $tab cmap] coff clen
+    set cmap [string range $sub $coff [expr {$coff + $clen - 1}]]
+    set fehler {}
+    binary scan $cmap SuSu ver n
+    if {$n < 1} { lappend fehler "keine Untertabelle" }
+    binary scan [string range $cmap 4 11] SuSuIu plat enc off
+    set s [string range $cmap $off end]
+    binary scan $s SuSuSuSuSuSuSu fmt len lang segX2 search sel shift
+    if {$fmt != 4} { lappend fehler "Format $fmt statt 4" }
+    if {$len != [string length [string range $s 0 [expr {$len - 1}]]]} {
+        lappend fehler "Laengenangabe $len passt nicht"
+    }
+    set seg [expr {$segX2 / 2}]
+    set p 14
+    binary scan [string range $s $p [expr {$p + $segX2 - 1}]] Su$seg endc
+    incr p [expr {$segX2 + 2}]
+    binary scan [string range $s $p [expr {$p + $segX2 - 1}]] Su$seg startc
+    incr p $segX2
+    binary scan [string range $s $p [expr {$p + $segX2 - 1}]] S$seg delta
+    incr p $segX2
+    binary scan [string range $s $p [expr {$p + $segX2 - 1}]] Su$seg rango
+    foreach a $startc b $endc d $delta r $rango {
+        if {$r != 0} { lappend fehler "idRangeOffset != 0" ; continue }
+        if {$a == 0xFFFF} {
+            # die vorgeschriebene Marke: zeigt auf Glyphe 0
+            if {[expr {(0xFFFF + $d) % 65536}] != 0} { lappend fehler "Marke FFFF zeigt nicht auf Glyphe 0" }
+            continue
+        }
+        if {$d != 0} { lappend fehler "idDelta $d -- Code ist nicht die Glyphe" }
+        if {$b >= $numGlyphs} {
+            lappend fehler "Segment reicht bis $b, numGlyphs ist $numGlyphs"
+        }
+    }
+    set fehler
+} -result {}
+
+test cidfont-11.3 {jede Glyphennummer aus dem Strom ist von der cmap erfasst} \
+        -constraints {DejaVuSans} -body {
+    pdf4tcl::loadBaseTrueTypeFont StromBase $::dejavuPath
+    pdf4tcl::createFontSpecCID StromBase StromFont
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 StromFont
+    $pdf text "Gruesse aus Muenchen" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    # die eingebettete Schrift beginnt am TrueType-Kopf
+    set i [string first "\x00\x01\x00\x00" $data]
+    if {$i < 0} { return "keine eingebettete Schrift" }
+    set tab [ttfTabellen [string range $data $i end]]
+    lassign [dict get $tab maxp] moff mlen
+    binary scan [string range $data [expr {$i + $moff + 4}] [expr {$i + $moff + 5}]] Su numGlyphs
+    # Glyphennummern aus den TEXTOBJEKTEN. Nur dort -- der erste Entwurf
+    # dieses Tests suchte <hex> im ganzen PDF und fand die Dokumentkennung
+    # unter /ID, also "Glyphe 65535". Ein Test, der die falsche Stelle liest,
+    # meldet einen Fehler, den es nicht gibt.
+    set fehler {}
+    foreach blockPaar [regexp -all -inline {BT(.*?)ET} $data] {
+        if {[string range $blockPaar 0 1] eq "BT"} continue
+        foreach h [regexp -all -inline {<[0-9A-Fa-f]+>} $blockPaar] {
+            set h [string range $h 1 end-1]
+            foreach k [regexp -all -inline {[0-9A-Fa-f]{4}} $h] {
+                set g [scan $k %x]
+                if {$g >= $numGlyphs} { lappend fehler "Glyphe $g >= numGlyphs $numGlyphs" }
+            }
+        }
+    }
+    lsort -unique $fehler
+} -result {}
+
+test cidfont-11.4 {das Subset hat richtige Pruefsummen} \
+        -constraints {DejaVuSans} -body {
+    # Bis 0.9.4.67 schrieb CIDRebuildTtf fuer JEDE Tabelle die Pruefsumme 0
+    # und liess checkSumAdjustment auf dem Wert der Ausgangsschrift stehen --
+    # also nicht bloss leer, sondern falsch. MakeTTFSubset, der andere
+    # Schneider, macht beides seit immer richtig; nur der CID-Weg nicht.
+    #
+    # head ist der Sonderfall: seine Tabellenpruefsumme wird mit
+    # checkSumAdjustment = 0 gerechnet, weil das Feld erst danach gesetzt
+    # wird. ChecksumTables beim Laden rechnet genau so zurueck.
+    pdf4tcl::loadBaseTrueTypeFont SumBase $::dejavuPath
+    set sub [::pdf4tcl::MakeCIDSubset SumBase {36 37 38 100 250}]
+    set fehler {}
+    binary scan $sub IuSu ver n
+    for {set i 0} {$i < $n} {incr i} {
+        set o [expr {12 + $i * 16}]
+        binary scan [string range $sub $o [expr {$o + 15}]] a4IuIuIu tag chk off len
+        set tag [string trimright $tag]
+        set echt [::pdf4tcl::CalcTTFCheckSum $sub $off $len]
+        if {$tag eq "head"} {
+            binary scan [string range $sub [expr {$off + 8}] [expr {$off + 11}]] Iu adj
+            set echt [expr {($echt - $adj) & 0xFFFFFFFF}]
+        }
+        if {$echt != $chk} { lappend fehler "$tag" }
+    }
+    # und die Gesamtsumme der Datei
+    set ges [::pdf4tcl::CalcTTFCheckSum $sub 0 [string length $sub]]
+    if {$ges != 0xB1B0AFBA} { lappend fehler "Gesamtsumme [format %08X $ges]" }
+    set fehler
+} -result {}
+
+test cidfont-11.5 {die eigene Ladefunktion nimmt das eigene Subset} \
+        -constraints {DejaVuSans} -body {
+    # Der scharfe Pruefstein: loadBaseTrueTypeFont lehnt eine Datei ab, deren
+    # Gesamtsumme nicht 0xB1B0AFBA ist. Bis 0.9.4.67 bestand die eigene
+    # CID-Teilschrift diese eigene Pruefung NICHT ("invalid TTF file
+    # checksum"). Eine Bibliothek, die ihr Erzeugnis selbst verwirft, braucht
+    # keinen Adobe Reader, um zu wissen, dass etwas fehlt.
+    pdf4tcl::loadBaseTrueTypeFont RoundBase $::dejavuPath
+    set sub [::pdf4tcl::MakeCIDSubset RoundBase {36 37 38}]
+    set datei [file join [::tcltest::temporaryDirectory] cid-round-11-5.ttf]
+    set fh [open $datei wb]
+    puts -nonewline $fh $sub
+    close $fh
+    set rc [catch {pdf4tcl::loadBaseTrueTypeFont RoundBack $datei 1} m]
+    file delete -force $datei
+    if {$rc} { set m } else { set m {} }
+} -result {}
+
+test cidfont-11.6 {symbolische Teilschrift hat eine cmap, die die Spezifikation zulaesst} \
+        -constraints {DejaVuSans} -body {
+    # ISO 32000-1 verlangt bei einer SYMBOLISCHEN TrueType-Schrift eine
+    # (3,0)- ODER eine (1,0)-cmap. MakeTTFSubset schreibt genau eine
+    # Untertabelle, Plattform 1 Kodierung 0, Format 6, und die Schrift traegt
+    # /Flags 4 (symbolisch) -- das ist eine der beiden zulaessigen Formen und
+    # KEIN Fehler.
+    #
+    # Dieser Test haelt das fest, statt es zu aendern. Eine (3,0)-Tabelle
+    # zusaetzlich einzubauen waere kein Fehlerfix, sondern eine Wette: sobald
+    # sie da ist, nehmen Betrachter SIE statt der (1,0), und ein Fehler darin
+    # wuerde brechen, was heute ueberall geht. Erst messen, dann bauen.
+    pdf4tcl::loadBaseTrueTypeFont SymBase $::dejavuPath
+    pdf4tcl::createFont SymBase SymFont cp1252
+    set pdf [pdf4tcl::new %AUTO% -paper a4 -compress 0]
+    $pdf startPage
+    $pdf setFont 12 SymFont
+    $pdf text "Gruesse" -x 50 -y 60
+    set data [$pdf get]
+    $pdf destroy
+    set i [string first "\x00\x01\x00\x00" $data]
+    if {$i < 0} { return "keine eingebettete Schrift" }
+    set ttf [string range $data $i end]
+    set fehler {}
+    set cmapOff -1; set cmapLen 0
+    binary scan $ttf IuSu ver n
+    for {set k 0} {$k < $n} {incr k} {
+        set o [expr {12 + $k * 16}]
+        binary scan [string range $ttf $o [expr {$o + 15}]] a4IuIuIu tag chk off len
+        if {[string trimright $tag] eq "cmap"} { set cmapOff $off; set cmapLen $len }
+    }
+    if {$cmapOff < 0} { return "keine cmap" }
+    set cmap [string range $ttf $cmapOff [expr {$cmapOff + $cmapLen - 1}]]
+    binary scan $cmap SuSu cver cn
+    set erlaubt 0
+    for {set k 0} {$k < $cn} {incr k} {
+        set o [expr {4 + $k * 8}]
+        binary scan [string range $cmap $o [expr {$o + 7}]] SuSuIu plat enc soff
+        if {($plat == 3 && $enc == 0) || ($plat == 1 && $enc == 0)} { set erlaubt 1 }
+    }
+    if {!$erlaubt} { lappend fehler "weder (3,0) noch (1,0) in der cmap" }
+    if {![regexp {/Flags\s+(\d+)} $data -> flags]} { lappend fehler "keine /Flags" }
+    if {[info exists flags] && !($flags & 4)} {
+        lappend fehler "Schrift ist nicht symbolisch (/Flags $flags) -- dann gilt eine andere Regel"
+    }
+    set fehler
+} -result {}
+
 ::tcltest::cleanupTests
