@@ -26,7 +26,7 @@
 
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
-tcltest::testConstraint haveVerapdf [expr {![catch {exec verapdf --version}]}]
+tcltest::testConstraint haveVerapdf [expr {![catch {exec -ignorestderr verapdf --version}]}]
 
 set xmpFont [file join [file dirname [file dirname \
         [file normalize [info script]]]] examples FreeSans.ttf]
@@ -139,7 +139,7 @@ test cat-xmp-2.1 {zusammengefuehrt mit -title bleibt PDF/A-1b-konform} \
 } -body {
     ::pdf4tcl::catPdf -title "Zusammengefuehrt" \
             [file join $T va.pdf] [file join $T vb.pdf] [file join $T vout.pdf]
-    set r [exec verapdf -f 1b --format text [file join $T vout.pdf]]
+    set r [exec -ignorestderr verapdf -f 1b --format text [file join $T vout.pdf]]
     string match "PASS*" $r
 } -result 1
 
@@ -150,7 +150,7 @@ test cat-xmp-2.2 {ohne dc:title im ersten Dokument ebenfalls konform} \
 } -body {
     ::pdf4tcl::catPdf -title "Neuer Titel" \
             [file join $T wa.pdf] [file join $T wb.pdf] [file join $T wout.pdf]
-    set r [exec verapdf -f 1b --format text [file join $T wout.pdf]]
+    set r [exec -ignorestderr verapdf -f 1b --format text [file join $T wout.pdf]]
     string match "PASS*" $r
 } -result 1
 
@@ -163,7 +163,7 @@ test cat-xmp-2.3 {die Gegenprobe: ohne -title war es immer schon konform} \
 } -body {
     ::pdf4tcl::catPdf [file join $T ua.pdf] [file join $T ub.pdf] \
             [file join $T uout.pdf]
-    set r [exec verapdf -f 1b --format text [file join $T uout.pdf]]
+    set r [exec -ignorestderr verapdf -f 1b --format text [file join $T uout.pdf]]
     string match "PASS*" $r
 } -result 1
 
@@ -246,7 +246,7 @@ test cat-xmp-3.2 {Umlaute: UTF-8 im Paket und /Length in Bytes} \
     set anfang [expr {[string first "stream\n" $data $pos] + 7}]
     set ende [string first "\nendstream" $data $anfang]
     set strom [string range $data $anfang [expr {$ende - 1}]]
-    set r [exec verapdf -f 1b --format text [file join $T mout.pdf]]
+    set r [exec -ignorestderr verapdf -f 1b --format text [file join $T mout.pdf]]
     list [expr {$imPaket eq $erwartet}] \
          [expr {$laenge == [string length $strom]}] \
          [string match "PASS*" $r]

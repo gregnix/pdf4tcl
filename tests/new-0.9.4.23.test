@@ -3,6 +3,10 @@
 
 source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
+# Wie in cat-acroform.test und cat-xmp.test: ohne veraPDF wird der
+# Validator-Fall uebersprungen, nicht uebergangen.
+tcltest::testConstraint haveVerapdf [expr {![catch {exec -ignorestderr verapdf --version}]}]
+
 # ---------------------------------------------------------------------------
 # 23-1.x  -pdfa 3b Option
 # ---------------------------------------------------------------------------
@@ -75,24 +79,45 @@ test new-0.9.4.23-2.4 {AF-Array: AFRelationship Option akzeptiert} -setup {
 } -cleanup { removeFile af_test3.txt } -result 1
 
 # ---------------------------------------------------------------------------
-# 23-3.x  AS-Array (PDF/A-2b SS6.2.10)
+# 23-3.x  AS-Array -- UMGEDREHT am 01.10.2026
 # ---------------------------------------------------------------------------
+# Hier stand "AS-Array (PDF/A-2b SS6.2.10)", und 3.1/3.2/3.5 verlangten, dass
+# ein PDF/A-2b bzw. -3b MIT Ebenen ein /AS traegt. Nachgeschlagen in den
+# veraPDF-Profilen 2a und 2b, beide Klausel 6.9, gleicher Wortlaut:
+#
+#     "The AS key shall not appear in any optional content configuration
+#      dictionary"                                 Testbedingung: AS == null
+#
+# Jede PDF/A-2-Datei mit Ebenen war also nicht konform, und drei Testfaelle
+# hielten genau das fest. Aufgefallen ist es nie, weil die veraPDF-Faelle im
+# Baum (cat-acroform, cat-xmp) AcroForm und XMP pruefen und keiner davon eine
+# Ebene anlegt -- ein PDF/A MIT Ebenen hat nie einen Validator gesehen. Dafuer
+# ist pdfa-layer-1.0 unten da.
+#
+# Folge fuer den Anwender: unter PDF/A-2/-3 laesst sich "-print 0" nicht
+# ausdruecken. Das sagt der Standard, nicht diese Umsetzung.
 
-test new-0.9.4.23-3.1 {AS-Array: bei -pdfa 2b + Layer vorhanden} -body {
+test new-0.9.4.23-3.1 {kein /AS bei -pdfa 2b, auch mit Ebene} -body {
     set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
     set l [$p addLayer "Test"]
     $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
     set d [$p get]; $p destroy
-    expr {[string first "/AS \[" $d] >= 0}
+    expr {[string first "/AS \[" $d] < 0}
 } -result 1
 
-test new-0.9.4.23-3.2 {AS-Array: Print und View Events vorhanden} -body {
+test new-0.9.4.23-3.2 {kein /AS bei -pdfa 2b, auch mit -print 0} -body {
+    # Der Fall, in dem es am meisten weh tut: die Ebene SOLL nicht drucken,
+    # und unter PDF/A gibt es keinen Weg, das zu sagen. Lieber eine Datei,
+    # die konform ist und die Ebene mitdruckt, als eine, die beides
+    # behauptet und keines haelt.
     set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
-    set l [$p addLayer "Test"]
+    set l [$p addLayer "Raster" -print 0]
     $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
     set d [$p get]; $p destroy
-    expr {[string first "/Print" $d] >= 0 && [string first "/View" $d] >= 0}
-} -result 1
+    # /Usage darf in der Ebene stehen -- verboten ist nur /AS.
+    list [expr {[string first "/AS \[" $d] < 0}] \
+         [expr {[string first "/PrintState /OFF" $d] >= 0}]
+} -result {1 1}
 
 test new-0.9.4.23-3.3 {AS-Array: bei normalem PDF NICHT vorhanden} -body {
     set p [pdf4tcl::new %AUTO% -compress 0]
@@ -102,21 +127,49 @@ test new-0.9.4.23-3.3 {AS-Array: bei normalem PDF NICHT vorhanden} -body {
     expr {[string first "/AS \[" $d] < 0}
 } -result 1
 
-test new-0.9.4.23-3.4 {AS-Array: bei -pdfa 1b NICHT vorhanden} -body {
+test new-0.9.4.23-3.4 {-pdfa 1b: keine Ebene, also auch kein /OCProperties} -body {
+    # Frueher: Ebene unter 1b gebaut und nur auf fehlendes /AS geprueft --
+    # die Datei verletzte trotzdem ISO 19005-1 6.1.13. Jetzt wirft addLayer.
     set p [pdf4tcl::new %AUTO% -pdfa 1b -compress 0]
+    set rc [catch {$p addLayer "Test"}]
+    $p startPage; $p line 0 0 100 100; $p endPage
+    set d [$p get]; $p destroy
+    list $rc [expr {[string first "/OCProperties" $d] < 0}]
+} -result {1 1}
+
+test new-0.9.4.23-3.5 {kein /AS bei -pdfa 3b, auch mit Ebene} -body {
+    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
     set l [$p addLayer "Test"]
     $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
     set d [$p get]; $p destroy
     expr {[string first "/AS \[" $d] < 0}
 } -result 1
 
-test new-0.9.4.23-3.5 {AS-Array: bei -pdfa 3b + Layer vorhanden} -body {
-    set p [pdf4tcl::new %AUTO% -pdfa 3b -compress 0]
-    set l [$p addLayer "Test"]
+test new-0.9.4.23-3.6 {ohne PDF/A traegt dieselbe Datei sehr wohl ein /AS} -body {
+    # Gegenprobe zu 3.2: die Zusage geht nicht verloren, sie ist nur unter
+    # PDF/A nicht ausdrueckbar.
+    set p [pdf4tcl::new %AUTO% -compress 0]
+    set l [$p addLayer "Raster" -print 0]
     $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
     set d [$p get]; $p destroy
-    expr {[string first "/AS \[" $d] >= 0}
+    expr {[string first "/Event /Print" $d] >= 0}
 } -result 1
+
+test pdfa-layer-1.0 {ein PDF/A-2b MIT Ebenen besteht veraPDF} \
+  -constraints haveVerapdf -body {
+    # DER Test, den es nie gab. cat-acroform und cat-xmp fahren veraPDF, aber
+    # keiner von beiden legt eine Ebene an -- darum konnte ein verbotenes /AS
+    # jahrelang unbemerkt bleiben.
+    set f [file join [::tcltest::temporaryDirectory] pdfa-layer.pdf]
+    set p [pdf4tcl::new %AUTO% -pdfa 2b -compress 0]
+    set l [$p addLayer "Raster" -print 0]
+    $p startPage; $p beginLayer $l; $p line 0 0 100 100; $p endLayer; $p endPage
+    $p write -file $f; $p destroy
+    set rc [catch {exec -ignorestderr verapdf -f 2b --format text $f} aus]
+    file delete -force $f
+    # verapdf meldet mit Rueckgabewert 1, wenn die Datei nicht konform ist.
+    list $rc [string match "*PASS*" $aus]
+} -result {0 1}
 
 # Kein cleanupTests hier -- die Datei ist dreimal erweitert worden, und
 # jedes Mal kam der Abschluss mit. cleanupTests SETZT DIE ZAEHLER ZURUECK:
@@ -131,6 +184,15 @@ test new-0.9.4.23-3.5 {AS-Array: bei -pdfa 3b + Layer vorhanden} -body {
 # 23-4.x  getStringWidth -font -size (SS keine -- API-Erweiterung)
 # ---------------------------------------------------------------------------
 
+
+test pdfa-layer-1.1 {PDF/A-1 verbietet Ebenen ganz -- addLayer wirft} -body {
+    # ISO 19005-1 6.1.13: kein /OCProperties im Katalog. Bis hierher entstand
+    # still eine Datei, die PDF/A-1b behauptet und bei veraPDF durchfaellt.
+    set p [pdf4tcl::new %AUTO% -pdfa 1b]
+    set rc [catch {$p addLayer "Raster"} msg opt]
+    $p destroy
+    list $rc [dict get $opt -errorcode] [string match "*6.1.13*" $msg]
+} -result {1 {PDF4TCL PDFA} 1}
 test new-0.9.4.23-4.1 {getStringWidth: -font -size ohne setFont} -body {
     set p [pdf4tcl::new %AUTO% -compress 0]
     set w [$p getStringWidth "Hello" -font Helvetica -size 10]

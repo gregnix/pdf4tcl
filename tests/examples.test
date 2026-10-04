@@ -15,7 +15,13 @@ if {![file exists tcl.jpg]} {
 proc regenerateExampleRefs {} {
     set exdir  [file join $::pdf4tclTestRoot examples]
     set interp [info nameofexecutable]
-    set curver [info patchlevel]
+    # Not only the interpreter: references made from another pdf4tcl (an
+    # installed copy with the same number, an older state of the tree) must
+    # not count as current. Gemessen 04.10.2026 unter Tcl 9.0.4/Windows:
+    # .tclver stand auf 9.0.4, die Referenzen stammten von einer alten
+    # Installation, examples-1.3 fiel durch.
+    set lib [file join $::pdf4tclTestRoot pdf4tcl.tcl]
+    set curver "[info patchlevel] [file size $lib] [file mtime $lib]"
     set verfile [file join $exdir .tclver]
 
     set stored ""
@@ -23,18 +29,30 @@ proc regenerateExampleRefs {} {
     if {$stored eq $curver} { return }
 
     # Version hat sich geaendert -- alle Beispiele neu erzeugen
-    puts "  (regenerating example PDFs for Tcl $curver)"
+    puts "  (regenerating example PDFs for Tcl [info patchlevel])"
     set cwd [pwd]
     cd $exdir
     set fehler {}
+    # Each example runs through a small boot script that reads the tree's
+    # pkgIndex.tcl first. "set auto_path [linsert ...]" in the example is not
+    # enough: under Tcl 9 an installed pdf4tcl with the same number can win
+    # (same trap as in init.tcl).
+    set boot [file join [temporaryDirectory] examples-boot.tcl]
     foreach n {0 1 2 3 4 5 6 -transform} {
         set skript test${n}.tcl
         if {![file exists $skript]} continue
-        if {[catch {exec $interp $skript} meldung]} {
+        set fh [open $boot w]
+        puts $fh [list apply {{dir} { source [file join $dir pkgIndex.tcl] }} \
+                $::pdf4tclTestRoot]
+        puts $fh [list set argv0 [file join $exdir $skript]]
+        puts $fh {set argv {} ; set argc 0 ; source $argv0}
+        close $fh
+        if {[catch {exec $interp $boot} meldung]} {
             lappend fehler [list $skript [lindex [split $meldung \n] 0]]
         }
     }
     cd $cwd
+    catch {file delete $boot}
 
     # Der Marker sagt "die Referenzen gehoeren zu diesem Interpreter".
     # Er darf deshalb NUR entstehen, wenn das auch stimmt.

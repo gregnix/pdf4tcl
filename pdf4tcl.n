@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.69 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.70 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.69?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.70?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -892,9 +892,12 @@ pdf4tcl::fillForms empty\&.pdf filled\&.pdf {name "Meier" agreed /Yes}
 .CE
 .sp
 \fISince 0\&.9\&.4\&.64 the value is drawn as well\&.\fR Along with
-\fB/V\fR and \fB/NeedAppearances\fR the field's appearance stream is
-rebuilt, so a print path that renders the appearance puts the new value
-on the paper\&. Up to 0\&.9\&.4\&.63 it put the \fIold\fR one there -- for an
+\fB/V\fR the field's appearance stream is rebuilt, so a print path that
+renders the appearance puts the new value on the paper\&.
+\fB/NeedAppearances\fR is set only where the old stream has to stay --
+password, choice and comb fields without \fB/MaxLen\fR; elsewhere it
+would make PDFium rebuild every Off appearance and an untouched check box
+lose its border\&. Up to 0\&.9\&.4\&.63 it put the \fIold\fR one there -- for an
 empty field, nothing at all -- while the screen showed the new one, and
 nobody saw the difference before the sheet was out\&.
 .sp
@@ -2988,6 +2991,28 @@ viewer applies \fB/Usage\fR only through \fB/AS\fR\&.
 The use case is overprinting a preprinted sheet: a scan of the form
 belongs on the screen so the user can see where the boxes are, and it
 must not reach the paper, because the preprint is already there\&.
+.sp
+The \fB/AS\fR entry names exactly those layers that carry the matching
+\fB/Usage\fR entry -- a layer listed there without one leaves its
+meaning to the viewer\&. Up to 0\&.9\&.4\&.69 the \fB/Print\fR event named the
+\fIprinting\fR layers, which have no \fB/Usage\fR at all, while the
+layer with \fB/PrintState /OFF\fR appeared only under \fB/View\fR\&.
+\fB-print 0\fR was therefore never applied by any viewer\&.
+.sp
+\fINot under PDF/A-2 or PDF/A-3:\fR those parts forbid the
+\fB/AS\fR key in an optional content configuration dictionary
+(veraPDF clause 6\&.9, test condition \fBAS == null\fR)\&. With
+\fB-pdfa 2b\fR or \fB-pdfa 3b\fR no \fB/AS\fR is written, so
+\fB-print 0\fR records its intent in the OCG's \fB/Usage\fR and
+nothing applies it -- the layer prints\&. That is what the standard says,
+not a gap here\&. Up to 0\&.9\&.4\&.69 an \fB/AS\fR was written for those parts
+on purpose, which made every PDF/A-2 file with layers non-conformant\&.
+.sp
+\fINot at all under PDF/A-1:\fR ISO 19005-1 6\&.1\&.13 forbids
+\fB/OCProperties\fR in the catalog, so with \fB-pdfa 1b\fR
+\fBaddLayer\fR throws \fBPDF4TCL PDFA\fR\&. The default configuration
+dictionary carries \fB/Name (Default)\fR, which PDF/A-2 and -3 require
+(clause 6\&.9)\&.
 .sp
 \fB-export\fR sets the state used when the document is saved to a
 format without optional content, a raster image for instance\&.

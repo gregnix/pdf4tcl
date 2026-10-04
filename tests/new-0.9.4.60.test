@@ -351,8 +351,18 @@ test canvasfont-4.3b {ohne Eintrag zaehlt der geschriebene Name} \
             [expr {[font actual {Vorrang60 14} -family] eq "Vorrang60"}]
 } -result {1 0}
 
+# canvasfont-4.4 registriert eine Schrift unter der Familie, die Tk fuer
+# Helvetica liefert. Heisst die selbst "Helvetica" (gemessen: Tk 9 unter
+# Windows), ist danach jedes "setFont Helvetica" im Interpreter die
+# CID-Schrift, der Text steht als <...> Tj im Strom, und hyphen-5.* finden
+# keine einzige Zeile mehr. Der Test hat dann auch nichts zu zeigen: die
+# Familie IST eine Standardschrift.
+testConstraint tkFamNotStd60 [expr {[testConstraint hasTk]
+    && [font actual {Helvetica 14} -family] ni
+       {Helvetica Times Times-Roman Courier Symbol ZapfDingbats}}]
+
 test canvasfont-4.4 {tk::canvas: die Familie zaehlt, wenn kein Eintrag passt} \
-        -constraints {hasTk DejaVuSans} -body {
+        -constraints {hasTk DejaVuSans tkFamNotStd60} -body {
     # Hier ist der Schluessel des -fontmap die GANZE Fontangabe. Ohne
     # Eintrag entscheidet jetzt die von Tk aufgeloeste Familie.
     set fam [font actual {Helvetica 14} -family]

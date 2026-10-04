@@ -1,3 +1,36 @@
+2026-10-01 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.70
+
+	* src/main.tcl (WriteCatalog): -print 0 works. /AS named the wrong
+	layers (Print event without /Usage). ISO 32000-1 8.11.4.4.
+	* src/main.tcl (WriteCatalog): no /AS under PDF/A-2/-3 (forbidden,
+	clause 6.9); -print 0 has no effect there. /D gets /Name (Default),
+	required by the same clause.
+	* src/main.tcl (addLayer): error PDF4TCL PDFA under -pdfa 1*
+	(ISO 19005-1 6.1.13: no /OCProperties).
+	* src/main.tcl, src/tagged.tcl: /Name and /Lang in the catalog are
+	encrypted like every other string.
+	* tests: new-0.9.4.21 (3.3, 3.7, 3.8) and new-0.9.4.23 (3.1-3.6,
+	pdfa-layer-1.0/1.1) rewritten to the standard; encrypt-cat-1.0/1.1
+	new; verapdf called with exec -ignorestderr.
+	* pdf4tcl.man: addLayer describes when -print 0 works and the
+	PDF/A rules; fillForms says /NeedAppearances is set only for
+	password, choice and comb fields.
+	* tests/encrypt.test (encrypt-cid-1.0, 1.1, 2.0): skipped via
+	constraint DejaVuSans instead of returning a text; font also searched
+	in the Windows font directories.
+	* UPGRADING.md: sections for 0.9.4.68 to 0.9.4.70.
+	* tests/init.tcl: reads the tree's pkgIndex.tcl directly; an installed
+	copy with the same version was loaded instead (Tcl 9). Warns when
+	pdf4tcl does not come from the tree.
+	* tests/new-0.9.4.60.test (canvasfont-4.4): skipped when Tk resolves
+	Helvetica to "Helvetica"; the font it registered under that name broke
+	hyphen-5.1 to 5.5 (Tk 9 on Windows).
+	* tests/examples.test: references are rebuilt when pdf4tcl.tcl changes,
+	not only the Tcl version, and the examples load the tree first. Stale
+	references from an installed copy broke examples-1.3 (Tcl 9, Windows).
+
 2026-09-27  Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.69

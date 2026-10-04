@@ -1,5 +1,36 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.70
+
+**`addLayer -print 0` works.** Until 0.9.4.69 a layer created with
+`-print 0` was printed anyway. If you removed such layers before
+printing as a workaround, you can drop it.
+
+**PDF/A limits for layers.** Under `-pdfa 2*` and `-pdfa 3*` a layer can
+still be shown or hidden, but `-print 0` has no effect there: the
+standard does not allow the entry that would carry it. Under
+`-pdfa 1*`, `addLayer` now raises `PDF4TCL PDFA`, because PDF/A-1 does
+not allow layers at all. Code that called `addLayer` in a PDF/A-1
+document must check for this or drop the layer.
+
+**Encrypted files:** the layer configuration name and the document
+language are now encrypted like every other string.
+
+## 0.9.4.69
+
+**Tagged text shows in Adobe Reader.** In tagged documents (`$pdf tagged`)
+most text stood outside its text object; Adobe Reader drew none of it,
+other viewers did. Rebuild tagged PDFs made with 0.9.4.68 or earlier if
+they are meant for Adobe Reader. Untagged output is unchanged.
+
+## 0.9.4.68
+
+**Embedded font subsets are valid fonts again.** Since 0.9.4.57 the CID
+subset lacked a required table; Adobe Reader showed a blank page, other
+viewers drew the text. The subset can now also be loaded back with
+`loadBaseTrueTypeFont`. Rebuild PDFs with embedded CID fonts made with
+0.9.4.57 to 0.9.4.67 if they are meant for Adobe Reader.
+
 ## 0.9.4.67
 
 **Encrypted PDFs with an embedded font are now readable.** Until

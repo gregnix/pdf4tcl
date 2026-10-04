@@ -11,7 +11,7 @@ source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
 
 # Ein Dokument mit einem Textfeld je Seite.
 tcltest::testConstraint haveQpdf [expr {![catch {exec qpdf --version}]}]
-tcltest::testConstraint haveVerapdf [expr {![catch {exec verapdf --version}]}]
+tcltest::testConstraint haveVerapdf [expr {![catch {exec -ignorestderr verapdf --version}]}]
 
 proc catFormDoc {file id {title {}}} {
     set p [::pdf4tcl::new %AUTO% -compress 0 -paper a4 -orient 1]
@@ -502,7 +502,7 @@ test cat-xref-2c {ein PDF/A-2b mit Objekt-Streams bleibt konform} \
     ::pdf4tcl::catPdf [file join [temporaryDirectory] vaos.pdf] \
             [file join [temporaryDirectory] vb.pdf] \
             [file join [temporaryDirectory] vout.pdf]
-    set r [exec verapdf -f 2b --format text \
+    set r [exec -ignorestderr verapdf -f 2b --format text \
             [file join [temporaryDirectory] vout.pdf]]
     string match "PASS*" $r
 } -result 1

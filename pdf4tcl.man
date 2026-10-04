@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.69]
+[manpage_begin pdf4tcl n 0.9.4.70]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.69]]
+[require pdf4tcl [opt 0.9.4.70]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -381,9 +381,12 @@ pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
 
 [para]
 [emph {Since 0.9.4.64 the value is drawn as well.}] Along with
-[const /V] and [const /NeedAppearances] the field's appearance stream is
-rebuilt, so a print path that renders the appearance puts the new value
-on the paper. Up to 0.9.4.63 it put the [emph old] one there -- for an
+[const /V] the field's appearance stream is rebuilt, so a print path that
+renders the appearance puts the new value on the paper.
+[const /NeedAppearances] is set only where the old stream has to stay --
+password, choice and comb fields without [const /MaxLen]; elsewhere it
+would make PDFium rebuild every Off appearance and an untouched check box
+lose its border. Up to 0.9.4.63 it put the [emph old] one there -- for an
 empty field, nothing at all -- while the screen showed the new one, and
 nobody saw the difference before the sheet was out.
 
@@ -2512,6 +2515,28 @@ viewer applies [const /Usage] only through [const /AS].
 The use case is overprinting a preprinted sheet: a scan of the form
 belongs on the screen so the user can see where the boxes are, and it
 must not reach the paper, because the preprint is already there.
+[para]
+The [const /AS] entry names exactly those layers that carry the matching
+[const /Usage] entry -- a layer listed there without one leaves its
+meaning to the viewer. Up to 0.9.4.69 the [const /Print] event named the
+[emph printing] layers, which have no [const /Usage] at all, while the
+layer with [const {/PrintState /OFF}] appeared only under [const /View].
+[option {-print 0}] was therefore never applied by any viewer.
+[para]
+[emph {Not under PDF/A-2 or PDF/A-3:}] those parts forbid the
+[const /AS] key in an optional content configuration dictionary
+(veraPDF clause 6.9, test condition [const {AS == null}]). With
+[option {-pdfa 2b}] or [option {-pdfa 3b}] no [const /AS] is written, so
+[option {-print 0}] records its intent in the OCG's [const /Usage] and
+nothing applies it -- the layer prints. That is what the standard says,
+not a gap here. Up to 0.9.4.69 an [const /AS] was written for those parts
+on purpose, which made every PDF/A-2 file with layers non-conformant.
+[para]
+[emph {Not at all under PDF/A-1:}] ISO 19005-1 6.1.13 forbids
+[const /OCProperties] in the catalog, so with [option {-pdfa 1b}]
+[method addLayer] throws [const {PDF4TCL PDFA}]. The default configuration
+dictionary carries [const {/Name (Default)}], which PDF/A-2 and -3 require
+(clause 6.9).
 [para]
 [option -export] sets the state used when the document is saved to a
 format without optional content, a raster image for instance.

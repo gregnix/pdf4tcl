@@ -480,11 +480,26 @@ test encrypt-20.5 {entschluesselt ist der Ebenenname wieder da} \
 # Kennwort dicht, liess sich aber MIT Kennwort nicht lesen.
 # Gemessen 14.09.2026 an 0.9.4.66.
 
+# DejaVuSans.ttf for the CID cases; without it they are skipped.
+set ::encDejavu ""
+set encFontDirs {/usr/share/fonts/truetype/dejavu /usr/share/fonts/TTF
+    /usr/share/fonts/dejavu /Library/Fonts}
+if {[info exists ::env(WINDIR)]} { lappend encFontDirs [file join $::env(WINDIR) Fonts] }
+if {[info exists ::env(LOCALAPPDATA)]} {
+    lappend encFontDirs [file join $::env(LOCALAPPDATA) Microsoft Windows Fonts]
+}
+foreach encFd $encFontDirs {
+    if {[file readable [file join $encFd DejaVuSans.ttf]]} {
+        set ::encDejavu [file join $encFd DejaVuSans.ttf] ; break
+    }
+}
+unset -nocomplain encFd encFontDirs
+testConstraint DejaVuSans [expr {$::encDejavu ne ""}]
+
 test encrypt-cid-1.0 {verschluesseltes PDF mit eingebetteter CID-Schrift
-        ist mit Kennwort lesbar} -constraints haveQpdf -setup {
-    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+        ist mit Kennwort lesbar} -constraints {haveQpdf DejaVuSans} -setup {
+    set ttf $::encDejavu
 } -body {
-    if {![file readable $ttf]} { return "uebersprungen: keine DejaVuSans.ttf" }
     pdf4tcl::loadBaseTrueTypeFont EncCidBase $ttf
     pdf4tcl::createFontSpecCID EncCidBase EncCidUni
     set p [::pdf4tcl::new %AUTO% -paper a4 \
@@ -511,10 +526,9 @@ test encrypt-cid-1.0 {verschluesseltes PDF mit eingebetteter CID-Schrift
 } -result {0 1}
 
 test encrypt-cid-1.1 {ohne Kennwort bleibt dasselbe PDF dicht} \
-        -constraints haveQpdf -setup {
-    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+        -constraints {haveQpdf DejaVuSans} -setup {
+    set ttf $::encDejavu
 } -body {
-    if {![file readable $ttf]} { return "uebersprungen: keine DejaVuSans.ttf" }
     pdf4tcl::loadBaseTrueTypeFont EncCidBase2 $ttf
     pdf4tcl::createFontSpecCID EncCidBase2 EncCidUni2
     set p [::pdf4tcl::new %AUTO% -paper a4 -userpassword geheim]
@@ -600,13 +614,12 @@ test encrypt-strings-1.0 {kein Literalstring der Klarfassung ueberlebt} -body {
 } -result {1 {}}
 
 test encrypt-cid-2.0 {AES-256 mit eingebetteter Schrift} \
-        -constraints haveQpdf -setup {
-    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+        -constraints {haveQpdf DejaVuSans} -setup {
+    set ttf $::encDejavu
 } -body {
     # -encversion 5 geht einen anderen Schluesselweg als AESv2. Die
     # Behebung an WriteCIDFontObjects gilt fuer beide, das war aber
     # unbelegt, bis dieser Fall dazukam (14.09.2026).
-    if {![file readable $ttf]} { return "uebersprungen: keine DejaVuSans.ttf" }
     pdf4tcl::loadBaseTrueTypeFont Enc256Base $ttf
     pdf4tcl::createFontSpecCID Enc256Base Enc256Uni
     set p [::pdf4tcl::new %AUTO% -paper a4 -userpassword geheim -encversion 5]
@@ -667,7 +680,7 @@ proc ::EncBaue {datei opts} {
     catch {
         $p addLayer "ALLPROBE-EBENE"
     }
-    set ttf /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+    set ttf $::encDejavu
     if {[file readable $ttf]} {
         catch {
             pdf4tcl::loadBaseTrueTypeFont AllProbeBase $ttf
@@ -734,6 +747,44 @@ test encrypt-all-1.2 {und mit Kennwort ist alles wieder da} \
     file delete -force $enc $klar
     list $fehler $marken
 } -result {0 3}
+
+# Katalog-Strings (/Lang, /OCProperties /D /Name) werden direkt in Objekt 1
+# geschrieben. encrypt-all-1.1 sieht erst Strings ab 6 Zeichen -- "de"
+# rutscht durch. Hier die kurze Sprache gezielt.
+proc ::EncKatalog {datei opts} {
+    set p [pdf4tcl::new %AUTO% -compress 0 {*}$opts]
+    $p tagged 1 -lang de
+    set l [$p addLayer "Raster" -print 0]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p tagText P "Hallo" -x 50 -y 50
+    $p beginLayer $l; $p line 0 0 10 10; $p endLayer
+    $p endPage
+    $p write -file $datei
+    $p destroy
+}
+test encrypt-cat-1.0 {/Lang und /Name im Katalog sind verschluesselt} -body {
+    set klar [file join [temporaryDirectory] cat-klar.pdf]
+    set enc  [file join [temporaryDirectory] cat-enc.pdf]
+    ::EncKatalog $klar {}
+    ::EncKatalog $enc {-userpassword geheim}
+    set r {}
+    foreach f [list $klar $enc] {
+        set fh [::open $f rb] ; set roh [read $fh] ; close $fh
+        lappend r [regexp {/Lang \(de\)} $roh] [regexp {/Name \(Default\)} $roh]
+    }
+    file delete -force $klar $enc
+    set r
+} -result {1 1 0 0}
+
+test encrypt-cat-1.1 {und entschluesselt stehen sie wieder da} \
+        -constraints haveQpdf -body {
+    set enc [file join [temporaryDirectory] cat-enc2.pdf]
+    ::EncKatalog $enc {-userpassword geheim}
+    set kat [exec qpdf --password=geheim --show-object=1 $enc]
+    file delete -force $enc
+    list [regexp {/Lang \(de\)} $kat] [regexp {/Name \(Default\)} $kat]
+} -result {1 1}
 
 # ---------------------------------------------------------------------------
 # Cleanup

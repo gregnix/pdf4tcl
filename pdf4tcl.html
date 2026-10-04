@@ -100,7 +100,7 @@
 <!-- pdf4tcl.n
    -->
 <body><div class="doctools">
-<h1 class="doctools_title">pdf4tcl(n) 0.9.4.69 pdf4tcl &quot;Pdf document generation&quot;</h1>
+<h1 class="doctools_title">pdf4tcl(n) 0.9.4.70 pdf4tcl &quot;Pdf document generation&quot;</h1>
 <div id="name" class="doctools_section"><h2><a name="name">Name</a></h2>
 <p>pdf4tcl - Pdf document generation</p>
 </div>
@@ -176,7 +176,7 @@
 <div class="doctools_synopsis">
 <ul class="doctools_requirements">
 <li>package require <b class="pkgname">Tcl 8.6</b></li>
-<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.69?</span></b></li>
+<li>package require <b class="pkgname">pdf4tcl <span class="opt">?0.9.4.70?</span></b></li>
 </ul>
 <ul class="doctools_syntax">
 <li><a href="#1"><b class="cmd">::pdf4tcl::new</b> <i class="arg">objectName</i> <span class="opt">?<i class="arg">option value</i>...?</span></a></li>
@@ -607,9 +607,12 @@ value.</p>
 pdf4tcl::fillForms empty.pdf filled.pdf {name &quot;Meier&quot; agreed /Yes}
 </pre>
 <p><em>Since 0.9.4.64 the value is drawn as well.</em> Along with
-<b class="const">/V</b> and <b class="const">/NeedAppearances</b> the field's appearance stream is
-rebuilt, so a print path that renders the appearance puts the new value
-on the paper. Up to 0.9.4.63 it put the <em>old</em> one there -- for an
+<b class="const">/V</b> the field's appearance stream is rebuilt, so a print path that
+renders the appearance puts the new value on the paper.
+<b class="const">/NeedAppearances</b> is set only where the old stream has to stay --
+password, choice and comb fields without <b class="const">/MaxLen</b>; elsewhere it
+would make PDFium rebuild every Off appearance and an untouched check box
+lose its border. Up to 0.9.4.63 it put the <em>old</em> one there -- for an
 empty field, nothing at all -- while the screen showed the new one, and
 nobody saw the difference before the sheet was out.</p>
 <p>Every widget of the field gets its own stream, built from its own
@@ -2322,6 +2325,25 @@ viewer applies <b class="const">/Usage</b> only through <b class="const">/AS</b>
 <p>The use case is overprinting a preprinted sheet: a scan of the form
 belongs on the screen so the user can see where the boxes are, and it
 must not reach the paper, because the preprint is already there.</p>
+<p>The <b class="const">/AS</b> entry names exactly those layers that carry the matching
+<b class="const">/Usage</b> entry -- a layer listed there without one leaves its
+meaning to the viewer. Up to 0.9.4.69 the <b class="const">/Print</b> event named the
+<em>printing</em> layers, which have no <b class="const">/Usage</b> at all, while the
+layer with <b class="const">/PrintState /OFF</b> appeared only under <b class="const">/View</b>.
+<b class="option">-print 0</b> was therefore never applied by any viewer.</p>
+<p><em>Not under PDF/A-2 or PDF/A-3:</em> those parts forbid the
+<b class="const">/AS</b> key in an optional content configuration dictionary
+(veraPDF clause 6.9, test condition <b class="const">AS == null</b>). With
+<b class="option">-pdfa 2b</b> or <b class="option">-pdfa 3b</b> no <b class="const">/AS</b> is written, so
+<b class="option">-print 0</b> records its intent in the OCG's <b class="const">/Usage</b> and
+nothing applies it -- the layer prints. That is what the standard says,
+not a gap here. Up to 0.9.4.69 an <b class="const">/AS</b> was written for those parts
+on purpose, which made every PDF/A-2 file with layers non-conformant.</p>
+<p><em>Not at all under PDF/A-1:</em> ISO 19005-1 6.1.13 forbids
+<b class="const">/OCProperties</b> in the catalog, so with <b class="option">-pdfa 1b</b>
+<b class="method">addLayer</b> throws <b class="const">PDF4TCL PDFA</b>. The default configuration
+dictionary carries <b class="const">/Name (Default)</b>, which PDF/A-2 and -3 require
+(clause 6.9).</p>
 <p><b class="option">-export</b> sets the state used when the document is saved to a
 format without optional content, a raster image for instance.
 <b class="option">-zoom</b> takes a magnification range <i class="arg">min max</i>; either may be

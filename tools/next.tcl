@@ -3,7 +3,11 @@
 # VON HAND PFLEGEN. bump.tcl liest diese Datei und laesst sie stehen --
 # welche Nummer als naechste kommt, entscheidet der Autor.
 #
-# Stand nach 0.9.4.67 (14.09.2026).
+# Stand 03.10.2026: 0.9.4.70 liegt im Arbeitsbaum, noch ohne Commit und
+# Tag. Ein Lauf mit dieser Nummer ist ein Reparaturlauf (zieht pdf4tcl.n/
+# .html usw. nach). Danach auf .71 setzen.
+#
+# Frueher: Stand nach 0.9.4.67 (14.09.2026).
 #
 # Die Datei stand bis hierher auf 0.9.4.65 -- sie wurde bei .66 und .67
 # nicht fortgeschrieben. Nach dem Kommentar in bump.tcl waren damit
@@ -16,5 +20,5 @@
 # Anmerkungen und Dateianhaenge unter Verschluesselung sind NICHT mehr
 # offen -- encrypt-20.1 bis 20.5 pruefen sie seit 0.9.4.64, und
 # encrypt-all-1.0 deckt sie seit .67 ohne Kenntnis der Eigenschaft ab.
-set NEXT_VERSION 0.9.4.69
-set NEXT_MSG "0.9.4.69: tagged text stays inside BT/ET"
+set NEXT_VERSION 0.9.4.70
+set NEXT_MSG "0.9.4.70: layer -print 0 and PDF/A layers fixed, catalog strings encrypted"

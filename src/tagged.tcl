@@ -972,7 +972,10 @@ oo::define ::pdf4tcl::pdf4tcl {
         my Pdfout "/StructTreeRoot $pdf(tag,rootoid) 0 R\n"
         my Pdfout "/MarkInfo <</Marked true>>\n"
         if {$pdf(tag,lang) ne ""} {
-            my Pdfout "/Lang [::pdf4tcl::TagTextString $pdf(tag,lang)]\n"
+            # A string in the catalog (object 1): encrypted like any other,
+            # or a reader decrypts the clear text into garbage.
+            my Pdfout [my EncryptStringsInBody 1 \
+                    "/Lang [::pdf4tcl::TagTextString $pdf(tag,lang)]\n"]
         }
     }
 

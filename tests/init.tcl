@@ -49,7 +49,15 @@ set ::auto_path [concat [list $tmp] $::auto_path]
 if {[file exists $tmp/pdf4tcl.tcl_i]} {
     source $tmp/pdf4tcl.tcl_i
 }
-package require pdf4tcl 0.9.4.69
+# auto_path vorn reicht nicht: hat ein frueheres "package require" (tcltest,
+# Tk) den Suchpfad schon abgegrast, steht das "package ifneeded" einer
+# installierten Kopie mit derselben Nummer bereits fest, und der Baum wird
+# nie gefragt (gemessen mit Tcl 9.0.4 unter Windows). Den Index des Baums
+# direkt lesen ersetzt diese Eintraege.
+if {[package provide pdf4tcl] eq ""} {
+    apply {{dir} { source [file join $dir pkgIndex.tcl] }} $tmp
+}
+package require pdf4tcl 0.9.4.70
 
 # WELCHES Paket wurde geladen?
 #
@@ -73,6 +81,13 @@ package require pdf4tcl 0.9.4.69
 # beim Erhoehen mit und macht aus einer Messung eine Behauptung.
 puts stdout "pdf4tcl [package provide pdf4tcl] aus:\
         [lindex [package ifneeded pdf4tcl [package provide pdf4tcl]] end]"
+set _geladen [file normalize [lindex [package ifneeded pdf4tcl \
+        [package provide pdf4tcl]] end]]
+if {[file dirname $_geladen] ne [file normalize $tmp]} {
+    # z. B. eine installierte HOEHERE Fassung: dann testet die Suite sie.
+    puts stdout "WARNUNG: pdf4tcl kommt nicht aus dem Baum $tmp"
+}
+unset _geladen
 
 proc myexec {args} {
     set ch [open "|$args"]

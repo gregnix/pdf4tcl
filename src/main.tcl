@@ -1049,11 +1049,30 @@ oo::define ::pdf4tcl::pdf4tcl {
                 set visible [dict get $layer {visible}]
                 set ref "$oid 0 R"
                 lappend ocg_refs $ref
-                if {[dict get $layer {print}]} {
+                # Die Regel ist: eine Ebene gehoert unter das Ereignis X,
+                # wenn sie /Usage/X TRAEGT. Welche Eintraege das sind, legt
+                # der OCG-Schreiber weiter unten fest, und zwar so:
+                #
+                #     -print 0   -> /Print und /View
+                #     -export    -> /Export
+                #     -zoom      -> /Zoom
+                #     sonst      -> gar kein /Usage
+                #
+                # Bis 0.9.4.69 stand hier das Gegenteil: die DRUCKENDE Ebene
+                # kam unter /Event /Print, obwohl sie gar kein /Usage hat, und
+                # die nicht druckende nur unter /Event /View. Damit wurde
+                # /PrintState /OFF von keinem Betrachter je abgeholt --
+                # "-print 0" blieb still wirkungslos. Gemessen am 01.10.2026
+                # an einem gemischten Dokument:
+                #
+                #     /AS Event=/Print OCGs=[Inhalt (druckt)]      <- ohne /Usage
+                #     /AS Event=/View  OCGs=[Raster (soll nicht)]  <- /Print nie geholt
+                #
+                # Der Kommentar drei Zeilen hoeher sagte die Regel schon
+                # richtig; nur der Code darunter tat das Gegenteil.
+                if {![dict get $layer {print}]} {
                     dict lappend cat Print $ref
-                } else {
-                    # Nur Ebenen MIT /Usage gehoeren in die /AS-Eintraege.
-                    dict lappend cat View $ref
+                    dict lappend cat View  $ref
                 }
                 if {[dict get $layer {export}] ne ""} { dict lappend cat Export $ref }
                 if {[llength [dict get $layer {zoom}]]} { dict lappend cat Zoom $ref }
@@ -1068,12 +1087,20 @@ oo::define ::pdf4tcl::pdf4tcl {
             }
             # Eine Ebene hat etwas zu sagen, sobald sie NICHT nur gedruckt
             # wird: dann steht ein /Usage im OCG, und /AS muss es abholen.
-            set nodruck [expr {[llength [dict get $cat View]] > 0
+            # Print steht mit in der Abfrage, obwohl View es heute schon
+            # abdeckt -- die Bedingung soll lesen "irgendeine Kategorie ist
+            # belegt" und nicht von einer Kopplung leben, die eine spaetere
+            # Aenderung still aufloest.
+            set nodruck [expr {[llength [dict get $cat Print]] > 0
+                    || [llength [dict get $cat View]] > 0
                     || [llength [dict get $cat Export]] > 0
                     || [llength [dict get $cat Zoom]] > 0}]
             my Pdfout "/OCProperties <<\n"
             my Pdfout "/OCGs \[[join $ocg_refs { }]\]\n"
             my Pdfout "/D <<\n"
+            # /Name: PDF/A-2/-3 6.9 requires it in every OC configuration
+            # dict. A string in the catalog (object 1) -- encrypted like any other.
+            my Pdfout [my EncryptStringsInBody 1 "/Name (Default)\n"]
             my Pdfout "/Order \[[join $ocg_refs { }]\]\n"
             if {[llength $on_list] > 0} {
                 my Pdfout "/ON \[[join $on_list { }]\]\n"
@@ -1094,17 +1121,34 @@ oo::define ::pdf4tcl::pdf4tcl {
                 }
                 my Pdfout " \]\n"
             }
-            # PDF/A-2b requires /AS array in /D dict (ISO 19005-2 SS6.2.10)
-            if {$nodruck || [string match "2*" $options(-pdfa)] || \
-                [string match "3*" $options(-pdfa)]} {
+            # PDF/A-2 UND -3 VERBIETEN /AS. Hier stand das Gegenteil.
+            #
+            # Der Kommentar lautete "PDF/A-2b requires /AS array in /D dict
+            # (ISO 19005-2 SS6.2.10)", und darunter wurde /AS fuer 2* und 3*
+            # erzwungen -- notfalls mit einem /View-Eintrag ueber ALLE Ebenen,
+            # auch solche ohne jedes /Usage.
+            #
+            # Nachgeschlagen am 01.10.2026 in den veraPDF-Profilen 2a und 2b,
+            # beide Klausel 6.9, gleicher Wortlaut:
+            #
+            #     "The AS key shall not appear in any optional content
+            #      configuration dictionary"          Testbedingung: AS == null
+            #
+            # Jede PDF/A-2-Datei mit Ebenen war damit nicht konform. Aufgefallen
+            # ist es nie, weil die veraPDF-Faelle im Baum (cat-acroform,
+            # cat-xmp) AcroForm und XMP pruefen und keiner davon eine Ebene
+            # anlegt -- ein PDF/A MIT Ebenen hat nie einen Validator gesehen.
+            # Dafuer gibt es jetzt pdfa-layer-1.0.
+            #
+            # Folge fuer den Anwender: unter PDF/A-2/-3 laesst sich "-print 0"
+            # nicht ausdruecken. Das ist die Aussage des Standards, nicht eine
+            # Luecke dieser Umsetzung.
+            set pdfaOhneAS [expr {[string match "2*" $options(-pdfa)]
+                    || [string match "3*" $options(-pdfa)]}]
+            if {$nodruck && !$pdfaOhneAS} {
                 my Pdfout "/AS \[\n"
                 foreach k {Print View Export Zoom} {
                     set refs [dict get $cat $k]
-                    if {$k eq "View" && [string match "2*" $options(-pdfa)]} {
-                        # PDF/A verlangt den View-Eintrag, auch wenn keine
-                        # Ebene eine View-Angabe traegt.
-                        if {![llength $refs]} { set refs $ocg_refs }
-                    }
                     if {![llength $refs]} continue
                     my Pdfout "  << /Event /$k /Category \[/$k\]\
                             /OCGs \[[join $refs { }]\] >>\n"
@@ -4548,6 +4592,13 @@ Use -pdfa-icc to specify a profile path."
     # {oid name visible} and grew twice; every further entry would have
     # been another position that older code reads as something else.
     method addLayer {name args} {
+        # PDF/A-1 forbids optional content outright (ISO 19005-1 6.1.13:
+        # no /OCProperties in the catalog). A layer would make the file
+        # non-conformant while it still claims PDF/A-1 -- veraPDF FAILs it.
+        if {[string match "1*" $options(-pdfa)]} {
+            throw {PDF4TCL PDFA} "addLayer: -pdfa $options(-pdfa) forbids\
+                    optional content (ISO 19005-1 6.1.13); use -pdfa 2b or 3b"
+        }
         # Die Schluessel stehen geklammert, weil nagelfar sonst warnt:
         # ein blankes "name" neben der Variablen $name sieht aus wie ein
         # vergessenes Dollarzeichen. Die Warnung hat recht -- an anderer
