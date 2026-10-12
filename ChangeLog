@@ -1,3 +1,20 @@
+2026-10-09 Gregor  <gregnix@github>
+
+	* Bumped revision to 0.9.4.71
+
+	* src/cat.tcl: getForms, fillForms and exportForms read encrypted
+	forms (-password, RC4 and AES). Until now they returned nothing,
+	without an error. fillForms keeps the encryption.
+	* src/cat.tcl: form fields with hex strings are found.
+	* tools/pdfcheck-native.tcl: title and author compared as text;
+	umlauts were reported as a contradiction.
+	* facturx: -contents takes bytes (howto, example).
+	* pdf4tcl.man: addForm sets NeedAppearances for -calculate, -format
+	and -js.
+	* tests: form-crypt.test, form-hex.test new; tagged.test no longer
+	trips over the file ID.
+	* demo: demo-forms-crypt.tcl, demo-forms-hex.tcl new.
+
 2026-10-01 Gregor  <gregnix@github>
 
 	* Bumped revision to 0.9.4.70

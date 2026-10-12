@@ -20,6 +20,15 @@ Two layers of validation exist and are independent:
 - **Schematron (KoSIT)** -> checks the *invoice content* against the EN 16931
   business rules (BR-*). Not addressed yet. This is the harder layer.
 
+## Notes 2026-10-06
+
+- BR-CO-25 (due date or payment terms) is no longer part of the CEN
+  rules; checked against validation 1.3.16. XRechnung still expects
+  payment information (BR-DE-1).
+- `facturx -contents` expects bytes. Pass
+  `[encoding convertto utf-8 $xml]`, otherwise every non-ASCII
+  character becomes an invalid UTF-8 byte in the attachment.
+
 ## Target level
 
 Decide the target before filling in fields, because it sets the mandatory scope:

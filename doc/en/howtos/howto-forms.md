@@ -58,6 +58,9 @@ pdf4tcl::fillForms "order.pdf" "filled.pdf" {f_name "Meier & Co"}
 pdf4tcl::exportForms "filled.pdf" "filled.fdf"
 ```
 
+An encrypted file takes `-password` on all three (0.9.4.71), see
+`howto-encrypted-forms.md`.
+
 `getForms` returns a dictionary of id to a dictionary per field:
 
 | Key | Meaning |

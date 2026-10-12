@@ -16,7 +16,7 @@ set xml {<?xml version="1.0" encoding="UTF-8"?>
   <rsm:ExchangedDocument><ram:ID xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100">INV-demo</ram:ID></rsm:ExchangedDocument>
 </rsm:CrossIndustryInvoice>
 }
-$pdf facturx -contents $xml -filename "factur-x.xml" \
+$pdf facturx -contents [encoding convertto utf-8 $xml] -filename "factur-x.xml" \
         -conformance "EN 16931" -documenttype "INVOICE" -version "1.0"
 set out [pdf4tcl::doc::outfile howto-facturx.pdf]
 $pdf write -file $out

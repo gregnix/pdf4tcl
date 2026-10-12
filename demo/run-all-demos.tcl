@@ -182,6 +182,8 @@ set DEMOS {
     {demo-tagged.tcl             0  dir        "Tagged PDF / PDF-UA (0.9.4.36+0.9.4.37)"}
     {demo-tagged-xobject.tcl     0  dir        "Struktur in einem Form-XObject (0.9.4.46)"}
     {demo-forms.tcl              0  dir        "Bestellformular ohne Verschluesselung"}
+    {demo-forms-crypt.tcl        0  dir        "Verschluesselte Formulare lesen und fuellen (-password, 0.9.4.71)"}
+    {demo-forms-hex.tcl          0  dir        "Formularfelder mit Hex-Zeichenketten (0.9.4.71)"}
     {demo-gradients.tcl          0  dir        "Verlaeufe und Blendmodi"}
     {demo-paper-sizes.tcl        0  dir        "Papierformate"}
     {demo-write-chan.tcl         0  dir        "write -chan / -file / get"}

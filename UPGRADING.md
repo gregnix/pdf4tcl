@@ -1,5 +1,14 @@
 # UPGRADING -- pdf4tcl gregnix fork
 
+## 0.9.4.71
+
+**Encrypted forms.** `getForms`, `fillForms` and `exportForms` take
+`-password`. A file with a user password used to give an empty result;
+it now raises `PDF4TCL PASSWORD`. Owner-only files open without one.
+
+**Hex strings.** Fields written in hex are found now, so `getForms` may
+return more fields than before.
+
 ## 0.9.4.70
 
 **`addLayer -print 0` works.** Until 0.9.4.69 a layer created with

@@ -4,7 +4,7 @@
 '\" Copyright (c) 2009 Yaroslav Schekin
 '\" Copyright (c) 2024-2026 gregnix (fork 0\&.9\&.4\&.x)
 '\"
-.TH "pdf4tcl" n 0\&.9\&.4\&.70 pdf4tcl "Pdf document generation"
+.TH "pdf4tcl" n 0\&.9\&.4\&.71 pdf4tcl "Pdf document generation"
 .\" The -*- nroff -*- definitions below are for supplemental macros used
 .\" in Tcl/Tk manual entries.
 .\"
@@ -278,7 +278,7 @@ pdf4tcl \- Pdf document generation
 .SH SYNOPSIS
 package require \fBTcl 8\&.6\fR
 .sp
-package require \fBpdf4tcl ?0\&.9\&.4\&.70?\fR
+package require \fBpdf4tcl ?0\&.9\&.4\&.71?\fR
 .sp
 \fB::pdf4tcl::new\fR \fIobjectName\fR ?\fIoption value\fR\&.\&.\&.?
 .sp
@@ -310,9 +310,9 @@ package require \fBpdf4tcl ?0\&.9\&.4\&.70?\fR
 .sp
 \fB::pdf4tcl::catPdf\fR ?\fIoption value\fR\&.\&.\&.? \fIinfile\fR ?\fIinfile \&.\&.\&.\fR? \fIoutfile\fR
 .sp
-\fB::pdf4tcl::getForms\fR \fIinfile\fR
+\fB::pdf4tcl::getForms\fR \fIinfile\fR ?\fIoptions\fR?
 .sp
-\fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR
+\fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR ?\fIoptions\fR?
 .sp
 \fB::pdf4tcl::exportForms\fR \fIinfile\fR \fIoutfile\fR ?\fIoptions\fR?
 .sp
@@ -801,8 +801,15 @@ Since 0\&.9\&.4\&.50 objects packed into an object stream (\fB/ObjStm\fR) are
 unpacked too, so a file written by \fBqpdf\fR with
 \fB--object-streams=generate\fR merges like any other\&.
 .TP
-\fB::pdf4tcl::getForms\fR \fIinfile\fR
+\fB::pdf4tcl::getForms\fR \fIinfile\fR ?\fIoptions\fR?
 This call extracts form data from a PDF file\&.
+.RS
+.TP
+\fB-password\fR \fIstring\fR
+Password for an encrypted file, user or owner password (0\&.9\&.4\&.71)\&.
+See \fBEncrypted input\fR below\&.
+.RE
+.IP
 The return value is a dictionary with id/info pairs\&.
 The id is the one set with \fI-id\fR to \fBaddForm\fR, if the PDF
 was generated with pdf4tcl\&.
@@ -864,6 +871,14 @@ only \fBcity\fR came back -- and in a form with
 \fBrechnung\&.betrag\fR and \fBlieferung\&.betrag\fR both fields were
 then called \fBbetrag\fR, one overwriting the other in the dictionary\&.
 .sp
+\fIHex strings are read since 0\&.9\&.4\&.71\&.\fR A name, value, tooltip,
+default appearance or option may be written as \fB<\&.\&.\&.>\fR instead of
+\fB(\&.\&.\&.)\fR (ISO 32000-1 7\&.3\&.4) -- Acrobat writes a name with an umlaut
+as UTF-16BE \fB<FEFF\&.\&.\&.>\fR, OpenOffice an empty value as
+\fB<FEFF>\fR\&. Up to 0\&.9\&.4\&.70 only the literal form was read: a field
+named in hex was missing from the result, and \fBfillForms\fR said
+"no such field"\&.
+.sp
 \fIA field with several widgets is found since 0\&.9\&.4\&.64\&.\fR Up to
 0\&.9\&.4\&.63 the name was looked for on the widget; where it sits on the
 parent, the field was not found at all -- \fBgetForms\fR returned an
@@ -873,9 +888,17 @@ empty dictionary and \fBfillForms\fR said "no such field"\&.
 0\&.9\&.4\&.64\&.\fR Code that compares the whole dict against a literal will
 notice; code that reads individual keys will not\&.
 .TP
-\fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR
+\fB::pdf4tcl::fillForms\fR \fIinfile\fR \fIoutfile\fR \fIvalues\fR ?\fIoptions\fR?
 Fill the form fields of an existing PDF and write it out again (0\&.9\&.4\&.50+)\&.
 Returns the number of fields filled\&.
+.RS
+.TP
+\fB-password\fR \fIstring\fR
+Password for an encrypted file, user or owner password (0\&.9\&.4\&.71)\&. The
+output is encrypted the same way and needs the same password\&.
+See \fBEncrypted input\fR below\&.
+.RE
+.IP
 \fIvalues\fR is a dictionary of field id to value\&. A text field takes a
 string; a check box or radio button takes the state name as it appears in
 the file, with the slash (\fB/Yes\fR, \fB/Off\fR)\&. \fBgetForms\fR
@@ -985,7 +1008,9 @@ a compact text format supported by most PDF viewers\&.
 \fBxfdf\fR: XML Forms Data Format (ISO 32000 SS12\&.7\&.8), human-readable XML\&.
 .TP
 \fB-password\fR \fIstring\fR
-Password for encrypted PDFs\&.
+Password for encrypted PDFs, passed on to \fBgetForms\fR\&.
+Until 0\&.9\&.4\&.70 the option was accepted and ignored: an encrypted file
+gave an empty export and the return value 0\&.
 .RE
 .CS
 
@@ -998,6 +1023,47 @@ pdf4tcl::exportForms filled\&.pdf data\&.xfdf -format xfdf
 
 .CE
 .PP
+.SS "ENCRYPTED INPUT"
+\fBgetForms\fR, \fBfillForms\fR and \fBexportForms\fR read encrypted
+files since 0\&.9\&.4\&.71 -- the standard security handler, revisions 2 to 6:
+RC4 with 40 or 128 bits, AES-128 and AES-256, with or without object
+streams\&.
+.PP
+Without \fB-password\fR the file is opened with the empty password,
+which is what every viewer does: a file with only an owner password opens
+without a prompt\&. A file with a user password raises
+\fBPDF4TCL PASSWORD\fR and names the option; a wrong password raises
+the same error code with "wrong password"\&. Either the user or the owner
+password works\&. A wrong password is not an error where the file opens
+without one\&. An unsupported scheme -- a public-key handler, an unknown
+revision -- raises \fBPDF4TCL ENCRYPTED\fR\&.
+.PP
+Up to 0\&.9\&.4\&.70 all three read an encrypted file as if it were plain text\&.
+The field names stand there encrypted, no field was found, and none of
+them said so: \fBgetForms\fR returned an empty dictionary,
+\fBfillForms\fR reported "no such field", \fBexportForms\fR wrote an empty
+file\&.
+.PP
+\fBfillForms\fR writes the output with the same encryption, the same
+\fB/Encrypt\fR dictionary and the same \fB/ID\fR\&. Objects it did not
+touch go out byte for byte as they came; changed ones are encrypted again,
+the new appearance stream included, so the new value stands nowhere in
+clear text\&. The permissions in \fB/P\fR are not checked -- like
+\fBqpdf\fR, the library does what the caller asks, and the caller holds
+the password\&.
+.PP
+AES-256 (revision 6) derives its key with ISO 32000-2 algorithm 2\&.B, the
+same code that writes such files\&. In pure Tcl that takes a few seconds per
+password check; opening with the owner password costs a second round\&.
+.PP
+\fBcatPdf\fR still reads encrypted input without decrypting it\&.
+.CS
+
+
+set f [pdf4tcl::getForms antrag\&.pdf -password geheim]
+pdf4tcl::fillForms antrag\&.pdf antrag-voll\&.pdf {name "Meier"} -password geheim
+
+.CE
 .SS "OBJECT COMMAND"
 All commands created by \fB::pdf4tcl::new\fR have the following
 general form and may be used to invoke various operations on their
@@ -1350,9 +1416,13 @@ within the AcroForm\&. Valid for all field types\&.
 .RE
 .RE
 .IP
-All fields generate their own appearance streams; the
-\fBNeedAppearances\fR flag is never set, ensuring compatibility
-with digital signature workflows\&.
+All fields generate their own appearance streams\&. \fBaddForm\fR sets
+\fB/NeedAppearances true\fR only for a field with \fB-calculate\fR,
+\fB-format\fR or \fB-js\fR: its value is computed or formatted by
+the viewer, and the stream has to follow\&. \fB::pdf4tcl::fillForms\fR
+sets it only where it keeps an old stream (see there)\&. A form without
+these leaves the flag unset, which keeps it compatible with digital
+signature workflows\&.
 Radiobutton groups are finalized at document write time as a
 parent field with \fB/Kids\fR entries\&.
 .PP
@@ -3843,7 +3913,9 @@ SHA backend priority: \fBtcl-sha\fR (C extension) >
 .IP \(bu
 Combobox and listbox generate their own appearance streams\&.
 \fBNeedAppearances\fR is never set; all field types coexist correctly
-with signature fields\&.
+with signature fields\&. (State of 0\&.9\&.4\&.17\&. Later versions set it for
+\fB-calculate\fR, \fB-format\fR, \fB-js\fR and in
+\fBfillForms\fR where an old stream stays\&.)
 .IP \(bu
 New options \fB-required\fR and \fB-label\fR in
 \fBaddForm\fR\&.

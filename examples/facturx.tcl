@@ -247,7 +247,10 @@ p1 endPage
 set ::pdf4tcl::warnings {}
 set xml [buildCII]
 
-p1 facturx -contents $xml \
+# -contents takes bytes: encode the XML as its declaration says. The
+# data above is ASCII, so it makes no difference here -- it does with the
+# first umlaut.
+p1 facturx -contents [encoding convertto utf-8 $xml] \
     -filename     "factur-x.xml" \
     -conformance  "EN 16931" \
     -documenttype "INVOICE" \

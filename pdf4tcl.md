@@ -8,7 +8,7 @@ pdf4tcl - Pdf document generation
 
 package require **Tcl 8****.6**
 
-package require **pdf4tcl ?0****.9****.4****.70?**
+package require **pdf4tcl ?0****.9****.4****.71?**
 
 **::pdf4tcl::new** *objectName* ?*option value*...?
 
@@ -40,9 +40,9 @@ package require **pdf4tcl ?0****.9****.4****.70?**
 
 **::pdf4tcl::catPdf** ?*option value*...? *infile* ?*infile **.**.**.*? *outfile*
 
-**::pdf4tcl::getForms** *infile*
+**::pdf4tcl::getForms** *infile* ?*options*?
 
-**::pdf4tcl::fillForms** *infile* *outfile* *values*
+**::pdf4tcl::fillForms** *infile* *outfile* *values* ?*options*?
 
 **::pdf4tcl::exportForms** *infile* *outfile* ?*options*?
 
@@ -404,6 +404,11 @@ mypdf destroy
 ```
 
 - The options come before the file names, so every existing call keeps working unchanged. Each value is written to BOTH places a PDF carries it: the **/Info** dictionary and the XMP packet the catalog points at. ISO 19005-1 clause 6.7.3 requires the two to be equivalent, so a merged PDF/A-1 file with a new title stays conformant. The packet is edited, not rebuilt -- a Factur-X or ZUGFeRD extension schema in it survives untouched. Note that a proof run against PDF/A-2 or -3 shows nothing here: those parts dropped clause 6.7.3, and a validator stays silent however far the two places drift apart. Check against **1b**. Since 0.9.4.49 a file whose cross-reference table is a stream (PDF 1.5+) is read as well, which covers PDF/A-2 and -3 and therefore ZUGFeRD invoices. Since 0.9.4.50 objects packed into an object stream (**/ObjStm**) are unpacked too, so a file written by **qpdf** with **--object-streams=generate** merges like any other.
+**-password string**
+: Password for an encrypted file, user or owner password (0.9.4.71). See **Encrypted input** below.
+
+**::pdf4tcl::getForms infile ?options?**
+: This call extracts form data from a PDF file.
 
 **type**
 : Field type.
@@ -432,11 +437,14 @@ mypdf destroy
 **widgets**
 : How many widgets the field has (0.9.4.64). Normally 1. A field that appears on several sheets -- the carbon set of a CMR consignment note -- is one field with several widgets, each with its own **/Rect** and its own appearance (ISO 32000-1 12.7.4.1).
 
-**::pdf4tcl::getForms infile**
-: This call extracts form data from a PDF file. The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields: *Field names are composed since 0**.9**.4**.64**.* The full name of a field is the chain of **/T** entries from the root field down, joined with dots (ISO 32000-1 12.7.3.2): **/T** **person** on the parent and **city** on the child gives **person****.city**. Up to 0.9.4.63 only **city** came back -- and in a form with **rechnung****.betrag** and **lieferung****.betrag** both fields were then called **betrag**, one overwriting the other in the dictionary. *A field with several widgets is found since 0**.9**.4**.64**.* Up to 0.9.4.63 the name was looked for on the widget; where it sits on the parent, the field was not found at all -- **getForms** returned an empty dictionary and **fillForms** said "no such field". *The returned dictionary gained two keys in 0**.9**.4**.63 and one in 0**.9**.4**.64**.* Code that compares the whole dict against a literal will notice; code that reads individual keys will not.
+- The return value is a dictionary with id/info pairs. The id is the one set with *-id* to **addForm**, if the PDF was generated with pdf4tcl. The info is a dictionary with the following fields: *Field names are composed since 0**.9**.4**.64**.* The full name of a field is the chain of **/T** entries from the root field down, joined with dots (ISO 32000-1 12.7.3.2): **/T** **person** on the parent and **city** on the child gives **person****.city**. Up to 0.9.4.63 only **city** came back -- and in a form with **rechnung****.betrag** and **lieferung****.betrag** both fields were then called **betrag**, one overwriting the other in the dictionary. *Hex strings are read since 0**.9**.4**.71**.* A name, value, tooltip, default appearance or option may be written as **<****.****.****.>** instead of **(****.****.****.)** (ISO 32000-1 7.3.4) -- Acrobat writes a name with an umlaut as UTF-16BE **<FEFF****.****.****.>**, OpenOffice an empty value as **<FEFF>**. Up to 0.9.4.70 only the literal form was read: a field named in hex was missing from the result, and **fillForms** said *A field with several widgets is found since 0**.9**.4**.64**.* Up to 0.9.4.63 the name was looked for on the widget; where it sits on the parent, the field was not found at all -- **getForms** returned an empty dictionary and **fillForms** said "no such field". *The returned dictionary gained two keys in 0**.9**.4**.63 and one in 0**.9**.4**.64**.* Code that compares the whole dict against a literal will notice; code that reads individual keys will not.
+**-password string**
+: Password for an encrypted file, user or owner password (0.9.4.71). The output is encrypted the same way and needs the same password. See **Encrypted input** below.
 
-**::pdf4tcl::fillForms infile outfile values**
-: Fill the form fields of an existing PDF and write it out again (0.9.4.50+). Returns the number of fields filled. *values* is a dictionary of field id to value. A text field takes a string; a check box or radio button takes the state name as it appears in the file, with the slash (**/Yes**, **/Off**). **getForms** reports the current state under **default**. A field named in *values* but not present in the file raises an error rather than being ignored: a form that comes out empty with no explanation is worse than a refused call. Fields present but not named keep their value.
+**::pdf4tcl::fillForms infile outfile values ?options?**
+: Fill the form fields of an existing PDF and write it out again (0.9.4.50+). Returns the number of fields filled.
+
+- *values* is a dictionary of field id to value. A text field takes a string; a check box or radio button takes the state name as it appears in the file, with the slash (**/Yes**, **/Off**). **getForms** reports the current state under **default**. A field named in *values* but not present in the file raises an error rather than being ignored: a form that comes out empty with no explanation is worse than a refused call. Fields present but not named keep their value.
 
 ```tcl
 pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
@@ -470,7 +478,7 @@ A *dynamic* XFA form is refused (0.9.4.64+). There the catalogue the content liv
 : Output format. **fdf** (default): Forms Data Format (ISO 32000 SS12.7.7), a compact text format supported by most PDF viewers. **xfdf**: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
 
 **-password string**
-: Password for encrypted PDFs.
+: Password for encrypted PDFs, passed on to **getForms**. Until 0.9.4.70 the option was accepted and ignored: an encrypted file gave an empty export and the return value 0.
 
 **::pdf4tcl::exportForms infile outfile ?options?**
 : Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+). Returns the number of exported fields.
@@ -480,6 +488,25 @@ A *dynamic* XFA form is refused (0.9.4.64+). There the catalogue the content liv
 pdf4tcl::exportForms filled.pdf data.fdf
 # Export as XFDF
 pdf4tcl::exportForms filled.pdf data.xfdf -format xfdf
+```
+
+### ENCRYPTED INPUT
+
+**getForms**, **fillForms** and **exportForms** read encrypted files since 0.9.4.71 -- the standard security handler, revisions 2 to 6: RC4 with 40 or 128 bits, AES-128 and AES-256, with or without object streams.
+
+Without **-password** the file is opened with the empty password, which is what every viewer does: a file with only an owner password opens without a prompt. A file with a user password raises **PDF4TCL PASSWORD** and names the option; a wrong password raises the same error code with "wrong password". Either the user or the owner password works. A wrong password is not an error where the file opens without one. An unsupported scheme -- a public-key handler, an unknown revision -- raises **PDF4TCL ENCRYPTED**.
+
+Up to 0.9.4.70 all three read an encrypted file as if it were plain text. The field names stand there encrypted, no field was found, and none of them said so: **getForms** returned an empty dictionary, **fillForms** reported "no such field", **exportForms** wrote an empty file.
+
+**fillForms** writes the output with the same encryption, the same **/Encrypt** dictionary and the same **/ID**. Objects it did not touch go out byte for byte as they came; changed ones are encrypted again, the new appearance stream included, so the new value stands nowhere in clear text. The permissions in **/P** are not checked -- like **qpdf**, the library does what the caller asks, and the caller holds the password.
+
+AES-256 (revision 6) derives its key with ISO 32000-2 algorithm 2.B, the same code that writes such files. In pure Tcl that takes a few seconds per password check; opening with the owner password costs a second round.
+
+**catPdf** still reads encrypted input without decrypting it.
+
+```tcl
+set f [pdf4tcl::getForms antrag.pdf -password geheim]
+pdf4tcl::fillForms antrag.pdf antrag-voll.pdf {name "Meier"} -password geheim
 ```
 
 ### OBJECT COMMAND
@@ -650,7 +677,7 @@ All commands created by **::pdf4tcl::new** have the following general form and m
 **objectName addForm type x y width height ?option value...?**
 : Add an interactive form field at the given position and size. Coordinates are in the document's current unit. Supported types are *text*, *password*, *checkbutton* (alias *checkbox*), *combobox*, *listbox*, *radiobutton*, *pushbutton*, and *signature*.
 
-- All fields generate their own appearance streams; the **NeedAppearances** flag is never set, ensuring compatibility with digital signature workflows. Radiobutton groups are finalized at document write time as a parent field with **/Kids** entries.
+- All fields generate their own appearance streams. **addForm** sets **/NeedAppearances true** only for a field with **-calculate**, **-format** or **-js**: its value is computed or formatted by the viewer, and the stream has to follow. **::pdf4tcl::fillForms** sets it only where it keeps an old stream (see there). A form without these leaves the flag unset, which keeps it compatible with digital signature workflows. Radiobutton groups are finalized at document write time as a parent field with **/Kids** entries.
 
 ### OBJECT METHODS, PAGE
 
@@ -1831,7 +1858,7 @@ These bytes are the AES file key, the initialisation vectors and the salts, so t
 - (**EncryptStringsInBody**, **_PdfLiteralToBytes**) wired into four call sites in "*src/main**.tcl*": FlushObjects, radio group parent, info dictionary, and bookmarks. Fixes AcroForm field corruption in encrypted documents.
 - (**::pdf4tcl::sha2pure**, NIST FIPS 180-4 compliant). AES-256 no longer requires any external program.
 - SHA backend priority: **tcl-sha** (C extension) > **openssl** (if in PATH) > pure-Tcl fallback (always available).
-- Combobox and listbox generate their own appearance streams. **NeedAppearances** is never set; all field types coexist correctly with signature fields.
+- Combobox and listbox generate their own appearance streams. **NeedAppearances** is never set; all field types coexist correctly with signature fields. (State of 0.9.4.17. Later versions set it for **-calculate**, **-format**, **-js** and in **fillForms** where an old stream stays.)
 - New options **-required** and **-label** in **addForm**.
 
 ### VERSION 0.9.4.16

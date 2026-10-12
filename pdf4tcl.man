@@ -1,13 +1,13 @@
 [comment {-*- tcl -*- doctools manpage}]
 [comment "Modifications by IDG, March 2012"]
-[manpage_begin pdf4tcl n 0.9.4.70]
+[manpage_begin pdf4tcl n 0.9.4.71]
 [copyright {2007-2016 Peter Spjuth}]
 [copyright {2009 Yaroslav Schekin}]
 [copyright {2024-2026 gregnix (fork 0.9.4.x)}]
 [moddesc   {Pdf document generation}]
 [titledesc {Pdf document generation}]
 [require Tcl 8.6]
-[require pdf4tcl [opt 0.9.4.70]]
+[require pdf4tcl [opt 0.9.4.71]]
 [description]
 
 This package provides a container class for generating [term {pdf}] documents.
@@ -304,9 +304,15 @@ Since 0.9.4.50 objects packed into an object stream ([const /ObjStm]) are
 unpacked too, so a file written by [syscmd qpdf] with
 [option --object-streams=generate] merges like any other.
 
-[call [cmd ::pdf4tcl::getForms] [arg "infile"]]
+[call [cmd ::pdf4tcl::getForms] [arg "infile"] [opt [arg "options"]]]
 
 This call extracts form data from a PDF file.
+[list_begin options]
+[opt_def -password [arg "string"]]
+Password for an encrypted file, user or owner password (0.9.4.71).
+See [sectref {Encrypted input}] below.
+[list_end]
+
 The return value is a dictionary with id/info pairs.
 The id is the one set with [arg -id] to [method addForm], if the PDF
 was generated with pdf4tcl.
@@ -351,6 +357,14 @@ only [const city] came back -- and in a form with
 [const rechnung.betrag] and [const lieferung.betrag] both fields were
 then called [const betrag], one overwriting the other in the dictionary.
 [para]
+[emph {Hex strings are read since 0.9.4.71.}] A name, value, tooltip,
+default appearance or option may be written as [const <...>] instead of
+[const (...)] (ISO 32000-1 7.3.4) -- Acrobat writes a name with an umlaut
+as UTF-16BE [const <FEFF...>], OpenOffice an empty value as
+[const <FEFF>]. Up to 0.9.4.70 only the literal form was read: a field
+named in hex was missing from the result, and [cmd fillForms] said
+"no such field".
+[para]
 [emph {A field with several widgets is found since 0.9.4.64.}] Up to
 0.9.4.63 the name was looked for on the widget; where it sits on the
 parent, the field was not found at all -- [cmd getForms] returned an
@@ -360,10 +374,16 @@ empty dictionary and [cmd fillForms] said "no such field".
 0.9.4.64.}] Code that compares the whole dict against a literal will
 notice; code that reads individual keys will not.
 
-[call [cmd ::pdf4tcl::fillForms] [arg "infile"] [arg "outfile"] [arg "values"]]
+[call [cmd ::pdf4tcl::fillForms] [arg "infile"] [arg "outfile"] [arg "values"] [opt [arg "options"]]]
 
 Fill the form fields of an existing PDF and write it out again (0.9.4.50+).
 Returns the number of fields filled.
+[list_begin options]
+[opt_def -password [arg "string"]]
+Password for an encrypted file, user or owner password (0.9.4.71). The
+output is encrypted the same way and needs the same password.
+See [sectref {Encrypted input}] below.
+[list_end]
 
 [arg values] is a dictionary of field id to value. A text field takes a
 string; a check box or radio button takes the state name as it appears in
@@ -468,6 +488,7 @@ success that had not happened. A [emph hybrid] XFA form -- XFA together
 with usable AcroForm fields -- is filled as before, because there a
 viewer without XFA takes the AcroForm side and the value does work.
 
+
 [call [cmd ::pdf4tcl::exportForms] [arg "infile"] [arg "outfile"] [opt [arg "options"]]]
 
 Export form field data from a filled PDF as FDF or XFDF (0.9.4.23+).
@@ -479,7 +500,9 @@ Output format. [const fdf] (default): Forms Data Format (ISO 32000 SS12.7.7),
 a compact text format supported by most PDF viewers.
 [const xfdf]: XML Forms Data Format (ISO 32000 SS12.7.8), human-readable XML.
 [opt_def -password [arg "string"]]
-Password for encrypted PDFs.
+Password for encrypted PDFs, passed on to [cmd getForms].
+Until 0.9.4.70 the option was accepted and ignored: an encrypted file
+gave an empty export and the return value 0.
 [list_end]
 
 [example {
@@ -491,6 +514,47 @@ pdf4tcl::exportForms filled.pdf data.xfdf -format xfdf
 }]
 
 [list_end]
+
+[subsection {Encrypted input}]
+
+[cmd getForms], [cmd fillForms] and [cmd exportForms] read encrypted
+files since 0.9.4.71 -- the standard security handler, revisions 2 to 6:
+RC4 with 40 or 128 bits, AES-128 and AES-256, with or without object
+streams.
+[para]
+Without [option -password] the file is opened with the empty password,
+which is what every viewer does: a file with only an owner password opens
+without a prompt. A file with a user password raises
+[const {PDF4TCL PASSWORD}] and names the option; a wrong password raises
+the same error code with "wrong password". Either the user or the owner
+password works. A wrong password is not an error where the file opens
+without one. An unsupported scheme -- a public-key handler, an unknown
+revision -- raises [const {PDF4TCL ENCRYPTED}].
+[para]
+Up to 0.9.4.70 all three read an encrypted file as if it were plain text.
+The field names stand there encrypted, no field was found, and none of
+them said so: [cmd getForms] returned an empty dictionary,
+[cmd fillForms] reported "no such field", [cmd exportForms] wrote an empty
+file.
+[para]
+[cmd fillForms] writes the output with the same encryption, the same
+[const /Encrypt] dictionary and the same [const /ID]. Objects it did not
+touch go out byte for byte as they came; changed ones are encrypted again,
+the new appearance stream included, so the new value stands nowhere in
+clear text. The permissions in [const /P] are not checked -- like
+[syscmd qpdf], the library does what the caller asks, and the caller holds
+the password.
+[para]
+AES-256 (revision 6) derives its key with ISO 32000-2 algorithm 2.B, the
+same code that writes such files. In pure Tcl that takes a few seconds per
+password check; opening with the owner password costs a second round.
+[para]
+[cmd catPdf] still reads encrypted input without decrypting it.
+
+[example {
+set f [pdf4tcl::getForms antrag.pdf -password geheim]
+pdf4tcl::fillForms antrag.pdf antrag-voll.pdf {name "Meier"} -password geheim
+}]
 
 [subsection {OBJECT COMMAND}]
 
@@ -872,9 +936,13 @@ within the AcroForm. Valid for all field types.
 
 [list_end]
 
-All fields generate their own appearance streams; the
-[const NeedAppearances] flag is never set, ensuring compatibility
-with digital signature workflows.
+All fields generate their own appearance streams. [method addForm] sets
+[const {/NeedAppearances true}] only for a field with [option -calculate],
+[option -format] or [option -js]: its value is computed or formatted by
+the viewer, and the stream has to follow. [cmd ::pdf4tcl::fillForms]
+sets it only where it keeps an old stream (see there). A form without
+these leaves the flag unset, which keeps it compatible with digital
+signature workflows.
 Radiobutton groups are finalized at document write time as a
 parent field with [const /Kids] entries.
 
@@ -3361,7 +3429,9 @@ no longer requires any external program.
 [cmd openssl] (if in PATH) > pure-Tcl fallback (always available).
 [item] Combobox and listbox generate their own appearance streams.
 [const NeedAppearances] is never set; all field types coexist correctly
-with signature fields.
+with signature fields. (State of 0.9.4.17. Later versions set it for
+[option -calculate], [option -format], [option -js] and in
+[cmd fillForms] where an old stream stays.)
 [item] New options [option -required] and [option -label] in
 [method addForm].
 [list_end]

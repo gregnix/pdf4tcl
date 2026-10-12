@@ -10,7 +10,7 @@
 # See the file "licence.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 
-package provide pdf4tcl 0.9.4.70
+package provide pdf4tcl 0.9.4.71
 package require TclOO
 package require pdf4tcl::stdmetrics
 package require pdf4tcl::glyph2unicode
@@ -15899,6 +15899,10 @@ proc pdf4tcl::cat::UnpackObjStreams {data xrefs container file} {
         if {[string index $data $b] eq "\r"} { incr b }
         if {[string index $data $b] eq "\n"} { incr b }
         set roh [string range $data $b [expr {$b + $len - 1}]]
+        variable cryptCtx
+        if {[info exists cryptCtx] && $cryptCtx ne ""} {
+            set roh [CryptData $cryptCtx stm $stmNo 0 $roh decrypt]
+        }
         if {[info exists filter] && $filter eq "FlateDecode"} {
             if {[catch {zlib decompress $roh} plain]} {
                 throw {PDF4TCL} "catPdf: cannot decompress object stream\
@@ -16054,6 +16058,12 @@ proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
         }
     }
 
+    # Verschluesselt? Dann muss der Kontext stehen, bevor die Container
+    # entpackt werden -- ihr Inhalt ist als Ganzes verschluesselt.
+    if {[regexp {/Encrypt} $hdr]} {
+        CryptEnsure $data $hdr $xrefs $file
+    }
+
     # Objekte aus den Containern holen. Die Container selbst stehen als
     # Typ 1 in derselben Tabelle, sind also schon bekannt.
     if {[dict size $inObjStm]} {
@@ -16066,8 +16076,20 @@ proc pdf4tcl::cat::ReadXrefStream {data startxref file} {
     return [list [PdfDictToTclDict $dictTxt] $xrefs]
 }
 
-proc pdf4tcl::cat::ReadPdf {file} {
+proc pdf4tcl::cat::ReadPdf {file args} {
     variable objStmBodies
+    # -password: verschluesselte Eingabe entschluesseln (siehe
+    # CryptSetup). Ohne die Option bleibt alles wie bis 0.9.4.70 --
+    # catPdf ruft so.
+    variable cryptWant 0
+    variable cryptPw ""
+    variable cryptCtx ""
+    foreach {k v} $args {
+        switch -- $k {
+            -password { set cryptWant 1; set cryptPw $v }
+            default { throw {PDF4TCL} "ReadPdf: unknown option \"$k\"" }
+        }
+    }
     set ch [open $file rb]
     set data [read $ch]
     close $ch
@@ -16178,6 +16200,12 @@ proc pdf4tcl::cat::ReadPdf {file} {
         }
     }
 
+    # Verschluesselung: der Kontext steht, BEVOR Objekte ausgeschnitten
+    # werden. Bei xref-Stroemen ist das schon in ReadXrefStream passiert.
+    if {[dict exists $allTrailer /Encrypt]} {
+        CryptEnsure $data [TclDictToPdfDict $allTrailer] $xrefs $file
+    }
+
     # Extract unused into dummy object numbers
     set obj -1
     foreach index $unusedIndices {
@@ -16198,6 +16226,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
     dict set pdfdata "trailer" $trailer
     # Cut out objects, from the end
     set xrefs [lsort -stride 2 -integer -decreasing -index 1 $xrefs]
+    set fromObjStm {}
     #puts $xrefs
     foreach {obj index} $xrefs {
         # -2 marks an object that came out of an object stream: it has no
@@ -16205,6 +16234,7 @@ proc pdf4tcl::cat::ReadPdf {file} {
         if {$index == -2} {
             if {[info exists objStmBodies($obj)]} {
                 dict set pdfdata $obj full $objStmBodies($obj)
+                lappend fromObjStm $obj
             }
             continue
         }
@@ -16234,6 +16264,10 @@ proc pdf4tcl::cat::ReadPdf {file} {
             dict set pdfdata $obj full $fullObj
         }
     }
+    if {$cryptCtx ne ""} {
+        set pdfdata [CryptDecryptObjects $pdfdata $cryptCtx $fromObjStm]
+    }
+
     # Get root object
     set rval [dict get $trailer /Root]
     set rootid [lindex $rval 0]
@@ -16543,16 +16577,18 @@ proc pdf4tcl::cat::AcroFieldRefs {d} {
 proc pdf4tcl::cat::WarnDuplicateFieldNames {pdf1 pdf2 refs1 refs2} {
     set names1 {}
     foreach {num z r} $refs1 {
-        if {[dict exists $pdf1 $num]
-                && [regexp {/T\s*\(([^)]*)\)} [dict get $pdf1 $num full] -> n]} {
-            lappend names1 $n
+        if {[dict exists $pdf1 $num]} {
+            set n [::pdf4tcl::FormStringToken [dict get $pdf1 $num full] /T]
+            if {$n ne ""} { lappend names1 [::pdf4tcl::FormUnquoteString $n] }
         }
     }
     set dups {}
     foreach {num z r} $refs2 {
         set src [expr {[dict exists $pdf2 $num] ? $pdf2 : $pdf1}]
-        if {[dict exists $src $num]
-                && [regexp {/T\s*\(([^)]*)\)} [dict get $src $num full] -> n]} {
+        if {[dict exists $src $num]} {
+            set n [::pdf4tcl::FormStringToken [dict get $src $num full] /T]
+            if {$n eq ""} continue
+            set n [::pdf4tcl::FormUnquoteString $n]
             if {$n in $names1 && $n ni $dups} { lappend dups $n }
         }
     }
@@ -17538,8 +17574,9 @@ proc pdf4tcl::exportForms {pdfFile outFile args} {
         throw {PDF4TCL} "invalid -format \"$format\": must be fdf or xfdf"
     }
 
-    # Formulardaten einlesen
-    set formData [pdf4tcl::getForms $pdfFile]
+    # Formulardaten einlesen. Bis 0.9.4.70 blieb -password hier liegen,
+    # und eine verschluesselte Datei ergab eine leere Ausgabe mit 0.
+    set formData [pdf4tcl::getForms $pdfFile -password $password]
     if {[llength $formData] == 0} {
         # Leeres Dict -> 0 Felder
         set ch [open $outFile w]
@@ -17683,12 +17720,13 @@ proc pdf4tcl::_exportFormsXFDF {pdfFile outFile formData} {
 # This comment used to say "What this does NOT do: build appearance
 # streams." It was right until .63 and wrong afterwards -- a stale
 # comment is worse than none, because it is believed.
-proc pdf4tcl::fillForms {inFile outFile values} {
+proc pdf4tcl::fillForms {inFile outFile values args} {
     if {![file exists $inFile]} {
         throw {PDF4TCL} "No such file: $inFile"
     }
+    set password [FormOptions fillForms $args]
     if {![dict size $values]} { return 0 }
-    set pdf [pdf4tcl::cat::ReadPdf $inFile]
+    set pdf [pdf4tcl::cat::ReadPdf $inFile -password $password]
 
     set N [dict get $pdf N]
     set gefuellt 0
@@ -17925,7 +17963,13 @@ proc pdf4tcl::fillForms {inFile outFile values} {
         }
 
         set da [dict get $e DA]
-        set da [string trim $da "()"]
+        if {[string index $da 0] eq "<"} {
+            # Hex (0.9.4.71). Literal bleibt wie bisher: nur die Klammern
+            # ab, denn /DA geht roh in den neuen Strom.
+            set da [FormUnquoteString $da]
+        } else {
+            set da [string trim $da "()"]
+        }
         if {$da eq ""} { set brauchtFlagge 1 ; incr gefuellt ; continue }
         set resName ""
         regexp {/([A-Za-z0-9#]+)\s+[0-9.]+\s+Tf} $da -> resName
@@ -18005,6 +18049,12 @@ proc pdf4tcl::fillForms {inFile outFile values} {
         }
     }
 
+    # Verschluesselt gelesen: geaenderte Objekte wieder verschluesseln,
+    # unberuehrte gehen byteweise so hinaus, wie sie kamen. Der Trailer
+    # behaelt /Encrypt und /ID -- die Ausgabe braucht dasselbe Kennwort.
+    if {[dict exists $pdf crypt]} {
+        set pdf [pdf4tcl::cat::CryptReencrypt $pdf]
+    }
     pdf4tcl::cat::WritePdf $outFile $pdf
     return $gefuellt
 }
@@ -18032,6 +18082,26 @@ proc pdf4tcl::fillForms {inFile outFile values} {
 #
 # /FT, /Ff, /V und /DA duerfen vom Vater geerbt werden (12.7.3.1); wer nur
 # das Kind ansieht, haelt ein Textfeld fuer typenlos.
+# Den Wert eines Zeichenketten-Schluessels als Token holen, literal "(...)"
+# ODER hex "<...>" -- leer, wenn er fehlt.
+#
+# Bis 0.9.4.70 suchten FormFieldTree, FormReadOpt und die
+# Namenspruefung von catPdf nur die literale Form. Die Norm erlaubt
+# beide (ISO 32000-1 7.3.4), und fremde Erzeuger schreiben hex: Acrobat
+# einen Namen mit Umlaut als <FEFF...> (UTF-16BE), OpenOffice ein leeres
+# /V als <FEFF>. Ein Feld mit /T <...> fiel durch, still -- getForms gab
+# ein dict ohne es, fillForms meldete "no such field". Derselbe Fehler
+# wie bei verschluesselten Formularen, nur ohne Verschluesselung.
+proc pdf4tcl::FormStringToken {body key} {
+    if {[regexp "${key}\\s*(\\((?:\\\\.|\[^\\\\)\])*\\))" $body -> tok]} {
+        return $tok
+    }
+    if {[regexp "${key}\\s*(<\[0-9A-Fa-f\\s\]*>)" $body -> tok]} {
+        return $tok
+    }
+    return ""
+}
+
 proc pdf4tcl::FormFieldTree {pdf} {
     set N [dict get $pdf N]
     set roh [dict create]
@@ -18046,8 +18116,9 @@ proc pdf4tcl::FormFieldTree {pdf} {
         # /T aus dem ROHTEXT: PdfObjToTclDict zerlegt an Leerzeichen, und
         # ein Name mit Leerzeichen -- "Given Name Text Box", so schreibt
         # OpenOffice -- kaeme dort zerrissen an.
-        if {[regexp {/T\s*\(((?:\\.|[^\\)])*)\)} $objtext -> t]} {
-            dict set eintrag name [FormUnquoteString "($t)"]
+        set t [FormStringToken $objtext /T]
+        if {$t ne ""} {
+            dict set eintrag name [FormUnquoteString $t]
         }
         if {[regexp {/Parent\s+(\d+)\s+0\s+R} $objtext -> pa]} {
             dict set eintrag parent $pa
@@ -18112,7 +18183,9 @@ proc pdf4tcl::FormFieldTree {pdf} {
             set t2 0
             while {$q ne "" && [dict exists $roh $q] && [incr t2] < 32} {
                 set objBody [dict get $roh $q body]
-                if {[regexp "\\$schluessel\\s*(\\(((?:\\\\.|\[^\\\\)\])*)\\)|/\\w+|-?\\d+)" \
+                # Hex-Zeichenketten zaehlen mit (0.9.4.71) -- siehe
+                # FormStringToken.
+                if {[regexp "\\$schluessel\\s*(\\(((?:\\\\.|\[^\\\\)\])*)\\)|<\[0-9A-Fa-f\\s\]*>|/\\w+|-?\\d+)" \
                         $objBody -> gefunden]} {
                     set wert $gefunden
                     break
@@ -18197,21 +18270,22 @@ proc pdf4tcl::FormReadOpt {body} {
     set inhalt [string range $body [expr {$i + 1}] [expr {$ende - 1}]]
 
     set aus {}
+    # Eine Zeichenkette, literal oder hex (0.9.4.71 -- bis dahin nur
+    # literal, und ein fremdes Auswahlfeld mit <...> hatte keine Optionen).
+    set str {(\((?:\\.|[^\\)])*\)|<[0-9A-Fa-f\s]*>)}
     # Erst die Paare: [(x) (y)]
     set rest $inhalt
-    while {[regexp -indices {\[\s*\(((?:\\.|[^\\)])*)\)\s*\(((?:\\.|[^\\)])*)\)\s*\]} \
-            $rest -> a b]} {
+    while {[regexp -indices "\\\[\\s*$str\\s*$str\\s*\\\]" $rest -> a b]} {
         set ex [string range $rest {*}$a]
         set la [string range $rest {*}$b]
-        lappend aus [list [FormUnquoteString "($ex)"] \
-                          [FormUnquoteString "($la)"]]
+        lappend aus [list [FormUnquoteString $ex] [FormUnquoteString $la]]
         set rest [string replace $rest 0 [lindex $b 1]]
     }
     if {[llength $aus]} { return $aus }
 
     # Sonst die einfache Form: nur Zeichenketten.
-    foreach {ganz txt} [regexp -all -inline {\(((?:\\.|[^\\)])*)\)} $inhalt] {
-        set w [FormUnquoteString "($txt)"]
+    foreach {ganz tok} [regexp -all -inline $str $inhalt] {
+        set w [FormUnquoteString $tok]
         lappend aus [list $w $w]
     }
     return $aus
@@ -18501,11 +18575,34 @@ proc pdf4tcl::_SwapBytes {s} {
     return $out
 }
 
-proc pdf4tcl::getForms {pdfFile} {
+# Optionen von getForms und fillForms. Bisher nur -password.
+proc pdf4tcl::FormOptions {cmd optlist} {
+    if {[llength $optlist] % 2} {
+        throw {PDF4TCL} "$cmd: missing value for option\
+                \"[lindex $optlist end]\""
+    }
+    set password ""
+    foreach {k v} $optlist {
+        switch -- $k {
+            -password { set password $v }
+            default {
+                throw {PDF4TCL} "$cmd: unknown option \"$k\",\
+                        must be -password"
+            }
+        }
+    }
+    return $password
+}
+
+proc pdf4tcl::getForms {pdfFile args} {
     if {![file exists $pdfFile]} {
         throw {PDF4TCL} "No such file: $pdfFile"
     }
-    set pdf [pdf4tcl::cat::ReadPdf $pdfFile]
+    # IMMER mit -password lesen, auch leer: eine Datei mit nur einem
+    # Eigentuemerkennwort oeffnet so ohne Nachfrage, wie in jedem
+    # Betrachter. Bis 0.9.4.70 kam hier ein leeres dict zurueck.
+    set password [FormOptions getForms $args]
+    set pdf [pdf4tcl::cat::ReadPdf $pdfFile -password $password]
 
     # Ueber den FELDBAUM, nicht ueber die Widgets.
     #
@@ -18562,4 +18659,607 @@ proc pdf4tcl::getForms {pdfFile} {
         dict set result $id options [dict get $e Opt]
     }
     return $result
+}
+
+#######################################################################
+# Verschluesselte Eingabe fuer getForms, fillForms und exportForms
+# (0.9.4.71)
+#######################################################################
+#
+# Bis 0.9.4.70 las ReadPdf eine verschluesselte Datei, als waere sie
+# Klartext. Die Feldnamen stehen dort aber verschluesselt -- pdf4tcl
+# selbst schreibt /T <8faeb26e...> --, FormFieldTree fand kein einziges
+# Feld, und alle drei Befehle schwiegen dazu:
+#
+#   getForms     leeres dict
+#   fillForms    "no such field(s)"
+#   exportForms  leere FDF, Rueckgabe 0 -- und das dokumentierte
+#                -password wurde angenommen und nie benutzt
+#
+# Gemessen an Dateien, die pdf4tcl selbst mit -ownerpassword und mit
+# -userpassword geschrieben hatte. Der Fall nur mit Eigentuemerkennwort
+# ist der haeufige: so kommen Formulare von Behoerden, und jeder
+# Betrachter oeffnet sie ohne Nachfrage.
+#
+# Entschluesselt wird NUR AUF ANFORDERUNG (ReadPdf -password). catPdf
+# ruft ohne, und bleibt damit, wie es war: es haengt Objekte aus mehreren
+# Dateien zusammen, und eine entschluesselte Haelfte unter einem /Encrypt
+# im Trailer ergaebe eine kaputte Datei.
+#
+# Was entschluesselt wird:
+#
+#   Zeichenketten  in allen Objekten, ausser im /Encrypt-Woerterbuch,
+#                  in xref- und Objekt-Stroemen (deren /ID ist Klartext,
+#                  7.6.1) und im /Contents einer Signatur (7.6.1).
+#   Objekt-Stroeme als Ganzes, bevor sie entpackt werden. Die Objekte
+#                  darin tragen KEINE eigene Verschluesselung.
+#   Stroeme sonst  NICHT. getForms und fillForms lesen keinen Strominhalt,
+#                  und ein unberuehrter Strom wird so geschrieben, wie er
+#                  kam. Das spart bei einer Datei mit eingebetteter
+#                  Schrift Sekunden reines Tcl-AES.
+#
+# Beim Schreiben (CryptReencrypt) geht ein Objekt, das fillForms nicht
+# angefasst hat, BYTEGLEICH so hinaus, wie es gelesen wurde. Nur ein
+# geaendertes wird neu verschluesselt: seine Zeichenketten immer, sein
+# Strom nur, wenn er sich geaendert hat (neuer Appearance-Strom).
+# Objekte aus einem Objekt-Strom werden als eigene Objekte geschrieben
+# und brauchen darum ihre Zeichenketten verschluesselt, auch unveraendert.
+#
+# Unterstuetzt: Standard-Handler, R 2 bis 6 -- RC4 40/128 Bit, AES-128
+# (AESV2), AES-256 (AESV3, R 5 und 6), Benutzer- und Eigentuemerkennwort.
+# Die Schluesselableitung fuer R 6 (Alg. 2.B) ist DIESELBE Methode, mit
+# der pdf4tcl verschluesselt -- sie laeuft hier ueber CryptBox, eine
+# Unterklasse ohne eigenen Zustand.
+
+catch {::pdf4tcl::cat::CryptBox destroy}
+oo::class create ::pdf4tcl::cat::CryptBox {
+    superclass ::pdf4tcl::pdf4tcl
+    variable pdf
+    # Der Konstruktor der Oberklasse laeuft NICHT: gebraucht werden nur
+    # die Methoden _MD5, _RC4, _AesCbc, _SHA256, _Alg2B und
+    # _EncRandBytes, und keine davon liest den Dokumentzustand.
+    constructor {} {
+        array set pdf {}
+        package require aes
+    }
+    destructor {}
+    method call {args} { my {*}$args }
+}
+
+proc pdf4tcl::cat::CryptBoxObj {} {
+    if {![llength [info commands ::pdf4tcl::cat::cryptbox]]} {
+        ::pdf4tcl::cat::CryptBox create ::pdf4tcl::cat::cryptbox
+    }
+    return ::pdf4tcl::cat::cryptbox
+}
+
+# Eine PDF-Zeichenkette ab Position i lesen, literal (...) oder hex <...>.
+# Rueckgabe: {Bytes Index-hinter-dem-Token}
+proc pdf4tcl::cat::CryptParseString {text i} {
+    set len [string length $text]
+    if {[string index $text $i] eq "<"} {
+        set j [string first ">" $text $i]
+        if {$j < 0} { set j $len }
+        set hex [regsub -all {[^0-9A-Fa-f]} [string range $text $i+1 $j-1] ""]
+        if {[string length $hex] % 2} { append hex 0 }
+        return [list [binary format H* $hex] [expr {$j + 1}]]
+    }
+    set out ""
+    set depth 1
+    set j [expr {$i + 1}]
+    while {$j < $len} {
+        set c [string index $text $j]
+        if {$c eq "\\"} {
+            incr j
+            set e [string index $text $j]
+            switch -- $e {
+                n { append out \n; incr j }
+                r { append out \r; incr j }
+                t { append out \t; incr j }
+                b { append out \b; incr j }
+                f { append out \f; incr j }
+                "(" - ")" - "\\" { append out $e; incr j }
+                "\r" {
+                    # Zeilenfortsetzung: \ vor dem Zeilenende zaehlt nicht.
+                    incr j
+                    if {[string index $text $j] eq "\n"} { incr j }
+                }
+                "\n" { incr j }
+                default {
+                    if {[regexp -start $j {\A[0-7]{1,3}} $text okt]} {
+                        append out [format %c [expr {[scan $okt %o] & 0xFF}]]
+                        incr j [string length $okt]
+                    } else {
+                        append out $e
+                        incr j
+                    }
+                }
+            }
+            continue
+        }
+        if {$c eq "("} { incr depth }
+        if {$c eq ")"} {
+            incr depth -1
+            if {$depth == 0} { return [list $out [expr {$j + 1}]] }
+        }
+        append out $c
+        incr j
+    }
+    return [list $out $len]
+}
+
+# Bytes als literale Zeichenkette. Klammern IMMER maskiert: FormFieldTree
+# liest /T, /V und /DA mit einem Muster, das eine unmaskierte ")" fuer
+# das Ende haelt.
+proc pdf4tcl::cat::CryptLiteral {bytes} {
+    return ([string map {\\ \\\\ ( \\( ) \\) \r \\r \n \\n} $bytes])
+}
+
+# Den Woerterbuchteil eines Objekts durchgehen und jede Zeichenkette durch
+# cmd schicken: {*}$cmd bytes -> neuer Token-Text. Haelt am Schluesselwort
+# "stream" an. Rueckgabe: {neuer-Text Index-von-stream-oder-Ende}
+proc pdf4tcl::cat::CryptWalk {text cmd} {
+    set out ""
+    set i 0
+    set len [string length $text]
+    set lastName ""
+    # /Contents einer Signatur ist nicht verschluesselt (7.6.1).
+    set istSig [regexp {/ByteRange\s*\[} $text]
+    while {$i < $len} {
+        if {![regexp -start $i -indices {[(<%/]|\mstream\M} $text m]} {
+            append out [string range $text $i end]
+            return [list $out $len]
+        }
+        set k [lindex $m 0]
+        append out [string range $text $i $k-1]
+        set c [string index $text $k]
+        switch -- $c {
+            "(" - "<" {
+                if {$c eq "<" && [string index $text $k+1] eq "<"} {
+                    append out "<<"
+                    set i [expr {$k + 2}]
+                    continue
+                }
+                lassign [CryptParseString $text $k] bytes e
+                if {$istSig && $lastName eq "/Contents"} {
+                    append out [string range $text $k $e-1]
+                } else {
+                    append out [{*}$cmd $bytes]
+                }
+                set lastName ""
+                set i $e
+            }
+            "%" {
+                set e [string first \n $text $k]
+                if {$e < 0} { set e $len } else { incr e }
+                append out [string range $text $k $e-1]
+                set i $e
+            }
+            "/" {
+                regexp -start $k {\A/[^\s()<>\[\]{}/%]*} $text name
+                append out $name
+                set lastName $name
+                set i [expr {$k + [string length $name]}]
+            }
+            default {
+                # "stream": hier beginnt der Strominhalt.
+                return [list $out $k]
+            }
+        }
+    }
+    return [list $out $len]
+}
+
+# Objektschluessel (Alg. 1, 7.6.2). AESV3 nimmt den Dateischluessel.
+proc pdf4tcl::cat::CryptObjKey {ctx oid gen method} {
+    set key [dict get $ctx key]
+    if {$method eq "AESV3"} { return $key }
+    set inp $key
+    append inp [binary format cucucu [expr {$oid & 0xFF}] \
+            [expr {($oid >> 8) & 0xFF}] [expr {($oid >> 16) & 0xFF}]]
+    append inp [binary format cucu [expr {$gen & 0xFF}] [expr {($gen >> 8) & 0xFF}]]
+    if {$method eq "AESV2"} { append inp sAlT }
+    set n [expr {min([string length $key] + 5, 16)}]
+    return [string range [[CryptBoxObj] call _MD5 $inp] 0 $n-1]
+}
+
+# Bytes eines Objekts ent- oder verschluesseln. kind: str oder stm.
+proc pdf4tcl::cat::CryptData {ctx kind oid gen data dir} {
+    set method [dict get $ctx $kind]
+    if {$method eq "Identity"} { return $data }
+    set box [CryptBoxObj]
+    set k [CryptObjKey $ctx $oid $gen $method]
+    if {$method eq "RC4"} {
+        return [$box call _RC4 $k $data]
+    }
+    if {$dir eq "encrypt"} {
+        set pad [expr {16 - [string length $data] % 16}]
+        append data [string repeat [format %c $pad] $pad]
+        set iv [$box call _EncRandBytes 16]
+        return $iv[$box call _AesCbc encrypt $k $iv $data]
+    }
+    # Was nicht nach AES aussieht, bleibt stehen -- manche Erzeuger
+    # schreiben eine leere Zeichenkette unverschluesselt als "()".
+    set n [string length $data]
+    if {$n < 32 || $n % 16} { return $data }
+    set pt [$box call _AesCbc decrypt $k [string range $data 0 15] \
+            [string range $data 16 end]]
+    scan [string index $pt end] %c pad
+    if {$pad >= 1 && $pad <= 16
+            && [string range $pt end-[expr {$pad - 1}] end]
+               eq [string repeat [format %c $pad] $pad]} {
+        set pt [string range $pt 0 end-$pad]
+    }
+    return $pt
+}
+
+# Eine Zeichenkette nach Schluessel aus einem Woerterbuchtext holen.
+proc pdf4tcl::cat::CryptGetString {text key} {
+    if {![regexp -indices "/$key\\s*(\[(<\])" $text -> m]} { return "" }
+    set k [lindex $m 0]
+    if {[string index $text $k] eq "<" && [string index $text $k+1] eq "<"} {
+        return ""
+    }
+    return [lindex [CryptParseString $text $k] 0]
+}
+
+# Kennwort auf 32 Bytes auffuellen (Alg. 2 Schritt a).
+proc pdf4tcl::cat::CryptPad {pw} {
+    set pad [binary format H64 \
+            28BF4E5E4E758A4164004E56FFFA01082E2E00B6D0683E802F0CA9FE6453697A]
+    return [string range $pw$pad 0 31]
+}
+
+# Alg. 2: Dateischluessel aus Benutzerkennwort (R 2 bis 4).
+proc pdf4tcl::cat::CryptAlg2 {c pw} {
+    set box [CryptBoxObj]
+    set n [dict get $c n]
+    set inp [CryptPad $pw]
+    append inp [dict get $c O] [binary format i [dict get $c P]] [dict get $c id0]
+    if {[dict get $c R] >= 4 && ![dict get $c encMeta]} {
+        append inp "\xFF\xFF\xFF\xFF"
+    }
+    set h [$box call _MD5 $inp]
+    if {[dict get $c R] >= 3} {
+        for {set i 0} {$i < 50} {incr i} {
+            set h [$box call _MD5 [string range $h 0 $n-1]]
+        }
+    }
+    return [string range $h 0 $n-1]
+}
+
+# Alg. 4/5 umgekehrt: passt der Schluessel zu /U?
+proc pdf4tcl::cat::CryptCheckU {c key} {
+    set box [CryptBoxObj]
+    set pad [CryptPad ""]
+    if {[dict get $c R] == 2} {
+        return [expr {[$box call _RC4 $key $pad] eq [dict get $c U]}]
+    }
+    set x [$box call _RC4 $key [$box call _MD5 $pad[dict get $c id0]]]
+    for {set i 1} {$i <= 19} {incr i} {
+        set x [$box call _RC4 [CryptXorKey $key $i] $x]
+    }
+    return [expr {$x eq [string range [dict get $c U] 0 15]}]
+}
+
+proc pdf4tcl::cat::CryptXorKey {key i} {
+    binary scan $key cu* b
+    set out {}
+    foreach x $b { lappend out [expr {$x ^ $i}] }
+    return [binary format cu* $out]
+}
+
+# Alg. 7: aus dem Eigentuemerkennwort das Benutzerkennwort zurueckholen.
+proc pdf4tcl::cat::CryptOwnerToUser {c pw} {
+    set box [CryptBoxObj]
+    set n [dict get $c n]
+    set h [$box call _MD5 [CryptPad $pw]]
+    if {[dict get $c R] >= 3} {
+        for {set i 0} {$i < 50} {incr i} { set h [$box call _MD5 $h] }
+    }
+    set rk [string range $h 0 $n-1]
+    set x [dict get $c O]
+    if {[dict get $c R] == 2} {
+        return [$box call _RC4 $rk $x]
+    }
+    for {set i 19} {$i >= 0} {incr i -1} {
+        set x [$box call _RC4 [CryptXorKey $rk $i] $x]
+    }
+    return $x
+}
+
+# Hash fuer R 5 und R 6.
+proc pdf4tcl::cat::CryptHash6 {c pw salt udata} {
+    set box [CryptBoxObj]
+    if {[dict get $c R] == 5} {
+        return [$box call _SHA256 $pw$salt$udata]
+    }
+    return [$box call _Alg2B $pw $salt $udata]
+}
+
+# Aus /Encrypt, /ID und Kennwort den Kontext bauen. Wirft
+#   PDF4TCL ENCRYPTED  -- Verfahren nicht unterstuetzt
+#   PDF4TCL PASSWORD   -- Kennwort fehlt oder ist falsch
+proc pdf4tcl::cat::CryptSetup {encText encOid idBytes password file} {
+    if {[regexp {/Filter\s*/(\w+)} $encText -> filter] && $filter ne "Standard"} {
+        throw {PDF4TCL ENCRYPTED} "\"$file\" is encrypted with the /$filter\
+                security handler; only /Standard (password) is supported"
+    }
+    set V 0
+    set R 0
+    set P 0
+    set len 40
+    regexp {/V\s+(\d+)} $encText -> V
+    regexp {/R\s+(\d+)} $encText -> R
+    regexp {/P\s+(-?\d+)} $encText -> P
+    regexp {/Length\s+(\d+)} $encText -> len
+    set encMeta [expr {![regexp {/EncryptMetadata\s+false} $encText]}]
+    ##nagelfar ignore #3 Found constant
+    set c [dict create V $V R $R P $P encMeta $encMeta \
+            id0 $idBytes encOid $encOid \
+            O [CryptGetString $encText O] U [CryptGetString $encText U]]
+
+    # Verfahren je Strom und Zeichenkette.
+    if {$V < 4} {
+        if {$V < 1 || $R < 2 || $R > 3} {
+            throw {PDF4TCL ENCRYPTED} "\"$file\": encryption /V $V /R $R\
+                    is not supported"
+        }
+        dict set c str RC4
+        dict set c stm RC4
+        dict set c n [expr {$V == 1 ? 5 : $len / 8}]
+    } elseif {$V == 4 || $V == 5} {
+        set n [expr {$V == 5 ? 32 : 16}]
+        foreach {kind key} {stm StmF str StrF} {
+            set cf Identity
+            regexp "/$key\\s*/(\\w+)" $encText -> cf
+            if {$cf eq "Identity"} { dict set c $kind Identity; continue }
+            if {![regexp "/$cf\\s*<<(\[^>\]*)>>" $encText -> cfd]
+                    || ![regexp {/CFM\s*/(\w+)} $cfd -> cfm]} {
+                throw {PDF4TCL ENCRYPTED} "\"$file\": crypt filter /$cf\
+                        is not described in /CF"
+            }
+            switch -- $cfm {
+                V2    { set m RC4 }
+                AESV2 { set m AESV2 }
+                AESV3 { set m AESV3 }
+                None  { set m Identity }
+                default {
+                    throw {PDF4TCL ENCRYPTED} "\"$file\": crypt filter\
+                            method /$cfm is not supported"
+                }
+            }
+            dict set c $kind $m
+            if {$m eq "RC4" && [regexp {/Length\s+(\d+)} $cfd -> l]} {
+                # Bits oder Bytes -- beides kommt vor.
+                set n [expr {$l > 32 ? $l / 8 : $l}]
+            }
+        }
+        ##nagelfar ignore Found constant
+        dict set c n $n
+    } else {
+        throw {PDF4TCL ENCRYPTED} "\"$file\": encryption /V $V is not supported"
+    }
+
+    if {$R <= 4} {
+        # Erst als Benutzer-, dann als Eigentuemerkennwort.
+        set pw [encoding convertto iso8859-1 $password]
+        set key [CryptAlg2 $c $pw]
+        if {![CryptCheckU $c $key]} {
+            set key [CryptAlg2 $c [CryptOwnerToUser $c $pw]]
+            if {![CryptCheckU $c $key]} { set key "" }
+        }
+    } elseif {$R == 5 || $R == 6} {
+        set pw [string range [encoding convertto utf-8 $password] 0 126]
+        set U [dict get $c U]
+        set O [dict get $c O]
+        set box [CryptBoxObj]
+        set iv0 [string repeat \x00 16]
+        set key ""
+        if {[CryptHash6 $c $pw [string range $U 32 39] ""] eq [string range $U 0 31]} {
+            set ik [CryptHash6 $c $pw [string range $U 40 47] ""]
+            set key [$box call _AesCbc decrypt $ik $iv0 [CryptGetString $encText UE]]
+        } elseif {[CryptHash6 $c $pw [string range $O 32 39] [string range $U 0 47]]
+                  eq [string range $O 0 31]} {
+            set ik [CryptHash6 $c $pw [string range $O 40 47] [string range $U 0 47]]
+            set key [$box call _AesCbc decrypt $ik $iv0 [CryptGetString $encText OE]]
+        }
+    } else {
+        throw {PDF4TCL ENCRYPTED} "\"$file\": encryption /R $R is not supported"
+    }
+    if {$key eq ""} {
+        if {$password eq ""} {
+            throw {PDF4TCL PASSWORD} "\"$file\" is encrypted and needs a\
+                    password to open; pass it with -password"
+        }
+        throw {PDF4TCL PASSWORD} "wrong password for \"$file\""
+    }
+    ##nagelfar ignore Found constant
+    dict set c key $key
+    return $c
+}
+
+# Den Text eines Objekts direkt aus den Dateibytes holen (fuer /Encrypt,
+# bevor ReadPdf die Objekte ausschneidet).
+proc pdf4tcl::cat::CryptObjText {data offset} {
+    set e [string first endobj $data $offset]
+    if {$e < 0} { set e [string length $data] }
+    return [string range $data $offset $e-1]
+}
+
+# Ein Woerterbuch << ... >> ab Position i, Verschachtelung mitgezaehlt.
+proc pdf4tcl::cat::CryptBalanced {text i} {
+    set depth 0
+    set len [string length $text]
+    for {set j $i} {$j < $len} {incr j} {
+        set two [string range $text $j $j+1]
+        if {$two eq "<<"} {
+            incr depth; incr j
+        } elseif {$two eq ">>"} {
+            incr depth -1; incr j
+            if {$depth == 0} { return [string range $text $i $j] }
+        } elseif {[string index $text $j] eq "("} {
+            # Zeichenkette ueberspringen -- darin darf ">>" stehen.
+            set j [expr {[lindex [CryptParseString $text $j] 1] - 1}]
+        }
+    }
+    return [string range $text $i end]
+}
+
+# Den Kontext aufbauen, falls angefordert und noch nicht geschehen.
+# trailerTxt: Trailer- bzw. xref-Strom-Woerterbuch als Text.
+proc pdf4tcl::cat::CryptEnsure {data trailerTxt xrefs file} {
+    variable cryptWant
+    variable cryptPw
+    variable cryptCtx
+    if {!$cryptWant || $cryptCtx ne ""} return
+    if {[regexp {/Encrypt\s+(\d+)\s+\d+\s+R} $trailerTxt -> encOid]} {
+        if {[dict exists $xrefs $encOid] && [dict get $xrefs $encOid] >= 0} {
+            set encText [CryptObjText $data [dict get $xrefs $encOid]]
+        } elseif {[regexp -indices "(?:^|\[\\s>\])$encOid\\s+\\d+\\s+obj" $data m]} {
+            set encText [CryptObjText $data [lindex $m 0]]
+        } else {
+            throw {PDF4TCL ENCRYPTED} "\"$file\": /Encrypt names object\
+                    $encOid, which is not in the file"
+        }
+    } elseif {[regexp -indices {/Encrypt\s*(<<)} $trailerTxt -> m]} {
+        # Direkt im Trailer -- selten, aber erlaubt. /CF bringt zwei
+        # Ebenen << >> mit, darum gezaehlt statt per Muster.
+        set encText [CryptBalanced $trailerTxt [lindex $m 0]]
+        set encOid -1
+    } else {
+        return
+    }
+    set id0 ""
+    if {[regexp -indices {/ID\s*\[\s*([(<])} $trailerTxt -> m]} {
+        set id0 [lindex [CryptParseString $trailerTxt [lindex $m 0]] 0]
+    }
+    # Ein falsches Kennwort ist egal, wenn die Datei auch ohne aufgeht
+    # (nur Eigentuemerkennwort) -- jeder Betrachter oeffnet sie so.
+    if {[catch {CryptSetup $encText $encOid $id0 $cryptPw $file} c opts]} {
+        if {$cryptPw eq "" || [dict get $opts -errorcode] ne {PDF4TCL PASSWORD}
+                || [catch {CryptSetup $encText $encOid $id0 "" $file} c2]} {
+            # Die Meldung zum GEGEBENEN Kennwort, nicht die zum leeren.
+            throw [dict get $opts -errorcode] $c
+        }
+        set c $c2
+    }
+    set cryptCtx $c
+}
+
+# Nach dem Ausschneiden: Zeichenketten aller Objekte entschluesseln.
+# Legt unter "crypt" ab, was CryptReencrypt zum Zurueckschreiben braucht.
+proc pdf4tcl::cat::CryptDecryptObjects {pdfdata ctx fromObjStm} {
+    set orig {}
+    foreach oid [dict keys $pdfdata] {
+        if {![string is digit -strict $oid]} continue
+        if {$oid == [dict get $ctx encOid]} continue
+        if {$oid in $fromObjStm} continue
+        ##nagelfar ignore Found constant
+        set full [dict get $pdfdata $oid full]
+        dict set orig $oid $full
+        lassign [CryptWalk $full {return -level 0}] head rest
+        if {[regexp {/Type\s*/(XRef|ObjStm)\M} $head]} continue
+        set gen 0
+        regexp {\A\s*\d+\s+(\d+)\s+obj} $full -> gen
+        lassign [CryptWalk $full [list ::pdf4tcl::cat::CryptStrDec $ctx $oid $gen]] \
+                head rest
+        ##nagelfar ignore Found constant
+        dict set pdfdata $oid full $head[string range $full $rest end]
+    }
+    set dec {}
+    dict for {oid full} $orig {
+        ##nagelfar ignore Found constant
+        dict set dec $oid [dict get $pdfdata $oid full]
+    }
+    ##nagelfar ignore #2 Found constant
+    dict set pdfdata crypt [dict create ctx $ctx orig $orig dec $dec \
+            fromObjStm $fromObjStm]
+    return $pdfdata
+}
+
+proc pdf4tcl::cat::CryptStrDec {ctx oid gen bytes} {
+    return [CryptLiteral [CryptData $ctx str $oid $gen $bytes decrypt]]
+}
+
+proc pdf4tcl::cat::CryptStrEnc {ctx oid gen bytes} {
+    binary scan [CryptData $ctx str $oid $gen $bytes encrypt] H* hex
+    return <$hex>
+}
+
+# Den Strominhalt eines Objekttexts ab dem Schluesselwort "stream".
+# Rueckgabe: {Inhalt Text-dahinter}
+proc pdf4tcl::cat::CryptStreamPart {head tail pdf} {
+    # tail beginnt mit "stream"
+    set b 6
+    if {[string index $tail $b] eq "\r"} { incr b }
+    if {[string index $tail $b] eq "\n"} { incr b }
+    set len ""
+    if {[regexp {/Length\s+(\d+)\s+(\d+)\s+R} $head -> lo]} {
+        if {[dict exists $pdf $lo full]} {
+            regexp {obj\s+(\d+)\s+endobj} [dict get $pdf $lo full] -> len
+        }
+    } else {
+        regexp {/Length\s+(\d+)} $head -> len
+    }
+    if {$len eq ""} {
+        set e [string last endstream $tail]
+        set data [string range $tail $b $e-1]
+        regsub {\r?\n\Z} $data "" data
+        return [list $data [string range $tail $e end]]
+    }
+    set data [string range $tail $b [expr {$b + $len - 1}]]
+    return [list $data [string range $tail [expr {$b + $len}] end]]
+}
+
+# Vor WritePdf: was fillForms geaendert hat, wieder verschluesseln.
+proc pdf4tcl::cat::CryptReencrypt {pdf} {
+    set cr [dict get $pdf crypt]
+    set ctx  [dict get $cr ctx]
+    set orig [dict get $cr orig]
+    set dec  [dict get $cr dec]
+    set fromObjStm [dict get $cr fromObjStm]
+    foreach oid [dict keys $pdf] {
+        if {![string is digit -strict $oid]} continue
+        if {$oid == [dict get $ctx encOid]} continue
+        ##nagelfar ignore Found constant
+        set full [dict get $pdf $oid full]
+        if {[dict exists $dec $oid] && $full eq [dict get $dec $oid]} {
+            # Unberuehrt: so zurueck, wie es kam.
+            ##nagelfar ignore Found constant
+            dict set pdf $oid full [dict get $orig $oid]
+            continue
+        }
+        lassign [CryptWalk $full {return -level 0}] head rest
+        if {[regexp {/Type\s*/(XRef|ObjStm)\M} $head]} continue
+        set gen 0
+        regexp {\A\s*\d+\s+(\d+)\s+obj} $full -> gen
+        lassign [CryptWalk $full [list ::pdf4tcl::cat::CryptStrEnc $ctx $oid $gen]] \
+                head rest
+        set tail [string range $full $rest end]
+        if {[string match stream* $tail]} {
+            lassign [CryptStreamPart $head $tail $pdf] data after
+            set alt ""
+            if {[dict exists $orig $oid]} {
+                set o [dict get $orig $oid]
+                lassign [CryptWalk $o {return -level 0}] oh orest
+                set otail [string range $o $orest end]
+                if {[string match stream* $otail]} {
+                    set alt [lindex [CryptStreamPart $oh $otail $pdf] 0]
+                }
+            }
+            if {$alt eq "" || $data ne $alt} {
+                set data [CryptData $ctx stm $oid $gen $data encrypt]
+                set n [string length $data]
+                if {![regsub {/Length\s+\d+\s+\d+\s+R} $head "/Length $n" head]} {
+                    regsub {/Length\s+\d+} $head "/Length $n" head
+                }
+            }
+            set tail "stream\n$data\n[string trimleft $after]"
+        }
+        ##nagelfar ignore Found constant
+        dict set pdf $oid full $head$tail
+    }
+    dict unset pdf crypt
+    return $pdf
 }

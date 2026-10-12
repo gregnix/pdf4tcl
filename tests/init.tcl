@@ -57,7 +57,7 @@ if {[file exists $tmp/pdf4tcl.tcl_i]} {
 if {[package provide pdf4tcl] eq ""} {
     apply {{dir} { source [file join $dir pkgIndex.tcl] }} $tmp
 }
-package require pdf4tcl 0.9.4.70
+package require pdf4tcl 0.9.4.71
 
 # WELCHES Paket wurde geladen?
 #

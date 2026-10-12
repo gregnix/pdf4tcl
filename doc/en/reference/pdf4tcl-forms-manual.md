@@ -2,23 +2,23 @@
 
 ## Introduction
 
-pdf4tcl 0.9.4.1 extends the original `addForm` method with a complete set of
-interactive form field types suitable for building professional PDF forms.
-This manual covers all eight field types, their options, and practical usage
-patterns.
+pdf4tcl extends the original `addForm` method with a complete set of
+interactive form field types suitable for building professional PDF forms
+(since 0.9.4.1). This manual covers all eight field types, their options,
+practical usage patterns, and reading and filling existing forms.
 
 ### Supported Field Types
 
-| Type | PDF Field Type | Purpose |
-|------|---------------|---------|
-| `text` | `/FT /Tx` | Single-line or multi-line text input |
-| `password` | `/FT /Tx` | Masked text input (bullets) |
-| `checkbox` | `/FT /Btn` | Toggle on/off (alias for `checkbutton`) |
-| `combobox` | `/FT /Ch` | Dropdown selection, optionally editable |
-| `listbox` | `/FT /Ch` | Scrollable list, optional multi-select |
-| `radiobutton` | `/FT /Btn` | Mutually exclusive choice within a group |
-| `pushbutton` | `/FT /Btn` | Clickable button with action |
-| `signature` | `/FT /Sig` | Digital signature placeholder |
+| Type | Purpose |
+|------|---------|
+| `text` | Single-line or multi-line text input |
+| `password` | Masked text input (bullets) |
+| `checkbox` | Toggle on/off (alias for `checkbutton`) |
+| `combobox` | Dropdown selection, optionally editable |
+| `listbox` | Scrollable list, optional multi-select |
+| `radiobutton` | Mutually exclusive choice within a group |
+| `pushbutton` | Clickable button with action |
+| `signature` | Digital signature placeholder |
 
 ### Basic Syntax
 
@@ -599,8 +599,9 @@ placeholders stay visible.
 
 **Where the flag IS set (0.9.4.66):**
 
-- `addForm -calculate` sets it. A calculated field needs the viewer to
-  run the calculation and redraw, and there is no way around that.
+- `addForm -calculate`, `-format` and `-js` set it. The viewer computes
+  or formats the value in JavaScript and has to redraw the field; there
+  is no way around that.
 - `fillForms` sets it **only where it did not rebuild the appearance
   itself**: password fields, choice fields, and comb fields without
   `/MaxLen`. There the field carries the new value and shows the old
@@ -612,10 +613,10 @@ filling **one** text field made an **untouched** check box lose its
 border, because PDFium rebuilds every Off appearance under the flag and
 returns an empty one. The stream sat unchanged in the file.
 
-**What this means for you:** a document with a calculated field looks
-different in PDFium-based viewers (Chrome, and anything built on
-tclpdfium) than one without -- unticked boxes and empty text fields lose
-their borders there. That is the viewer's doing under the flag, not the
+**What this means for you:** a document with a calculated, formatted
+or scripted field looks different in PDFium-based viewers (Chrome, and
+anything built on tclpdfium) than one without -- unticked boxes and
+empty text fields lose their borders there. That is the viewer's doing under the flag, not the
 file's.
 
 ### PDF Viewer Compatibility
@@ -665,6 +666,17 @@ present, so a caller need not branch on the field type.
 The field name is composed from the whole chain since 0.9.4.64:
 `person.city`, not `city`. A field with several widgets is reported once,
 with `widgets` saying how many.
+
+Names, values, tooltips and options written as hex strings are read
+since 0.9.4.71. Acrobat writes a name with an umlaut that way; such a
+field used to be missing from the result.
+
+To fill a form and write it out again:
+
+```tcl
+pdf4tcl::fillForms empty.pdf filled.pdf {name "Meier" agreed /Yes}
+pdf4tcl::exportForms filled.pdf data.xfdf -format xfdf
+```
 
 ---
 
@@ -809,6 +821,25 @@ $p destroy
 set p [pdf4tcl::new %AUTO% -paper a4 \
     -userpassword "secret" -encversion 5]
 ```
+
+### Reading and filling encrypted forms (0.9.4.71)
+
+`getForms`, `fillForms` and `exportForms` take `-password`, the user or
+the owner password:
+
+```tcl
+set f [pdf4tcl::getForms form-enc.pdf -password secret]
+pdf4tcl::fillForms form-enc.pdf filled.pdf {f_name "Meier"} -password secret
+pdf4tcl::exportForms filled.pdf data.xfdf -format xfdf -password secret
+```
+
+- Without `-password` the empty password is tried, as every viewer does.
+  A form with only an owner password opens that way.
+- A missing or wrong user password raises `PDF4TCL PASSWORD`; until
+  0.9.4.70 the result was silently empty.
+- `filled.pdf` is encrypted like the input and needs the same password.
+- RC4 and AES-128/256 are read, with or without object streams. AES-256
+  takes a few seconds per password check in pure Tcl.
 
 ## Calculated Fields (0.9.4.32)
 

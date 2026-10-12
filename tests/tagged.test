@@ -204,7 +204,9 @@ test tagged-3.4 {grouping elements carry no marked content of their own} -body {
         $p tagEnd
     }]
     # Only Lbl and LBody paint, so exactly two sequences; L and LI get none.
-    list [countOf $data "BDC"] [countOf $data "EMC"] \
+    # ">> BDC", not "BDC": the trailer /ID is hex and can contain BDC
+    # (0.9.4.71: /ID [<70B708EBDC...>] counted twice).
+    list [countOf $data ">> BDC"] [countOf $data "EMC"] \
             [contains $data "/L <</MCID"] [contains $data "/LI <</MCID"] \
             [contains $data "/Lbl <</MCID 0>> BDC"] \
             [contains $data "/LBody <</MCID 1>> BDC"]
@@ -270,8 +272,9 @@ test tagged-4.3 {an element open across a page break is closed and reopened} -bo
         $p text "second part" -x 50 -y 700
         $p tagEnd
     }]
-    # One BDC and one EMC on each of the two pages
-    list [countOf $data "BDC"] [countOf $data "EMC"] \
+    # One BDC and one EMC on each of the two pages. ">> BDC" as in
+    # tagged-3.4: the hex /ID in the trailer can contain BDC.
+    list [countOf $data ">> BDC"] [countOf $data "EMC"] \
             [contains $data "/StructParents 0"] [contains $data "/StructParents 1"]
 } -result {2 2 1 1}
 

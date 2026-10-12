@@ -1,0 +1,174 @@
+# Formularfelder mit Hex-Zeichenketten                              -*-tcl-*-
+#
+# Die Norm kennt zwei Schreibweisen fuer eine Zeichenkette, literal (...)
+# und hex <...> (ISO 32000-1 7.3.4). Bis 0.9.4.70 lasen FormFieldTree,
+# FormReadOpt und die Namenspruefung von catPdf nur die erste. Fremde
+# Erzeuger schreiben die zweite: Acrobat einen Namen mit Umlaut als
+# <FEFF...> (UTF-16BE), OpenOffice ein leeres /V als <FEFF>.
+#
+# Ein Feld mit /T <...> fiel durch, still: getForms gab ein dict ohne
+# es, fillForms meldete "no such field". Derselbe Fehler wie bei den
+# verschluesselten Formularen (form-crypt.test), nur ohne Verschluesselung.
+#
+# Die Datei wird hier gebaut: ein Formular von pdf4tcl, dessen
+# Zeichenketten in den Feldern danach in Hex umgeschrieben werden. Was
+# getestet wird, ist das Lesen -- und was gelesen wird, steht unten
+# Zeichen fuer Zeichen.
+
+source [file join [file dirname [file join [pwd] [info script]]] init.tcl]
+
+# Bytes als Hex-Zeichenkette
+proc hexStr {bytes} {
+    return <[string toupper [binary encode hex $bytes]]>
+}
+# Text als UTF-16BE mit BOM -- so schreibt Acrobat Nicht-ASCII
+proc utf16Str {text} {
+    set out FEFF
+    foreach ch [split $text ""] {
+        append out [format %04X [scan $ch %c]]
+    }
+    return <$out>
+}
+
+proc readBytes {f} {
+    set ch [open $f rb]
+    set d [read $ch]
+    close $ch
+    return $d
+}
+
+proc hexForm {name} {
+    set klar [makeFile {} $name-klar.pdf]
+    set p [pdf4tcl::new %AUTO% -paper a4]
+    $p startPage
+    $p setFont 12 Helvetica
+    $p addForm text 50 50 200 20 -id name -init "Meier" -tooltip "Ihr Name"
+    $p addForm combobox 50 150 120 20 -id farbe \
+            -options {Rot Gruen Blau} -init Rot
+    $p write -file $klar
+    $p destroy
+
+    set da "/Helvetica 12 Tf 0 g"
+    set map [list \
+        "/T (name)"            "/T [utf16Str Stra\u00dfe]" \
+        "/V (Meier)"           "/V [utf16Str M\u00fcller]" \
+        "/TU (Ihr Name)"       "/TU [hexStr {Ihr Name}]" \
+        "/DA ($da)"            "/DA [hexStr $da]" \
+        "/T (farbe)"           "/T [hexStr farbe]" \
+        "/V (Rot)"             "/V [hexStr Rot]" \
+        "/Opt \[(Rot) (Gruen) (Blau) \]" \
+            "/Opt \[[hexStr Rot] [hexStr Gruen] [hexStr Blau]\]" \
+    ]
+    set d [pdf4tcl::cat::ReadPdf $klar]
+    set n 0
+    foreach o [dict keys $d] {
+        if {![string is digit -strict $o]} continue
+        set alt [dict get $d $o full]
+        set neu [string map $map $alt]
+        if {$neu ne $alt} {
+            dict set d $o full $neu
+            incr n
+        }
+    }
+    set f [makeFile {} $name.pdf]
+    pdf4tcl::cat::WritePdf $f $d
+    removeFile $name-klar.pdf
+    # Beide Felder umgeschrieben, sonst prueft der Rest nichts.
+    if {$n != 2} { error "hexForm: $n Objekte umgeschrieben, erwartet 2" }
+    return $f
+}
+
+set ::hexForm [hexForm hexform]
+
+test formhex-0.1 {die Vorlage steht wirklich in Hex} -body {
+    set d [readBytes $::hexForm]
+    list [string first "/T (" $d] [string first "/V (" $d] \
+         [string first "/DA (" $d] [string first "/Opt \[(" $d] \
+         [regexp {/T <FEFF00530074} $d]
+} -result {-1 -1 -1 -1 1}
+
+# ---------------------------------------------------------------
+# 1. getForms
+# ---------------------------------------------------------------
+
+test formhex-1.1 {beide Felder werden gefunden, der Name dekodiert} -body {
+    lsort [dict keys [pdf4tcl::getForms $::hexForm]]
+} -result [list Stra\u00dfe farbe]
+
+test formhex-1.2 {Werte aus /V <...>} -body {
+    set r [pdf4tcl::getForms $::hexForm]
+    list [dict get $r Stra\u00dfe value] [dict get $r farbe value]
+} -result [list M\u00fcller Rot]
+
+test formhex-1.3 {Beschreibung aus /TU <...>} -body {
+    dict get [pdf4tcl::getForms $::hexForm] Stra\u00dfe description
+} -result {Ihr Name}
+
+test formhex-1.4 {Optionen aus /Opt [<...> ...]} -body {
+    dict get [pdf4tcl::getForms $::hexForm] farbe options
+} -result {{Rot Rot} {Gruen Gruen} {Blau Blau}}
+
+test formhex-1.5 {Typen kommen weiter richtig} -body {
+    set r [pdf4tcl::getForms $::hexForm]
+    list [dict get $r Stra\u00dfe type] [dict get $r farbe type]
+} -result {/Tx /Ch}
+
+# ---------------------------------------------------------------
+# 2. fillForms
+# ---------------------------------------------------------------
+
+test formhex-2.1 {fuellen unter dem dekodierten Namen} -body {
+    set aus [makeFile {} hexform-voll.pdf]
+    set n [pdf4tcl::fillForms $::hexForm $aus \
+            [dict create Stra\u00dfe Schmidt farbe Blau]]
+    set r [pdf4tcl::getForms $aus]
+    list $n [dict get $r Stra\u00dfe value] [dict get $r farbe value]
+} -cleanup {
+    removeFile hexform-voll.pdf
+} -result {2 Schmidt Blau}
+
+test formhex-2.2 {der Strom wird gebaut -- /DA <...> wird gelesen} -body {
+    # Mit /DA nur als "(...)" blieb der Strom alt und /NeedAppearances
+    # wurde gesetzt; der neue Wert stand dann nur in /V.
+    set aus [makeFile {} hexform-voll.pdf]
+    pdf4tcl::fillForms $::hexForm $aus [dict create Stra\u00dfe Schmidt]
+    set d [readBytes $aus]
+    list [string match "*(Schmidt) Tj*" $d] \
+         [string match "*/Helvetica 12 Tf*(Schmidt)*" $d] \
+         [regexp {/NeedAppearances} $d]
+} -cleanup {
+    removeFile hexform-voll.pdf
+} -result {1 1 0}
+
+test formhex-2.3 {das alte /V <...> wird ersetzt, nicht verdoppelt} -body {
+    set aus [makeFile {} hexform-voll.pdf]
+    pdf4tcl::fillForms $::hexForm $aus [dict create Stra\u00dfe Schmidt]
+    # [^>]*? und nicht [^>]*: der erste Quantor bestimmt in Tcl, ob der
+    # ganze Ausdruck gierig ist, und .*? liefe sonst ins naechste Feld.
+    set feld [lindex [regexp -inline {/T <FEFF00530074[^>]*?>.*?endobj} \
+            [readBytes $aus]] 0]
+    regexp -all {/V\s} $feld
+} -cleanup {
+    removeFile hexform-voll.pdf
+} -result 1
+
+# ---------------------------------------------------------------
+# 3. catPdf: die Warnung bei gleichen Namen
+# ---------------------------------------------------------------
+
+test formhex-3.1 {catPdf erkennt gleiche Namen auch in Hex} -body {
+    set out [makeFile {} hexform-cat.pdf]
+    set ::pdf4tcl::warnings {}
+    ::pdf4tcl::catPdf $::hexForm $::hexForm $out
+    set hit 0
+    foreach w $::pdf4tcl::warnings {
+        if {[string match "*form field name*Stra\u00dfe*" $w]} { set hit 1 }
+    }
+    return $hit
+} -cleanup {
+    removeFile hexform-cat.pdf
+} -result 1
+
+removeFile hexform.pdf
+
+::tcltest::cleanupTests

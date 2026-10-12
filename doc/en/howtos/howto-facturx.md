@@ -45,7 +45,7 @@ p1 text "Human-readable invoice..." -x 50 -y 50
 p1 endPage
 
 set xml [buildYourCII]   ;# your EN 16931 XML -- not validated by pdf4tcl
-p1 facturx -contents $xml \
+p1 facturx -contents [encoding convertto utf-8 $xml] \
         -filename "factur-x.xml" \
         -conformance "EN 16931" \
         -documenttype "INVOICE" \
@@ -54,6 +54,14 @@ p1 facturx -contents $xml \
 p1 write -file invoice.pdf
 p1 destroy
 ```
+
+**`-contents` takes bytes, not text.** The characters of the string go
+into the file unchanged, so U+00FC (u with umlaut) in a Tcl string
+becomes the single byte 0xFC -- and an XML that declares
+`encoding="UTF-8"` is then not UTF-8. Encode it first, as above. With
+`-file` the file is read in binary mode and nothing needs doing.
+ASCII-only data hides the problem: the first customer with an umlaut in
+the name shows it.
 
 For a plain embedded file without Factur-X XMP:
 

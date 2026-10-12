@@ -165,7 +165,7 @@ proc ::pdfcheck::native::checkInfoXmp {file} {
     foreach schluessel {Title Author Subject Keywords} {
         if {[regexp "/$schluessel\\s*\\(((?:\[^\\\\()\]|\\\\.)*)\\)" \
                 $infoBody -> wert]} {
-            set info($schluessel) [unquote $wert]
+            set info($schluessel) [textString [unquote $wert]]
         }
     }
     if {![array size info]} {
@@ -177,18 +177,25 @@ proc ::pdfcheck::native::checkInfoXmp {file} {
     # alternatives, dc:creator is an ordered list -- in each case the
     # FIRST entry is the one that maps to /Info
     # (XMP Specification Part 3, clause 2.2).
+    #
+    # Both sides are compared as TEXT. The file is read as bytes, so /Info
+    # comes out in PDFDocEncoding or UTF-16BE and the XMP in UTF-8 with
+    # XML escapes -- compared raw, every umlaut was a mismatch. Measured
+    # on demo/out/demo-erechnung.pdf, 05.10.2026: /Author "Muster
+    # Buerotechnik" with u-umlaut, byte 0xFC in /Info and C3 BC in the
+    # XMP, reported as a contradiction although both say the same.
     array set xmp {}
     if {[regexp {<dc:title>.*?<rdf:li[^>]*>(.*?)</rdf:li>} $data -> v]} {
-        set xmp(Title) $v
+        set xmp(Title) [xmlText $v]
     }
     if {[regexp {<dc:creator>.*?<rdf:li[^>]*>(.*?)</rdf:li>} $data -> v]} {
-        set xmp(Author) $v
+        set xmp(Author) [xmlText $v]
     }
     if {[regexp {<dc:description>.*?<rdf:li[^>]*>(.*?)</rdf:li>} $data -> v]} {
-        set xmp(Subject) $v
+        set xmp(Subject) [xmlText $v]
     }
     if {[regexp {<pdf:Keywords>(.*?)</pdf:Keywords>} $data -> v]} {
-        set xmp(Keywords) $v
+        set xmp(Keywords) [xmlText $v]
     }
 
     set abweichung {}
@@ -229,6 +236,57 @@ proc ::pdfcheck::native::checkInfoXmp {file} {
         return [result SKIP "Info vs XMP" "nothing comparable"]
     }
     return [result PASS "Info vs XMP" "$verglichen entry/entries agree"]
+}
+
+# A PDF text string (ISO 32000-1 clause 7.9.2.2) as Tcl text: UTF-16BE
+# behind the BOM FE FF, UTF-8 behind EF BB BF (PDF 2.0), otherwise
+# PDFDocEncoding. PDFDocEncoding is Latin-1 except for 0x18-0x1F and
+# 0x80-0xA0 (Annex D); those are mapped here.
+proc ::pdfcheck::native::textString {b} {
+    if {[string range $b 0 1] eq "\xFE\xFF"} {
+        binary scan [string range $b 2 end] Su* codes
+        set aus ""
+        foreach c $codes { append aus [format %c $c] }
+        return $aus
+    }
+    if {[string range $b 0 2] eq "\xEF\xBB\xBF"} {
+        return [encoding convertfrom utf-8 [string range $b 3 end]]
+    }
+    variable pdfDoc
+    if {![info exists pdfDoc]} {
+        set pdfDoc {}
+        foreach {byte uni} {
+            0x18 0x02D8 0x19 0x02C7 0x1A 0x02C6 0x1B 0x02D9
+            0x1C 0x02DD 0x1D 0x02DB 0x1E 0x02DA 0x1F 0x02DC
+            0x80 0x2022 0x81 0x2020 0x82 0x2021 0x83 0x2026
+            0x84 0x2014 0x85 0x2013 0x86 0x0192 0x87 0x2044
+            0x88 0x2039 0x89 0x203A 0x8A 0x2212 0x8B 0x2030
+            0x8C 0x201E 0x8D 0x201C 0x8E 0x201D 0x8F 0x2018
+            0x90 0x2019 0x91 0x201A 0x92 0x2122 0x93 0xFB01
+            0x94 0xFB02 0x95 0x0141 0x96 0x0152 0x97 0x0160
+            0x98 0x0178 0x99 0x017D 0x9A 0x0131 0x9B 0x0142
+            0x9C 0x0153 0x9D 0x0161 0x9E 0x017E 0xA0 0x20AC
+        } {
+            lappend pdfDoc [format %c $byte] [format %c $uni]
+        }
+    }
+    return [string map $pdfDoc $b]
+}
+
+# The content of an XMP element as text: UTF-8 decoded, the five XML
+# entities and numeric character references resolved.
+proc ::pdfcheck::native::xmlText {b} {
+    set t [encoding convertfrom utf-8 $b]
+    set t [string map {&lt; < &gt; > &quot; \" &apos; ' } $t]
+    while {[regexp {&#(x[0-9A-Fa-f]+|[0-9]+);} $t m n]} {
+        if {[string index $n 0] eq "x"} {
+            set c [scan [string range $n 1 end] %x]
+        } else {
+            set c [scan $n %d]
+        }
+        set t [string map [list $m [format %c $c]] $t]
+    }
+    return [string map {&amp; &} $t]
 }
 
 # Unpack a literal PDF string. [string trim $v "()"] is not an unpacker:

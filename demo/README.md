@@ -27,7 +27,9 @@ Output goes to `demo/out/`. The directory is rebuilt, not added to.
 | [`demo-forms-aes128.tcl`](demo-forms-aes128.tcl) | Formular mit AES-128 |
 | [`demo-forms-aes256.tcl`](demo-forms-aes256.tcl) | Formular mit AES-256 |
 | [`demo-forms-calc.tcl`](demo-forms-calc.tcl) | Formular + Summenberechnung (-calculate 0.9.4.32) |
+| [`demo-forms-crypt.tcl`](demo-forms-crypt.tcl) | Verschluesselte Formulare lesen, fuellen, exportieren (`-password`, 0.9.4.71) |
 | [`demo-forms-enc.tcl`](demo-forms-enc.tcl) | Formular verschluesselt |
+| [`demo-forms-hex.tcl`](demo-forms-hex.tcl) | Formularfelder mit Hex-Zeichenketten, wie Acrobat sie schreibt (0.9.4.71) |
 | [`demo-forms.tcl`](demo-forms.tcl) | Bestellformular ohne Verschluesselung |
 | [`demo-gradients.tcl`](demo-gradients.tcl) | Verlaeufe und Blendmodi |
 | [`demo-interlaced-png.tcl`](demo-interlaced-png.tcl) | Interlaced PNG (Adam7, 0.9.4.28) |

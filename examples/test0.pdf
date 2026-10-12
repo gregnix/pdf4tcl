@@ -47,10 +47,10 @@ endobj
 
 8 0 obj
 <<
-/Producer (gregnix pdf4tcl 0.9.4.70)
-/Creator (pdf4tcl 0.9.4.70)
+/Producer (gregnix pdf4tcl 0.9.4.71)
+/Creator (pdf4tcl 0.9.4.71)
 /Keywords (./pdf4tcl/examples/test0.tcl)
-/ModDate (D:20261004003219+02)
+/ModDate (D:20261012010948+02)
 /Title (pdf4tcl test0.tcl)
 >>
 endobj
@@ -71,11 +71,11 @@ stream
    <dc:subject><rdf:Bag>
     <rdf:li>./pdf4tcl/examples/test0.tcl</rdf:li>
    </rdf:Bag></dc:subject>
-   <xmp:CreatorTool>pdf4tcl 0.9.4.70</xmp:CreatorTool>
-   <xmp:ModifyDate>2026-10-04T00:32:19+02:00</xmp:ModifyDate>
-   <xmp:MetadataDate>2026-10-04T00:32:19+02:00</xmp:MetadataDate>
+   <xmp:CreatorTool>pdf4tcl 0.9.4.71</xmp:CreatorTool>
+   <xmp:ModifyDate>2026-10-12T01:09:48+02:00</xmp:ModifyDate>
+   <xmp:MetadataDate>2026-10-12T01:09:48+02:00</xmp:MetadataDate>
    <pdf:Keywords>./pdf4tcl/examples/test0.tcl</pdf:Keywords>
-   <pdf:Producer>gregnix pdf4tcl 0.9.4.70</pdf:Producer>
+   <pdf:Producer>gregnix pdf4tcl 0.9.4.71</pdf:Producer>
   </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>
@@ -99,7 +99,7 @@ trailer
 /Size 9
 /Root 1 0 R
 /Info 8 0 R
-/ID [<7481F7719E5FAEE87481F14C9E5FA8D5> <7481F7719E5FAEE87481F14C9E5FA8D5>]
+/ID [<CAD3A0ED087F6278CAD3A6D0087F6445> <CAD3A0ED087F6278CAD3A6D0087F6445>]
 >>
 
 startxref

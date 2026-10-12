@@ -164,5 +164,44 @@ test pdfcheck-2.5 {ausgeglichenes Marked Content stoert nicht} -constraints {che
     list $rc [string match "*not balanced*" $out]
 } -result {0 0}
 
+# ---------------------------------------------------------------------------
+# Info und XMP als Text vergleichen, nicht als Bytes
+# ---------------------------------------------------------------------------
+
+test pdfcheck-3.1 {Umlaute in Info und XMP sind kein Widerspruch} -constraints checker -body {
+    # /Info steht in PDFDocEncoding (ue = 0xFC), das XMP in UTF-8
+    # (C3 BC). Bytevergleich meldete FAIL, gefunden an
+    # demo/out/demo-erechnung.pdf. Dazu ein & und ein <, die im XMP als
+    # Entity stehen.
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p metadata -author "M\u00fcller & S\u00f6hne" -title "Gr\u00fc\u00dfe <1>"
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 20 -y 30
+    $p write -file [file join $::tmpdir umlaut.pdf]
+    $p destroy
+    lassign [pruefe [file join $::tmpdir umlaut.pdf]] rc out
+    list [regexp {infoXmp\s+PASS} $out] [string match "*Info vs XMP*FAIL*" $out]
+} -result {1 0}
+
+test pdfcheck-3.2 {ein echter Widerspruch wird weiter gefunden} -constraints checker -body {
+    # Gegenprobe zu 3.1: Info von Hand umschreiben, gleiche Laenge,
+    # damit die xref stimmt. Das XMP sagt weiter "Mueller".
+    set p [::pdf4tcl::new %AUTO% -compress 0]
+    $p metadata -author "M\u00fcller"
+    $p startPage
+    $p setFont 12 Helvetica
+    $p text "x" -x 20 -y 30
+    set data [$p get]
+    $p destroy
+    set data [string map [list "/Author (M\xfcller)" "/Author (Maller)"] $data]
+    set f [file join $::tmpdir widerspruch.pdf]
+    set fh [open $f wb]
+    puts -nonewline $fh $data
+    close $fh
+    lassign [pruefe $f] rc out
+    regexp {infoXmp\s+FAIL} $out
+} -result 1
+
 file delete -force $::tmpdir
 cleanupTests

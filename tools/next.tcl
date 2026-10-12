@@ -3,9 +3,12 @@
 # VON HAND PFLEGEN. bump.tcl liest diese Datei und laesst sie stehen --
 # welche Nummer als naechste kommt, entscheidet der Autor.
 #
-# Stand 03.10.2026: 0.9.4.70 liegt im Arbeitsbaum, noch ohne Commit und
-# Tag. Ein Lauf mit dieser Nummer ist ein Reparaturlauf (zieht pdf4tcl.n/
-# .html usw. nach). Danach auf .71 setzen.
+# Stand 09.10.2026: 0.9.4.71 -- getForms/fillForms/exportForms lesen
+# verschluesselte Formulare (-password), pdfcheck-native vergleicht /Info
+# und XMP als Text, facturx -contents erwartet Bytes (Doku und Beispiele).
+# Ein zweiter Lauf mit dieser Nummer ist ein Reparaturlauf.
+#
+# Frueher: Stand 03.10.2026, 0.9.4.70.
 #
 # Frueher: Stand nach 0.9.4.67 (14.09.2026).
 #
@@ -20,5 +23,5 @@
 # Anmerkungen und Dateianhaenge unter Verschluesselung sind NICHT mehr
 # offen -- encrypt-20.1 bis 20.5 pruefen sie seit 0.9.4.64, und
 # encrypt-all-1.0 deckt sie seit .67 ohne Kenntnis der Eigenschaft ab.
-set NEXT_VERSION 0.9.4.70
-set NEXT_MSG "0.9.4.70: layer -print 0 and PDF/A layers fixed, catalog strings encrypted"
+set NEXT_VERSION 0.9.4.71
+set NEXT_MSG "encrypted forms: getForms, fillForms, exportForms -password; pdfcheck compares /Info and XMP as text"
